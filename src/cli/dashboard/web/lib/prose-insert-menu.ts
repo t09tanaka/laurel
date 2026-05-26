@@ -149,6 +149,9 @@ const MENU_ITEMS: MenuItemSpec[] = [
     inputView: (options) => ({
       placeholder: 'Paste or type a URL',
       buttonLabel: 'Embed',
+      // Mirrors validateBookmarkUrl in prose-insert-menu-logic.ts so the
+      // plugin stays self-contained for tests / external embedders. Keep
+      // the two in sync if either side's messages change.
       validate(value) {
         const trimmed = value.trim();
         if (!trimmed) return { ok: false, error: 'Enter a URL' };
@@ -303,6 +306,25 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
       fileInput.hidden = true;
       root.appendChild(fileInput);
 
+      const originalTriggerTitle = trigger.title;
+      let pendingTitleResetTimer: number | null = null;
+
+      function clearPendingTitleReset(): void {
+        if (pendingTitleResetTimer !== null) {
+          window.clearTimeout(pendingTitleResetTimer);
+          pendingTitleResetTimer = null;
+        }
+      }
+
+      function flashTriggerError(message: string): void {
+        clearPendingTitleReset();
+        trigger.title = message;
+        pendingTitleResetTimer = window.setTimeout(() => {
+          pendingTitleResetTimer = null;
+          trigger.title = originalTriggerTitle;
+        }, 4000);
+      }
+
       let currentTarget: EmptyParagraphTarget | null = null;
       let popoverOpen = false;
       let inputViewOpenKey: string | null = null;
@@ -358,11 +380,7 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
         closePopover();
         view.focus();
         if (result.error) {
-          const previous = trigger.title;
-          trigger.title = result.error;
-          setTimeout(() => {
-            if (trigger.title === result.error) trigger.title = previous;
-          }, 4000);
+          flashTriggerError(result.error);
         }
       }
 
@@ -474,10 +492,10 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
 
       function onKeyDown(event: KeyboardEvent) {
         if (event.key === 'Escape' && popoverOpen) {
-          // If the input view is open, Escape closes only the input
-          // view rather than the whole popover — the inputLabel
-          // keydown handler fires first via capture, but we still
-          // need to guard here for the popover-level Escape.
+          // `onKeyDown` runs in the document capture phase first. When the
+          // input view is open we early-return so the popover-wide Escape
+          // doesn't close it; the input field's own bubble-phase keydown
+          // handler then closes only the input view.
           if (inputViewOpenKey !== null) return;
           event.stopPropagation();
           closePopover();
@@ -541,6 +559,7 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
           update(currentView);
         },
         destroy() {
+          clearPendingTitleReset();
           document.removeEventListener('mousedown', onDocumentMousedown);
           document.removeEventListener('keydown', onKeyDown, true);
           root.remove();
