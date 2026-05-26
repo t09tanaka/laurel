@@ -21,9 +21,13 @@ import type { Node as ProseNode, Schema } from 'prosemirror-model';
 import { Plugin } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import {
+  type ComponentEntry,
   type EmptyParagraphTarget,
   altFromFilenameDefault,
   build3x3Table,
+  buildComponentParagraph,
+  buildComponentSubmenuEntries,
+  buildInsertComponentTransaction,
   findEmptyParagraph,
   nodeBy,
 } from './prose-insert-menu-logic.ts';
@@ -44,11 +48,15 @@ export interface InsertMenuOptions {
   // the runtime customise the source filename → alt translation.
   altFromFilename?: (name: string) => string;
   // Optional OGP fetcher. When provided, the Bookmark menu item is
-  // enabled. T11 wires the real implementation; the option keeps this
-  // plugin decoupled from api.ts.
+  // enabled. The plugin stays decoupled from api.ts via this callback.
   fetchOgp?: (
     url: string,
   ) => Promise<{ ok: true; meta: Record<string, string> } | { ok: false; error: string }>;
+  // Getter (not a static list) so the submenu picks up components
+  // registered after the editor mounted without forcing a remount.
+  // Returns the live set of `{slug}` snippets the post can embed; an
+  // empty result hides the Components menu item entirely.
+  getComponents?: () => ComponentEntry[];
 }
 
 // Replace the empty paragraph that holds the caret with the given
@@ -82,6 +90,30 @@ function insertImageInline(
   view.dispatch(tr);
 }
 
+// Replace the empty paragraph with a paragraph containing `{slug}`
+// and dispatch the resulting transaction. The result reads identically
+// to a hand-typed `{callout}` line, so the server-side shortcode
+// expander treats both paths the same.
+function insertComponentParagraph(
+  view: EditorView,
+  schema: Schema,
+  target: EmptyParagraphTarget,
+  slug: string,
+): void {
+  const inserted = buildComponentParagraph(schema, slug);
+  if (!inserted) return;
+  const tr = buildInsertComponentTransaction(view.state, target, inserted);
+  if (!tr) return;
+  view.dispatch(tr.scrollIntoView());
+}
+
+interface SubmenuEntry {
+  key: string;
+  label: string;
+  hint?: string;
+  run: (view: EditorView, schema: Schema, target: EmptyParagraphTarget) => void;
+}
+
 interface InputViewSpec {
   placeholder: string;
   buttonLabel: string;
@@ -102,7 +134,14 @@ interface MenuItemSpec {
   // false → hidden in the popover (we don't grey-out to keep the
   // surface clean).
   enabled: (schema: Schema, options: InsertMenuOptions) => boolean;
+  // Items with a submenu defer their action to a flyout — the parent
+  // `run` is unused in that case (kept for the action-style items
+  // that fire on click). Submenu entries are rebuilt every time the
+  // popover opens so live changes (newly registered components) show
+  // up without a remount.
   submenu?: (options: InsertMenuOptions) => SubmenuEntry[];
+  // Items with an inputView swap the popover body for a URL input on
+  // click and only act once the user submits.
   inputView?: (options: InsertMenuOptions) => InputViewSpec;
   run?: (
     view: EditorView,
@@ -111,14 +150,6 @@ interface MenuItemSpec {
     options: InsertMenuOptions,
     ui: { fileInput: HTMLInputElement; close: () => void },
   ) => void;
-}
-
-// SubmenuEntry is reserved for future flyout menus (e.g. Components).
-// Declared here so the type is available even though no submenu items
-// exist yet.
-interface SubmenuEntry {
-  key: string;
-  label: string;
 }
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -227,6 +258,29 @@ const MENU_ITEMS: MenuItemSpec[] = [
       view.focus();
     },
   },
+  {
+    key: 'components',
+    label: 'Components',
+    hint: 'Embed a registered {slug} snippet',
+    // Hide when the host hasn't wired a getter at all (theme harness,
+    // tests) and when there are zero registered snippets — an empty
+    // submenu would be a dead-end click target.
+    enabled: (_schema, options) => {
+      const list = options.getComponents?.() ?? [];
+      return list.length > 0;
+    },
+    submenu(options) {
+      const list = options.getComponents?.() ?? [];
+      return buildComponentSubmenuEntries(list).map((entry) => ({
+        key: entry.slug,
+        label: entry.label,
+        hint: entry.hint,
+        run(view, schema, target) {
+          insertComponentParagraph(view, schema, target, entry.slug);
+        },
+      }));
+    },
+  },
 ];
 
 export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}): Plugin {
@@ -234,6 +288,7 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
     altFromFilename: options.altFromFilename ?? altFromFilenameDefault,
     uploadImage: options.uploadImage,
     fetchOgp: options.fetchOgp,
+    getComponents: options.getComponents,
   };
 
   return new Plugin({
@@ -268,6 +323,11 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
         btn.className = 'proseInsertItem';
         btn.dataset.key = item.key;
         btn.setAttribute('role', 'menuitem');
+        if (item.submenu) {
+          btn.dataset.hasSubmenu = 'true';
+          btn.setAttribute('aria-haspopup', 'menu');
+          btn.setAttribute('aria-expanded', 'false');
+        }
         const label = document.createElement('span');
         label.className = 'proseInsertItemLabel';
         label.textContent = item.label;
@@ -298,7 +358,19 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
       inputView.appendChild(inputError);
       popover.appendChild(inputView);
 
+      // Flyout for items with a `submenu` — single shared DOM node
+      // re-populated each time a submenu opens. Positioned fixed so
+      // we can anchor it to the parent item's bounding rect without
+      // fighting overflow on the popover.
+      const submenu = document.createElement('div');
+      submenu.className = 'proseInsertSubmenu';
+      submenu.setAttribute('role', 'menu');
+      submenu.hidden = true;
+      submenu.style.position = 'fixed';
+      root.appendChild(submenu);
+
       // ---- File input (image upload) ---------------------------------
+
       const fileInput = document.createElement('input');
       fileInput.type = 'file';
       fileInput.accept = 'image/*';
@@ -328,8 +400,100 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
       let currentTarget: EmptyParagraphTarget | null = null;
       let popoverOpen = false;
       let inputViewOpenKey: string | null = null;
+      let submenuOpenKey: string | null = null;
+      let closeSubmenuTimer: number | null = null;
+
+      function clearCloseSubmenuTimer(): void {
+        if (closeSubmenuTimer !== null) {
+          window.clearTimeout(closeSubmenuTimer);
+          closeSubmenuTimer = null;
+        }
+      }
+
+      function closeSubmenu(): void {
+        clearCloseSubmenuTimer();
+        if (submenuOpenKey === null) return;
+        submenu.hidden = true;
+        submenu.replaceChildren();
+        submenuOpenKey = null;
+        for (const btn of itemButtons) {
+          if (btn.dataset.hasSubmenu === 'true') {
+            btn.setAttribute('aria-expanded', 'false');
+            btn.dataset.submenuOpen = 'false';
+          }
+        }
+      }
+
+      function scheduleCloseSubmenu(delay = 180): void {
+        clearCloseSubmenuTimer();
+        closeSubmenuTimer = window.setTimeout(() => {
+          closeSubmenu();
+        }, delay);
+      }
+
+      function openSubmenu(
+        itemKey: string,
+        entries: SubmenuEntry[],
+        anchorBtn: HTMLButtonElement,
+      ): void {
+        clearCloseSubmenuTimer();
+        if (entries.length === 0) {
+          closeSubmenu();
+          return;
+        }
+        submenuOpenKey = itemKey;
+        for (const btn of itemButtons) {
+          if (btn.dataset.hasSubmenu === 'true') {
+            const open = btn.dataset.key === itemKey;
+            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            btn.dataset.submenuOpen = open ? 'true' : 'false';
+          }
+        }
+        submenu.replaceChildren();
+        for (const entry of entries) {
+          const sbtn = document.createElement('button');
+          sbtn.type = 'button';
+          sbtn.className = 'proseInsertSubmenuItem';
+          sbtn.dataset.key = entry.key;
+          sbtn.setAttribute('role', 'menuitem');
+          const slabel = document.createElement('span');
+          slabel.className = 'proseInsertSubmenuItemLabel';
+          slabel.textContent = entry.label;
+          sbtn.appendChild(slabel);
+          if (entry.hint) {
+            const shint = document.createElement('span');
+            shint.className = 'proseInsertSubmenuItemHint';
+            shint.textContent = entry.hint;
+            sbtn.appendChild(shint);
+          }
+          sbtn.addEventListener('mousedown', (event) => {
+            event.preventDefault();
+          });
+          sbtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            const target = currentTarget;
+            if (!target) {
+              closeSubmenu();
+              closePopover();
+              return;
+            }
+            entry.run(view, schema, target);
+            closeSubmenu();
+            closePopover();
+            view.focus();
+          });
+          submenu.appendChild(sbtn);
+        }
+        const popRect = popover.getBoundingClientRect();
+        const btnRect = anchorBtn.getBoundingClientRect();
+        submenu.hidden = false;
+        // Reset before measuring so the previous content's height doesn't bleed into the geometry.
+        submenu.style.left = `${popRect.right + 6}px`;
+        submenu.style.top = `${btnRect.top}px`;
+      }
 
       function openInputView(itemKey: string, spec: InputViewSpec): void {
+        closeSubmenu();
         inputViewOpenKey = itemKey;
         inputLabel.value = '';
         inputLabel.placeholder = spec.placeholder;
@@ -410,6 +574,7 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
       function closePopover(): void {
         if (!popoverOpen) return;
         closeInputView();
+        closeSubmenu();
         popoverOpen = false;
         popover.hidden = true;
         trigger.setAttribute('aria-expanded', 'false');
@@ -478,9 +643,48 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
             openInputView(item.key, spec);
             return;
           }
-          item.run?.(view, schema, target, opts, { fileInput, close: closePopover });
+          if (item.submenu) {
+            // Toggle: clicking the same item closes the submenu, a fresh
+            // click on a different submenu-enabled item swaps the flyout.
+            const entries = item.submenu(opts);
+            if (submenuOpenKey === item.key) {
+              closeSubmenu();
+            } else {
+              openSubmenu(item.key, entries, btn);
+            }
+            return;
+          }
+          if (item.run) {
+            item.run(view, schema, target, opts, { fileInput, close: closePopover });
+          }
+        });
+        // Hover affordance: entering a submenu-bearing item opens the
+        // flyout; entering a flat item closes any pending one. Leaving
+        // the popover schedules a close that the submenu's own
+        // mouseenter cancels, so the user can sweep diagonally without
+        // losing the menu.
+        btn.addEventListener('mouseenter', () => {
+          if (item.submenu) {
+            const entries = item.submenu(opts);
+            openSubmenu(item.key, entries, btn);
+          } else if (submenuOpenKey !== null) {
+            scheduleCloseSubmenu(120);
+          }
         });
       }
+
+      popover.addEventListener('mouseleave', () => {
+        if (submenuOpenKey !== null) scheduleCloseSubmenu(180);
+      });
+      popover.addEventListener('mouseenter', () => {
+        clearCloseSubmenuTimer();
+      });
+      submenu.addEventListener('mouseenter', () => {
+        clearCloseSubmenuTimer();
+      });
+      submenu.addEventListener('mouseleave', () => {
+        scheduleCloseSubmenu(180);
+      });
 
       function onDocumentMousedown(event: MouseEvent) {
         if (!popoverOpen) return;
@@ -491,15 +695,22 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
       document.addEventListener('mousedown', onDocumentMousedown);
 
       function onKeyDown(event: KeyboardEvent) {
-        if (event.key === 'Escape' && popoverOpen) {
+        if (event.key === 'Escape') {
           // `onKeyDown` runs in the document capture phase first. When the
           // input view is open we early-return so the popover-wide Escape
           // doesn't close it; the input field's own bubble-phase keydown
           // handler then closes only the input view.
           if (inputViewOpenKey !== null) return;
-          event.stopPropagation();
-          closePopover();
-          view.focus();
+          if (submenuOpenKey !== null) {
+            event.stopPropagation();
+            closeSubmenu();
+            return;
+          }
+          if (popoverOpen) {
+            event.stopPropagation();
+            closePopover();
+            view.focus();
+          }
         }
       }
       document.addEventListener('keydown', onKeyDown, true);
@@ -560,6 +771,7 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
         },
         destroy() {
           clearPendingTitleReset();
+          clearCloseSubmenuTimer();
           document.removeEventListener('mousedown', onDocumentMousedown);
           document.removeEventListener('keydown', onKeyDown, true);
           root.remove();

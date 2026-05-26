@@ -282,6 +282,11 @@
               "default": "content/tags",
               "description": "Directory of tag profile Markdown files, relative to the project root."
             },
+            "components_dir": {
+              "type": "string",
+              "default": "content/components",
+              "description": "Directory of reusable HTML/CSS component Markdown files, relative to the project root. Each file defines a {slug}-keyed snippet that posts and pages can embed."
+            },
             "kinds": {
               "type": "object",
               "additionalProperties": {

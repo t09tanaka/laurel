@@ -2,6 +2,8 @@ import type { JSX } from 'preact';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'preact/hooks';
 import { BuildPanel, type BuildPhase } from './components/BuildPanel.tsx';
 import { type CommandItem, CommandPalette } from './components/CommandPalette.tsx';
+import { ComponentEditorView } from './components/ComponentEditorView.tsx';
+import { ComponentsView } from './components/ComponentsView.tsx';
 import { useConfirmHost } from './components/ConfirmDialog.tsx';
 import { ContentTable } from './components/ContentTable.tsx';
 import { CreateView } from './components/CreateView.tsx';
@@ -503,7 +505,11 @@ export function DashboardApp(): JSX.Element {
   const showFilterInput =
     !createMode &&
     !editor &&
-    (ui.view === 'posts' || ui.view === 'pages' || ui.view === 'authors' || ui.view === 'tags');
+    (ui.view === 'posts' ||
+      ui.view === 'pages' ||
+      ui.view === 'components' ||
+      ui.view === 'authors' ||
+      ui.view === 'tags');
   const surfaceState =
     ui.loadStatus === 'error' ? 'error' : ui.loadStatus === 'conflict' ? 'conflict' : 'loading';
   // Sidebar "Recently" list — newest 5 entries across posts + pages by createdAt.
@@ -620,6 +626,7 @@ export function DashboardApp(): JSX.Element {
         siteUrl={state?.site.url}
         postsTotal={state?.posts.total}
         pagesTotal={state?.pages.total}
+        componentsTotal={state?.components?.total}
         recents={recents}
         syncLabel={rail.sync.label}
         syncState={rail.sync.state}
@@ -744,6 +751,14 @@ export function DashboardApp(): JSX.Element {
                   void handleMaterialize(ui.view as 'authors' | 'tags', slug);
                 }}
               />
+            ) : ui.view === 'components' ? (
+              <ComponentsView
+                list={state.components}
+                query={ui.query}
+                onEdit={(slug) => {
+                  void openEditor('components', slug);
+                }}
+              />
             ) : ui.view === 'migration' ? (
               <MigrationView onSettingsSaved={() => load({ force: true })} />
             ) : (
@@ -762,6 +777,15 @@ export function DashboardApp(): JSX.Element {
         {editor ? (
           editor.kind === 'authors' || editor.kind === 'tags' ? (
             <TaxonomyEditorView
+              current={editor}
+              onCloseEditor={handleCloseEditor}
+              onSaved={handleEditorSaved}
+              onRenamed={handleEditorRenamed}
+              onConflict={handleEditorConflict}
+              onDirtyChange={setEditorDirty}
+            />
+          ) : editor.kind === 'components' ? (
+            <ComponentEditorView
               current={editor}
               onCloseEditor={handleCloseEditor}
               onSaved={handleEditorSaved}

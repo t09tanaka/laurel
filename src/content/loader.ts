@@ -23,6 +23,7 @@ import { readImageDimensions } from '~/util/image-size.ts';
 import { directionForLocale } from '~/util/locale.ts';
 import { logger } from '~/util/logger.ts';
 import { approvalDir, resolveApprovalBuildGate } from './approvals.ts';
+import { loadComponents } from './components.ts';
 import {
   asBool,
   asDateISO,
@@ -44,6 +45,7 @@ import {
 import type {
   AdjacentPost,
   Author,
+  ComponentSnippet,
   ContentGraph,
   ContentSourceFingerprint,
   EmailCardSegment,
@@ -215,11 +217,12 @@ async function loadContentWithPool({
   // runs; defaulting here keeps unit tests that hand-roll a partial config
   // (and skip the pipeline) from blowing up with `undefined`.
   const basePath = config.build.base_path || '/';
-  const [rawAuthors, rawTags, posts, pages] = await Promise.all([
+  const [rawAuthors, rawTags, posts, pages, components] = await Promise.all([
     loadAuthors(cwd, config),
     loadTags(cwd, config),
     loadPosts(cwd, config, pool, markdownTransforms),
     loadPages(cwd, config, pool, markdownTransforms, pageApprovalGate),
+    loadComponents(cwd, config),
   ]);
 
   const localeInfo = resolveLocaleRouting(config.site.locale, [
@@ -408,7 +411,14 @@ async function loadContentWithPool({
     tags: allTags,
     authors: allAuthors,
     tiers,
-    bySlug: lazyBySlugMaps({ posts: resolvedPosts, pages: resolvedPages, tags, authors }),
+    components,
+    bySlug: lazyBySlugMaps({
+      posts: resolvedPosts,
+      pages: resolvedPages,
+      tags,
+      authors,
+      components,
+    }),
     postsByTag,
     postsByAuthor,
     sources: {
@@ -479,11 +489,13 @@ function lazyBySlugMaps(items: {
   pages: readonly Page[];
   tags: readonly Tag[];
   authors: readonly Author[];
+  components: readonly ComponentSnippet[];
 }): ContentGraph['bySlug'] {
   let posts: Map<string, Post> | undefined;
   let pages: Map<string, Page> | undefined;
   let tags: Map<string, Tag> | undefined;
   let authors: Map<string, Author> | undefined;
+  let components: Map<string, ComponentSnippet> | undefined;
   return {
     get posts() {
       posts ??= publicBySlugMap(items.posts);
@@ -500,6 +512,10 @@ function lazyBySlugMaps(items: {
     get authors() {
       authors ??= publicBySlugMap(items.authors);
       return authors;
+    },
+    get components() {
+      components ??= publicBySlugMap(items.components);
+      return components;
     },
   };
 }

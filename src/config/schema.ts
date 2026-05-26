@@ -547,6 +547,12 @@ export const configSchema = z
           .string()
           .default('content/tags')
           .describe('Directory of tag profile Markdown files, relative to the project root.'),
+        components_dir: z
+          .string()
+          .default('content/components')
+          .describe(
+            'Directory of reusable HTML/CSS component Markdown files, relative to the project root. Each file defines a {slug}-keyed snippet that posts and pages can embed.',
+          ),
         kinds: z
           .record(contentKindSchema)
           .default({})

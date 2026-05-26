@@ -190,6 +190,11 @@ interface ProseEditorProps {
   onChange: (markdown: string) => void;
   resetKey?: string | number;
   handleRef?: Ref<ProseEditorHandle | null>;
+  // Live getter for the registered {slug} components surfaced in the
+  // "+ insert" menu's Components submenu. Optional so theme harnesses
+  // and tests don't have to wire one — when absent or empty the
+  // Components item is hidden from the popover.
+  getComponents?: () => { slug: string; description?: string }[];
 }
 
 function commandKeymap(): Record<string, Command> {
@@ -236,6 +241,12 @@ export function ProseEditor(props: ProseEditorProps): JSX.Element {
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(props.onChange);
   onChangeRef.current = props.onChange;
+  // Mirror getComponents into a ref so the insert-menu always reads the
+  // current parent state even though we mount EditorView once per
+  // resetKey — without this, the submenu would freeze on whatever
+  // component list was current at first paint.
+  const getComponentsRef = useRef(props.getComponents);
+  getComponentsRef.current = props.getComponents;
 
   useImperativeHandle<ProseEditorHandle | null, ProseEditorHandle | null>(
     props.handleRef ?? { current: null },
@@ -282,6 +293,7 @@ export function ProseEditor(props: ProseEditorProps): JSX.Element {
             if (r.ok) return { ok: true, meta: { ...r.meta } };
             return { ok: false, error: r.error };
           },
+          getComponents: () => getComponentsRef.current?.() ?? [],
         }),
       ],
     });

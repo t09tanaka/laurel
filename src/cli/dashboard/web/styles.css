@@ -2808,6 +2808,119 @@
     font-family: var(--font-mono);
     font-size: 12.5px;
   }
+  /* Component editor — stacked Description / CSS / HTML fields. Each
+   * label sits above a textarea pinned to a comfortable monospace size
+   * so the author can read the snippet without horizontal scroll. The
+   * css / html panes are intentionally taller than the description so
+   * they read as the primary content of the editor.
+   *
+   * .componentEditorPage drops the post-editor's symmetric 320px gutter
+   * (no metadata aside to mirror) and lets the body span a generous
+   * code-friendly width — narrow enough to keep prose comfortable, wide
+   * enough that 80-col CSS / HTML doesn't wrap. */
+  .componentEditorPage .editorScroll.componentEditorScroll {
+    padding: 0 32px 96px;
+  }
+  .componentPage {
+    max-width: 1080px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 16px 0 0;
+    display: grid;
+    gap: 28px;
+  }
+  .componentEditor {
+    display: grid;
+    gap: 20px;
+    margin-top: 4px;
+  }
+  /* Editable {slug} title — the curly braces are decorative serif
+   * chrome flanking a transparent input so the surface reads as the
+   * literal shortcode users embed in post bodies. The input itself
+   * inherits the standard .titleInput display sizing; we just take
+   * the flex: 1 off so the input only spans the width of its value
+   * and the closing brace sits flush against the last character. */
+  .componentTitleBlock {
+    align-items: baseline;
+    gap: 2px;
+  }
+  .componentTitleBrace {
+    flex: 0 0 auto;
+    font-family: var(--font-serif);
+    font-size: 36px;
+    line-height: 1.15;
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: -0.018em;
+  }
+  @media (max-width: 940px) {
+    .componentTitleBrace {
+      font-size: 28px;
+    }
+  }
+  .componentTitleBlock .componentTitleInput {
+    /* `flex: 0 0 auto` — the input keeps its inline `style.width`
+     * (driven by slugDraft.length in ch units) rather than stretching
+     * to fill the title row. */
+    flex: 0 0 auto;
+    min-width: 4ch;
+    font-family: var(--font-mono);
+    font-size: 30px;
+    letter-spacing: 0;
+    /* Subtle underline only on hover / focus so the rename affordance
+     * is discoverable without screaming. The base state reads as plain
+     * display text — matches the {slug} look in post bodies. */
+    border-bottom: 1px dashed transparent;
+    transition: border-color 0.12s ease;
+  }
+  .componentTitleBlock .componentTitleInput:hover,
+  .componentTitleBlock .componentTitleInput:focus {
+    border-bottom-color: var(--border-strong);
+  }
+  @media (max-width: 940px) {
+    .componentTitleBlock .componentTitleInput {
+      font-size: 22px;
+    }
+  }
+  .componentField {
+    display: grid;
+    gap: 6px;
+  }
+  .componentFieldLabel {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: 0;
+  }
+  .componentTextarea {
+    width: 100%;
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    padding: 12px;
+    background: var(--surface-normal);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.55;
+    resize: vertical;
+    box-shadow: var(--elevation-1);
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .componentTextarea:hover {
+    border-color: var(--border-strong);
+  }
+  .componentTextarea:focus {
+    border-color: var(--text-primary);
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-primary) 8%, transparent);
+  }
+  .componentTextareaCss {
+    min-height: 180px;
+  }
+  .componentTextareaHtml {
+    min-height: 220px;
+  }
   .editorMetaTextarea {
     font-family: var(--font-sans);
     line-height: 1.5;
@@ -3231,6 +3344,85 @@
     color: var(--text-primary, #1a1612);
   }
   .proseInsertItemHint {
+    font-size: 11px;
+    line-height: 1.25;
+    color: var(--text-muted, #6b6258);
+  }
+  /* Submenu opener: pad on the right and tuck a chevron in the gutter
+   * so the affordance reads as "expands further" without an icon set.
+   * The active state inverts to match the trigger's open state, so a
+   * user hovering Components sees the same emphasis as the open `+`. */
+  .proseInsertItem[data-has-submenu="true"] {
+    padding-right: 22px;
+    position: relative;
+  }
+  .proseInsertItem[data-has-submenu="true"]::after {
+    content: "›";
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    font-size: 14px;
+    line-height: 1;
+    color: var(--text-muted, #6b6258);
+  }
+  .proseInsertItem[data-submenu-open="true"] {
+    background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+  }
+  .proseInsertItem[data-submenu-open="true"]::after {
+    color: var(--text-primary, #1a1612);
+  }
+  /* Flyout submenu — same chrome as the popover but sized for the
+   * narrower payload (slug + optional description). Cap the height
+   * so a long components list scrolls rather than crashing into the
+   * page bottom. */
+  .proseInsertSubmenu {
+    z-index: 26;
+    min-width: 200px;
+    max-width: 280px;
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 6px;
+    background: var(--surface-card, #fff);
+    color: var(--text-primary, #1a1612);
+    border: 1px solid var(--border-default, rgba(0, 0, 0, 0.12));
+    border-radius: 8px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-family: var(--font-serif);
+  }
+  .proseInsertSubmenu[hidden] {
+    display: none;
+  }
+  .proseInsertSubmenuItem {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    padding: 8px 10px;
+    border: 0;
+    background: transparent;
+    border-radius: 6px;
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.1s ease;
+  }
+  .proseInsertSubmenuItem:hover,
+  .proseInsertSubmenuItem:focus-visible {
+    background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+    outline: none;
+  }
+  .proseInsertSubmenuItemLabel {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.2;
+    color: var(--text-primary, #1a1612);
+  }
+  .proseInsertSubmenuItemHint {
     font-size: 11px;
     line-height: 1.25;
     color: var(--text-muted, #6b6258);
