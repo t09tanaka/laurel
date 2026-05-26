@@ -26,6 +26,19 @@ import type {
 import { FeatureImageField } from './FeatureImageField.tsx';
 import { ProseEditor } from './ProseEditor.tsx';
 
+const AUTHOR_SOCIAL_FIELDS = [
+  ['twitter', 'X / Twitter'],
+  ['facebook', 'Facebook'],
+  ['linkedin', 'LinkedIn'],
+  ['bluesky', 'Bluesky'],
+  ['mastodon', 'Mastodon'],
+  ['threads', 'Threads'],
+  ['tiktok', 'TikTok'],
+  ['youtube', 'YouTube'],
+  ['instagram', 'Instagram'],
+  ['github', 'GitHub'],
+] as const;
+
 interface EditorViewProps {
   current: DashboardContentItem;
   state: DashboardState | null;
@@ -536,6 +549,22 @@ export function EditorView(props: EditorViewProps): JSX.Element {
                   }
                 />
               </div>
+              {AUTHOR_SOCIAL_FIELDS.map(([key, label]) => (
+                <div class="editorMetaSection" key={key}>
+                  <div class="editorMetaLabel">{label}</div>
+                  <input
+                    class="editorMetaInput"
+                    type="text"
+                    placeholder={key === 'mastodon' ? 'user@host.example' : '@handle or URL'}
+                    value={snapshot[key]}
+                    onInput={(event) =>
+                      patchSnapshot({
+                        [key]: (event.currentTarget as HTMLInputElement).value,
+                      })
+                    }
+                  />
+                </div>
+              ))}
             </>
           ) : null}
           {current.kind === 'tags' ? (

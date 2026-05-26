@@ -700,6 +700,14 @@ function buildJsonLd(
     logo_height?: number;
     twitter?: string | undefined;
     facebook?: string | undefined;
+    linkedin?: string | undefined;
+    bluesky?: string | undefined;
+    mastodon?: string | undefined;
+    threads?: string | undefined;
+    tiktok?: string | undefined;
+    youtube?: string | undefined;
+    instagram?: string | undefined;
+    github?: string | undefined;
   },
   meta: ComputedMeta,
   basePath: string,
@@ -811,6 +819,14 @@ function renderJsonLdScripts(
     logo_height?: number;
     twitter?: string | undefined;
     facebook?: string | undefined;
+    linkedin?: string | undefined;
+    bluesky?: string | undefined;
+    mastodon?: string | undefined;
+    threads?: string | undefined;
+    tiktok?: string | undefined;
+    youtube?: string | undefined;
+    instagram?: string | undefined;
+    github?: string | undefined;
   },
   meta: ComputedMeta,
   basePath: string,
@@ -849,6 +865,14 @@ function jsonLdCacheKey(
     logo_height?: number;
     twitter?: string | undefined;
     facebook?: string | undefined;
+    linkedin?: string | undefined;
+    bluesky?: string | undefined;
+    mastodon?: string | undefined;
+    threads?: string | undefined;
+    tiktok?: string | undefined;
+    youtube?: string | undefined;
+    instagram?: string | undefined;
+    github?: string | undefined;
   },
   meta: ComputedMeta,
   basePath: string,
@@ -871,6 +895,14 @@ function jsonLdCacheKey(
     site.logo_height ?? '',
     site.twitter ?? '',
     site.facebook ?? '',
+    site.linkedin ?? '',
+    site.bluesky ?? '',
+    site.mastodon ?? '',
+    site.threads ?? '',
+    site.tiktok ?? '',
+    site.youtube ?? '',
+    site.instagram ?? '',
+    site.github ?? '',
     basePath,
     nonce,
     meta,
@@ -1243,6 +1275,7 @@ const SOCIAL_FIELDS_FOR_SAMEAS: readonly string[] = [
   'tiktok',
   'youtube',
   'instagram',
+  'github',
   'website',
 ];
 function collectSocialUrls(source: Record<string, unknown>): string[] {
@@ -1281,6 +1314,8 @@ function normaliseSocialUrl(field: string, value: string): string | undefined {
       return `https://www.youtube.com/${handle}`;
     case 'instagram':
       return `https://www.instagram.com/${handle}`;
+    case 'github':
+      return `https://github.com/${handle}`;
     case 'mastodon': {
       // `user@host` form -> https://host/@user. Bare handle has no canonical
       // host without configuration, so we skip it for sameAs (vs. {{social_url}}

@@ -163,6 +163,17 @@ const referrerPolicySchema = z.enum([
   'unsafe-url',
 ]);
 
+const siteSocialFields = {
+  linkedin: z.string().optional().describe('Optional LinkedIn profile slug or URL.'),
+  bluesky: z.string().optional().describe('Optional Bluesky handle or URL.'),
+  mastodon: z.string().optional().describe('Optional Mastodon user@host handle or URL.'),
+  threads: z.string().optional().describe('Optional Threads handle or URL.'),
+  tiktok: z.string().optional().describe('Optional TikTok handle or URL.'),
+  youtube: z.string().optional().describe('Optional YouTube channel handle or URL.'),
+  instagram: z.string().optional().describe('Optional Instagram handle or URL.'),
+  github: z.string().optional().describe('Optional GitHub user/org/repo slug or URL.'),
+} satisfies z.ZodRawShape;
+
 const sitePortalSchema = z
   .object({
     portal_button: z
@@ -394,6 +405,7 @@ export const configSchema = z
           .describe(
             'Optional Facebook page slug. Used to populate `og:article:publisher` meta tags.',
           ),
+        ...siteSocialFields,
         meta_title: z
           .string()
           .optional()

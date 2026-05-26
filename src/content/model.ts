@@ -47,6 +47,14 @@ export interface SiteData {
   lang: string;
   twitter: string | undefined;
   facebook: string | undefined;
+  linkedin?: string | undefined;
+  bluesky?: string | undefined;
+  mastodon?: string | undefined;
+  threads?: string | undefined;
+  tiktok?: string | undefined;
+  youtube?: string | undefined;
+  instagram?: string | undefined;
+  github?: string | undefined;
   members_enabled: boolean;
   paid_members_enabled: boolean;
   members_invite_only: boolean;
@@ -114,6 +122,7 @@ export interface Author {
   tiktok: string | undefined;
   youtube: string | undefined;
   instagram: string | undefined;
+  github?: string | undefined;
   accent_color: string | undefined;
   meta_title: string | undefined;
   meta_description: string | undefined;

@@ -142,10 +142,14 @@ describe('buildFrontmatter — authors', () => {
       website: 'https://old.example.com',
       twitter: 'honeybee',
       bluesky: 'honeybee.bsky.social',
+      mastodon: 'honeybee@hachyderm.io',
     };
     const snap = snapshotFromItem('authors', { slug: 'honeybee', body: '', frontmatter: base });
     snap.bio = 'updated bio';
     snap.website = 'https://new.example.com';
+    snap.twitter = '@newhoneybee';
+    snap.bluesky = 'new-honeybee.bsky.social';
+    snap.mastodon = 'newhoneybee@hachyderm.io';
     snap.featureImage = '/content/images/cover.svg';
     snap.location = 'Tokyo';
     const fm = buildFrontmatter('authors', base, snap);
@@ -155,23 +159,34 @@ describe('buildFrontmatter — authors', () => {
     expect(fm.website).toBe('https://new.example.com');
     expect(fm.cover_image).toBe('/content/images/cover.svg');
     expect(fm.location).toBe('Tokyo');
-    // Unrelated keys (social handles) survive the round-trip.
-    expect(fm.twitter).toBe('honeybee');
-    expect(fm.bluesky).toBe('honeybee.bsky.social');
+    expect(fm.twitter).toBe('@newhoneybee');
+    expect(fm.bluesky).toBe('new-honeybee.bsky.social');
+    expect(fm.mastodon).toBe('newhoneybee@hachyderm.io');
     // No stray updated_at on taxonomy frontmatter.
     expect('updated_at' in fm).toBe(false);
   });
 
   test('removes optional fields when they are blanked out', () => {
-    const base = { name: 'Casper', bio: 'old', website: 'https://x', location: 'X' };
+    const base = {
+      name: 'Casper',
+      bio: 'old',
+      website: 'https://x',
+      location: 'X',
+      twitter: 'ghost',
+      instagram: 'caspergram',
+    };
     const snap = snapshotFromItem('authors', { slug: 'casper', body: '', frontmatter: base });
     snap.bio = '';
     snap.website = '';
     snap.location = '';
+    snap.twitter = '';
+    snap.instagram = '';
     const fm = buildFrontmatter('authors', base, snap);
     expect('bio' in fm).toBe(false);
     expect('website' in fm).toBe(false);
     expect('location' in fm).toBe(false);
+    expect('twitter' in fm).toBe(false);
+    expect('instagram' in fm).toBe(false);
   });
 });
 
