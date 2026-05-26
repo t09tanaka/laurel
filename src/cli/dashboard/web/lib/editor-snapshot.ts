@@ -12,6 +12,18 @@ import type { DashboardEditorKind, EditorSnapshot } from '../types.ts';
 import { normalizeMediaPath } from './format.ts';
 
 type Frontmatter = Record<string, unknown>;
+const AUTHOR_SOCIAL_FIELDS = [
+  'twitter',
+  'facebook',
+  'linkedin',
+  'bluesky',
+  'mastodon',
+  'threads',
+  'tiktok',
+  'youtube',
+  'instagram',
+  'github',
+] as const;
 
 function str(value: unknown, fallback = ''): string {
   if (value === undefined || value === null) return fallback;
@@ -55,6 +67,16 @@ export function emptyEditorSnapshot(): EditorSnapshot {
     description: '',
     website: '',
     location: '',
+    twitter: '',
+    facebook: '',
+    linkedin: '',
+    bluesky: '',
+    mastodon: '',
+    threads: '',
+    tiktok: '',
+    youtube: '',
+    instagram: '',
+    github: '',
     accentColor: '',
   };
 }
@@ -97,6 +119,7 @@ export function snapshotFromItem(
     base.featureImage = str(fm.cover_image ?? fm.profile_image);
     base.website = str(fm.website);
     base.location = str(fm.location);
+    for (const field of AUTHOR_SOCIAL_FIELDS) base[field] = str(fm[field]);
     return base;
   }
   // tags
@@ -167,6 +190,7 @@ export function buildFrontmatter(
     setOptional(fm, 'cover_image', normalizeMediaPath(snapshot.featureImage));
     setOptional(fm, 'website', snapshot.website.trim());
     setOptional(fm, 'location', snapshot.location.trim());
+    for (const field of AUTHOR_SOCIAL_FIELDS) setOptional(fm, field, snapshot[field].trim());
     return fm;
   }
   // tags
