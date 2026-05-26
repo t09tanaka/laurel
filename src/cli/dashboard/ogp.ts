@@ -34,6 +34,62 @@ function resolveUrl(value: string, base: URL): string {
   }
 }
 
+const BLOCKED_HOSTNAMES = new Set(['localhost']);
+const BLOCKED_HOST_SUFFIXES = ['.localhost', '.local', '.internal'];
+
+export function classifyHost(hostname: string): 'public' | 'blocked' {
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (BLOCKED_HOSTNAMES.has(h)) return 'blocked';
+  if (BLOCKED_HOST_SUFFIXES.some((s) => h.endsWith(s))) return 'blocked';
+  // If the hostname parses as a literal IP, defer to the IP classifier.
+  if (isIpLiteral(h)) return classifyResolvedIp(h);
+  return 'public';
+}
+
+export function classifyResolvedIp(ip: string): 'public' | 'blocked' {
+  const lower = ip.toLowerCase().replace(/^\[|\]$/g, '');
+  if (lower.includes(':')) return classifyIpv6(lower);
+  return classifyIpv4(lower);
+}
+
+function isIpLiteral(value: string): boolean {
+  if (value.includes(':')) return true;
+  return /^(?:\d{1,3}\.){3}\d{1,3}$/.test(value);
+}
+
+function classifyIpv4(value: string): 'public' | 'blocked' {
+  const parts = value.split('.').map((n) => Number(n));
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) {
+    return 'blocked';
+  }
+  const [a, b] = parts as [number, number, number, number];
+  if (a === 0) return 'blocked'; // 0.0.0.0/8 unspecified / "this network"
+  if (a === 127) return 'blocked'; // loopback
+  if (a === 10) return 'blocked'; // private
+  if (a === 192 && b === 168) return 'blocked'; // private
+  if (a === 172 && b >= 16 && b <= 31) return 'blocked'; // private
+  if (a === 169 && b === 254) return 'blocked'; // link-local + metadata
+  if (a === 100 && b >= 64 && b <= 127) return 'blocked'; // CGNAT
+  if (a >= 224) return 'blocked'; // multicast + reserved
+  return 'public';
+}
+
+function classifyIpv6(value: string): 'public' | 'blocked' {
+  // Handle the IPv4-mapped form ::ffff:1.2.3.4 by extracting the v4 tail.
+  const v4Mapped = value.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+  if (v4Mapped) return classifyIpv4(v4Mapped[1] as string);
+  const unspec = value === '::' || value === '0:0:0:0:0:0:0:0';
+  if (unspec) return 'blocked';
+  if (value === '::1' || /^0:0:0:0:0:0:0:1$/.test(value)) return 'blocked';
+  // fc00::/7 — unique local
+  if (/^f[cd][0-9a-f]{2}:/.test(value)) return 'blocked';
+  // fe80::/10 — link local
+  if (/^fe[89ab][0-9a-f]:/.test(value)) return 'blocked';
+  // ff00::/8 — multicast
+  if (/^ff[0-9a-f]{2}:/.test(value)) return 'blocked';
+  return 'public';
+}
+
 function parseSizes(raw: string | undefined): number {
   if (!raw) return 0;
   // "32x32" or "16x16 32x32 64x64" — for each WxH pair use the shorter
