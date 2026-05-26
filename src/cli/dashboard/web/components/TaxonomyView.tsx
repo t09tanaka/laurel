@@ -129,14 +129,17 @@ export function TaxonomyView(props: TaxonomyViewProps): JSX.Element {
             </tbody>
           </table>
         </div>
+      ) : props.list.total === 0 ? (
+        <StatePanel
+          kind="empty"
+          title={`No ${props.kind} yet`}
+          message={`Generated entries from posts appear here once you set ${props.kind === 'authors' ? 'an author:' : 'tags:'} in any post's frontmatter.`}
+        />
       ) : (
         <StatePanel
           kind="empty"
-          message={
-            props.list.total === 0
-              ? `No ${props.kind} yet. Generated entries from posts appear here once you create one with a ${props.kind === 'authors' ? 'frontmatter author:' : 'frontmatter tags:'} field.`
-              : `No ${props.kind} match this filter.`
-          }
+          title={`No matching ${props.kind}`}
+          message="Clear the search to see all records."
         />
       )}
     </div>
