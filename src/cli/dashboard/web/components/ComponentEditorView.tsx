@@ -1,9 +1,24 @@
 import type { JSX } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { renameContentSlug, saveContent } from '../lib/api.ts';
+import {
+  type ComponentReferenceRewriteSummary,
+  renameContentSlug,
+  saveContent,
+} from '../lib/api.ts';
 import type { DashboardContentItem } from '../types.ts';
 
 const SLUG_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
+
+// Surfaced in the notice strip after a successful rename so the
+// operator sees at a glance whether post / page bodies were touched.
+// Pluralised inline rather than via a helper to keep the call site
+// self-contained.
+function renamedNotice(summary: ComponentReferenceRewriteSummary | null): string {
+  if (!summary || summary.occurrencesRewritten === 0) return 'Renamed';
+  const refs = summary.occurrencesRewritten;
+  const files = summary.filesChanged;
+  return `Renamed; rewrote ${refs} reference${refs === 1 ? '' : 's'} in ${files} file${files === 1 ? '' : 's'}`;
+}
 
 // Same fenced-block matcher the CLI loader (src/content/components.ts)
 // uses. Re-defining it here rather than importing keeps the dashboard
@@ -127,13 +142,12 @@ export function ComponentEditorView(props: ComponentEditorViewProps): JSX.Elemen
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
-  // Slug rename via /api/content/components/<old>/rename. We don't
-  // rewrite `{old}` references in post / page bodies — for v1 the
-  // operator is responsible for grep-and-replace if a renamed slug is
-  // already used in content. The rename endpoint moves the file (and
-  // emits a redirect on the post/page kinds; not applicable here since
-  // components don't generate routes), and we lean on `onRenamed` to
-  // refetch the editor under the new slug.
+  // Slug rename via /api/content/components/<old>/rename. The endpoint
+  // moves the file and, by default, rewrites `{old}` references inside
+  // post / page bodies so the build-side expander stays in sync — the
+  // notice strip reports how many files were touched. Code regions
+  // (fenced blocks, inline code spans) are skipped on the server side
+  // to mirror the renderer's contract.
   async function commitRename() {
     const next = slugDraft.trim();
     if (!next || next === current.slug) {
@@ -160,7 +174,7 @@ export function ComponentEditorView(props: ComponentEditorViewProps): JSX.Elemen
       setSlugDraft(current.slug);
       return;
     }
-    setNotice('Renamed');
+    setNotice(renamedNotice(result.rewrittenReferences));
     if (props.onRenamed) await props.onRenamed(current.kind, result.newSlug);
   }
 

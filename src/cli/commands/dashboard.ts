@@ -38,6 +38,7 @@ import {
   sameContentFingerprint,
   writeApprovalReceipt,
 } from '~/content/approvals.ts';
+import { rewriteComponentSlugInBody, splitFrontmatterRaw } from '~/content/component-references.ts';
 import { formatContentSource } from '~/content/format.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
 import { type MarkdownTransformHook, loadContent } from '~/content/loader.ts';
@@ -577,6 +578,13 @@ export type DashboardSettingsWriteResult =
       theme: string;
     };
 
+export interface DashboardComponentReferenceRewriteSummary {
+  // Number of post / page files whose body was modified.
+  filesChanged: number;
+  // Total `{old}` occurrences replaced across all rewritten files.
+  occurrencesRewritten: number;
+}
+
 export type DashboardSlugRenameResult =
   | {
       ok: true;
@@ -587,6 +595,10 @@ export type DashboardSlugRenameResult =
       newPath: string;
       redirectAppended: string | null;
       redirectSuggestion: DashboardSlugRenamePreview;
+      // Only populated for `kind === 'components'`. Null for other
+      // kinds, or `{filesChanged: 0, occurrencesRewritten: 0}` when
+      // the rename was a no-op for post / page bodies.
+      rewrittenReferences?: DashboardComponentReferenceRewriteSummary | null;
     }
   | {
       ok: false;
@@ -1266,6 +1278,7 @@ export async function handleDashboardRequest(
         fingerprint?: ContentSourceFingerprint;
         newSlug?: string;
         redirect?: boolean;
+        rewriteReferences?: boolean;
       }>(request, ctx.maxBodyBytes);
       if (payload instanceof Response) return payload;
       if (!payload.fingerprint || typeof payload.newSlug !== 'string') {
@@ -1280,6 +1293,7 @@ export async function handleDashboardRequest(
         newSlug: payload.newSlug,
         expectedFingerprint: payload.fingerprint,
         redirect: payload.redirect === true,
+        rewriteReferences: payload.rewriteReferences !== false,
       });
       if (!result.ok && result.reason === 'conflict') return jsonResponse(result, 409);
       if (!result.ok && result.reason === 'already-exists') return jsonResponse(result, 409);
@@ -2048,6 +2062,59 @@ export async function applyDashboardBulkAction({
   return { ok: true, changed, skipped };
 }
 
+// Walk `dir` recursively and yield every regular `.md` file path.
+// Tolerant: dirs that don't exist or can't be read return nothing
+// rather than throwing — the rename flow doesn't want to fail because
+// a sibling content dir was momentarily missing.
+async function* walkMarkdownFiles(dir: string): AsyncGenerator<string> {
+  let entries: Dirent[];
+  try {
+    entries = (await readdir(dir, { withFileTypes: true })) as Dirent[];
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      yield* walkMarkdownFiles(full);
+      continue;
+    }
+    if (entry.isFile() && entry.name.endsWith('.md')) yield full;
+  }
+}
+
+// Walk posts + pages, rewrite `{oldSlug}` → `{newSlug}` in each body
+// (skipping code regions per the renderer's contract), and write back
+// only the files that actually changed. Returns aggregate counts so
+// the dashboard can surface "renamed; rewrote N references in M files".
+async function rewriteComponentReferencesInContent({
+  cwd,
+  config,
+  oldSlug,
+  newSlug,
+}: {
+  cwd: string;
+  config: NectarConfig;
+  oldSlug: string;
+  newSlug: string;
+}): Promise<DashboardComponentReferenceRewriteSummary> {
+  let filesChanged = 0;
+  let occurrencesRewritten = 0;
+  const roots = [config.content.posts_dir, config.content.pages_dir].map((d) => absolutise(cwd, d));
+  for (const root of roots) {
+    for await (const file of walkMarkdownFiles(root)) {
+      const raw = await readFile(file, 'utf8');
+      const { frontmatter, body } = splitFrontmatterRaw(raw);
+      const result = rewriteComponentSlugInBody(body, oldSlug, newSlug);
+      if (result.count === 0) continue;
+      await writeFile(file, frontmatter + result.body, 'utf8');
+      filesChanged += 1;
+      occurrencesRewritten += result.count;
+    }
+  }
+  return { filesChanged, occurrencesRewritten };
+}
+
 export async function renameDashboardContentSlug({
   cwd,
   config,
@@ -2056,6 +2123,7 @@ export async function renameDashboardContentSlug({
   newSlug,
   expectedFingerprint,
   redirect,
+  rewriteReferences,
 }: {
   cwd: string;
   config: NectarConfig;
@@ -2064,6 +2132,10 @@ export async function renameDashboardContentSlug({
   newSlug: string;
   expectedFingerprint: ContentSourceFingerprint;
   redirect?: boolean;
+  // Only meaningful for `kind === 'components'`. Defaults to `true`
+  // so the dashboard rename UX automatically keeps post / page bodies
+  // in sync; CLI / scripted callers can pass `false` to opt out.
+  rewriteReferences?: boolean;
 }): Promise<DashboardSlugRenameResult> {
   const normalizedNewSlug = newSlug.trim();
   if (!SLUG_RE.test(oldSlug) || !SLUG_RE.test(normalizedNewSlug)) {
@@ -2150,6 +2222,21 @@ export async function renameDashboardContentSlug({
   const redirectAppended = redirect
     ? await appendDashboardRedirect(cwd, preview.redirectFrom, preview.redirectTo)
     : null;
+  // For components, keep `{old}` references in post / page bodies in
+  // sync with the rename so the build-side expander doesn't start
+  // emitting `missing` warnings for what used to be a live snippet.
+  // Other kinds (authors, tags) have their own dedicated rewriters
+  // earlier in this function; posts and pages have no inbound
+  // shortcode references so the summary stays null.
+  const rewrittenReferences =
+    kind === 'components' && rewriteReferences !== false
+      ? await rewriteComponentReferencesInContent({
+          cwd,
+          config,
+          oldSlug,
+          newSlug: normalizedNewSlug,
+        })
+      : null;
   return {
     ok: true,
     kind,
@@ -2159,6 +2246,7 @@ export async function renameDashboardContentSlug({
     newPath: relativePath(cwd, dest),
     redirectAppended,
     redirectSuggestion: preview,
+    rewrittenReferences,
   };
 }
 
