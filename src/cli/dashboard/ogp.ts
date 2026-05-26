@@ -38,7 +38,10 @@ const BLOCKED_HOSTNAMES = new Set(['localhost']);
 const BLOCKED_HOST_SUFFIXES = ['.localhost', '.local', '.internal'];
 
 export function classifyHost(hostname: string): 'public' | 'blocked' {
-  const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  const h = hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '');
   if (BLOCKED_HOSTNAMES.has(h)) return 'blocked';
   if (BLOCKED_HOST_SUFFIXES.some((s) => h.endsWith(s))) return 'blocked';
   // If the hostname parses as a literal IP, defer to the IP classifier.
@@ -75,7 +78,9 @@ function classifyIpv4(value: string): 'public' | 'blocked' {
 }
 
 function classifyIpv6(value: string): 'public' | 'blocked' {
-  // Handle the IPv4-mapped form ::ffff:1.2.3.4 by extracting the v4 tail.
+  // Only the dotted-decimal form of ::ffff:<v4> is handled here. Node's
+  // dns.lookup always returns IPv4 in dotted-decimal, so the hex form
+  // (::ffff:7f00:1) is not reachable from our fetcher's call sites.
   const v4Mapped = value.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
   if (v4Mapped) return classifyIpv4(v4Mapped[1] as string);
   const unspec = value === '::' || value === '0:0:0:0:0:0:0:0';

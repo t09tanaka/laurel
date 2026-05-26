@@ -108,6 +108,12 @@ describe('classifyHost', () => {
     expect(classifyHost('8.8.8.8')).toBe('public');
     expect(classifyHost('2606:4700:4700::1111')).toBe('public');
   });
+
+  test('blocks hostnames with a trailing FQDN dot', () => {
+    expect(classifyHost('localhost.')).toBe('blocked');
+    expect(classifyHost('foo.localhost.')).toBe('blocked');
+    expect(classifyHost('bar.local.')).toBe('blocked');
+  });
 });
 
 describe('classifyResolvedIp', () => {
