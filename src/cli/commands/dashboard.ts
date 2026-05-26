@@ -782,6 +782,14 @@ export async function startDashboardServer(
     },
   });
 
+  // Bun 1.3.14's fullstack dev server has a known SourceMapStore memory
+  // bug that can segfault the process after many HMR cycles, inside
+  // `bake.DevServer.SourceMapStore.addWeakRef` while serving a JS bundle
+  // (oven-sh/bun#23617 and related). Bun does not expose a public option
+  // to disable source maps for `development: true`, so there is no
+  // in-process workaround -- if the dev server crashes mid-session, just
+  // restart `nectar dashboard --dev`. The prod (HMR-off) branch below is
+  // not affected.
   const server =
     mode === 'dev'
       ? Bun.serve({
