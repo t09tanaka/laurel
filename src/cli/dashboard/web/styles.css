@@ -2834,6 +2834,54 @@
     gap: 20px;
     margin-top: 4px;
   }
+  /* Editable {slug} title — the curly braces are decorative serif
+   * chrome flanking a transparent input so the surface reads as the
+   * literal shortcode users embed in post bodies. The input itself
+   * inherits the standard .titleInput display sizing; we just take
+   * the flex: 1 off so the input only spans the width of its value
+   * and the closing brace sits flush against the last character. */
+  .componentTitleBlock {
+    align-items: baseline;
+    gap: 2px;
+  }
+  .componentTitleBrace {
+    flex: 0 0 auto;
+    font-family: var(--font-serif);
+    font-size: 36px;
+    line-height: 1.15;
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: -0.018em;
+  }
+  @media (max-width: 940px) {
+    .componentTitleBrace {
+      font-size: 28px;
+    }
+  }
+  .componentTitleBlock .componentTitleInput {
+    /* `flex: 0 0 auto` — the input keeps its inline `style.width`
+     * (driven by slugDraft.length in ch units) rather than stretching
+     * to fill the title row. */
+    flex: 0 0 auto;
+    min-width: 4ch;
+    font-family: var(--font-mono);
+    font-size: 30px;
+    letter-spacing: 0;
+    /* Subtle underline only on hover / focus so the rename affordance
+     * is discoverable without screaming. The base state reads as plain
+     * display text — matches the {slug} look in post bodies. */
+    border-bottom: 1px dashed transparent;
+    transition: border-color 0.12s ease;
+  }
+  .componentTitleBlock .componentTitleInput:hover,
+  .componentTitleBlock .componentTitleInput:focus {
+    border-bottom-color: var(--border-strong);
+  }
+  @media (max-width: 940px) {
+    .componentTitleBlock .componentTitleInput {
+      font-size: 22px;
+    }
+  }
   .componentField {
     display: grid;
     gap: 6px;

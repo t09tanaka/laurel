@@ -505,7 +505,11 @@ export function DashboardApp(): JSX.Element {
   const showFilterInput =
     !createMode &&
     !editor &&
-    (ui.view === 'posts' || ui.view === 'pages' || ui.view === 'authors' || ui.view === 'tags');
+    (ui.view === 'posts' ||
+      ui.view === 'pages' ||
+      ui.view === 'components' ||
+      ui.view === 'authors' ||
+      ui.view === 'tags');
   const surfaceState =
     ui.loadStatus === 'error' ? 'error' : ui.loadStatus === 'conflict' ? 'conflict' : 'loading';
   // Sidebar "Recently" list — newest 5 entries across posts + pages by createdAt.
@@ -785,6 +789,7 @@ export function DashboardApp(): JSX.Element {
               current={editor}
               onCloseEditor={handleCloseEditor}
               onSaved={handleEditorSaved}
+              onRenamed={handleEditorRenamed}
               onConflict={handleEditorConflict}
               onDirtyChange={setEditorDirty}
             />

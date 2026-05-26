@@ -1,7 +1,9 @@
 import type { JSX } from 'preact';
-import { useEffect, useMemo, useState } from 'preact/hooks';
-import { saveContent } from '../lib/api.ts';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { renameContentSlug, saveContent } from '../lib/api.ts';
 import type { DashboardContentItem } from '../types.ts';
+
+const SLUG_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
 
 // Same fenced-block matcher the CLI loader (src/content/components.ts)
 // uses. Re-defining it here rather than importing keeps the dashboard
@@ -34,6 +36,7 @@ interface ComponentEditorViewProps {
   onSaved: () => Promise<void> | void;
   onConflict: (message: string, current: DashboardContentItem) => void;
   onDirtyChange: (dirty: boolean) => void;
+  onRenamed?: (kind: DashboardContentItem['kind'], newSlug: string) => Promise<void> | void;
 }
 
 export function ComponentEditorView(props: ComponentEditorViewProps): JSX.Element {
@@ -51,6 +54,9 @@ export function ComponentEditorView(props: ComponentEditorViewProps): JSX.Elemen
   const [html, setHtml] = useState(parsed.html);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
+  const [slugDraft, setSlugDraft] = useState(current.slug);
+  const slugDraftRef = useRef(slugDraft);
+  slugDraftRef.current = slugDraft;
 
   const baselineKey = `${current.path}@${current.fingerprint.mtimeMs}`;
   // biome-ignore lint/correctness/useExhaustiveDependencies: rehydrate on file switch
@@ -58,6 +64,7 @@ export function ComponentEditorView(props: ComponentEditorViewProps): JSX.Elemen
     setDescription(typeof fm.description === 'string' ? fm.description : '');
     setCss(parsed.css);
     setHtml(parsed.html);
+    setSlugDraft(current.slug);
   }, [baselineKey]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: report on every diff
@@ -98,12 +105,73 @@ export function ComponentEditorView(props: ComponentEditorViewProps): JSX.Elemen
     setNotice('error' in result.data ? (result.data.error ?? 'Save failed') : 'Save failed');
   }
 
+  // Slug rename via /api/content/components/<old>/rename. We don't
+  // rewrite `{old}` references in post / page bodies — for v1 the
+  // operator is responsible for grep-and-replace if a renamed slug is
+  // already used in content. The rename endpoint moves the file (and
+  // emits a redirect on the post/page kinds; not applicable here since
+  // components don't generate routes), and we lean on `onRenamed` to
+  // refetch the editor under the new slug.
+  async function commitRename() {
+    const next = slugDraft.trim();
+    if (!next || next === current.slug) {
+      setSlugDraft(current.slug);
+      return;
+    }
+    if (!SLUG_PATTERN.test(next)) {
+      setNotice(`Slug must match ${SLUG_PATTERN.source}`);
+      setSlugDraft(current.slug);
+      return;
+    }
+    setSaving(true);
+    setNotice(`Renaming to {${next}}…`);
+    const result = await renameContentSlug({
+      kind: 'components',
+      oldSlug: current.slug,
+      newSlug: next,
+      fingerprint: current.fingerprint,
+      redirect: false,
+    });
+    setSaving(false);
+    if (!result.ok) {
+      setNotice(`Rename failed — ${result.error ?? result.reason}`);
+      setSlugDraft(current.slug);
+      return;
+    }
+    setNotice('Renamed');
+    if (props.onRenamed) await props.onRenamed(current.kind, result.newSlug);
+  }
+
+  // Same shape as EditorView's `saveState` reducer: surface a chip the
+  // user can act on, hide it when there's nothing to notice. We don't
+  // carry a separate "dirty" reducer here yet, so the idle path covers
+  // "no save attempt in flight and nothing to flash about" — the
+  // ComponentEditor doesn't have a long-running autosave loop, so users
+  // signal intent with the Save button and the chip flashes Saved /
+  // Error in response.
+  const saveState: 'idle' | 'saving' | 'saved' | 'error' = saving
+    ? 'saving'
+    : notice === 'Saved'
+      ? 'saved'
+      : notice && notice !== 'Saved'
+        ? 'error'
+        : 'idle';
+  const saveLabel: Record<typeof saveState, string> = {
+    idle: 'Ready',
+    saving: 'Saving…',
+    saved: 'Saved',
+    error: notice || 'Error',
+  };
+
   return (
     <section
       class="editor editorPage open componentEditorPage"
       id="editor"
       aria-labelledby="editorTitle"
     >
+      {/* Same 3-column top row as EditorView (back / middle metadata
+       * slot / focus bar). The middle slot pushes the focus bar to the
+       * right edge so the chrome reads the same across editors. */}
       <div class="editorTopRow">
         <button
           type="button"
@@ -116,12 +184,18 @@ export function ComponentEditorView(props: ComponentEditorViewProps): JSX.Elemen
           </span>
           <span class="editorBackLabel">Components</span>
         </button>
+        <div class="editorMetaRow" id="editorMeta">
+          <span id="editorTitle" class="srOnly">
+            {current.path}
+          </span>
+        </div>
         <div class="editorFocusBar">
           <span
-            class="saveChip"
-            data-state={saving ? 'saving' : notice === 'Saved' ? 'saved' : 'idle'}
+            class={`saveChip${saveState === 'idle' ? ' saveChipIdle' : ''}`}
+            data-state={saveState}
+            aria-live="polite"
           >
-            {saving ? 'Saving…' : notice || 'Ready'}
+            {saveLabel[saveState]}
           </span>
           <button
             class="btn"
@@ -141,10 +215,44 @@ export function ComponentEditorView(props: ComponentEditorViewProps): JSX.Elemen
        * aside) and let .componentEditorPage own the width directly. */}
       <div class="editorScroll componentEditorScroll">
         <div class="componentPage">
-          <div class="titleBlock">
-            <div class="titleInput" id="editorTitle" aria-label="Component shortcode">
-              {`{${current.slug}}`}
-            </div>
+          {/* Slug rename is inline: the `{` / `}` flank the input as
+           * decorative serif chrome so the editable surface reads as the
+           * literal shortcode `{slug}` users embed in post bodies.
+           * Commits on blur or Enter via /api/content/components/<old>/rename.
+           * Existing `{old}` references in post / page bodies are NOT
+           * rewritten — that's a deliberate v1 limitation. */}
+          <div class="titleBlock componentTitleBlock">
+            <span class="componentTitleBrace" aria-hidden="true">
+              {'{'}
+            </span>
+            <input
+              class="titleInput componentTitleInput"
+              type="text"
+              aria-label="Component slug (rename)"
+              spellcheck={false}
+              autocomplete="off"
+              value={slugDraft}
+              // Inline width: 1ch per character (mono font ≈ 1ch wide
+              // per glyph) so the input hugs the slug text and the
+              // closing `}` brace sits flush against the last letter.
+              style={{ width: `${Math.max(slugDraft.length, 4) + 1}ch` }}
+              onInput={(e) => setSlugDraft((e.currentTarget as HTMLInputElement).value)}
+              onBlur={() => {
+                void commitRename();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  (e.currentTarget as HTMLInputElement).blur();
+                } else if (e.key === 'Escape') {
+                  setSlugDraft(current.slug);
+                  (e.currentTarget as HTMLInputElement).blur();
+                }
+              }}
+            />
+            <span class="componentTitleBrace" aria-hidden="true">
+              {'}'}
+            </span>
           </div>
           <div class="componentEditor">
             <label class="componentField">
