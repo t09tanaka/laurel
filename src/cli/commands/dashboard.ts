@@ -1275,12 +1275,8 @@ export async function handleDashboardRequest(
       return ctx.changeBus.stream();
     }
     if (request.method === 'GET' && url.pathname === '/api/dashboard/bootstrap') {
-      if (ctx.security !== undefined) {
-        const origin = request.headers.get('origin');
-        if (origin !== null && origin !== ctx.security.origin) {
-          return jsonResponse({ error: 'forbidden' }, 403);
-        }
-      }
+      const blocked = validateSameOrigin(request, ctx.security, 'forbidden');
+      if (blocked) return blocked;
       return jsonResponse({
         token: ctx.security?.token ?? '',
         mode: ctx.mode ?? 'prod',
@@ -4975,6 +4971,29 @@ async function readJsonPayload<T>(
   }
 }
 
+function validateSameOrigin(
+  request: Request,
+  security: DashboardSecurityContext | undefined,
+  rejectMessage: string,
+): Response | undefined {
+  if (security === undefined) return undefined;
+  const origin = request.headers.get('origin');
+  if (origin !== null && origin !== security.origin) {
+    return jsonResponse({ error: rejectMessage }, 403);
+  }
+  const referer = request.headers.get('referer');
+  if (origin === null && referer !== null) {
+    try {
+      if (new URL(referer).origin !== security.origin) {
+        return jsonResponse({ error: rejectMessage }, 403);
+      }
+    } catch {
+      return jsonResponse({ error: 'invalid referer' }, 403);
+    }
+  }
+  return undefined;
+}
+
 function validateWriteRequest(
   request: Request,
   security: DashboardSecurityContext | undefined,
@@ -4982,21 +5001,7 @@ function validateWriteRequest(
   if (security === undefined) return undefined;
   const token = request.headers.get('x-nectar-dashboard-token');
   if (token !== security.token) return jsonResponse({ error: 'dashboard token is required' }, 403);
-  const origin = request.headers.get('origin');
-  if (origin !== null && origin !== security.origin) {
-    return jsonResponse({ error: 'cross-origin dashboard write rejected' }, 403);
-  }
-  const referer = request.headers.get('referer');
-  if (origin === null && referer !== null) {
-    try {
-      if (new URL(referer).origin !== security.origin) {
-        return jsonResponse({ error: 'cross-origin dashboard write rejected' }, 403);
-      }
-    } catch {
-      return jsonResponse({ error: 'invalid referer' }, 403);
-    }
-  }
-  return undefined;
+  return validateSameOrigin(request, security, 'cross-origin dashboard write rejected');
 }
 
 interface ChangeBusEventInput {
