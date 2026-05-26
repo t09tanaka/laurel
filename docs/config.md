@@ -114,6 +114,14 @@ Site-wide metadata exposed to themes as `@site` and `@blog`.
 | `site.private` | `boolean` | no | `false` | Whether the publication should be treated as Ghost password-protected for theme compatibility. Static Nectar does not enforce HTTP authentication; this only surfaces `@site.private` and drives `{{#is "private"}}` so themes can render their private-site branch when an external host handles access control. |
 | `site.twitter` | `string` | no | — | Optional Twitter / X handle (e.g. `@nectar`). Used to populate `twitter:site` meta tags. |
 | `site.facebook` | `string` | no | — | Optional Facebook page slug. Used to populate `og:article:publisher` meta tags. |
+| `site.linkedin` | `string` | no | — | Optional LinkedIn profile slug or URL. |
+| `site.bluesky` | `string` | no | — | Optional Bluesky handle or URL. |
+| `site.mastodon` | `string` | no | — | Optional Mastodon user@host handle or URL. |
+| `site.threads` | `string` | no | — | Optional Threads handle or URL. |
+| `site.tiktok` | `string` | no | — | Optional TikTok handle or URL. |
+| `site.youtube` | `string` | no | — | Optional YouTube channel handle or URL. |
+| `site.instagram` | `string` | no | — | Optional Instagram handle or URL. |
+| `site.github` | `string` | no | — | Optional GitHub user/org/repo slug or URL. |
 | `site.meta_title` | `string` | no | — | Site-wide SEO title used by `{{ghost_head}}` as the last fallback when no post/page/tag/author title is in scope. Themes that read `@site.meta_title` see this value unchanged. Leave unset to fall back to `site.title`. |
 | `site.meta_description` | `string` | no | — | Site-wide SEO description used by `{{ghost_head}}` as the last fallback when no post/page/tag/author description is in scope. Themes that read `@site.meta_description` see this value unchanged. Leave unset to fall back to `site.description`. |
 | `site.og_image` | `string` | no | — | Site-wide Open Graph image URL or content-relative path used by `{{ghost_head}}` when no `og_image` / `twitter_image` / `feature_image` is in scope. Surfaced to themes as `@site.og_image`. |

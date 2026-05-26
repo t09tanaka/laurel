@@ -95,6 +95,38 @@
               "type": "string",
               "description": "Optional Facebook page slug. Used to populate `og:article:publisher` meta tags."
             },
+            "linkedin": {
+              "type": "string",
+              "description": "Optional LinkedIn profile slug or URL."
+            },
+            "bluesky": {
+              "type": "string",
+              "description": "Optional Bluesky handle or URL."
+            },
+            "mastodon": {
+              "type": "string",
+              "description": "Optional Mastodon user@host handle or URL."
+            },
+            "threads": {
+              "type": "string",
+              "description": "Optional Threads handle or URL."
+            },
+            "tiktok": {
+              "type": "string",
+              "description": "Optional TikTok handle or URL."
+            },
+            "youtube": {
+              "type": "string",
+              "description": "Optional YouTube channel handle or URL."
+            },
+            "instagram": {
+              "type": "string",
+              "description": "Optional Instagram handle or URL."
+            },
+            "github": {
+              "type": "string",
+              "description": "Optional GitHub user/org/repo slug or URL."
+            },
             "meta_title": {
               "type": "string",
               "description": "Site-wide SEO title used by `{{ghost_head}}` as the last fallback when no post/page/tag/author title is in scope. Themes that read `@site.meta_title` see this value unchanged. Leave unset to fall back to `site.title`."

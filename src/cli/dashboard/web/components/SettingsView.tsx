@@ -4,6 +4,19 @@ import type { DashboardSettingsSubview } from '../../ui-state.ts';
 import { saveSiteSettings, saveThemeSettings, uploadTheme } from '../lib/api.ts';
 import type { DashboardState } from '../types.ts';
 
+const SOCIAL_FIELDS = [
+  ['twitter', 'X / Twitter', 'https://x.com/yourhandle'],
+  ['facebook', 'Facebook', 'https://www.facebook.com/yourpage'],
+  ['linkedin', 'LinkedIn', 'https://www.linkedin.com/in/yourname'],
+  ['bluesky', 'Bluesky', 'https://bsky.app/profile/yourname.bsky.social'],
+  ['mastodon', 'Mastodon', 'https://mastodon.social/@yourname'],
+  ['threads', 'Threads', 'https://www.threads.net/@yourname'],
+  ['tiktok', 'TikTok', 'https://www.tiktok.com/@yourname'],
+  ['youtube', 'YouTube', 'https://www.youtube.com/@yourchannel'],
+  ['instagram', 'Instagram', 'https://www.instagram.com/yourname'],
+  ['github', 'GitHub', 'https://github.com/yourname'],
+] as const;
+
 // MigrationView is mounted upstream in DashboardApp, never inside this
 // component — exclude 'migration' from the prop so an accidental
 // SettingsView subview='migration' can't compile to an empty render.
@@ -19,17 +32,24 @@ interface SettingsViewProps {
   onCodeInjectionDirtyChange: (dirty: boolean) => void;
 }
 
-/* Dashboard surfaces only Site identity, Theme switcher, and Code
- * injection. Everything else (content paths, build config, structure /
- * routes, operations, advanced) lives in nectar.toml for developers to
- * edit directly — it doesn't belong in an editorial dashboard.
+/* Dashboard surfaces only Site identity, Social links, Theme switcher,
+ * and Code injection. Everything else (content paths, build config,
+ * structure / routes, operations, advanced) lives in nectar.toml for
+ * developers to edit directly — it doesn't belong in an editorial
+ * dashboard.
  *
  * Settings is split into four narrow subviews so the IA matches the
  * category of what each panel saves:
- *   - Site         → SiteIdentityPanel (title, URL, accent, description)
+ *   - Site         → SiteIdentityPanel + SocialLinksPanel (stacked)
  *   - Design       → ThemeSwitcherPanel (active theme + upload)
  *   - Integration  → CodeInjectionPanel (GA4, custom <meta>, widgets)
  *   - Migration    → handled by MigrationView upstream, not this component
+ *
+ * Inside the Site subview, identity (title/URL/accent/description) and
+ * social account URLs are intentionally separate panels with separate
+ * save buttons. They edit unrelated parts of `[site]` and grouping them
+ * forced an editor adjusting one Twitter handle to scroll past every
+ * identity field first.
  *
  * Code injection is an exception to the editorial-restraint default
  * because dropping a GA4 / analytics snippet is a routine operator
@@ -43,7 +63,7 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
     <div class="settingsLayout settingsLayoutStacked">
       <div class="settingsDetail">
         {props.subview === 'site' ? (
-          <SiteIdentityPanel
+          <SitePanels
             state={props.state}
             site={site}
             onSettingsSaved={props.onSettingsSaved}
@@ -73,12 +93,54 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
   );
 }
 
-interface SiteIdentityProps {
+interface SitePanelsProps {
   state: DashboardState;
   site: DashboardState['site'];
   onSettingsSaved: () => Promise<void> | void;
   onConflict: (message: string) => void;
   onSiteDirtyChange: (dirty: boolean) => void;
+}
+
+/* Coordinates the two panels inside the Site subview so a save in one
+ * doesn't clear the parent's "dirty" indicator while the other still
+ * has unsaved edits. The combined dirty state is forwarded to
+ * DashboardApp's siteSettingsDirty flag. */
+function SitePanels(props: SitePanelsProps): JSX.Element {
+  const [identityDirty, setIdentityDirty] = useState(false);
+  const [socialDirty, setSocialDirty] = useState(false);
+
+  function report(identity: boolean, social: boolean) {
+    setIdentityDirty(identity);
+    setSocialDirty(social);
+    props.onSiteDirtyChange(identity || social);
+  }
+
+  return (
+    <>
+      <SiteIdentityPanel
+        state={props.state}
+        site={props.site}
+        onSettingsSaved={props.onSettingsSaved}
+        onConflict={props.onConflict}
+        onDirtyChange={(dirty) => report(dirty, socialDirty)}
+      />
+      <SocialLinksPanel
+        state={props.state}
+        site={props.site}
+        onSettingsSaved={props.onSettingsSaved}
+        onConflict={props.onConflict}
+        onDirtyChange={(dirty) => report(identityDirty, dirty)}
+      />
+    </>
+  );
+}
+
+interface SiteIdentityProps {
+  state: DashboardState;
+  site: DashboardState['site'];
+  onSettingsSaved: () => Promise<void> | void;
+  onConflict: (message: string) => void;
+  onDirtyChange: (dirty: boolean) => void;
 }
 
 function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
@@ -98,7 +160,7 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
     setSetDescription(site.description);
     setSetUrl(site.url);
     setSiteSettingsDirty(false);
-    props.onSiteDirtyChange(false);
+    props.onDirtyChange(false);
   }, [site.title, site.description, site.url, site.accentColor]);
 
   function markDirty<T>(setter: (value: T) => void): (event: Event) => void {
@@ -106,7 +168,7 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
       const value = (event.currentTarget as HTMLInputElement).value as unknown as T;
       setter(value);
       setSiteSettingsDirty(true);
-      props.onSiteDirtyChange(true);
+      props.onDirtyChange(true);
     };
   }
 
@@ -133,7 +195,7 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
       return;
     }
     setSiteSettingsDirty(false);
-    props.onSiteDirtyChange(false);
+    props.onDirtyChange(false);
     setSiteNotice('Saved to nectar.toml');
     await props.onSettingsSaved();
   }
@@ -151,23 +213,39 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
       <div class="settingsGrid siteIdentityGrid">
         <label class="field">
           <span>Site title</span>
-          <input id="setTitle" value={setTitle} onInput={markDirty(setSetTitle)} />
+          <input
+            id="setTitle"
+            value={setTitle}
+            placeholder="My awesome blog"
+            onInput={markDirty(setSetTitle)}
+          />
         </label>
         <label class="field">
           <span>Accent color</span>
-          <input id="setAccent" value={setAccent} onInput={markDirty(setSetAccent)} />
+          <input
+            id="setAccent"
+            value={setAccent}
+            placeholder="#ff6b6b"
+            onInput={markDirty(setSetAccent)}
+          />
         </label>
         <label class="field wide">
           <span>Description</span>
           <input
             id="setDescription"
             value={setDescription}
+            placeholder="A short tagline shown in feeds, meta tags, and theme headers."
             onInput={markDirty(setSetDescription)}
           />
         </label>
         <label class="field wide">
           <span>Site URL</span>
-          <input id="setUrl" value={setUrl} onInput={markDirty(setSetUrl)} />
+          <input
+            id="setUrl"
+            value={setUrl}
+            placeholder="https://example.com"
+            onInput={markDirty(setSetUrl)}
+          />
         </label>
         <div class="field wide siteIdentityActions">
           <output id="settingsNotice" class="notice">
@@ -182,6 +260,100 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
             }}
             disabled={!siteSettingsDirty}
             title={siteSettingsDirty ? 'Save site identity to nectar.toml' : 'No changes to save'}
+          >
+            Save changes
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+interface SocialLinksProps {
+  state: DashboardState;
+  site: DashboardState['site'];
+  onSettingsSaved: () => Promise<void> | void;
+  onConflict: (message: string) => void;
+  onDirtyChange: (dirty: boolean) => void;
+}
+
+function SocialLinksPanel(props: SocialLinksProps): JSX.Element {
+  const { site } = props;
+  const settings = props.state.settings;
+  const [social, setSocial] = useState(site.social);
+  const [notice, setNotice] = useState('');
+  const [dirty, setDirty] = useState(false);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: parent state callback is stable
+  useEffect(() => {
+    setSocial(site.social);
+    setDirty(false);
+    props.onDirtyChange(false);
+  }, [site.social]);
+
+  async function handleSave() {
+    const { status, data } = await saveSiteSettings({
+      fingerprint: settings.fingerprint,
+      updates: { ...social },
+    });
+    if (status === 409) {
+      props.onConflict(
+        'nectar.toml changed on disk. Latest settings loaded; re-enter changes after review.',
+      );
+      await props.onSettingsSaved();
+      return;
+    }
+    if (status >= 400) {
+      setNotice(data.error ?? 'Could not save social links');
+      return;
+    }
+    setDirty(false);
+    props.onDirtyChange(false);
+    setNotice('Saved to nectar.toml');
+    await props.onSettingsSaved();
+  }
+
+  return (
+    <section class="socialLinksPanel" aria-label="Social accounts">
+      <header class="settingsPanelHead">
+        <div>
+          <h3>Social accounts</h3>
+          <p class="meta">
+            Public profile URLs surfaced to themes as <code>@site.twitter</code>,{' '}
+            <code>@site.facebook</code>, etc. Leave a field blank to omit it. Saved to the{' '}
+            <code>[site]</code> section of nectar.toml.
+          </p>
+        </div>
+      </header>
+      <div class="settingsGrid siteIdentityGrid">
+        {SOCIAL_FIELDS.map(([key, label, placeholder]) => (
+          <label class="field" key={key}>
+            <span>{label}</span>
+            <input
+              value={social[key]}
+              placeholder={placeholder}
+              onInput={(event) => {
+                const value = (event.currentTarget as HTMLInputElement).value;
+                setSocial((prev) => ({ ...prev, [key]: value }));
+                setDirty(true);
+                props.onDirtyChange(true);
+              }}
+            />
+          </label>
+        ))}
+        <div class="field wide siteIdentityActions">
+          <output id="socialLinksNotice" class="notice">
+            {notice}
+          </output>
+          <button
+            class="btn"
+            id="saveSocialLinks"
+            type="button"
+            onClick={() => {
+              void handleSave();
+            }}
+            disabled={!dirty}
+            title={dirty ? 'Save social links to nectar.toml' : 'No changes to save'}
           >
             Save changes
           </button>
