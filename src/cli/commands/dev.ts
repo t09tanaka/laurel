@@ -1,9 +1,10 @@
 import { type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
 import { isAbsolute, join, normalize } from 'node:path';
 import type { Server, ServerWebSocket } from 'bun';
-import { build } from '~/build/pipeline.ts';
+import { type BuildSummary, build } from '~/build/pipeline.ts';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
+import { type DevChangeCategory, decideDevReuse } from '~/dev/incremental.ts';
 import {
   LIVERELOAD_CLIENT_JS,
   LIVERELOAD_PATH,
@@ -78,9 +79,14 @@ export async function runDev(args: string[]): Promise<number> {
 
   // Always run an initial build so the developer never sees a stale dist/
   // from a previous run. Failing here is fatal — there is nothing to serve.
+  // `captureReusable` asks the build to hand back its loaded config + theme
+  // so subsequent rebuilds can skip those load steps when the watcher confirms
+  // the corresponding files did not change.
   logger.info(`Running initial build before starting dev server (${distDir}).`);
+  let reusable: NonNullable<BuildSummary['reusable']> | undefined;
   try {
-    const summary = await build({ cwd, configPath });
+    const summary = await build({ cwd, configPath, captureReusable: true });
+    reusable = summary.reusable;
     logger.info(
       `Initial build complete: ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
     );
@@ -170,6 +176,12 @@ export async function runDev(args: string[]): Promise<number> {
   let building = false;
   let pending = false;
   let cssOnly = true;
+  // Categories observed in the current debounce window. Used to decide what
+  // the next build() can reuse from the previously-loaded config + theme.
+  // Reset to empty inside runRebuild() once the build kicks off; subsequent
+  // file events landing during the build accumulate into the next window via
+  // `pending`/`scheduleRebuild`.
+  let pendingCategories = new Set<DevChangeCategory>();
 
   const broadcast = (message: { type: 'reload' | 'css' }): void => {
     const payload = encodeReloadMessage(message);
@@ -186,11 +198,31 @@ export async function runDev(args: string[]): Promise<number> {
     building = true;
     const isCssOnly = cssOnly;
     cssOnly = true;
+    const windowCategories = pendingCategories;
+    pendingCategories = new Set();
+    const decision = decideDevReuse(windowCategories);
+    const reuseArg =
+      reusable !== undefined && (decision.reuseConfig || decision.reuseTheme)
+        ? {
+            ...(decision.reuseConfig ? { config: reusable.config } : {}),
+            ...(decision.reuseTheme ? { theme: reusable.theme } : {}),
+          }
+        : undefined;
     try {
-      const summary = await build({ cwd, configPath });
+      const summary = await build({
+        cwd,
+        configPath,
+        captureReusable: true,
+        ...(reuseArg !== undefined ? { reuse: reuseArg } : {}),
+      });
+      // A successful build either confirms the reused state is still valid or
+      // produces a fresh one; either way, refresh `reusable` so the next
+      // rebuild keeps benefiting from the cache.
+      if (summary.reusable !== undefined) reusable = summary.reusable;
       const messageType = isCssOnly ? 'css' : 'reload';
+      const reuseLabel = describeReuse(reuseArg);
       logger.info(
-        `Rebuilt ${summary.routeCount} routes (${summary.assetCount} assets); pushing ${messageType} to ${clients.size} client(s)`,
+        `Rebuilt ${summary.routeCount} routes (${summary.assetCount} assets, ${reuseLabel}); pushing ${messageType} to ${clients.size} client(s)`,
       );
       broadcast({ type: messageType });
     } catch (err) {
@@ -198,6 +230,10 @@ export async function runDev(args: string[]): Promise<number> {
       // it pretty-prints NectarError with source location when available and
       // falls back to the plain message for anything else.
       reportError(err, cwd);
+      // A failed build may have left half-mutated reusable state on the table.
+      // Drop it so the next rebuild starts from a clean load and we don't
+      // serve subtly stale config/theme to the next pass.
+      reusable = undefined;
     } finally {
       building = false;
       if (pending) {
@@ -218,10 +254,11 @@ export async function runDev(args: string[]): Promise<number> {
     }, REBUILD_DEBOUNCE_MS);
   };
 
-  for (const p of watchPaths) {
+  for (const target of watchPaths) {
     try {
-      const w = fsWatch(p, { recursive: true }, (_event, filename) => {
+      const w = fsWatch(target.path, { recursive: true }, (_event, filename) => {
         if (filename !== null && filename !== undefined && isIgnoredChange(filename)) return;
+        pendingCategories.add(target.category);
         // Heuristic: if every change in this debounce window is a CSS file,
         // tell the client to hot-swap stylesheets instead of full-reloading.
         // Any non-CSS change in the same window flips this back to a full
@@ -238,7 +275,9 @@ export async function runDev(args: string[]): Promise<number> {
       });
       watchers.push(w);
     } catch (err) {
-      logger.warn(`Failed to watch ${p}: ${err instanceof Error ? err.message : String(err)}`);
+      logger.warn(
+        `Failed to watch ${target.path}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
   logger.info(`Watch mode enabled: tracking ${watchers.length} path(s) for changes`);
@@ -293,23 +332,31 @@ function resolveHost(raw: unknown): string | CliUsageError {
   return trimmed;
 }
 
-function gatherWatchPaths(cwd: string, config: NectarConfig): string[] {
-  const paths = new Set<string>();
-  const add = (p: string): void => {
+interface WatchTarget {
+  path: string;
+  category: DevChangeCategory;
+}
+
+function gatherWatchPaths(cwd: string, config: NectarConfig): WatchTarget[] {
+  const seen = new Set<string>();
+  const targets: WatchTarget[] = [];
+  const add = (p: string, category: DevChangeCategory): void => {
     const abs = isAbsolute(p) ? p : join(cwd, p);
-    if (existsSync(abs)) paths.add(abs);
+    if (seen.has(abs)) return;
+    if (!existsSync(abs)) return;
+    seen.add(abs);
+    targets.push({ path: abs, category });
   };
-  add(config.content.posts_dir);
-  add(config.content.pages_dir);
-  add(config.content.authors_dir);
-  add(config.content.tags_dir);
-  add(config.content.assets_dir);
-  add(join(config.theme.dir, config.theme.name));
+  add(config.content.posts_dir, 'content');
+  add(config.content.pages_dir, 'content');
+  add(config.content.authors_dir, 'content');
+  add(config.content.tags_dir, 'content');
+  add(config.content.assets_dir, 'content');
+  add(join(config.theme.dir, config.theme.name), 'theme');
   for (const name of ['nectar.toml', 'nectar.config.toml']) {
-    const p = join(cwd, name);
-    if (existsSync(p)) paths.add(p);
+    add(join(cwd, name), 'config');
   }
-  return [...paths];
+  return targets;
 }
 
 // Filters fs.watch noise that would otherwise spam rebuilds: build artifacts
@@ -339,6 +386,15 @@ function waitForShutdownSignal(): Promise<'SIGINT' | 'SIGTERM'> {
     process.once('SIGINT', onInt);
     process.once('SIGTERM', onTerm);
   });
+}
+
+function describeReuse(reuse: { config?: unknown; theme?: unknown } | undefined): string {
+  if (!reuse) return 'fresh load';
+  const parts: string[] = [];
+  if (reuse.config !== undefined) parts.push('config');
+  if (reuse.theme !== undefined) parts.push('theme');
+  if (parts.length === 0) return 'fresh load';
+  return `reused ${parts.join('+')}`;
 }
 
 function isAddrInUseError(err: unknown): boolean {
