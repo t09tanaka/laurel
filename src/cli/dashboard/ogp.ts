@@ -209,6 +209,7 @@ export interface FetchOgpOptions {
   lookup: (hostname: string) => Promise<string>;
   timeoutMs: number;
   maxBytes: number;
+  /** Maximum number of redirects to follow (in addition to the initial request). */
   maxRedirects: number;
 }
 
@@ -230,7 +231,7 @@ async function guardHost(
 ): Promise<'public' | 'blocked'> {
   if (classifyHost(url.hostname) === 'blocked') return 'blocked';
   if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(url.hostname) || url.hostname.includes(':')) {
-    // Literal IP — classifyHost already covered it.
+    // Public literal IP — the blocked case was caught above; skip DNS lookup.
     return 'public';
   }
   try {
@@ -290,8 +291,9 @@ export async function fetchOgp(raw: string, options: FetchOgpOptions): Promise<F
         },
       });
     } catch (err) {
-      const e = err as { name?: string };
-      if (e?.name === 'AbortError') return { ok: false, error: 'timeout' };
+      if (err instanceof Error && err.name === 'AbortError') {
+        return { ok: false, error: 'timeout' };
+      }
       return { ok: false, error: 'fetch_failed' };
     } finally {
       clearTimeout(timer);
