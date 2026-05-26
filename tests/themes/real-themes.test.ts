@@ -52,6 +52,7 @@ describe('real Ghost theme contract', () => {
 
         const distRoot = join(result.workDir, 'dist');
         const indexHtml = readFileSync(join(distRoot, 'index.html'), 'utf8');
+        const postHtml = readFileSync(join(distRoot, 'welcome', 'index.html'), 'utf8');
 
         // No surviving Handlebars markers. The regex tolerates `&#123;&#123;`
         // (HTML-escaped braces inside `<pre><code>` blocks) since marked emits
@@ -70,6 +71,13 @@ describe('real Ghost theme contract', () => {
 
         // Skip-link contract (a11y baseline shared with example-build.test.ts).
         expect(indexHtml).toContain('Skip to content');
+
+        if (themeName === 'casper-mini') {
+          expect(
+            postHtml,
+            `${themeName}: post reading-time helper must not render an empty label`,
+          ).toContain('<p class="reading-time">1 min read</p>');
+        }
       } finally {
         // Best-effort cleanup; failures inside the assertion block already
         // surface the workdir via the smoke log so we drop it here.

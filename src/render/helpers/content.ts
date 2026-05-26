@@ -79,8 +79,16 @@ export function registerContentHelpers(engine: NectarEngine): void {
     function readingTimeHelper(this: unknown, options: Handlebars.HelperOptions) {
       const ctx = this as Record<string, unknown>;
       const minutes = typeof ctx.reading_time === 'number' ? ctx.reading_time : 1;
-      const minute = String(options.hash.minute ?? translate(engine, options, '1 min read'));
-      const plural = String(options.hash.minutes ?? translate(engine, options, '% min read'));
+      const minute = readingTimeLabel(
+        options.hash.minute,
+        translate(engine, options, '1 min read'),
+        '1 min read',
+      );
+      const plural = readingTimeLabel(
+        options.hash.minutes,
+        translate(engine, options, '% min read'),
+        '% min read',
+      );
       if (minutes <= 1) return minute;
       return plural.replace('%', String(minutes));
     },
@@ -683,6 +691,13 @@ function hashString(value: unknown): string | undefined {
   if (typeof value === 'string') return value;
   if (isHandlebarsSafeString(value)) return value.toHTML();
   return undefined;
+}
+
+function readingTimeLabel(value: unknown, translated: string, fallback: string): string {
+  const custom = hashString(value);
+  if (custom !== undefined && custom.trim() !== '') return custom;
+  if (translated.trim() !== '') return translated;
+  return fallback;
 }
 
 function isHandlebarsSafeString(value: unknown): value is { toHTML(): string } {

@@ -495,6 +495,28 @@ describe('reading_time helper', () => {
     registerContentHelpers(engine);
     expect(engine.hb.compile('{{reading_time}}')({ reading_time: 3 })).toBe('3分で読めます');
   });
+
+  test('falls back to Ghost default labels when nested t helper labels are empty', () => {
+    const engine = makeEngine({
+      content: { site: { locale: 'en' } } as unknown as NectarEngine['content'],
+      theme: {
+        locales: {
+          en: {
+            '1 min read': '',
+            '% min read': '',
+          },
+        },
+      } as unknown as NectarEngine['theme'],
+    });
+    registerI18nHelpers(engine);
+    registerContentHelpers(engine);
+    const tpl = engine.hb.compile(
+      '{{#if reading_time}}{{reading_time minute=(t "1 min read") minutes=(t "% min read")}}{{/if}}',
+    );
+
+    expect(tpl({ reading_time: 1 })).toBe('1 min read');
+    expect(tpl({ reading_time: 4 })).toBe('4 min read');
+  });
 });
 
 describe('meta_title helper pagination', () => {

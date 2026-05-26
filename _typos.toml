@@ -12,3 +12,15 @@ extend-exclude = [
   ".github/workflows/release.yml",
 ]
 ignore-hidden = false
+
+[default]
+extend-ignore-re = [
+  "catch-alls",
+  "mis-shape",
+]
+
+[default.extend-words]
+ontext = "ontext"
+sodo = "sodo"
+Sodo = "Sodo"
+unparseable = "unparseable"
