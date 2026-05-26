@@ -8,6 +8,7 @@ import {
   altFromFilenameDefault,
   build3x3Table,
   findEmptyParagraph,
+  validateBookmarkUrl,
 } from '../../../src/cli/dashboard/web/lib/prose-insert-menu-logic.ts';
 
 // Mirror the editor's runtime schema so the trigger logic exercises
@@ -82,5 +83,31 @@ describe('prose-insert-menu — altFromFilenameDefault', () => {
     expect(altFromFilenameDefault('photo.PNG')).toBe('photo');
     expect(altFromFilenameDefault('.hidden')).toBe('image');
     expect(altFromFilenameDefault('')).toBe('image');
+  });
+});
+
+describe('validateBookmarkUrl', () => {
+  test('accepts https URLs and returns the canonical form', () => {
+    const r = validateBookmarkUrl('  https://example.com/x  ');
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value).toBe('https://example.com/x');
+  });
+
+  test('accepts http URLs', () => {
+    expect(validateBookmarkUrl('http://example.com').ok).toBe(true);
+  });
+
+  test('rejects empty input', () => {
+    const r = validateBookmarkUrl('   ');
+    expect(r.ok).toBe(false);
+  });
+
+  test('rejects non-http schemes', () => {
+    expect(validateBookmarkUrl('javascript:alert(1)').ok).toBe(false);
+    expect(validateBookmarkUrl('ftp://example.com').ok).toBe(false);
+  });
+
+  test('rejects strings that do not parse as URLs', () => {
+    expect(validateBookmarkUrl('not a url').ok).toBe(false);
   });
 });

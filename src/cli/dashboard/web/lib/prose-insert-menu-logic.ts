@@ -63,3 +63,20 @@ export function build3x3Table(schema: Schema): ProseNode | null {
   }
   return table.create(null, [headerRow, ...bodyRows]);
 }
+
+export type ValidateBookmarkUrlResult = { ok: true; value: string } | { ok: false; error: string };
+
+export function validateBookmarkUrl(raw: string): ValidateBookmarkUrlResult {
+  const trimmed = raw.trim();
+  if (!trimmed) return { ok: false, error: 'Enter a URL' };
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return { ok: false, error: 'Enter a valid http(s) URL' };
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return { ok: false, error: 'Only http(s) URLs are supported' };
+  }
+  return { ok: true, value: url.toString() };
+}
