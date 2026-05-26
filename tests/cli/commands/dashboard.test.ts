@@ -538,6 +538,143 @@ describe('dashboard data', () => {
     }
   });
 
+  test('renaming a component rewrites {old} references in post and page bodies', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      // Drop a component plus posts/pages that reference it in mixed
+      // contexts. The rewrite should hit the paragraph and list item,
+      // skip the fenced code block, and leave unrelated tokens alone.
+      await mkdir(join(dir, 'content/components'), { recursive: true });
+      await writeFile(
+        join(dir, 'content/components/callout.md'),
+        [
+          '---',
+          'slug: callout',
+          'description: Inline aside',
+          '---',
+          '',
+          '```css',
+          '.callout { display: block; }',
+          '```',
+          '',
+          '```html',
+          '<aside class="callout">…</aside>',
+          '```',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+      await writeFile(
+        join(dir, 'content/posts/with-callout.md'),
+        [
+          '---',
+          'title: With Callout',
+          'date: 2026-02-01T00:00:00Z',
+          'created_at: 2026-02-01T00:00:00Z',
+          '---',
+          '',
+          'See {callout} for the aside.',
+          '',
+          '- {callout}',
+          '- other item',
+          '',
+          '```html',
+          '{callout} stays literal',
+          '```',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+      await writeFile(
+        join(dir, 'content/pages/no-refs.md'),
+        '---\ntitle: No refs\n---\n\nNo shortcodes here.\n',
+        'utf8',
+      );
+
+      const config = await loadConfig({ cwd: dir });
+      const item = await readDashboardContentItem({
+        cwd: dir,
+        config,
+        kind: 'components',
+        slug: 'callout',
+      });
+
+      const renamed = await renameDashboardContentSlug({
+        cwd: dir,
+        config,
+        kind: 'components',
+        oldSlug: 'callout',
+        newSlug: 'hero',
+        expectedFingerprint: item.fingerprint,
+        redirect: false,
+      });
+
+      expect(renamed.ok).toBe(true);
+      if (!renamed.ok) throw new Error('expected rename result');
+      expect(renamed.newPath).toBe('content/components/hero.md');
+      expect(renamed.rewrittenReferences).toEqual({
+        filesChanged: 1,
+        occurrencesRewritten: 2,
+      });
+
+      const rewrittenPost = await readFile(join(dir, 'content/posts/with-callout.md'), 'utf8');
+      expect(rewrittenPost).toContain('See {hero} for the aside.');
+      expect(rewrittenPost).toContain('- {hero}');
+      // Fenced code block must stay literal.
+      expect(rewrittenPost).toContain('{callout} stays literal');
+
+      const untouchedPage = await readFile(join(dir, 'content/pages/no-refs.md'), 'utf8');
+      expect(untouchedPage).toContain('No shortcodes here.');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('renaming a component with rewriteReferences=false leaves bodies alone', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await mkdir(join(dir, 'content/components'), { recursive: true });
+      await writeFile(
+        join(dir, 'content/components/callout.md'),
+        '---\nslug: callout\n---\n\n```html\n<aside></aside>\n```\n',
+        'utf8',
+      );
+      await writeFile(
+        join(dir, 'content/posts/uses-callout.md'),
+        '---\ntitle: Uses Callout\ndate: 2026-02-01T00:00:00Z\ncreated_at: 2026-02-01T00:00:00Z\n---\n\n{callout}\n',
+        'utf8',
+      );
+
+      const config = await loadConfig({ cwd: dir });
+      const item = await readDashboardContentItem({
+        cwd: dir,
+        config,
+        kind: 'components',
+        slug: 'callout',
+      });
+
+      const renamed = await renameDashboardContentSlug({
+        cwd: dir,
+        config,
+        kind: 'components',
+        oldSlug: 'callout',
+        newSlug: 'hero',
+        expectedFingerprint: item.fingerprint,
+        rewriteReferences: false,
+      });
+
+      expect(renamed.ok).toBe(true);
+      if (!renamed.ok) throw new Error('expected rename result');
+      expect(renamed.rewrittenReferences).toBeNull();
+
+      const post = await readFile(join(dir, 'content/posts/uses-callout.md'), 'utf8');
+      // Body must still read `{callout}` even though the snippet is now `{hero}`.
+      expect(post).toContain('{callout}');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('loads content templates and internal link helpers for markdown-first creation', async () => {
     const dir = await makeDashboardFixture();
     try {
