@@ -4,11 +4,86 @@
 // safely include this module via tests.
 
 import type { NodeType, Node as ProseNode, Schema } from 'prosemirror-model';
-import type { EditorState } from 'prosemirror-state';
+import { type EditorState, TextSelection, type Transaction } from 'prosemirror-state';
 
 export interface EmptyParagraphTarget {
   paraStart: number;
   caretPos: number;
+}
+
+// Surface for the "Components" submenu in the insert popover. We
+// keep this minimal — the menu only needs the slug (for the inserted
+// `{slug}` text) and an optional description for the hint text.
+export interface ComponentEntry {
+  slug: string;
+  description?: string;
+}
+
+// Slug pattern mirrored from src/content/components.ts so a defensive
+// filter at insert time drops anything that wouldn't actually expand
+// at render time. Loose components (typos, kebab-case, etc.) are
+// hidden from the submenu rather than letting users insert dead text.
+export const COMPONENT_SLUG_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
+
+// Build a paragraph containing the literal `{slug}` text — the same
+// shape the markdown parser would produce from a hand-typed
+// `{callout}` line. By inserting at the paragraph level (rather than
+// as an inline span at the caret), the round-trip
+// markdown → ProseMirror → markdown stays stable and the shortcode
+// expander on the build side sees a clean line to act on.
+export function buildComponentParagraph(schema: Schema, slug: string): ProseNode | null {
+  const para = nodeBy(schema, 'paragraph');
+  if (!para) return null;
+  return para.create(null, schema.text(`{${slug}}`));
+}
+
+export interface ComponentSubmenuEntry {
+  slug: string;
+  label: string;
+  hint: string;
+}
+
+// Filter / dedup the raw component list into the entries the popover
+// submenu actually renders. Slugs that fail the loader's pattern are
+// dropped (a typo wouldn't expand at render time, so showing them
+// would be a dead-end click), and duplicate slugs collapse to the
+// first occurrence — input order is otherwise preserved so the
+// submenu mirrors whatever ordering the dashboard list view uses.
+export function buildComponentSubmenuEntries(list: ComponentEntry[]): ComponentSubmenuEntry[] {
+  const seen = new Set<string>();
+  const entries: ComponentSubmenuEntry[] = [];
+  for (const c of list) {
+    if (!c.slug || seen.has(c.slug)) continue;
+    if (!COMPONENT_SLUG_PATTERN.test(c.slug)) continue;
+    seen.add(c.slug);
+    entries.push({
+      slug: c.slug,
+      label: `{${c.slug}}`,
+      hint: c.description?.trim() ?? '',
+    });
+  }
+  return entries;
+}
+
+// Replace the empty paragraph at `target` with `inserted` and park the
+// caret at the end of the inserted text. Pure transform — caller is
+// responsible for `view.dispatch(tr.scrollIntoView())`. Split out from
+// the plugin so tests can drive it directly without a DOM.
+export function buildInsertComponentTransaction(
+  state: EditorState,
+  target: EmptyParagraphTarget,
+  inserted: ProseNode,
+): Transaction | null {
+  const paraNode = state.doc.nodeAt(target.paraStart);
+  if (!paraNode) return null;
+  const paraEnd = target.paraStart + paraNode.nodeSize;
+  let tr = state.tr.replaceWith(target.paraStart, paraEnd, inserted);
+  // Caret = paragraph open token (1) + text length. The inserted
+  // paragraph wraps a single text node, so text length === nodeSize - 2
+  // (open + close tokens).
+  const caret = target.paraStart + 1 + (inserted.nodeSize - 2);
+  tr = tr.setSelection(TextSelection.create(tr.doc, caret));
+  return tr;
 }
 
 export function altFromFilenameDefault(name: string): string {

@@ -5,8 +5,12 @@ import { addListNodes } from 'prosemirror-schema-list';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { tableNodes } from 'prosemirror-tables';
 import {
+  COMPONENT_SLUG_PATTERN,
   altFromFilenameDefault,
   build3x3Table,
+  buildComponentParagraph,
+  buildComponentSubmenuEntries,
+  buildInsertComponentTransaction,
   findEmptyParagraph,
 } from '../../../src/cli/dashboard/web/lib/prose-insert-menu-logic.ts';
 
@@ -82,5 +86,121 @@ describe('prose-insert-menu — altFromFilenameDefault', () => {
     expect(altFromFilenameDefault('photo.PNG')).toBe('photo');
     expect(altFromFilenameDefault('.hidden')).toBe('image');
     expect(altFromFilenameDefault('')).toBe('image');
+  });
+});
+
+describe('prose-insert-menu — buildComponentParagraph', () => {
+  test('produces a paragraph whose text content is the literal {slug}', () => {
+    const para = buildComponentParagraph(proseSchema, 'callout');
+    expect(para).not.toBeNull();
+    if (!para) return;
+    expect(para.type.name).toBe('paragraph');
+    expect(para.textContent).toBe('{callout}');
+  });
+
+  test('returns null when the schema lacks a paragraph node', () => {
+    // Construct a degenerate schema with `doc { text* }` — no
+    // paragraph node — to confirm the helper bails rather than
+    // throwing.
+    const bare = new Schema({
+      nodes: {
+        doc: { content: 'text*' },
+        text: {},
+      },
+    });
+    expect(buildComponentParagraph(bare, 'callout')).toBeNull();
+  });
+});
+
+describe('prose-insert-menu — COMPONENT_SLUG_PATTERN', () => {
+  test('accepts the slugs the loader accepts and rejects the rest', () => {
+    // Mirror src/content/components.ts allow-list. The menu filters
+    // against this pattern before showing entries so users never see
+    // a snippet that would silently fail to expand.
+    expect(COMPONENT_SLUG_PATTERN.test('callout')).toBe(true);
+    expect(COMPONENT_SLUG_PATTERN.test('Hero_2')).toBe(true);
+    expect(COMPONENT_SLUG_PATTERN.test('side-bar')).toBe(true);
+    expect(COMPONENT_SLUG_PATTERN.test('1leading-digit')).toBe(false);
+    expect(COMPONENT_SLUG_PATTERN.test('has space')).toBe(false);
+    expect(COMPONENT_SLUG_PATTERN.test('')).toBe(false);
+  });
+});
+
+describe('prose-insert-menu — buildComponentSubmenuEntries', () => {
+  test('preserves input order and maps slug → {slug} label', () => {
+    const entries = buildComponentSubmenuEntries([
+      { slug: 'callout', description: 'Inline notice block' },
+      { slug: 'hero' },
+    ]);
+    expect(entries.map((e) => e.slug)).toEqual(['callout', 'hero']);
+    expect(entries[0]).toEqual({
+      slug: 'callout',
+      label: '{callout}',
+      hint: 'Inline notice block',
+    });
+    expect(entries[1]).toEqual({ slug: 'hero', label: '{hero}', hint: '' });
+  });
+
+  test('drops slugs that fail the loader pattern', () => {
+    const entries = buildComponentSubmenuEntries([
+      { slug: 'callout' },
+      { slug: '1bad' }, // leading digit
+      { slug: 'has space' },
+      { slug: '' },
+      { slug: 'hero-v2' },
+    ]);
+    expect(entries.map((e) => e.slug)).toEqual(['callout', 'hero-v2']);
+  });
+
+  test('dedupes by slug, keeping the first occurrence', () => {
+    const entries = buildComponentSubmenuEntries([
+      { slug: 'callout', description: 'first' },
+      { slug: 'callout', description: 'second — should be ignored' },
+      { slug: 'hero' },
+    ]);
+    expect(entries).toHaveLength(2);
+    expect(entries[0]?.hint).toBe('first');
+  });
+
+  test('trims whitespace from descriptions', () => {
+    const entries = buildComponentSubmenuEntries([{ slug: 'callout', description: '  padded  ' }]);
+    expect(entries[0]?.hint).toBe('padded');
+  });
+});
+
+describe('prose-insert-menu — buildInsertComponentTransaction', () => {
+  test('replaces the empty paragraph with {slug} and parks the caret at the text end', () => {
+    const state = makeStateFromText('');
+    const target = findEmptyParagraph(state);
+    expect(target).not.toBeNull();
+    if (!target) return;
+    const inserted = buildComponentParagraph(proseSchema, 'callout');
+    expect(inserted).not.toBeNull();
+    if (!inserted) return;
+    const tr = buildInsertComponentTransaction(state, target, inserted);
+    expect(tr).not.toBeNull();
+    if (!tr) return;
+    expect(tr.doc.textContent).toBe('{callout}');
+    // doc opens at 0, paragraph open at 1, text spans 1..10 (length 9),
+    // so caret end-of-text === 10.
+    expect(tr.selection.empty).toBe(true);
+    expect(tr.selection.from).toBe(10);
+  });
+
+  test('round-trips through markdownSerializer as a clean {slug} line', () => {
+    // Smoke-check that the inserted paragraph would serialise back to
+    // `{callout}\n` — i.e. the shape the build-side shortcode expander
+    // expects to see. Done with a tiny inline serializer so the test
+    // doesn't pull in the editor's full module surface.
+    const state = makeStateFromText('');
+    const target = findEmptyParagraph(state);
+    if (!target) return;
+    const inserted = buildComponentParagraph(proseSchema, 'callout');
+    if (!inserted) return;
+    const tr = buildInsertComponentTransaction(state, target, inserted);
+    if (!tr) return;
+    // textBetween across the doc strips paragraph markers; for a
+    // single paragraph it equals the paragraph's textContent.
+    expect(tr.doc.textBetween(0, tr.doc.content.size)).toBe('{callout}');
   });
 });

@@ -342,17 +342,38 @@ export interface Tier {
   benefits: string[];
 }
 
+// Reusable HTML+CSS snippet keyed by `slug`. Posts and pages embed it via the
+// `{slug}` shortcode. The body is expanded inline at the tag position; the CSS
+// is collected per page and emitted into `<head>` (deduped by slug).
+//
+// Stored as `content/components/<slug>.md` with frontmatter (`slug`,
+// `description`) plus two fenced code blocks in the body: ```css ... ``` and
+// ```html ... ```. Round-trips cleanly through git and any markdown editor.
+export interface ComponentSnippet {
+  slug: string;
+  description: string;
+  css: string;
+  html: string;
+  source: ContentSourceFingerprint;
+}
+
 export interface ContentGraph {
   posts: Post[];
   pages: Page[];
   tags: Tag[];
   authors: Author[];
   tiers: Tier[];
+  // Optional so older test fixtures and reduced graphs that don't load
+  // components still satisfy ContentGraph. Render-side code treats an
+  // absent / empty list as "no shortcodes registered" — `{slug}` text in
+  // bodies is then left as-is.
+  components?: ComponentSnippet[];
   bySlug: {
     posts: Map<string, Post>;
     pages: Map<string, Page>;
     tags: Map<string, Tag>;
     authors: Map<string, Author>;
+    components?: Map<string, ComponentSnippet>;
   };
   // Inverse indices keyed by slug. Built once during content load so the route
   // planner can resolve tag/author archives in O(1) instead of scanning

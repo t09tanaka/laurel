@@ -10,13 +10,20 @@ import type { DashboardRoute } from '../types.ts';
 const PAGE_PATHS: Record<DashboardView, string> = {
   posts: '/posts',
   pages: '/pages',
+  components: '/components',
   authors: '/authors',
   tags: '/tags',
   settings: '/settings',
   migration: '/settings/migration',
 };
 
-const EDITOR_KINDS: ReadonlyArray<DashboardEditorKind> = ['posts', 'pages', 'authors', 'tags'];
+const EDITOR_KINDS: ReadonlyArray<DashboardEditorKind> = [
+  'posts',
+  'pages',
+  'components',
+  'authors',
+  'tags',
+];
 
 export const normalizeView = normalizeDashboardView;
 export const shellSectionFor = dashboardShellSectionFor;

@@ -416,6 +416,7 @@ export function EditorView(props: EditorViewProps): JSX.Element {
                 resetKey={`${current.path}@${current.fingerprint.mtimeMs}`}
                 initialMarkdown={baseline.body}
                 onChange={(markdown) => patchSnapshot({ body: markdown })}
+                getComponents={() => props.state?.components?.items ?? []}
               />
             ) : null}
             <span class="saveHairline" data-state={saveState} aria-hidden="true" />

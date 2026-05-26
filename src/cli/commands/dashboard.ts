@@ -43,6 +43,7 @@ import { parseFrontmatter } from '~/content/frontmatter.ts';
 import { type MarkdownTransformHook, loadContent } from '~/content/loader.ts';
 import type {
   Author,
+  ComponentSnippet,
   ContentGraph,
   ContentSourceFingerprint,
   Page,
@@ -117,7 +118,7 @@ const DASHBOARD_PREVIEW_SANDBOX_POLICY: DashboardPreviewSandboxPolicy = {
   note: 'Markdown previews render through the active theme in a sandboxed iframe without allow-same-origin, so theme scripts cannot read or operate the dashboard document.',
 };
 
-type EditableKind = 'posts' | 'pages' | 'authors' | 'tags';
+type EditableKind = 'posts' | 'pages' | 'authors' | 'tags' | 'components';
 type DashboardContentKind = 'posts' | 'pages';
 type DashboardSort = 'created_desc' | 'created_asc' | 'updated_desc' | 'title_asc';
 
@@ -217,6 +218,20 @@ export interface DashboardTaxonomySummary {
   orphaned: boolean;
   source: 'file' | 'generated';
   materializePath: string;
+}
+
+// Per-component summary surfaced on the dashboard list. We don't expose
+// the raw CSS / HTML here — the row UI only needs the slug, the
+// description, and which payload fields are populated so it can render
+// status pips. The full payload is fetched lazily by the editor via
+// /api/content/components/<slug>.
+export interface DashboardComponentSummary {
+  slug: string;
+  description: string;
+  hasCss: boolean;
+  hasHtml: boolean;
+  path: string;
+  fingerprint: ContentSourceFingerprint;
 }
 
 type DashboardCardMode =
@@ -470,6 +485,7 @@ export interface DashboardState {
   pages: DashboardList<DashboardContentSummary>;
   authors: DashboardList<DashboardTaxonomySummary>;
   tags: DashboardList<DashboardTaxonomySummary>;
+  components: DashboardList<DashboardComponentSummary>;
   settings: {
     configPath: string;
     fingerprint: ContentSourceFingerprint;
@@ -478,6 +494,7 @@ export interface DashboardState {
       pages: string;
       authors: string;
       tags: string;
+      components: string;
       assets: string;
     };
     outputDir: string;
@@ -881,6 +898,12 @@ export async function loadDashboardState({
       MAX_PER_PAGE,
       query,
     ),
+    components: paginate(
+      await Promise.all((graph.components ?? []).map(async (c) => componentSummary(cwd, c))),
+      1,
+      MAX_PER_PAGE,
+      query,
+    ),
     settings: {
       configPath: relativePath(cwd, resolveConfigPath(cwd, configPath)),
       fingerprint: settingsFingerprint,
@@ -889,6 +912,7 @@ export async function loadDashboardState({
         pages: config.content.pages_dir,
         authors: config.content.authors_dir,
         tags: config.content.tags_dir,
+        components: config.content.components_dir,
         assets: config.content.assets_dir,
       },
       outputDir: config.build.output_dir,
@@ -1103,14 +1127,15 @@ export async function handleDashboardRequest(
         '/',
         '/posts',
         '/pages',
+        '/components',
         '/authors',
         '/tags',
         '/settings',
         '/settings/migration',
         '/migration',
       ].includes(url.pathname) ||
-        /^\/(?:posts|pages|authors|tags)\/new$/.test(url.pathname) ||
-        /^\/(?:posts|pages|authors|tags)\/[^/]+\/edit$/.test(url.pathname))
+        /^\/(?:posts|pages|components|authors|tags)\/new$/.test(url.pathname) ||
+        /^\/(?:posts|pages|components|authors|tags)\/[^/]+\/edit$/.test(url.pathname))
     ) {
       return htmlResponse(renderDashboardHtml(ctx.security?.token ?? ''));
     }
@@ -1857,7 +1882,7 @@ async function createDashboardContentItem({
 }): Promise<{ ok: true; kind: EditableKind; slug: string; path: string }> {
   const kind = parseEditableKind(payload.kind ?? '');
   if (kind === undefined) throw new Error('invalid kind');
-  if (kind === 'authors' || kind === 'tags') {
+  if (kind === 'authors' || kind === 'tags' || kind === 'components') {
     if (payload.template && payload.template !== 'default') {
       throw new Error('templates are only available for posts and pages');
     }
@@ -2570,6 +2595,20 @@ function taxonomySummary(
     materializePath: `${
       kind === 'authors' ? config.content.authors_dir : config.content.tags_dir
     }/${item.slug}.md`,
+  };
+}
+
+async function componentSummary(
+  cwd: string,
+  component: ComponentSnippet,
+): Promise<DashboardComponentSummary> {
+  return {
+    slug: component.slug,
+    description: component.description,
+    hasCss: component.css.length > 0,
+    hasHtml: component.html.length > 0,
+    path: component.source.path,
+    fingerprint: await optionalFingerprintFor(cwd, join(cwd, component.source.path)),
   };
 }
 
@@ -3931,7 +3970,9 @@ function editableDir(cwd: string, config: NectarConfig, kind: EditableKind): str
         ? config.content.pages_dir
         : kind === 'authors'
           ? config.content.authors_dir
-          : config.content.tags_dir;
+          : kind === 'tags'
+            ? config.content.tags_dir
+            : config.content.components_dir;
   return absolutise(cwd, dir);
 }
 
@@ -4019,7 +4060,13 @@ function sameFingerprint(a: ContentSourceFingerprint, b: ContentSourceFingerprin
 }
 
 function parseEditableKind(value: string): EditableKind | undefined {
-  if (value === 'posts' || value === 'pages' || value === 'authors' || value === 'tags')
+  if (
+    value === 'posts' ||
+    value === 'pages' ||
+    value === 'authors' ||
+    value === 'tags' ||
+    value === 'components'
+  )
     return value;
   return undefined;
 }
@@ -4370,6 +4417,16 @@ async function scaffoldDashboardContent({
 }): Promise<string> {
   if (kind === 'authors') return serializeContentSource({ slug, name: title }, '\n');
   if (kind === 'tags') return serializeContentSource({ slug, name: title }, '\n');
+  if (kind === 'components') {
+    return serializeContentSource(
+      { slug, description: title },
+      // Two empty fenced blocks the dashboard editor will populate. We
+      // keep them in the body (rather than as multi-line frontmatter
+      // strings) so the file round-trips cleanly through any markdown
+      // editor / git diff.
+      '\n```css\n\n```\n\n```html\n\n```\n',
+    );
+  }
   const normalizedTemplate = template?.trim() || 'default';
   if (normalizedTemplate.startsWith('project:')) {
     const id = normalizedTemplate.slice('project:'.length);
