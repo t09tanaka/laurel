@@ -4717,8 +4717,11 @@ function htmlResponse(html: string): Response {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
+      // img-src allows https: so bookmark card thumbnails / favicons
+      // fetched by OGP can render directly from the source CDN. The
+      // dashboard's own JS/CSS/data fetches stay 'self'-only.
       'Content-Security-Policy':
-        "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'",
+        "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self'; img-src 'self' data: https:; script-src 'self'; style-src 'self'",
     },
   });
 }
