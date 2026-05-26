@@ -13,12 +13,14 @@ extend-exclude = [
 ]
 ignore-hidden = false
 
+[default]
+extend-ignore-re = [
+  "catch-alls",
+  "mis-shape",
+]
+
 [default.extend-words]
-alls = "alls"
-mis = "mis"
+ontext = "ontext"
 sodo = "sodo"
 Sodo = "Sodo"
 unparseable = "unparseable"
-
-[default.extend-identifiers]
-ontext = "ontext"
