@@ -73,14 +73,17 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
             </tbody>
           </table>
         </div>
+      ) : list.total === 0 ? (
+        <StatePanel
+          kind="empty"
+          title={`No ${kind} yet`}
+          message={`Create your first one with the New button or by adding a Markdown file to content/${kind}/.`}
+        />
       ) : (
         <StatePanel
           kind="empty"
-          message={
-            list.total === 0
-              ? `No ${kind} yet. Create your first one with the New button or by adding a Markdown file to content/${kind}/.`
-              : `No ${kind} match this filter. Try a different status or clear the search.`
-          }
+          title={`No matching ${kind}`}
+          message="Try a different status or clear the search."
         />
       )}
       {list.pages > 1 ? (
