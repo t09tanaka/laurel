@@ -4,9 +4,14 @@ import type { DashboardSettingsSubview } from '../../ui-state.ts';
 import { saveSiteSettings, saveThemeSettings, uploadTheme } from '../lib/api.ts';
 import type { DashboardState } from '../types.ts';
 
+// MigrationView is mounted upstream in DashboardApp, never inside this
+// component — exclude 'migration' from the prop so an accidental
+// SettingsView subview='migration' can't compile to an empty render.
+type SettingsPanelSubview = Exclude<DashboardSettingsSubview, 'migration'>;
+
 interface SettingsViewProps {
   state: DashboardState;
-  subview: DashboardSettingsSubview;
+  subview: SettingsPanelSubview;
   onSettingsSaved: () => Promise<void> | void;
   onConflict: (message: string) => void;
   onSiteDirtyChange: (dirty: boolean) => void;

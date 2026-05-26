@@ -498,7 +498,11 @@ export function DashboardApp(): JSX.Element {
       ? createHeadFor(createMode)
       : CREATE_HEAD
     : viewHeadFor(ui.view);
-  const showNewButton = !createMode && !editor && ui.view !== 'settings' && ui.view !== 'migration';
+  // Settings subviews (site / design / integration / migration) all
+  // sit under the settings shell and don't accept "New" — the toolbar
+  // button would dump the user into a post-create flow that has nothing
+  // to do with the settings panel they're looking at.
+  const showNewButton = !createMode && !editor && !inSettings;
   // Filter input only makes sense when there's actually a list to filter.
   // Editors, the create form, settings, and migration have no view-scoped
   // search target, so hide the input there.
@@ -766,7 +770,13 @@ export function DashboardApp(): JSX.Element {
             ) : (
               <SettingsView
                 state={state}
-                subview={settingsSubviewFor(ui.view)}
+                subview={
+                  ui.view === 'design'
+                    ? 'design'
+                    : ui.view === 'integration'
+                      ? 'integration'
+                      : 'site'
+                }
                 onSettingsSaved={() => load({ force: true })}
                 onConflict={(message) => dispatch({ type: 'conflict', message })}
                 onSiteDirtyChange={setSiteSettingsDirty}
