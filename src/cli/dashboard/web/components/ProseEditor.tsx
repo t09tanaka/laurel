@@ -32,13 +32,14 @@ import {
 import { type Command, EditorState, type Transaction } from 'prosemirror-state';
 import { goToNextCell, tableEditing, tableNodes } from 'prosemirror-tables';
 import { EditorView } from 'prosemirror-view';
-import { uploadImage } from '../lib/api.ts';
+import { fetchOgp, uploadImage } from '../lib/api.ts';
 import {
   bookmarkMarkdownItPlugin,
   bookmarkSerializerNode,
   bookmarkTokenHandler,
 } from '../lib/prose-bookmark-markdown.ts';
 import { bookmarkNodeSpec } from '../lib/prose-bookmark-schema.ts';
+import { BookmarkNodeView } from '../lib/prose-bookmark-view.ts';
 import { bubbleMenuPlugin } from '../lib/prose-bubble-menu.ts';
 import { ImageNodeView } from '../lib/prose-image-view.ts';
 import { buildInputRules } from '../lib/prose-input-rules.ts';
@@ -276,6 +277,11 @@ export function ProseEditor(props: ProseEditorProps): JSX.Element {
             if (result.ok) return { ok: true, path: result.path };
             return { ok: false, error: result.error };
           },
+          fetchOgp: async (url) => {
+            const r = await fetchOgp(url);
+            if (r.ok) return { ok: true, meta: { ...r.meta } };
+            return { ok: false, error: r.error };
+          },
         }),
       ],
     });
@@ -283,6 +289,22 @@ export function ProseEditor(props: ProseEditorProps): JSX.Element {
       state,
       nodeViews: {
         image: (n, v, getPos) => new ImageNodeView(n, v, getPos),
+        bookmark: (n, v, getPos) =>
+          new BookmarkNodeView(n, v, getPos, {
+            onReplace(pos, node) {
+              // Replacement is implemented by deleting the bookmark, leaving
+              // an empty paragraph at the same position, then letting the
+              // user re-run the + menu Bookmark item from there. Keeps the
+              // popover / SSRF path as the single source of truth.
+              const tr = v.state.tr.replaceWith(
+                pos,
+                pos + node.nodeSize,
+                v.state.schema.nodes.paragraph.create(),
+              );
+              v.dispatch(tr);
+              v.focus();
+            },
+          }),
       },
       dispatchTransaction(tr: Transaction) {
         const next = view.state.apply(tr);
