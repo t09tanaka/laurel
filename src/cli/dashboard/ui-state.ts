@@ -9,11 +9,19 @@ export type DashboardView =
   | 'authors'
   | 'tags'
   | 'settings'
+  | 'design'
+  | 'integration'
   | 'migration';
 export type DashboardContentView = 'posts' | 'pages';
 export type DashboardEditorKind = 'posts' | 'pages' | 'components' | 'authors' | 'tags';
-export type DashboardShellSection = 'posts' | 'pages' | 'components' | 'settings';
-export type DashboardSettingsSubview = 'site' | 'authors' | 'tags' | 'migration';
+export type DashboardShellSection =
+  | 'posts'
+  | 'pages'
+  | 'components'
+  | 'authors'
+  | 'tags'
+  | 'settings';
+export type DashboardSettingsSubview = 'site' | 'design' | 'integration' | 'migration';
 export type DashboardDensity = 'comfortable' | 'compact';
 export type DashboardLoadStatus = 'idle' | 'loading' | 'ready' | 'error' | 'conflict';
 
@@ -59,6 +67,8 @@ export function normalizeDashboardView(view: string | undefined): DashboardView 
     view === 'authors' ||
     view === 'tags' ||
     view === 'settings' ||
+    view === 'design' ||
+    view === 'integration' ||
     view === 'migration'
     ? view
     : 'posts';
@@ -67,15 +77,17 @@ export function normalizeDashboardView(view: string | undefined): DashboardView 
 export function dashboardShellSectionFor(view: DashboardView): DashboardShellSection {
   if (view === 'pages') return 'pages';
   if (view === 'components') return 'components';
-  if (view === 'authors' || view === 'tags' || view === 'settings' || view === 'migration') {
+  if (view === 'authors') return 'authors';
+  if (view === 'tags') return 'tags';
+  if (view === 'settings' || view === 'design' || view === 'integration' || view === 'migration') {
     return 'settings';
   }
   return 'posts';
 }
 
 export function dashboardSettingsSubviewFor(view: DashboardView): DashboardSettingsSubview {
-  if (view === 'authors') return 'authors';
-  if (view === 'tags') return 'tags';
+  if (view === 'design') return 'design';
+  if (view === 'integration') return 'integration';
   if (view === 'migration') return 'migration';
   return 'site';
 }

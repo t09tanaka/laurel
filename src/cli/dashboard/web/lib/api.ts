@@ -21,14 +21,30 @@ function writeHeaders(): Record<string, string> {
   };
 }
 
+export interface ComponentReferenceRewriteSummary {
+  filesChanged: number;
+  occurrencesRewritten: number;
+}
+
 export async function renameContentSlug(args: {
   kind: DashboardEditorKind;
   oldSlug: string;
   newSlug: string;
   fingerprint: ContentFingerprint;
   redirect?: boolean;
+  // Components-only: when true (default), `{old}` references inside
+  // post / page bodies are rewritten to `{new}` as part of the
+  // rename so the build-side expander stays in sync. Pass `false`
+  // to opt out (e.g. a scripted rename that wants to preview first).
+  rewriteReferences?: boolean;
 }): Promise<
-  | { ok: true; newSlug: string; newPath: string; fingerprint: ContentFingerprint }
+  | {
+      ok: true;
+      newSlug: string;
+      newPath: string;
+      fingerprint: ContentFingerprint;
+      rewrittenReferences: ComponentReferenceRewriteSummary | null;
+    }
   | { ok: false; reason: string; error?: string }
 > {
   const url = `/api/content/${args.kind}/${encodeURIComponent(args.oldSlug)}/rename`;
@@ -39,6 +55,7 @@ export async function renameContentSlug(args: {
       fingerprint: args.fingerprint,
       newSlug: args.newSlug,
       redirect: args.redirect ?? false,
+      rewriteReferences: args.rewriteReferences !== false,
     }),
   });
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -49,11 +66,20 @@ export async function renameContentSlug(args: {
       error: typeof data.error === 'string' ? data.error : `rename failed (${res.status})`,
     };
   }
+  const rewrite = data.rewrittenReferences as Record<string, unknown> | null | undefined;
+  const rewrittenReferences =
+    rewrite && typeof rewrite === 'object'
+      ? {
+          filesChanged: Number(rewrite.filesChanged ?? 0),
+          occurrencesRewritten: Number(rewrite.occurrencesRewritten ?? 0),
+        }
+      : null;
   return {
     ok: true,
     newSlug: String(data.newSlug),
     newPath: String(data.newPath),
     fingerprint: data.fingerprint as ContentFingerprint,
+    rewrittenReferences,
   };
 }
 

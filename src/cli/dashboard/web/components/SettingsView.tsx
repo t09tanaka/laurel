@@ -1,22 +1,35 @@
 import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
+import type { DashboardSettingsSubview } from '../../ui-state.ts';
 import { saveSiteSettings, saveThemeSettings, uploadTheme } from '../lib/api.ts';
 import type { DashboardState } from '../types.ts';
 
+// MigrationView is mounted upstream in DashboardApp, never inside this
+// component — exclude 'migration' from the prop so an accidental
+// SettingsView subview='migration' can't compile to an empty render.
+type SettingsPanelSubview = Exclude<DashboardSettingsSubview, 'migration'>;
+
 interface SettingsViewProps {
   state: DashboardState;
+  subview: SettingsPanelSubview;
   onSettingsSaved: () => Promise<void> | void;
   onConflict: (message: string) => void;
   onSiteDirtyChange: (dirty: boolean) => void;
   onThemeDirtyChange: (dirty: boolean) => void;
   onCodeInjectionDirtyChange: (dirty: boolean) => void;
-  onOpenMigration: () => void;
 }
 
 /* Dashboard surfaces only Site identity, Theme switcher, and Code
  * injection. Everything else (content paths, build config, structure /
  * routes, operations, advanced) lives in nectar.toml for developers to
  * edit directly — it doesn't belong in an editorial dashboard.
+ *
+ * Settings is split into four narrow subviews so the IA matches the
+ * category of what each panel saves:
+ *   - Site         → SiteIdentityPanel (title, URL, accent, description)
+ *   - Design       → ThemeSwitcherPanel (active theme + upload)
+ *   - Integration  → CodeInjectionPanel (GA4, custom <meta>, widgets)
+ *   - Migration    → handled by MigrationView upstream, not this component
  *
  * Code injection is an exception to the editorial-restraint default
  * because dropping a GA4 / analytics snippet is a routine operator
@@ -29,26 +42,32 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
   return (
     <div class="settingsLayout settingsLayoutStacked">
       <div class="settingsDetail">
-        <SiteIdentityPanel
-          state={props.state}
-          site={site}
-          onSettingsSaved={props.onSettingsSaved}
-          onConflict={props.onConflict}
-          onSiteDirtyChange={props.onSiteDirtyChange}
-        />
-        <ThemeSwitcherPanel
-          state={props.state}
-          onSettingsSaved={props.onSettingsSaved}
-          onConflict={props.onConflict}
-          onThemeDirtyChange={props.onThemeDirtyChange}
-        />
-        <CodeInjectionPanel
-          state={props.state}
-          site={site}
-          onSettingsSaved={props.onSettingsSaved}
-          onConflict={props.onConflict}
-          onCodeInjectionDirtyChange={props.onCodeInjectionDirtyChange}
-        />
+        {props.subview === 'site' ? (
+          <SiteIdentityPanel
+            state={props.state}
+            site={site}
+            onSettingsSaved={props.onSettingsSaved}
+            onConflict={props.onConflict}
+            onSiteDirtyChange={props.onSiteDirtyChange}
+          />
+        ) : null}
+        {props.subview === 'design' ? (
+          <ThemeSwitcherPanel
+            state={props.state}
+            onSettingsSaved={props.onSettingsSaved}
+            onConflict={props.onConflict}
+            onThemeDirtyChange={props.onThemeDirtyChange}
+          />
+        ) : null}
+        {props.subview === 'integration' ? (
+          <CodeInjectionPanel
+            state={props.state}
+            site={site}
+            onSettingsSaved={props.onSettingsSaved}
+            onConflict={props.onConflict}
+            onCodeInjectionDirtyChange={props.onCodeInjectionDirtyChange}
+          />
+        ) : null}
       </div>
     </div>
   );

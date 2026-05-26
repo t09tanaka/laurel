@@ -14,6 +14,8 @@ const PAGE_PATHS: Record<DashboardView, string> = {
   authors: '/authors',
   tags: '/tags',
   settings: '/settings',
+  design: '/settings/design',
+  integration: '/settings/integration',
   migration: '/settings/migration',
 };
 
@@ -24,6 +26,13 @@ const EDITOR_KINDS: ReadonlyArray<DashboardEditorKind> = [
   'authors',
   'tags',
 ];
+
+const SETTINGS_SUB_PATHS = ['design', 'integration', 'migration'] as const;
+type SettingsSubPath = (typeof SETTINGS_SUB_PATHS)[number];
+
+function isSettingsSubPath(value: string): value is SettingsSubPath {
+  return (SETTINGS_SUB_PATHS as ReadonlyArray<string>).includes(value);
+}
 
 export const normalizeView = normalizeDashboardView;
 export const shellSectionFor = dashboardShellSectionFor;
@@ -43,11 +52,19 @@ function isEditorKind(value: string): value is DashboardEditorKind {
 
 export function routeFromPath(pathname: string): DashboardRoute {
   const parts = pathname.split('/').filter(Boolean).map(decode);
-  const settingsNested = parts[0] === 'settings' && parts[1] === 'migration';
-  // /migration is the bare alias for /settings/migration; both should land
-  // on the migration view so direct links never hit the 404 fallback.
+  // /settings/{design,integration,migration} drives both the shell section
+  // (settings) and the subnav selection. Keep the bare /migration alias as
+  // a back-compat for direct links from before the IA split.
+  const settingsSub =
+    parts.length === 2 && parts[0] === 'settings' && parts[1] && isSettingsSubPath(parts[1])
+      ? (parts[1] as SettingsSubPath)
+      : null;
   const bareMigration = parts.length === 1 && parts[0] === 'migration';
-  const view = settingsNested || bareMigration ? 'migration' : normalizeView(parts[0] || 'posts');
+  const view: DashboardView = settingsSub
+    ? settingsSub
+    : bareMigration
+      ? 'migration'
+      : normalizeView(parts[0] || 'posts');
   const editorKind = parts[0];
   const create =
     parts.length === 2 && parts[1] === 'new' && editorKind && isEditorKind(editorKind)
