@@ -36,7 +36,9 @@ function resolveUrl(value: string, base: URL): string {
 
 function parseSizes(raw: string | undefined): number {
   if (!raw) return 0;
-  // "32x32" or "16x16 32x32 64x64" — take the largest square axis.
+  // "32x32" or "16x16 32x32 64x64" — for each WxH pair use the shorter
+  // axis (so non-square hints aren't inflated), then return the largest
+  // pair across the list.
   const matches = raw.match(/(\d+)x(\d+)/gi);
   if (!matches) return 0;
   let best = 0;
@@ -100,8 +102,6 @@ export function pickMetadata(html: string, finalUrl: URL): OgpMeta {
           const size = parseSizes(attrs.sizes);
           if (size > bestIconSize) {
             bestIconSize = size;
-            bestIconHref = href;
-          } else if (bestIconHref === '' && size === 0) {
             bestIconHref = href;
           }
         }
