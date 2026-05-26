@@ -3,13 +3,13 @@
 // When the cursor sits on an empty top-level paragraph, a small `+`
 // button floats in the left padding gutter of `.editorCanvas`
 // (outside the writing column). Clicking it opens a popover with
-// block-level insertions: Image (with upload), Divider, Code block,
-// Table.
+// block-level insertions: Image (with upload), Bookmark (URL embed),
+// Divider, Code block, Table.
 //
 // Pure ProseMirror Plugin / View — no Preact inside this file so the
 // editor critical path stays free of UI framework wiring. The image
-// uploader is injected via plugin options so api.ts coupling is
-// kept at the component layer.
+// uploader and OGP fetcher are injected via plugin options so api.ts
+// coupling is kept at the component layer.
 //
 // Position math: we anchor the `+` vertically to the caret line via
 // `view.coordsAtPos(from)`, and horizontally to a fixed offset to
@@ -43,6 +43,12 @@ export interface InsertMenuOptions {
   // Default alt-text prompt is suppressed in tests; the option lets
   // the runtime customise the source filename → alt translation.
   altFromFilename?: (name: string) => string;
+  // Optional OGP fetcher. When provided, the Bookmark menu item is
+  // enabled. T11 wires the real implementation; the option keeps this
+  // plugin decoupled from api.ts.
+  fetchOgp?: (
+    url: string,
+  ) => Promise<{ ok: true; meta: Record<string, string> } | { ok: false; error: string }>;
 }
 
 // Replace the empty paragraph that holds the caret with the given
@@ -76,6 +82,18 @@ function insertImageInline(
   view.dispatch(tr);
 }
 
+interface InputViewSpec {
+  placeholder: string;
+  buttonLabel: string;
+  validate(value: string): { ok: true; value: string } | { ok: false; error: string };
+  run(
+    view: EditorView,
+    schema: Schema,
+    target: EmptyParagraphTarget,
+    value: string,
+  ): Promise<{ ok: boolean; error?: string }>;
+}
+
 interface MenuItemSpec {
   key: string;
   label: string;
@@ -84,7 +102,9 @@ interface MenuItemSpec {
   // false → hidden in the popover (we don't grey-out to keep the
   // surface clean).
   enabled: (schema: Schema, options: InsertMenuOptions) => boolean;
-  run: (
+  submenu?: (options: InsertMenuOptions) => SubmenuEntry[];
+  inputView?: (options: InsertMenuOptions) => InputViewSpec;
+  run?: (
     view: EditorView,
     schema: Schema,
     target: EmptyParagraphTarget,
@@ -92,6 +112,22 @@ interface MenuItemSpec {
     ui: { fileInput: HTMLInputElement; close: () => void },
   ) => void;
 }
+
+// SubmenuEntry is reserved for future flyout menus (e.g. Components).
+// Declared here so the type is available even though no submenu items
+// exist yet.
+interface SubmenuEntry {
+  key: string;
+  label: string;
+}
+
+const ERROR_MESSAGES: Record<string, string> = {
+  invalid_url: 'Enter a valid http(s) URL',
+  blocked: 'Cannot preview this URL',
+  timeout: 'Preview timed out — inserted URL only',
+  fetch_failed: 'Could not fetch — inserted URL only',
+  no_metadata: 'No preview available — inserted URL only',
+};
 
 const MENU_ITEMS: MenuItemSpec[] = [
   {
@@ -104,6 +140,48 @@ const MENU_ITEMS: MenuItemSpec[] = [
       ui.fileInput.click();
       ui.close();
     },
+  },
+  {
+    key: 'bookmark',
+    label: 'Bookmark',
+    hint: 'Embed a URL as a rich link card',
+    enabled: (schema, options) => Boolean(options.fetchOgp) && Boolean(nodeBy(schema, 'bookmark')),
+    inputView: (options) => ({
+      placeholder: 'Paste or type a URL',
+      buttonLabel: 'Embed',
+      validate(value) {
+        const trimmed = value.trim();
+        if (!trimmed) return { ok: false, error: 'Enter a URL' };
+        try {
+          const u = new URL(trimmed);
+          if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+            return { ok: false, error: 'Only http(s) URLs are supported' };
+          }
+          return { ok: true, value: u.toString() };
+        } catch {
+          return { ok: false, error: 'Enter a valid http(s) URL' };
+        }
+      },
+      async run(view, schema, target, value) {
+        const bookmark = nodeBy(schema, 'bookmark');
+        if (!bookmark) return { ok: false, error: 'Bookmark node not registered' };
+        const fetcher = options.fetchOgp;
+        if (!fetcher) {
+          replaceEmptyParagraph(view, target, bookmark.create({ url: value }));
+          return { ok: false, error: 'No OGP fetcher configured' };
+        }
+        const result = await fetcher(value);
+        if (result.ok) {
+          replaceEmptyParagraph(view, target, bookmark.create({ url: value, ...result.meta }));
+          return { ok: true };
+        }
+        replaceEmptyParagraph(view, target, bookmark.create({ url: value }));
+        return {
+          ok: false,
+          error: ERROR_MESSAGES[result.error] ?? 'Could not fetch — inserted URL only',
+        };
+      },
+    }),
   },
   {
     key: 'divider',
@@ -152,6 +230,7 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
   const opts: Required<Pick<InsertMenuOptions, 'altFromFilename'>> & InsertMenuOptions = {
     altFromFilename: options.altFromFilename ?? altFromFilenameDefault,
     uploadImage: options.uploadImage,
+    fetchOgp: options.fetchOgp,
   };
 
   return new Plugin({
@@ -198,6 +277,25 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
         itemButtons.push(btn);
       }
 
+      // ---- Input view (for Bookmark and future inputView items) ------
+      const inputView = document.createElement('div');
+      inputView.className = 'proseInsertInputView';
+      inputView.hidden = true;
+      const inputLabel = document.createElement('input');
+      inputLabel.type = 'url';
+      inputLabel.className = 'proseInsertInputField';
+      const inputSubmit = document.createElement('button');
+      inputSubmit.type = 'button';
+      inputSubmit.className = 'proseInsertInputSubmit';
+      const inputError = document.createElement('div');
+      inputError.className = 'proseInsertInputError';
+      inputError.setAttribute('role', 'alert');
+      inputView.appendChild(inputLabel);
+      inputView.appendChild(inputSubmit);
+      inputView.appendChild(inputError);
+      popover.appendChild(inputView);
+
+      // ---- File input (image upload) ---------------------------------
       const fileInput = document.createElement('input');
       fileInput.type = 'file';
       fileInput.accept = 'image/*';
@@ -207,6 +305,81 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
 
       let currentTarget: EmptyParagraphTarget | null = null;
       let popoverOpen = false;
+      let inputViewOpenKey: string | null = null;
+
+      function openInputView(itemKey: string, spec: InputViewSpec): void {
+        inputViewOpenKey = itemKey;
+        inputLabel.value = '';
+        inputLabel.placeholder = spec.placeholder;
+        inputSubmit.textContent = spec.buttonLabel;
+        inputSubmit.disabled = false;
+        inputLabel.disabled = false;
+        inputError.textContent = '';
+        inputView.hidden = false;
+        for (const btn of itemButtons) {
+          btn.hidden = true;
+        }
+        setTimeout(() => inputLabel.focus(), 0);
+      }
+
+      function closeInputView(): void {
+        if (inputViewOpenKey === null) return;
+        inputViewOpenKey = null;
+        inputView.hidden = true;
+        update(view);
+      }
+
+      async function submitInputView(): Promise<void> {
+        if (inputViewOpenKey === null) return;
+        const item = MENU_ITEMS.find((i) => i.key === inputViewOpenKey);
+        const spec = item?.inputView?.(opts);
+        if (!spec || !currentTarget) {
+          closeInputView();
+          return;
+        }
+        const validation = spec.validate(inputLabel.value);
+        if (!validation.ok) {
+          inputError.textContent = validation.error;
+          return;
+        }
+        inputError.textContent = '';
+        inputLabel.disabled = true;
+        inputSubmit.disabled = true;
+        const result = await spec.run(view, schema, currentTarget, validation.value);
+        inputLabel.disabled = false;
+        inputSubmit.disabled = false;
+        if (result.ok) {
+          closeInputView();
+          closePopover();
+          view.focus();
+          return;
+        }
+        closeInputView();
+        closePopover();
+        view.focus();
+        if (result.error) {
+          const previous = trigger.title;
+          trigger.title = result.error;
+          setTimeout(() => {
+            if (trigger.title === result.error) trigger.title = previous;
+          }, 4000);
+        }
+      }
+
+      inputSubmit.addEventListener('mousedown', (event) => event.preventDefault());
+      inputSubmit.addEventListener('click', (event) => {
+        event.preventDefault();
+        void submitInputView();
+      });
+      inputLabel.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          void submitInputView();
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          closeInputView();
+        }
+      });
 
       function openPopover(): void {
         if (popoverOpen) return;
@@ -218,6 +391,7 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
 
       function closePopover(): void {
         if (!popoverOpen) return;
+        closeInputView();
         popoverOpen = false;
         popover.hidden = true;
         trigger.setAttribute('aria-expanded', 'false');
@@ -281,7 +455,12 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
             closePopover();
             return;
           }
-          item.run(view, schema, target, opts, { fileInput, close: closePopover });
+          if (item.inputView) {
+            const spec = item.inputView(opts);
+            openInputView(item.key, spec);
+            return;
+          }
+          item.run?.(view, schema, target, opts, { fileInput, close: closePopover });
         });
       }
 
@@ -295,6 +474,11 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
 
       function onKeyDown(event: KeyboardEvent) {
         if (event.key === 'Escape' && popoverOpen) {
+          // If the input view is open, Escape closes only the input
+          // view rather than the whole popover — the inputLabel
+          // keydown handler fires first via capture, but we still
+          // need to guard here for the popover-level Escape.
+          if (inputViewOpenKey !== null) return;
           event.stopPropagation();
           closePopover();
           view.focus();
@@ -314,14 +498,19 @@ export function insertMenuPlugin(schema: Schema, options: InsertMenuOptions = {}
         }
         currentTarget = target;
 
-        // Apply per-item enabled state. Items disabled by missing
-        // schema nodes or absent uploader get hidden — we don't grey
-        // them out to keep the surface unambiguous.
-        for (let i = 0; i < MENU_ITEMS.length; i += 1) {
-          const item = MENU_ITEMS[i];
-          const btn = itemButtons[i];
-          if (!item || !btn) continue;
-          btn.hidden = !item.enabled(schema, opts);
+        // When the input view is open, leave item buttons as-is —
+        // they are already hidden by openInputView and should not
+        // be reshown while the user is filling in the input.
+        if (inputViewOpenKey === null) {
+          // Apply per-item enabled state. Items disabled by missing
+          // schema nodes or absent uploader get hidden — we don't
+          // grey them out to keep the surface unambiguous.
+          for (let i = 0; i < MENU_ITEMS.length; i += 1) {
+            const item = MENU_ITEMS[i];
+            const btn = itemButtons[i];
+            if (!item || !btn) continue;
+            btn.hidden = !item.enabled(schema, opts);
+          }
         }
 
         // Anchor: line top of the empty paragraph + horizontal offset
