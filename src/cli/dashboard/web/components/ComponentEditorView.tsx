@@ -58,6 +58,12 @@ export function ComponentEditorView(props: ComponentEditorViewProps): JSX.Elemen
   const slugDraftRef = useRef(slugDraft);
   slugDraftRef.current = slugDraft;
 
+  // ⌘S / Ctrl+S — mirror the post editor's writer shortcut. We park
+  // the latest handleSave in a ref so the listener can stay attached
+  // for the lifetime of the editor without re-binding on every render
+  // (and without going stale on the closures it depends on).
+  const saveActionRef = useRef<() => void>(() => {});
+
   const baselineKey = `${current.path}@${current.fingerprint.mtimeMs}`;
   // biome-ignore lint/correctness/useExhaustiveDependencies: rehydrate on file switch
   useEffect(() => {
@@ -104,6 +110,22 @@ export function ComponentEditorView(props: ComponentEditorViewProps): JSX.Elemen
     }
     setNotice('error' in result.data ? (result.data.error ?? 'Save failed') : 'Save failed');
   }
+
+  saveActionRef.current = () => {
+    if (saving) return;
+    void handleSave();
+  };
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        saveActionRef.current?.();
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 
   // Slug rename via /api/content/components/<old>/rename. We don't
   // rewrite `{old}` references in post / page bodies — for v1 the

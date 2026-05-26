@@ -3348,6 +3348,85 @@
     line-height: 1.25;
     color: var(--text-muted, #6b6258);
   }
+  /* Submenu opener: pad on the right and tuck a chevron in the gutter
+   * so the affordance reads as "expands further" without an icon set.
+   * The active state inverts to match the trigger's open state, so a
+   * user hovering Components sees the same emphasis as the open `+`. */
+  .proseInsertItem[data-has-submenu="true"] {
+    padding-right: 22px;
+    position: relative;
+  }
+  .proseInsertItem[data-has-submenu="true"]::after {
+    content: "›";
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    font-size: 14px;
+    line-height: 1;
+    color: var(--text-muted, #6b6258);
+  }
+  .proseInsertItem[data-submenu-open="true"] {
+    background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+  }
+  .proseInsertItem[data-submenu-open="true"]::after {
+    color: var(--text-primary, #1a1612);
+  }
+  /* Flyout submenu — same chrome as the popover but sized for the
+   * narrower payload (slug + optional description). Cap the height
+   * so a long components list scrolls rather than crashing into the
+   * page bottom. */
+  .proseInsertSubmenu {
+    z-index: 26;
+    min-width: 200px;
+    max-width: 280px;
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 6px;
+    background: var(--surface-card, #fff);
+    color: var(--text-primary, #1a1612);
+    border: 1px solid var(--border-default, rgba(0, 0, 0, 0.12));
+    border-radius: 8px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-family: var(--font-serif);
+  }
+  .proseInsertSubmenu[hidden] {
+    display: none;
+  }
+  .proseInsertSubmenuItem {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    padding: 8px 10px;
+    border: 0;
+    background: transparent;
+    border-radius: 6px;
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.1s ease;
+  }
+  .proseInsertSubmenuItem:hover,
+  .proseInsertSubmenuItem:focus-visible {
+    background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+    outline: none;
+  }
+  .proseInsertSubmenuItemLabel {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.2;
+    color: var(--text-primary, #1a1612);
+  }
+  .proseInsertSubmenuItemHint {
+    font-size: 11px;
+    line-height: 1.25;
+    color: var(--text-muted, #6b6258);
+  }
   .proseInsertFileInput {
     display: none;
   }
