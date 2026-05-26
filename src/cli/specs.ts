@@ -370,6 +370,11 @@ export const DASHBOARD_SPEC: CommandSpec = {
       description: 'Config path(s); repeat or comma-separate to deep-merge in order',
       placeholder: '<path>',
     },
+    dev: {
+      type: 'boolean',
+      description:
+        "Run the dashboard with Bun's fullstack dev server (HMR for src/cli/dashboard/web/**; no pre-built bundle required)",
+    },
     port: {
       type: 'string',
       description:
@@ -398,6 +403,7 @@ export const DASHBOARD_SPEC: CommandSpec = {
     'nectar dashboard --open                      # launch the browser after startup',
     'nectar dashboard --port 0                    # pick a free port for smoke tests',
     'nectar dashboard --host 0.0.0.0              # expose on the LAN',
+    'nectar dashboard --dev                       # frontend HMR; bundles TSX/CSS on demand',
   ],
 };
 
