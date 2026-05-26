@@ -1875,3 +1875,54 @@ describe('dashboard frontend state helpers', () => {
     expect(state.conflictMessage).toBe('Changed on disk');
   });
 });
+
+describe('GET /api/dashboard/bootstrap', () => {
+  test('returns the per-process token and the resolved server mode', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const bus = createChangeBus();
+      const response = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/dashboard/bootstrap'),
+        {
+          cwd: dir,
+          changeBus: bus,
+          mode: 'dev',
+          security: {
+            origin: 'http://127.0.0.1:4322',
+            token: 'unit-test-token',
+            lanExposed: false,
+          },
+        },
+      );
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as { token: string; mode: 'dev' | 'prod' };
+      expect(body.token).toBe('unit-test-token');
+      expect(body.mode).toBe('dev');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('defaults mode to "prod" when the context omits it', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const bus = createChangeBus();
+      const response = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/dashboard/bootstrap'),
+        {
+          cwd: dir,
+          changeBus: bus,
+          security: {
+            origin: 'http://127.0.0.1:4322',
+            token: 'unit-test-token',
+            lanExposed: false,
+          },
+        },
+      );
+      const body = (await response.json()) as { token: string; mode: 'dev' | 'prod' };
+      expect(body.mode).toBe('prod');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

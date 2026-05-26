@@ -692,6 +692,8 @@ export interface DashboardSecurityContext {
   lanExposed: boolean;
 }
 
+export type DashboardServerMode = 'dev' | 'prod';
+
 export interface DashboardRequestContext {
   cwd: string;
   configPath?: string;
@@ -699,6 +701,7 @@ export interface DashboardRequestContext {
   watch?: DashboardWatchMetadata;
   security?: DashboardSecurityContext;
   maxBodyBytes?: number;
+  mode?: DashboardServerMode;
 }
 
 export type DashboardTaxonomyFileResult =
@@ -1193,6 +1196,12 @@ export async function handleDashboardRequest(
     }
     if (request.method === 'GET' && url.pathname === '/api/events') {
       return ctx.changeBus.stream();
+    }
+    if (request.method === 'GET' && url.pathname === '/api/dashboard/bootstrap') {
+      return jsonResponse({
+        token: ctx.security?.token ?? '',
+        mode: ctx.mode ?? 'prod',
+      });
     }
     if (request.method === 'POST' && url.pathname === '/api/build') {
       const blocked = validateWriteRequest(request, ctx.security);
