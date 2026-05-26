@@ -154,7 +154,7 @@ function makeGraph(posts: Post[], pages: Page[] = []): ContentGraph {
     },
     postsByTag: new Map(),
     postsByAuthor: new Map(),
-    site,
+    site: { ...site },
   } as unknown as ContentGraph;
 }
 
@@ -259,6 +259,21 @@ describe('rasterizeOgImages', () => {
     expect(count).toBe(1);
     expect(a.og_image).toBe('/content/images/shared.og.png');
     expect(b.og_image).toBe('/content/images/shared.og.png');
+  });
+
+  test('rasterises site-wide SVG social images', async () => {
+    const { cwd, outputDir } = await makeAssetsFixture({ 'site.svg': SAMPLE_SVG });
+    const config = configSchema.parse({});
+    const content = makeGraph([]);
+    content.site.og_image = '/content/images/site.svg';
+    content.site.twitter_image = '/content/images/site.svg';
+
+    const count = await rasterizeOgImages({ cwd, config, content, outputDir });
+
+    expect(count).toBe(1);
+    expect(content.site.og_image).toBe('/content/images/site.og.png');
+    expect(content.site.twitter_image).toBe('/content/images/site.og.png');
+    expect(existsSync(join(outputDir, 'content/images/site.og.png'))).toBe(true);
   });
 
   test('is a no-op when components.opengraph.rasterize_svg is disabled', async () => {

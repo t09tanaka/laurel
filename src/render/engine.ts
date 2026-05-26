@@ -596,6 +596,9 @@ export function buildContext(engine: NectarEngine, route: RouteContext): Record<
     const page = withTrustedCaptionHtml(engine.hb, data.page);
     assignRootFields(ctx, page, 'page');
     ctx.page = page;
+    // Ghost renders static pages through the same `{{#post}}` block shape as
+    // posts. Source's page.hbs depends on this alias for the body to render.
+    ctx.post = page;
   }
   if (route.kind === 'home') {
     ctx.meta_title = route.meta.title;
@@ -701,18 +704,22 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
     route,
   );
   const pagination = route.data.pagination ?? defaultPaginationContext();
+  const pageData: Record<string, unknown> = {
+    number: pagination.page,
+    page: pagination.page,
+    pages: pagination.pages,
+    total: pagination.total,
+  };
+  if (route.kind === 'page' && route.data.page) {
+    pageData.show_title_and_feature_image = route.data.page.show_title_and_feature_image;
+  }
   return {
     site,
     blog: site,
     setting: site,
     config: base.config,
     custom: base.custom,
-    page: {
-      number: pagination.page,
-      page: pagination.page,
-      pages: pagination.pages,
-      total: pagination.total,
-    },
+    page: pageData,
     route,
     locale: routeLocale,
     labs: buildLegacyLabs(site),

@@ -1,36 +1,31 @@
 [site]
 title = "Nectar Example"
-description = "A demo blog built with Nectar against the Ghost Source theme"
+description = "A demo blog built with Nectar against the Ghost Casper theme"
 url = "https://nectar.example.com"
 locale = "en"
 timezone = "UTC"
 accent_color = "#D63F00"
 logo = "/content/images/logo.svg"
 icon = "/content/images/logo.svg"
+cover_image = "/content/images/welcome-cover.svg"
+og_image = "/content/images/welcome-cover.svg"
+twitter_image = "/content/images/welcome-cover.svg"
 
 [theme]
-name = "source"
+name = "casper"
 dir = "themes"
 
 [theme.custom]
-navigation_layout = "Logo on the left"
-site_background_color = "#ffffff"
-header_and_footer_color = "Background color"
+navigation_layout = "Logo on cover"
 title_font = "Modern sans-serif"
-body_font = "Modern sans-serif"
-font_display = "swap"
-header_style = "Landing"
-header_text = "Reading and writing for the love of the craft."
-background_image = true
-show_featured_posts = true
-post_feed_style = "List"
-show_images_in_feed = true
-show_author = true
-show_publish_date = true
-show_publication_info_sidebar = false
-show_post_metadata = true
-enable_drop_caps_on_posts = true
-show_related_articles = true
+body_font = "Elegant serif"
+show_publication_cover = true
+header_style = "Center aligned"
+feed_layout = "Classic"
+color_scheme = "Light"
+post_image_style = "Wide"
+email_signup_text = "Sign up for more like this."
+show_recent_posts_footer = true
 
 [content]
 posts_dir = "content/posts"
@@ -44,6 +39,20 @@ output_dir = "dist"
 base_path = "/"
 posts_per_page = 6
 copy_content_assets = true
+minify_html = true
+precompress = true
+
+[deploy.cloudflare_pages]
+enabled = true
+
+[deploy.early_hints]
+enabled = true
+
+[deploy.headers.security]
+frame_options = "DENY"
+strict_transport_security = "max-age=63072000; includeSubDomains; preload"
+permissions_policy = "camera=(), microphone=(), geolocation=(), payment=()"
+cross_origin_opener_policy = "same-origin"
 
 [[navigation]]
 label = "Home"

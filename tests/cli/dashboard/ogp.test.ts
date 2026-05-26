@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { classifyHost, classifyResolvedIp, pickMetadata } from '../../../src/cli/dashboard/ogp.ts';
+import {
+  type FetchOgpOptions,
+  classifyHost,
+  classifyResolvedIp,
+  pickMetadata,
+} from '../../../src/cli/dashboard/ogp.ts';
 
 const FULL_HTML = `
 <!doctype html><html><head>
@@ -132,8 +137,9 @@ function htmlResponse(body: string, status = 200, contentType = 'text/html; char
   return new Response(body, { status, headers: { 'content-type': contentType } });
 }
 
-function makeOpts(overrides: Partial<Parameters<typeof fetchOgp>[1]> = {}) {
+function makeOpts(overrides: Partial<FetchOgpOptions> = {}): FetchOgpOptions {
   return {
+    fetch: async () => htmlResponse(''),
     timeoutMs: 50,
     maxBytes: 1024 * 1024,
     maxRedirects: 3,

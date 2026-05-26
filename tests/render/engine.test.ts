@@ -194,7 +194,7 @@ describe('buildContext', () => {
     expect(ctx.page).toBe(false);
   });
 
-  test('on a page route, ctx.page is the page and ctx.post is NOT set (issue #156)', () => {
+  test('on a page route, ctx.page is the page and ctx.post aliases the page for Ghost templates', () => {
     const page = makePage();
     const route: RouteContext = {
       kind: 'page',
@@ -206,7 +206,7 @@ describe('buildContext', () => {
     };
     const ctx = buildContext(engine, route);
     expect(ctx.page).toBe(page);
-    expect(ctx.post).toBeUndefined();
+    expect(ctx.post).toBe(page);
   });
 
   test('post and page routes keep Ghost root and nested title lookups compatible', () => {
@@ -232,7 +232,7 @@ describe('buildContext', () => {
     });
 
     expect(tpl(postContext)).toBe('Nested post title|Nested post title|');
-    expect(tpl(pageContext)).toBe('Nested page title||Nested page title');
+    expect(tpl(pageContext)).toBe('Nested page title|Nested page title|Nested page title');
   });
 
   test('post root copy skips prototype-sensitive keys without breaking nested access', () => {
@@ -1404,6 +1404,22 @@ describe('buildRootData', () => {
     expect(data.page).toMatchObject({ number: 2, pages: 4, total: 30 });
   });
 
+  test('@page exposes page display metadata on page routes without losing pagination shape', () => {
+    const engine = makeEngine();
+    const data = buildRootData(engine, {
+      ...makeRoute('page'),
+      data: { page: makePage({ show_title_and_feature_image: true }) },
+    });
+
+    expect(data.page).toMatchObject({
+      number: 1,
+      page: 1,
+      pages: 1,
+      total: 0,
+      show_title_and_feature_image: true,
+    });
+  });
+
   test('Journal-style @setting.paid_members_enabled blocks follow @site (issue #719)', () => {
     const renderPaidMembersBranch = (paid_members_enabled: boolean) => {
       const engine = makeEngine();
@@ -2491,7 +2507,7 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     expect(html).toBe(
       [
         '<ul class="nav"><li class="nav-home"><a href="/">Home</a></li><li class="nav-hello" aria-current="page"><a href="/hello/" aria-current="page">Hello</a></li></ul>',
-        '<nav class="pagination" role="navigation" aria-label="Pagination"><a class="newer-posts" href="/page/1/">&larr; Newer Posts</a><span class="page-number">Page 2 of 3</span><a class="older-posts" href="/page/3/">Older Posts &rarr;</a></nav>',
+        '<nav class="pagination" aria-label="Pagination"><a class="newer-posts" href="/page/1/">&larr; Newer Posts</a><span class="page-number">Page 2 of 3</span><a class="older-posts" href="/page/3/">Older Posts &rarr;</a></nav>',
         '<a href="/about/" class="cta" target="_blank" rel="noopener noreferrer">About</a>',
         '/assets/css/screen.css',
         'https://example.com/content/images/size/w320/format/webp/hero.jpg',

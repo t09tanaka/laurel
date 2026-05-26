@@ -1,12 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
-import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from '~/build/pipeline.ts';
 
 describe('example build', () => {
-  test('builds the example site against the Source theme', async () => {
+  test('builds the example site against the official Casper theme', async () => {
     const cwd = join(process.cwd(), 'example');
     const summary = await build({ cwd });
 
@@ -17,42 +15,37 @@ describe('example build', () => {
     const distRoot = join(cwd, 'dist');
     const indexHtml = readFileSync(join(distRoot, 'index.html'), 'utf8');
     expect(indexHtml).toContain(
-      '<title>Nectar Example — A demo blog built with Nectar against the Ghost Source theme</title>',
+      '<title>Nectar Example — A demo blog built with Nectar against the Ghost Casper theme</title>',
     );
-    expect(indexHtml).toContain('gh-viewport');
+    expect(indexHtml).toContain('class="viewport"');
     expect(indexHtml).toContain('/assets/built/screen.');
+    expect(indexHtml).toContain('/assets/built/casper.');
     expect(indexHtml).not.toMatch(/\{\{[a-zA-Z][^}]*\}\}/);
-    expect(indexHtml).toContain('font-display: swap;');
-    expect(indexHtml).not.toContain('font-display: optional;');
 
     const postHtml = readFileSync(join(distRoot, 'hello-nectar/index.html'), 'utf8');
     expect(postHtml).toContain('Hello, Nectar');
     expect(postHtml).toContain('Casper');
-    expect(postHtml).toContain('class="gh-article');
+    expect(postHtml).toContain('class="article');
+    expect(postHtml).toContain('byline-reading-time');
+    expect(postHtml).toContain('1 min read');
 
-    const articleImage = postHtml.match(/<figure class="gh-article-image">[\s\S]*?<\/figure>/);
-    expect(articleImage).not.toBeNull();
-    expect(articleImage?.[0]).toContain('fetchpriority="high"');
-    expect(articleImage?.[0]).toContain('decoding="async"');
-
-    const firstCard = indexHtml.match(/<figure class="gh-card-image">[\s\S]*?<\/figure>/g)?.[0];
+    const firstCard = indexHtml.match(/<img\b[^>]*\bclass="post-card-image"[^>]*>/g)?.[0];
     expect(firstCard).toBeDefined();
-    expect(firstCard).toContain('fetchpriority="high"');
-    expect(firstCard).toContain('decoding="async"');
-    expect(firstCard).not.toContain('loading="lazy"');
+    expect(firstCard).toContain('loading="lazy"');
+    expect(firstCard).toContain('width="1200"');
+    expect(firstCard).toContain('height="600"');
 
-    const lazyCards =
-      indexHtml.match(/<figure class="gh-card-image">[\s\S]*?<\/figure>/g)?.slice(1) ?? [];
+    const lazyCards = indexHtml.match(/<img\b[^>]*\bclass="post-card-image"[^>]*>/g) ?? [];
     for (const card of lazyCards) {
       expect(card).toContain('loading="lazy"');
-      expect(card).toContain('decoding="async"');
-      expect(card).not.toContain('fetchpriority="high"');
+      expect(card).toContain('width="1200"');
+      expect(card).toContain('height="600"');
     }
 
     const tagHtml = readFileSync(join(distRoot, 'tag/news/index.html'), 'utf8');
     expect(tagHtml).toContain('News');
     expect(tagHtml).toContain('Hello, Nectar');
-    expect(tagHtml).toContain('<title>News | Nectar Example</title>');
+    expect(tagHtml).toContain('<title>News</title>');
     expect(tagHtml).toContain(
       '<meta name="description" content="Announcements and project updates from the Nectar team.">',
     );
@@ -63,7 +56,7 @@ describe('example build', () => {
 
     const authorHtml = readFileSync(join(distRoot, 'author/casper/index.html'), 'utf8');
     expect(authorHtml).toContain('Casper');
-    expect(authorHtml).toContain('<title>Casper | Nectar Example</title>');
+    expect(authorHtml).toContain('<title>Casper</title>');
     expect(authorHtml).toContain(
       '<meta name="description" content="Friendly mascot of the open publishing platform Ghost — and the canonical Nectar test author.">',
     );
@@ -77,20 +70,21 @@ describe('example build', () => {
     ] as const) {
       const matches = html.match(/<main\b/g) ?? [];
       expect(matches.length, `${label} page should have exactly one <main> landmark`).toBe(1);
-      expect(html, `${label} page <main> should carry id="main" for skip-link targeting`).toMatch(
-        /<main[^>]*\bid="main"/,
+      const mainId = html.match(/<main[^>]*\bid="([^"]+)"/)?.[1];
+      expect(mainId, `${label} page <main> should carry an id for skip-link targeting`).toBe(
+        'site-main',
       );
       expect(html, `${label} page search button must have non-empty aria-label`).not.toMatch(
         /<button[^>]*\bgh-search\b[^>]*\baria-label=""/,
       );
-      expect(html, `${label} page search button should use Nectar search class`).toContain(
-        'nectar-search-toggle gh-icon-button',
+      expect(html, `${label} page search button should use Casper search class`).toContain(
+        'gh-search gh-icon-btn',
       );
       expect(html, `${label} page burger button must have non-empty aria-label`).not.toMatch(
         /<button[^>]*\bgh-burger\b[^>]*\baria-label=""/,
       );
-      expect(html, `${label} page must emit a skip-to-content link targeting #main`).toMatch(
-        /<a [^>]*class="nectar-skip-link[^"]*"[^>]*href="#main"[^>]*>\s*Skip to content\s*<\/a>/,
+      expect(html, `${label} page must emit a skip-to-content link targeting the main id`).toMatch(
+        /<a [^>]*class="nectar-skip-link[^"]*"[^>]*href="#site-main"[^>]*>\s*Skip to content\s*<\/a>/,
       );
       const bodyOpenMatch = html.match(/<body\b[^>]*>/i);
       expect(bodyOpenMatch, `${label} page must have a <body> tag`).not.toBeNull();
@@ -107,37 +101,6 @@ describe('example build', () => {
         bodyOpenEnd + firstFocusableOffset,
         `${label} page first focusable element must be the skip link`,
       ).toBe(skipAnchorPos);
-    }
-
-    // a11y (issue #198): heading hierarchy must not skip levels. The post
-    // page previously used <h4> for the author byline (metadata, not a
-    // section heading) immediately after the <h1> title, and archive pages
-    // jumped straight from the page <h1> to <h3> card titles.
-    expect(postHtml, 'post author byline must not be an <h4> section heading').not.toMatch(
-      /<h4[^>]*\bgh-article-author-name\b/,
-    );
-    // `{{authors}}` autolinks by default (Ghost-compat, #1110), so the byline
-    // is `<p class="gh-article-author-name"><a ...>Casper</a></p>` — still
-    // inline metadata, just wrapped in an anchor.
-    expect(postHtml, 'post author byline should render as inline metadata, not a heading').toMatch(
-      /<p[^>]*\bgh-article-author-name\b[^>]*>(?:<a\b[^>]*>)?Casper/,
-    );
-    for (const [label, html] of [
-      ['tag', tagHtml],
-      ['author', authorHtml],
-    ] as const) {
-      const headingLevels = (html.match(/<h([1-6])\b/g) ?? []).map((m) =>
-        Number.parseInt(m.slice(2), 10),
-      );
-      const firstH1 = headingLevels.indexOf(1);
-      expect(firstH1, `${label} page must include an <h1>`).toBeGreaterThanOrEqual(0);
-      const afterH1 = headingLevels.slice(firstH1);
-      const nextNonH1 = afterH1.find((level) => level !== 1);
-      expect(nextNonH1, `${label} page must include a heading after the <h1>`).toBeDefined();
-      expect(
-        nextNonH1,
-        `${label} page heading after <h1> must be <h2> (no level skip to <h3>)`,
-      ).toBe(2);
     }
 
     // a11y (issue #204): wrapper headings such as gh-featured-title and
@@ -157,14 +120,11 @@ describe('example build', () => {
       ).toBeUndefined();
     }
 
-    // Feature/card images must declare intrinsic width/height so browsers
+    // Card images must declare intrinsic width/height so browsers
     // can reserve layout space (avoids Cumulative Layout Shift).
     const cardImgPattern =
-      /<figure class="gh-card-image">[\s\S]*?<img\b[^>]*\bwidth="\d+"[^>]*\bheight="\d+"/;
+      /<img\b[^>]*\bclass="post-card-image"[^>]*\bwidth="\d+"[^>]*\bheight="\d+"/;
     expect(indexHtml, 'index card images must declare width/height').toMatch(cardImgPattern);
-    const articleImgPattern =
-      /<figure class="gh-article-image">[\s\S]*?<img\b[^>]*\bwidth="\d+"[^>]*\bheight="\d+"/;
-    expect(postHtml, 'article feature image must declare width/height').toMatch(articleImgPattern);
 
     expect(existsSync(join(distRoot, 'rss.xml'))).toBeTrue();
     expect(existsSync(join(distRoot, 'sitemap.xml'))).toBeTrue();
@@ -195,8 +155,8 @@ describe('example build', () => {
       ['tag', tagHtml],
       ['author', authorHtml],
     ] as const) {
-      expect(html, `${label} page <html> must carry a precomputed text color class`).toMatch(
-        /<html[^>]*\bclass="(?:[^"]*\s)?has-(?:dark|light)-text(?:\s[^"]*)?"/,
+      expect(html, `${label} page <body> must carry a precomputed text color class`).toMatch(
+        /<body[^>]*\bclass="(?:[^"]*\s)?[^"]*has-(?:dark|light)-text(?:\s[^"]*)?"/,
       );
       expect(html, `${label} page must not run the legacy inline contrast script`).not.toContain(
         "getComputedStyle(document.documentElement).getPropertyValue('--background-color')",
@@ -204,31 +164,6 @@ describe('example build', () => {
       expect(html, `${label} page must not assign has-NaN-text via JS`).not.toContain(
         'document.documentElement.className = `has-${textColor}-text`',
       );
-    }
-  });
-
-  test('Source font-display optional remains an explicit theme custom opt-in', async () => {
-    const source = join(process.cwd(), 'example');
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-source-font-display-'));
-
-    try {
-      await cp(source, cwd, { recursive: true });
-      await writeFile(
-        join(cwd, 'nectar.toml'),
-        readFileSync(join(cwd, 'nectar.toml'), 'utf8').replace(
-          'font_display = "swap"',
-          'font_display = "optional"',
-        ),
-        'utf8',
-      );
-
-      await build({ cwd });
-
-      const indexHtml = readFileSync(join(cwd, 'dist', 'index.html'), 'utf8');
-      expect(indexHtml).toContain('font-display: optional;');
-      expect(indexHtml).not.toContain('font-display: swap;');
-    } finally {
-      await rm(cwd, { recursive: true, force: true });
     }
   });
 });

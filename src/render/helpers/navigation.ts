@@ -121,9 +121,7 @@ export function registerNavigationHelpers(engine: NectarEngine): void {
         return new engine.hb.SafeString(html);
       }
 
-      const parts: string[] = [
-        '<nav class="pagination" role="navigation" aria-label="Pagination">',
-      ];
+      const parts: string[] = ['<nav class="pagination" aria-label="Pagination">'];
       // Translate the visible labels through the theme's locale files so a
       // Japanese / French / etc. theme renders pagination in its own language.
       // English remains the fallback when the active locale has no entry,

@@ -308,11 +308,9 @@ export function ProseEditor(props: ProseEditorProps): JSX.Element {
               // an empty paragraph at the same position, then letting the
               // user re-run the + menu Bookmark item from there. Keeps the
               // popover / SSRF path as the single source of truth.
-              const tr = v.state.tr.replaceWith(
-                pos,
-                pos + node.nodeSize,
-                v.state.schema.nodes.paragraph.create(),
-              );
+              const paragraph = v.state.schema.nodes.paragraph;
+              if (!paragraph) return;
+              const tr = v.state.tr.replaceWith(pos, pos + node.nodeSize, paragraph.create());
               v.dispatch(tr);
               v.focus();
             },

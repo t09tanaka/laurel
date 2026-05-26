@@ -11,6 +11,12 @@ const schema = new Schema({
   marks: basicSchema.spec.marks,
 });
 
+function bookmarkType() {
+  const type = schema.nodes.bookmark;
+  if (!type) throw new Error('bookmark node type is missing');
+  return type;
+}
+
 describe('bookmarkNodeSpec', () => {
   test('lists the eight attrs', () => {
     expect(BOOKMARK_ATTR_KEYS).toEqual([
@@ -26,14 +32,14 @@ describe('bookmarkNodeSpec', () => {
   });
 
   test('creates a node with default empty attrs', () => {
-    const node = schema.nodes.bookmark.create();
+    const node = bookmarkType().create();
     for (const key of BOOKMARK_ATTR_KEYS) {
       expect(node.attrs[key]).toBe('');
     }
   });
 
   test('round-trips attrs via create', () => {
-    const node = schema.nodes.bookmark.create({
+    const node = bookmarkType().create({
       url: 'https://example.com/',
       title: 'T',
       description: 'D',
@@ -48,8 +54,9 @@ describe('bookmarkNodeSpec', () => {
   });
 
   test('is a block atom (no inner content)', () => {
-    expect(schema.nodes.bookmark.spec.atom).toBe(true);
-    expect(schema.nodes.bookmark.isAtom).toBe(true);
-    expect(schema.nodes.bookmark.isBlock).toBe(true);
+    const type = bookmarkType();
+    expect(type.spec.atom).toBe(true);
+    expect(type.isAtom).toBe(true);
+    expect(type.isBlock).toBe(true);
   });
 });

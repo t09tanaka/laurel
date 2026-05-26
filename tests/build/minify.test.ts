@@ -88,6 +88,44 @@ describe('minifyHtmlOutputs', () => {
     expect(outputs[0]?.html).not.toContain('jquery-3.7');
   });
 
+  test('keeps minified HTML compatible with html-validate boolean/entity rules', async () => {
+    const outputs = [
+      {
+        outputPath: 'index.html',
+        html: [
+          '<!doctype html>',
+          '<html>',
+          '<body>',
+          '<script defer src="/assets/app.js"></script>',
+          '<p><code>content/posts/&lt;slug&gt;.md</code></p>',
+          '</body>',
+          '</html>',
+        ].join('\n'),
+      },
+    ];
+
+    await minifyHtmlOutputs(outputs);
+
+    expect(outputs[0]?.html).toContain('<script defer src="/assets/app.js"></script>');
+    expect(outputs[0]?.html).toContain('content/posts/&lt;slug&gt;.md');
+    expect(outputs[0]?.html).not.toContain('defer="defer"');
+    expect(outputs[0]?.html).not.toContain('&lt;slug>.md');
+  });
+
+  test('trims trailing whitespace introduced by conservative collapse', async () => {
+    const outputs = [
+      {
+        outputPath: 'index.html',
+        html: '<!doctype html><html><body><p>x</p></body></html>   \n',
+      },
+    ];
+
+    await minifyHtmlOutputs(outputs);
+
+    expect(outputs[0]?.html.endsWith(' ')).toBe(false);
+    expect(outputs[0]?.html.endsWith('\n')).toBe(false);
+  });
+
   test('handles many outputs concurrently without dropping any (#1109)', async () => {
     const n = 50;
     const outputs = Array.from({ length: n }, (_, i) => ({

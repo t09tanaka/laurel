@@ -2764,6 +2764,31 @@ describe('ghost_head LCP preload (#147)', () => {
     );
   });
 
+  test('keeps site-relative feature_image preload URLs local to the build origin', () => {
+    const html = renderGhostHead(
+      { id: 'p1', title: 'Hi', feature_image: '/content/images/cover.jpg' },
+      '/some-post/',
+      { routeKind: 'post' },
+    );
+    expect(html).toContain(
+      '<link rel="preload" as="image" href="/content/images/cover.jpg" fetchpriority="high" type="image/jpeg">',
+    );
+    expect(html).not.toContain(
+      '<link rel="preload" as="image" href="https://example.com/content/images/cover.jpg"',
+    );
+  });
+
+  test('applies build.base_path to site-relative feature_image preload URLs', () => {
+    const html = renderGhostHead(
+      { id: 'p1', title: 'Hi', feature_image: '/content/images/cover.jpg' },
+      '/some-post/',
+      { routeKind: 'post', config: { build: { base_path: '/blog/' } } },
+    );
+    expect(html).toContain(
+      '<link rel="preload" as="image" href="/blog/content/images/cover.jpg" fetchpriority="high" type="image/jpeg">',
+    );
+  });
+
   test('skips preload when route has no feature_image', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/some-post/', { routeKind: 'post' });
     expect(html).not.toContain('rel="preload" as="image"');

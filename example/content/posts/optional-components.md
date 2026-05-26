@@ -5,6 +5,7 @@ date: 2026-04-28T12:00:00Z
 authors: [honeybee]
 tags: [news, getting-started]
 feature_image: "/content/images/components-cover.svg"
+feature_image_alt: "Modular blocks arranged around the Nectar mark"
 custom_excerpt: "Search, RSS, sitemap, comments — opt in by config."
 ---
 

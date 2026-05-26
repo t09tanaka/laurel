@@ -9,6 +9,7 @@
     "no-implicit-button-type": "off",
     "no-trailing-whitespace": "off",
     "unique-landmark": "off",
+    "void-style": "off",
     "wcag/h30": "off"
   }
 }

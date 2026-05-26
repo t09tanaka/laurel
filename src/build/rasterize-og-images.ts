@@ -69,16 +69,14 @@ export async function rasterizeOgImages({
   let count = 0;
 
   for (const target of targets) {
-    const featureImage = target.feature_image;
-    if (!featureImage) continue;
-    const sourcePath = resolveAssetPath(featureImage, assetsRoot);
+    const sourcePath = resolveAssetPath(target.sourceImage, assetsRoot);
     if (!sourcePath) continue;
 
     let pngUrl = cache.get(sourcePath);
     if (pngUrl === undefined) {
       pngUrl = await renderSvgToPng({
         sourcePath,
-        featureImage,
+        sourceImage: target.sourceImage,
         assetsRoot,
         outputDir,
         Resvg,
@@ -88,24 +86,64 @@ export async function rasterizeOgImages({
       if (pngUrl) count += 1;
     }
 
-    if (pngUrl) target.og_image = pngUrl;
+    if (pngUrl) target.apply(pngUrl);
   }
 
   return count;
 }
 
-function collectTargets(content: ContentGraph): (Post | Page)[] {
-  const out: (Post | Page)[] = [];
+interface RasterizeTarget {
+  sourceImage: string;
+  apply(pngUrl: string): void;
+}
+
+function collectTargets(content: ContentGraph): RasterizeTarget[] {
+  const out: RasterizeTarget[] = [];
   for (const post of content.posts) {
-    if (shouldRasterize(post)) out.push(post);
+    if (shouldRasterizePostOrPage(post)) {
+      out.push({
+        sourceImage: post.feature_image,
+        apply: (pngUrl) => {
+          post.og_image = pngUrl;
+        },
+      });
+    }
   }
   for (const page of content.pages) {
-    if (shouldRasterize(page)) out.push(page);
+    if (shouldRasterizePostOrPage(page)) {
+      out.push({
+        sourceImage: page.feature_image,
+        apply: (pngUrl) => {
+          page.og_image = pngUrl;
+        },
+      });
+    }
+  }
+
+  const siteOgImage = content.site.og_image;
+  const siteTwitterImage = content.site.twitter_image;
+  if (siteOgImage && isSvgUrl(siteOgImage)) {
+    out.push({
+      sourceImage: siteOgImage,
+      apply: (pngUrl) => {
+        content.site.og_image = pngUrl;
+        if (siteTwitterImage === siteOgImage) content.site.twitter_image = pngUrl;
+      },
+    });
+  } else if (siteTwitterImage && isSvgUrl(siteTwitterImage)) {
+    out.push({
+      sourceImage: siteTwitterImage,
+      apply: (pngUrl) => {
+        content.site.twitter_image = pngUrl;
+      },
+    });
   }
   return out;
 }
 
-function shouldRasterize(item: Post | Page): boolean {
+function shouldRasterizePostOrPage(
+  item: Post | Page,
+): item is (Post | Page) & { feature_image: string } {
   if (item.og_image) return false;
   const feature = item.feature_image;
   if (!feature) return false;
@@ -136,7 +174,7 @@ function resolveAssetPath(featureImage: string, assetsRoot: string): string | un
 
 interface RenderArgs {
   sourcePath: string;
-  featureImage: string;
+  sourceImage: string;
   assetsRoot: string;
   outputDir: string;
   Resvg: ResvgConstructor;
@@ -145,7 +183,7 @@ interface RenderArgs {
 
 async function renderSvgToPng({
   sourcePath,
-  featureImage,
+  sourceImage,
   assetsRoot,
   outputDir,
   Resvg,
@@ -182,7 +220,7 @@ async function renderSvgToPng({
   await ensureDir(dirname(outputPath));
   await writeFile(outputPath, png);
 
-  const featureBase = featureImage.split(/[?#]/)[0] ?? featureImage;
+  const featureBase = sourceImage.split(/[?#]/)[0] ?? sourceImage;
   const baseWithoutExt = featureBase.slice(0, featureBase.length - extname(featureBase).length);
   return `${baseWithoutExt}.og.png`;
 }

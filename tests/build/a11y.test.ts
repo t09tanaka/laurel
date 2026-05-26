@@ -14,9 +14,19 @@ describe('injectSkipLink', () => {
   });
 
   test('emits an anchor targeting #main with visible text', () => {
-    const out = injectSkipLink('<body></body>');
+    const out = injectSkipLink('<body><main id="main"></main></body>');
     expect(out).toMatch(/<a [^>]*class="nectar-skip-link[^"]*"[^>]*href="#main"[^>]*>/);
     expect(out).toContain('>Skip to content</a>');
+  });
+
+  test('targets the existing first <main> id when a theme uses a non-main id', () => {
+    const out = injectSkipLink('<body><main id="site-main"></main></body>');
+    expect(out).toMatch(/<a [^>]*class="nectar-skip-link[^"]*"[^>]*href="#site-main"[^>]*>/);
+  });
+
+  test('falls back to #main when the document has no <main> id', () => {
+    const out = injectSkipLink('<body><main></main></body>');
+    expect(out).toMatch(/<a [^>]*class="nectar-skip-link[^"]*"[^>]*href="#main"[^>]*>/);
   });
 
   test('includes inline styles so the link is offscreen until focused', () => {

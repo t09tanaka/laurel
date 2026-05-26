@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { build } from '~/build/pipeline.ts';
 
 // Golden-master test for the example site (#172). Re-renders the example
-// against the vendored Source theme and diffs each captured page against a
+// against the vendored Casper theme and diffs each captured page against a
 // committed snapshot. Catches regressions in any helper that affects emitted
 // HTML — including ones that have no dedicated unit test. To accept a change
 // after an intentional template/helper update, rerun with UPDATE_GOLDEN=1.
@@ -50,7 +50,7 @@ const GOLDEN_FILES = [
 ] as const;
 
 // Strip moving parts so unrelated edits don't churn the snapshot:
-//   - fingerprinted asset hashes (change whenever screen.css / source.js change)
+//   - fingerprinted asset hashes (change whenever screen.css / casper.js change)
 //   - the year stamped into the default 404 footer (advances yearly)
 // Regressions in template structure / helper output still show up.
 function normalize(html: string): string {
@@ -67,12 +67,13 @@ describe('example build — golden HTML (#172)', () => {
     await build({ cwd: EXAMPLE_CWD });
   });
 
-  test('Source theme defers its external script without touching JSON-LD', async () => {
+  test('Casper theme defers its external script without touching JSON-LD', async () => {
     const actual = normalize(await readFile(join(DIST_DIR, 'index.html'), 'utf8'));
 
     expect(actual).toMatch(
-      /<script src="\/assets\/built\/source\.<HASH>\.js" defer\b[^>]*><\/script>/,
+      /<script src="\/assets\/built\/casper\.<HASH>\.js" defer\b[^>]*><\/script>/,
     );
+    expect(actual).not.toContain('/assets/built/jquery-3.5.1.min.');
     expect(actual).toContain('<script type="application/ld+json">');
     expect(actual).not.toMatch(/<script type="application\/ld\+json"[^>]*\bdefer\b/);
   });
