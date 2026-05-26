@@ -4700,6 +4700,7 @@
     letter-spacing: -0.008em;
   }
   .siteIdentityPanel,
+  .socialLinksPanel,
   .themeSwitcherPanel {
     /* Frameless settings sections — match the Migration treatment.
      * Each section is just typography + form fields with a hairline
