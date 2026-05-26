@@ -3238,6 +3238,152 @@
   .proseInsertFileInput {
     display: none;
   }
+  .proseInsertInputView {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    min-width: 240px;
+  }
+  .proseInsertInputView[hidden] {
+    display: none;
+  }
+  .proseInsertInputField {
+    font: inherit;
+    padding: 6px 8px;
+    border: 1px solid var(--border-default, rgba(0, 0, 0, 0.12));
+    border-radius: 6px;
+    background: var(--surface-card, #fff);
+    color: var(--text-primary, #1a1612);
+  }
+  .proseInsertInputField:focus-visible {
+    outline: 2px solid var(--text-primary, #1a1612);
+    outline-offset: 1px;
+  }
+  .proseInsertInputSubmit {
+    align-self: flex-end;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--text-primary, #1a1612);
+    background: var(--text-primary, #1a1612);
+    color: var(--text-invert, #f4ecd9);
+    font: inherit;
+    cursor: pointer;
+  }
+  .proseInsertInputSubmit[disabled] {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  .proseInsertInputError {
+    font-size: 12px;
+    color: var(--text-danger, #b3261e);
+    min-height: 14px;
+  }
+
+  .proseBookmarkFigure {
+    margin: 1.5em 0;
+    position: relative;
+  }
+  .proseBookmarkFigure--selected .proseBookmarkCard {
+    outline: 2px solid var(--text-primary, #1a1612);
+    outline-offset: 2px;
+  }
+  .proseBookmarkCard {
+    border: 1px solid var(--border-default, rgba(0, 0, 0, 0.12));
+    border-radius: 8px;
+    background: var(--surface-card, #fff);
+    overflow: hidden;
+  }
+  .proseBookmarkLink {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0;
+    color: inherit;
+    text-decoration: none;
+  }
+  .proseBookmarkText {
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .proseBookmarkTitle {
+    font-weight: 600;
+    color: var(--text-primary, #1a1612);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .proseBookmarkDescription {
+    color: var(--text-muted, #6b6258);
+    font-size: 13px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .proseBookmarkMeta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-muted, #6b6258);
+  }
+  .proseBookmarkIcon {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
+  }
+  .proseBookmarkThumbnail {
+    width: 144px;
+    height: auto;
+    object-fit: cover;
+    align-self: stretch;
+  }
+  .proseBookmarkCaption {
+    margin-top: 6px;
+    width: 100%;
+    font: inherit;
+    font-size: 13px;
+    border: 0;
+    border-bottom: 1px dashed var(--border-default, rgba(0, 0, 0, 0.18));
+    background: transparent;
+    text-align: center;
+    color: var(--text-muted, #6b6258);
+  }
+  .proseBookmarkCaption:focus-visible {
+    outline: none;
+    border-bottom-color: var(--text-primary, #1a1612);
+    color: var(--text-primary, #1a1612);
+  }
+  .proseBookmarkActions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+    background: var(--surface-card, #fff);
+    border: 1px solid var(--border-default, rgba(0, 0, 0, 0.12));
+    border-radius: 6px;
+    padding: 2px;
+  }
+  .proseBookmarkActions[hidden] {
+    display: none;
+  }
+  .proseBookmarkAction {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .proseBookmarkAction:hover {
+    background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+  }
   .proseHost .ProseMirror s {
     text-decoration: line-through;
   }
