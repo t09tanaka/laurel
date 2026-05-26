@@ -16,10 +16,21 @@ interface ContentTableProps {
   list: DashboardList<ContentSummary>;
   resultCount: number;
   statusFilter: string;
+  query: string;
   onStatusFilterChange: (value: string) => void;
   onPrev: () => void;
   onNext: () => void;
   onOpen: (slug: string) => void;
+}
+
+// `list.total` reflects items after status + search filtering. To tell
+// "no files on disk" apart from "filter just hides everything", we use
+// `statusCounts.all` (search-applied, status-unfiltered) and only treat
+// it as a real count when no search is active.
+function isTrulyEmpty(list: DashboardList<ContentSummary>, query: string): boolean {
+  if (query.trim().length > 0) return false;
+  const allCount = list.statusCounts?.all ?? list.total;
+  return allCount === 0;
 }
 
 const STATUS_TABS: ReadonlyArray<{
@@ -73,14 +84,17 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
             </tbody>
           </table>
         </div>
+      ) : isTrulyEmpty(list, props.query) ? (
+        <StatePanel
+          kind="empty"
+          title={`No ${kind} yet`}
+          message={`Create your first one with the New button or by adding a Markdown file to content/${kind}/.`}
+        />
       ) : (
         <StatePanel
           kind="empty"
-          message={
-            list.total === 0
-              ? `No ${kind} yet. Create your first one with the New button or by adding a Markdown file to content/${kind}/.`
-              : `No ${kind} match this filter. Try a different status or clear the search.`
-          }
+          title={`No matching ${kind}`}
+          message="Try a different status or clear the search."
         />
       )}
       {list.pages > 1 ? (
