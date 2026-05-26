@@ -413,7 +413,7 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
     }
     setDirty(false);
     props.onThemeDirtyChange(false);
-    setNotice('Saved active theme');
+    setNotice('');
     await props.onSettingsSaved();
   }
 
