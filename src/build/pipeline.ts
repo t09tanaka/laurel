@@ -5,6 +5,7 @@ import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isNonProductionBuild } from '~/config/deploy-environment.ts';
 import { loadConfig } from '~/config/loader.ts';
+import type { NectarConfig } from '~/config/schema.ts';
 import { type MarkdownTransformHook, loadContent } from '~/content/loader.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import { SUBSCRIBE_NOOP_BUILD_WARNING } from '~/members/noop.ts';
@@ -14,6 +15,7 @@ import type { BuildContext, Plugin } from '~/plugin/types.ts';
 import { createEngine } from '~/render/engine.ts';
 import type { RouteContext } from '~/render/types.ts';
 import { loadTheme } from '~/theme/loader.ts';
+import type { ThemeBundle } from '~/theme/types.ts';
 import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { pLimit } from '~/util/concurrency.ts';
 import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
@@ -147,6 +149,17 @@ import {
 import { emitTierWelcomePages } from './tier-welcome-pages.ts';
 import { GENERATED_WEB_MANIFEST_PATH, emitWebManifest } from './web-manifest.ts';
 
+// Hot path for `nectar dev`: lets the dev server hand a previously-loaded
+// config and/or theme back to a fresh build() call so we skip the (relatively
+// slow) `loadConfig` + `loadTheme`/`compileTemplates` work when the watcher
+// is sure those inputs have not changed. Content is intentionally not on this
+// surface yet: the content graph is mutated in place by image/srcset injectors
+// after loadContent, so safe reuse needs a follow-up audit.
+export interface ReusableBuildState {
+  config?: NectarConfig | undefined;
+  theme?: ThemeBundle | undefined;
+}
+
 export interface BuildOptions {
   cwd: string;
   configPath?: string | undefined;
@@ -191,6 +204,18 @@ export interface BuildOptions {
   // Optional CLI-facing progress callback. The build pipeline treats this as
   // best-effort telemetry: progress UI must never be able to fail a build.
   progress?: BuildProgressReporter | undefined;
+  // When set, the build skips re-loading the corresponding inputs and uses the
+  // provided objects instead. Used by `nectar dev` to keep config / theme in
+  // memory across rebuilds: a .hbs save reloads only the theme, a .md save
+  // reloads only the content graph, and only a `nectar.toml` change invalidates
+  // everything. Reused config is still subject to CLI overrides
+  // (basePath / baseUrl / copyContentAssets) applied below in build().
+  reuse?: ReusableBuildState | undefined;
+  // When true, the returned BuildSummary includes the `reusable` field with the
+  // loaded config + theme so the caller can hand them back on the next build.
+  // Off by default to avoid retaining the theme bundle in memory for one-shot
+  // CLI builds.
+  captureReusable?: boolean | undefined;
 }
 
 export type BuildProgressPhase =
@@ -266,6 +291,13 @@ export interface BuildSummary {
   routes?: DryRunRouteSummary[];
   slowestRoutes?: BuildStatsRoute[];
   helperHotspots?: BuildStatsHelperHotspot[];
+  // Populated only when `captureReusable: true` was passed in BuildOptions.
+  // Lets `nectar dev` re-feed the same config/theme back on the next rebuild,
+  // skipping their load step.
+  reusable?: {
+    config: NectarConfig;
+    theme: ThemeBundle;
+  };
 }
 
 async function timed<T>(
@@ -404,6 +436,8 @@ export async function build({
   emitContentApi,
   copyContentAssets,
   progress,
+  reuse,
+  captureReusable,
 }: BuildOptions): Promise<BuildSummary> {
   resetWarningCount();
   const profiler = profile ? createProfiler({ sampleIntervalMs: 250 }) : null;
@@ -414,9 +448,17 @@ export async function build({
   if (includeDrafts === true) {
     logger.warn('Building with drafts');
   }
-  const config = await withProgressPhase(progress, 'config', 'Loading config', () =>
-    timed(profiler, 'load', () => timed(profiler, 'config', () => loadConfig({ cwd, configPath }))),
-  );
+  // Reusing the previously-loaded config skips a small (~ms) cost on dev
+  // rebuilds, but more importantly avoids racing with an in-flight edit on
+  // nectar.toml. The dev server hands `reuse.config` in only when it has
+  // confirmed nectar.toml itself did not change in this rebuild window.
+  const config =
+    reuse?.config ??
+    (await withProgressPhase(progress, 'config', 'Loading config', () =>
+      timed(profiler, 'load', () =>
+        timed(profiler, 'config', () => loadConfig({ cwd, configPath })),
+      ),
+    ));
   if (copyContentAssets !== undefined) {
     config.build.copy_content_assets = copyContentAssets;
   }
@@ -471,6 +513,8 @@ export async function build({
     clean: clean !== false,
     emitContentApi,
     progress,
+    reuseTheme: reuse?.theme,
+    captureReusable: captureReusable === true,
   });
 }
 
@@ -490,6 +534,8 @@ async function runBuild({
   clean,
   emitContentApi,
   progress,
+  reuseTheme,
+  captureReusable,
 }: {
   cwd: string;
   config: Awaited<ReturnType<typeof loadConfig>>;
@@ -498,6 +544,8 @@ async function runBuild({
   profiler: Profiler | null;
   previousManifest: BuildManifest | undefined;
   previousBuildManifest: Awaited<ReturnType<typeof loadBuildManifest>>;
+  reuseTheme?: ThemeBundle | undefined;
+  captureReusable?: boolean | undefined;
   noAtomic: boolean;
   concurrency: number | undefined;
   dryRun: boolean;
@@ -562,8 +610,14 @@ async function runBuild({
       }
 
       const [content, theme] = await timed(profiler, 'load_content_and_theme', () => {
+        // `reuseTheme` is the dev-server fast path: when the watcher classifies
+        // the rebuild as content-only / config-only, the previous theme bundle
+        // is byte-equivalent to what `loadTheme` would return, so we hand it
+        // straight through and skip the .hbs walk + locale parse + asset scan.
         notifyProgressStatus(progress, 'content', 'Loading theme…');
-        const themePromise = loadTheme({ cwd, config });
+        const themePromise: Promise<ThemeBundle> = reuseTheme
+          ? Promise.resolve(reuseTheme)
+          : loadTheme({ cwd, config });
         notifyProgressStatus(progress, 'content', 'Indexing content…');
         const contentPromise = loadContent({
           cwd,
@@ -1125,6 +1179,7 @@ async function runBuild({
       ...(helperHotspots && helperHotspots.length > 0
         ? { helperHotspots: [...helperHotspots] }
         : {}),
+      ...(captureReusable === true ? { reusable: { config, theme } } : {}),
     };
   }
 
@@ -1694,6 +1749,7 @@ async function runBuild({
     renderedCount,
     skippedCount,
     dryRun: false,
+    ...(captureReusable === true ? { reusable: { config, theme } } : {}),
   };
 }
 
