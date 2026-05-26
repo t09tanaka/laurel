@@ -307,7 +307,7 @@ function PageBundleImportPanel(props: ImportPanelProps): JSX.Element {
           class="btn secondary"
           id="previewPageBundleImport"
           type="button"
-          disabled={busy}
+          disabled={busy || !file}
           onClick={() => {
             void run(true);
           }}
@@ -318,7 +318,7 @@ function PageBundleImportPanel(props: ImportPanelProps): JSX.Element {
           class="btn"
           id="applyPageBundleImport"
           type="button"
-          disabled={busy}
+          disabled={busy || !file}
           onClick={() => {
             void run(false);
           }}
