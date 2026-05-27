@@ -348,9 +348,38 @@ export interface GhostImportUploadArgs {
   maxImageSizeBytes?: number;
 }
 
-export async function importGhostUpload(
+// Mirrors the NDJSON wire shape emitted by
+// `src/cli/dashboard/ghost-import-runner.ts:createGhostImportStreamResponse`.
+// Defined inline here so the frontend bundle doesn't have to pull backend
+// modules — the type only needs to match the JSON the server sends.
+export type GhostImportStreamEvent =
+  | { type: 'start'; startedAt: string }
+  | {
+      type: 'progress';
+      event:
+        | { type: 'posts'; processedPosts: number; totalPosts: number }
+        | {
+            type: 'image';
+            url: string;
+            status: 'fetching' | 'done' | 'skipped' | 'failed';
+            downloaded: number;
+            skipped: number;
+            failed: number;
+          };
+    }
+  | {
+      type: 'done';
+      summary: Record<string, unknown>;
+      mode: 'dry-run' | 'apply';
+      target: string;
+    }
+  | { type: 'error'; message: string };
+
+export async function streamGhostImport(
   args: GhostImportUploadArgs,
-): Promise<{ status: number; data: unknown }> {
+  onEvent: (event: GhostImportStreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
   const fd = new FormData();
   fd.append('file', args.file);
   fd.append('dryRun', 'false');
@@ -362,12 +391,79 @@ export async function importGhostUpload(
   if (args.maxImageSizeBytes !== undefined) {
     fd.append('maxImageSizeBytes', String(args.maxImageSizeBytes));
   }
-  const response = await fetch('/api/import/ghost', {
-    method: 'POST',
-    headers: { 'x-nectar-dashboard-token': dashboardToken },
-    body: fd,
-  });
-  return { status: response.status, data: await response.json() };
+
+  let response: Response;
+  try {
+    response = await fetch('/api/import/ghost', {
+      method: 'POST',
+      headers: { 'x-nectar-dashboard-token': dashboardToken },
+      body: fd,
+      signal,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      onEvent({ type: 'error', message: 'Import cancelled' });
+    } else {
+      onEvent({ type: 'error', message: err instanceof Error ? err.message : 'Network error' });
+    }
+    return;
+  }
+
+  if (response.status >= 400 || !response.body) {
+    let detail = '';
+    try {
+      detail = (await response.text()).slice(0, 240);
+    } catch {
+      detail = '';
+    }
+    onEvent({
+      type: 'error',
+      message: `Import request failed (${response.status})${detail ? `: ${detail}` : ''}`,
+    });
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    let chunk: Awaited<ReturnType<typeof reader.read>>;
+    try {
+      chunk = await reader.read();
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        onEvent({ type: 'error', message: 'Import cancelled' });
+      } else {
+        onEvent({
+          type: 'error',
+          message: err instanceof Error ? err.message : 'Stream read error',
+        });
+      }
+      return;
+    }
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    let nl = buffer.indexOf('\n');
+    while (nl >= 0) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      if (line.length > 0) {
+        try {
+          onEvent(JSON.parse(line) as GhostImportStreamEvent);
+        } catch {
+          // Skip malformed lines rather than aborting the entire feed.
+        }
+      }
+      nl = buffer.indexOf('\n');
+    }
+  }
+  if (buffer.trim().length > 0) {
+    try {
+      onEvent(JSON.parse(buffer.trim()) as GhostImportStreamEvent);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 export interface PageBundleImportPayload {

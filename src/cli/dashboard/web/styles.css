@@ -2065,6 +2065,132 @@
     justify-content: center;
     padding: 24px;
   }
+  /* Full-screen overlay rendered during a Ghost import. Sits above the
+   * upload modal (`z-index: 200`) and the rest of the dashboard so the
+   * operator can't accidentally interact with stale state while the
+   * background stream is still settling. Card style mirrors the import
+   * modal — ink head, cream surface, italic-serif kicker — but stretches
+   * wider so the running URL fits without ellipsis-shortening too
+   * aggressively on common laptop widths. */
+  .ghostImportOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: rgba(20, 16, 12, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    animation: ghostImportOverlayFadeIn 160ms ease-out both;
+  }
+  @keyframes ghostImportOverlayFadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .ghostImportOverlayCard {
+    width: min(640px, 100%);
+    background: var(--surface-normal);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-elevation-4);
+    padding: 32px;
+    display: grid;
+    gap: 22px;
+    color: var(--text-primary);
+  }
+  .ghostImportOverlayHead {
+    display: grid;
+    gap: 4px;
+  }
+  .ghostImportOverlayKicker {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .ghostImportOverlayTitle {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+  }
+  .ghostImportOverlayStats {
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    padding: 14px 16px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+  }
+  .ghostImportOverlayStats > div {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .ghostImportOverlayStats dt {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .ghostImportOverlayStats dd {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 20px;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+  .ghostImportOverlayStats > div[data-tone="failed"] dd {
+    color: var(--danger);
+  }
+  .ghostImportOverlayPosts {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .ghostImportOverlayCurrent {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .ghostImportOverlayCurrentLabel {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .ghostImportOverlayCurrentUrl {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--text-primary);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-weak);
+    border-radius: 4px;
+    padding: 6px 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ghostImportOverlayActions {
+    display: flex;
+    justify-content: flex-end;
+  }
   .modalDialog {
     width: min(520px, 100%);
     position: relative;

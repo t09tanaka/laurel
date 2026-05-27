@@ -1,6 +1,10 @@
 import type { JSX } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
-import { importGhostUpload, importPageBundleUpload } from '../lib/api.ts';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import {
+  type GhostImportStreamEvent,
+  importPageBundleUpload,
+  streamGhostImport,
+} from '../lib/api.ts';
 import { StatePanel } from './StatePanel.tsx';
 
 interface MigrationViewProps {
@@ -95,14 +99,24 @@ interface GhostImportModalProps {
   }) => Promise<void> | void;
 }
 
+interface GhostImportProgressState {
+  downloaded: number;
+  skipped: number;
+  failed: number;
+  currentUrl: string;
+  processedPosts: number;
+  totalPosts: number;
+}
+
 function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Element {
   const [file, setFile] = useState<File | null>(null);
   const [onConflict, setOnConflict] = useState<'skip' | 'rename' | 'overwrite'>('skip');
   const [sourceUrl, setSourceUrl] = useState('');
   const [maxImageSizeMb, setMaxImageSizeMb] = useState('10');
-  const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [progress, setProgress] = useState<GhostImportProgressState | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Validate the Max image size field on every keystroke so the user sees
   // "out of range" feedback immediately instead of only after submitting.
@@ -124,6 +138,10 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [busy, onClose]);
+
+  function handleCancelImport(): void {
+    abortRef.current?.abort();
+  }
 
   async function run() {
     if (!file) {
@@ -164,29 +182,77 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
     }
     setLocalError('');
     setBusy(true);
-    setNotice(trimmedSource ? 'Importing files and downloading images…' : 'Importing files…');
+    setProgress({
+      downloaded: 0,
+      skipped: 0,
+      failed: 0,
+      currentUrl: '',
+      processedPosts: 0,
+      totalPosts: 0,
+    });
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let settled = false;
     try {
-      const { status, data } = await importGhostUpload({
-        file,
-        onConflict,
-        sourceUrl: trimmedSource || undefined,
-        maxImageSizeBytes,
-      });
-      if (status >= 400) {
-        const error = (data as { error?: string }).error;
-        await onResult({ error: error ?? 'Import failed' });
-        setLocalError(error ?? 'Import failed');
-        return;
+      await streamGhostImport(
+        {
+          file,
+          onConflict,
+          sourceUrl: trimmedSource || undefined,
+          maxImageSizeBytes,
+        },
+        (event: GhostImportStreamEvent) => {
+          if (event.type === 'progress') {
+            const inner = event.event;
+            if (inner.type === 'posts') {
+              setProgress((prev) =>
+                prev
+                  ? { ...prev, processedPosts: inner.processedPosts, totalPosts: inner.totalPosts }
+                  : prev,
+              );
+            } else if (inner.type === 'image') {
+              setProgress((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      downloaded: inner.downloaded,
+                      skipped: inner.skipped,
+                      failed: inner.failed,
+                      currentUrl: inner.status === 'fetching' ? inner.url : prev.currentUrl,
+                    }
+                  : prev,
+              );
+            }
+          } else if (event.type === 'done') {
+            settled = true;
+            void onResult({
+              mode: event.mode,
+              target: event.target,
+              summary: event.summary as Record<string, unknown>,
+            });
+            onClose();
+          } else if (event.type === 'error') {
+            settled = true;
+            void onResult({ error: event.message });
+            setLocalError(event.message);
+          }
+        },
+        controller.signal,
+      );
+      if (!settled) {
+        // Stream ended without emitting a terminal event — treat as success
+        // would be misleading, so surface a generic error.
+        setLocalError('Import ended unexpectedly without a result.');
       }
-      await onResult(data as Parameters<typeof onResult>[0]);
-      onClose();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await onResult({ error: message });
+      void onResult({ error: message });
       setLocalError(message);
     } finally {
+      abortRef.current = null;
       setBusy(false);
-      setNotice('');
+      setProgress(null);
     }
   }
 
@@ -316,11 +382,68 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
             Import files
           </button>
         </div>
-        <output class="notice" id="ghostImportNotice">
-          {notice}
-        </output>
         {localError ? <StatePanel kind="error" message={localError} /> : null}
       </dialog>
+      {busy && progress ? (
+        <GhostImportProgress state={progress} onCancel={handleCancelImport} />
+      ) : null}
+    </div>
+  );
+}
+
+interface GhostImportProgressProps {
+  state: GhostImportProgressState;
+  onCancel: () => void;
+}
+
+// Full-screen overlay that takes over the dashboard while a Ghost import is
+// in flight. Renders running counters fed by the NDJSON event stream so the
+// operator can see what's happening on multi-minute imports instead of
+// staring at a generic spinner. Cancel aborts the underlying fetch.
+function GhostImportProgress({ state, onCancel }: GhostImportProgressProps): JSX.Element {
+  const total = state.downloaded + state.skipped + state.failed;
+  return (
+    <div class="ghostImportOverlay" aria-live="polite" aria-label="Importing Ghost export">
+      <div class="ghostImportOverlayCard">
+        <header class="ghostImportOverlayHead">
+          <p class="ghostImportOverlayKicker">Ghost import</p>
+          <h2 class="ghostImportOverlayTitle">Importing&nbsp;…</h2>
+        </header>
+        <dl class="ghostImportOverlayStats">
+          <div>
+            <dt>Images</dt>
+            <dd>{total}</dd>
+          </div>
+          <div>
+            <dt>Downloaded</dt>
+            <dd>{state.downloaded}</dd>
+          </div>
+          <div>
+            <dt>Skipped</dt>
+            <dd>{state.skipped}</dd>
+          </div>
+          <div data-tone={state.failed > 0 ? 'failed' : undefined}>
+            <dt>Failed</dt>
+            <dd>{state.failed}</dd>
+          </div>
+        </dl>
+        {state.totalPosts > 0 ? (
+          <p class="ghostImportOverlayPosts">
+            Posts written {state.processedPosts} / {state.totalPosts}
+          </p>
+        ) : null}
+        <div class="ghostImportOverlayCurrent">
+          <span class="ghostImportOverlayCurrentLabel">Fetching</span>
+          <code class="ghostImportOverlayCurrentUrl" title={state.currentUrl}>
+            {state.currentUrl || '—'}
+          </code>
+        </div>
+        <div class="ghostImportOverlayActions">
+          <button type="button" class="btn secondary" onClick={onCancel}>
+            Cancel import
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
