@@ -49,7 +49,6 @@ export interface TaxonomySummary {
   url?: string;
   source: 'file' | 'generated';
   editable: boolean;
-  orphaned?: boolean;
   materializePath?: string;
   [key: string]: unknown;
 }
