@@ -187,10 +187,58 @@ export function renderRebuild(block: RebuildBlock): string {
   return `\n ${head}  ${dim(g.separator)}  ${dim(`${pushLabel} (${clientLabel})`)}\n`;
 }
 
+// Final summary block emitted at the end of `nectar build`. Mirrors the dev
+// "Ready" block stylistically so contributors see the same finish-line shape
+// whether they're iterating in dev or shipping a one-shot build. `bytes` is
+// optional because dry runs intentionally don't compute output size.
+export interface BuildCompleteBlock {
+  elapsedMs: number;
+  routes: number;
+  assets: number;
+  bytes?: number;
+  outputDir: string;
+  // Override label so watch-mode rebuilds can read "Rebuilt" instead of
+  // "Built" while reusing the same render path.
+  label?: string;
+}
+
+export function renderBuildComplete(block: BuildCompleteBlock): string {
+  if (getOutputMode() === 'json') return '';
+  const g = devGlyphs();
+  const dim = (s: string) => colorize(s, 'gray');
+  const ok = (s: string) => colorize(s, 'green');
+  const label = block.label ?? 'Built';
+  const head = ` ${ok(g.check)} ${label} in ${formatMs(block.elapsedMs)}`;
+  const parts = [`${block.routes} routes`, `${block.assets} assets`];
+  if (block.bytes !== undefined) parts.push(formatBytes(block.bytes));
+  const detail = `${parts.join(', ')} ${g.arrow} ${block.outputDir}`;
+  return `\n${head}\n   ${dim(detail)}\n`;
+}
+
 function formatMs(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)}ms`;
   const s = ms / 1000;
   return `${s.toFixed(s < 10 ? 2 : 1)}s`;
+}
+
+// Mirrors the binary-units formatter in src/cli/commands/build.ts so the
+// build block prints the same "1.2 MiB" shape contributors are used to. Kept
+// here so the banner module owns the entire build-complete rendering surface
+// without forcing the build command to expose its private helper.
+export function formatBytes(bytes: number): string {
+  const gib = 1024 * 1024 * 1024;
+  const mib = 1024 * 1024;
+  const kib = 1024;
+  if (bytes >= gib) return `${roundToOneDecimal(bytes / gib)} GiB`;
+  if (bytes >= mib) return `${roundToOneDecimal(bytes / mib)} MiB`;
+  if (bytes >= kib) return `${roundToOneDecimal(bytes / kib)} KiB`;
+  if (bytes === 1) return '1 B';
+  if (bytes >= 0) return `${bytes} B`;
+  return `${roundToOneDecimal(bytes / mib)} MiB`;
+}
+
+function roundToOneDecimal(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
 // Direct stdout write for banner / ready / warnings blocks. Bypasses the

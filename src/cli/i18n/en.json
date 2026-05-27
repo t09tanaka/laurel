@@ -6,7 +6,6 @@
   "build.stats": "Build stats: {profilePath}",
   "build.strict.failed": "Strict mode: build emitted {count} warning{plural}",
   "build.strict.watchWarning": "Strict mode: build emitted {count} warning{plural} (watch mode keeps running)",
-  "build.summary": "{prefix} {routeCount} routes ({assetCount} assets{outputSizeSuffix}) \u2192 {outputDir}",
   "build.usage.watchDryRun": "--watch and --dry-run are mutually exclusive",
   "watch.failed": "Failed to watch {path}: {message}",
   "watch.enabled": "Watch mode enabled: tracking {count} path(s) for changes",
