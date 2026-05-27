@@ -4852,6 +4852,81 @@
     padding: 1px 5px;
     border-radius: 3px;
   }
+  /* Top-of-dashboard banner that fires when [theme] in nectar.toml points at
+   * a directory that doesn't exist on disk. Reuses the existing warning
+   * palette (--caution / --caution-subdued) so it matches the rest of the
+   * surface, but pulls the layout pattern from the toast row: icon column on
+   * the left, copy in the middle, dismiss button on the right. Sits above
+   * PageHeader so it spans the full main column. */
+  .themeMissingBanner {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
+    align-items: start;
+    margin: 0 0 16px;
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    border: 1px solid color-mix(in srgb, var(--caution) 40%, var(--border-default));
+    background: var(--caution-subdued);
+    color: var(--text-primary);
+  }
+  .themeMissingBannerIcon {
+    font-size: 18px;
+    line-height: 1.1;
+    color: var(--caution);
+  }
+  .themeMissingBannerCopy {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+  .themeMissingBannerHeadline {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  .themeMissingBannerHint {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-secondary, var(--text-primary));
+  }
+  .themeMissingBannerCommand {
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--caution) 14%, transparent);
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+  .themeMissingBannerCommand code {
+    font-family: inherit;
+    background: transparent;
+    padding: 0;
+  }
+  .themeMissingBannerDismiss {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--text-muted, var(--text-primary));
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .themeMissingBannerDismiss:hover {
+    background: color-mix(in srgb, var(--caution) 18%, transparent);
+    color: var(--text-primary);
+  }
+  .themeMissingBannerDismiss:focus-visible {
+    outline: 2px solid var(--caution);
+    outline-offset: 2px;
+  }
   .themeEmpty {
     display: grid;
     gap: 8px;

@@ -311,6 +311,28 @@ export interface DashboardThemeOption {
   version?: string;
 }
 
+// Surfaced via `/api/state` so the dashboard can show a top-of-page warning
+// when `[theme]` in `nectar.toml` points at a directory that does not exist.
+// Mirrors the `Theme directory not found` `NectarError` that `loadTheme()`
+// raises at build time so the operator gets the same actionable hint inside
+// the dashboard instead of having to drop to the CLI.
+export interface DashboardThemeStatus {
+  missing: boolean;
+  // Path the loader would look at, relative to cwd when it sits inside it,
+  // otherwise the absolute path. Mirrors the `cloneTarget` heuristic in
+  // `src/theme/loader.ts` so the message lines up with the CLI.
+  expectedPath: string;
+  // Populated when `missing` is true. Ready-to-run `git clone` command that
+  // vendors the default Source theme into the expected path.
+  cloneCommand?: string;
+  // Populated when `missing` is true. Human-readable message — used as the
+  // banner headline.
+  message?: string;
+  // Populated when `missing` is true. Longer, hint-style explanation pulled
+  // from the same copy `NectarError` emits.
+  hint?: string;
+}
+
 interface DashboardReadinessItem {
   id: string;
   label: string;
@@ -537,6 +559,7 @@ export interface DashboardState {
       name: string;
       dir: string;
       available: DashboardThemeOption[];
+      status: DashboardThemeStatus;
     };
     cards: DashboardSettingsCard[];
     operations: DashboardOperations;
@@ -612,6 +635,7 @@ export interface DashboardSettings {
     name: string;
     dir: string;
     available: DashboardThemeOption[];
+    status: DashboardThemeStatus;
   };
 }
 
@@ -1141,6 +1165,7 @@ export async function loadDashboardState({
         name: config.theme.name,
         dir: config.theme.dir,
         available: await listDashboardThemes(cwd, config.theme.dir, config.theme.name),
+        status: computeDashboardThemeStatus(cwd, config.theme.dir, config.theme.name),
       },
       cards: await buildSettingsCards({ cwd, configPath, config, operations }),
       operations,
@@ -1274,6 +1299,7 @@ export async function readDashboardSettings({
       name: config.theme.name,
       dir: config.theme.dir,
       available: await listDashboardThemes(cwd, config.theme.dir, config.theme.name),
+      status: computeDashboardThemeStatus(cwd, config.theme.dir, config.theme.name),
     },
   };
 }
@@ -4498,6 +4524,31 @@ function dashboardSocialSettings(site: Record<string, unknown>): DashboardSocial
     youtube: typeof site.youtube === 'string' ? site.youtube : '',
     instagram: typeof site.instagram === 'string' ? site.instagram : '',
     github: typeof site.github === 'string' ? site.github : '',
+  };
+}
+
+// Mirrors the `Theme directory not found` `NectarError` raised by `loadTheme()`
+// in `src/theme/loader.ts`, so the dashboard banner shows the same actionable
+// hint an operator gets at `nectar build` time. Kept in lockstep with the
+// loader copy on purpose — when the loader's hint changes, this should change
+// with it.
+export function computeDashboardThemeStatus(
+  cwd: string,
+  themeDir: string,
+  themeName: string,
+): DashboardThemeStatus {
+  const rootDir = resolveThemeRoot(cwd, themeDir, themeName);
+  if (existsSync(rootDir)) {
+    return { missing: false, expectedPath: relativePath(cwd, rootDir) };
+  }
+  const relRoot = relative(cwd, rootDir);
+  const expectedPath = relRoot && !relRoot.startsWith('..') ? relRoot : rootDir;
+  return {
+    missing: true,
+    expectedPath,
+    cloneCommand: `git clone https://github.com/TryGhost/Source ${expectedPath}`,
+    message: `Theme "${themeName}" not found at ${expectedPath}.`,
+    hint: 'Vendor a Ghost theme into this directory before previewing or building. For the default Source theme, run the clone command above. Other Ghost-compatible themes (Casper, Headline, Edition, Wave, Liebling, …) follow the same pattern.',
   };
 }
 

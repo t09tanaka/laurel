@@ -17,6 +17,7 @@ import { SkeletonContentTable } from './components/SkeletonContentTable.tsx';
 import { StatePanel } from './components/StatePanel.tsx';
 import { TaxonomyEditorView } from './components/TaxonomyEditorView.tsx';
 import { TaxonomyView } from './components/TaxonomyView.tsx';
+import { ThemeMissingBanner } from './components/ThemeMissingBanner.tsx';
 import { useToastHost } from './components/Toast.tsx';
 import { Toolbar } from './components/Toolbar.tsx';
 import { useEventStream } from './hooks/useEventStream.ts';
@@ -675,6 +676,7 @@ export function DashboardApp(): JSX.Element {
         }}
       />
       <main class="main" id="main" tabIndex={-1}>
+        <ThemeMissingBanner status={state?.settings.theme.status} />
         {editor ? null : (
           <PageHeader
             copy={headCopy}
