@@ -3605,11 +3605,6 @@
   }
   .advancedPanel {
     max-width: none;
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius);
-    background: var(--surface-normal);
-    overflow: hidden;
-    box-shadow: var(--elevation-1);
   }
   .snippetBar {
     border: 1px solid var(--border-default);
@@ -3622,26 +3617,101 @@
     box-shadow: none;
   }
   .advancedPanel summary {
-    min-height: 46px;
     display: flex;
     align-items: center;
-    padding: 11px 13px;
+    gap: 8px;
+    padding: 8px 0;
     color: var(--text-secondary);
     font-weight: 700;
     cursor: pointer;
+    list-style: none;
+  }
+  .advancedPanel summary::-webkit-details-marker {
+    display: none;
+  }
+  /* CSS-drawn `+` / `−` toggle instead of the native disclosure triangle
+   * so the marker matches the dashboard's editorial tone — reads as
+   * "+ Advanced" when collapsed, "− Advanced" when open. */
+  .advancedPanel summary::before {
+    content: "+";
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    color: var(--text-muted, var(--text-secondary));
+    font-weight: 600;
+  }
+  .advancedPanel[open] summary::before {
+    content: "−";
   }
   .advancedPanel[open] {
-    padding-bottom: 12px;
-  }
-  .advancedPanel[open] summary {
-    border-bottom: 1px solid var(--border-default);
-    margin-bottom: 12px;
+    padding-bottom: 6px;
   }
   .advancedPanel .mediaGrid,
   .advancedPanel .editorActions,
   .advancedPanel .storageNotice,
   .advancedPanel .editorHistory {
-    margin: 0 12px;
+    margin: 0;
+  }
+  /* Visual suffix tag (e.g. "MB") pinned inside the right edge of a numeric
+   * input. The input reserves padding-right for the suffix so typed digits
+   * never overlap it; pointer-events:none keeps the suffix from stealing
+   * focus when the user clicks the input. */
+  .inputWithSuffix {
+    position: relative;
+    display: block;
+  }
+  .inputWithSuffix > input {
+    width: 100%;
+    padding-right: 44px;
+  }
+  /* Hide the native number-input spin buttons — they collide visually with
+   * `.inputSuffix` (the "MB" tag) and a fixed-unit input doesn't benefit
+   * from stepper arrows anyway; users type the number directly. */
+  .inputWithSuffix > input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .inputWithSuffix > input[type="number"]::-webkit-outer-spin-button,
+  .inputWithSuffix > input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+  }
+  /* Inline field-validation feedback. Replaces the helper text in the same
+   * slot so the layout doesn't shift as the user types; the offending
+   * input also picks up a red border via [aria-invalid="true"].
+   *
+   * The selectors below have to beat `.field span` (line ~4427) which
+   * paints every direct-descendant span muted-grey-italic — without the
+   * `.field span.fieldError` form the error message comes through as
+   * muted blue-grey instead of red. */
+  .fieldError,
+  .field span.fieldError,
+  label.field span.fieldError {
+    display: block;
+    color: var(--danger);
+    font-family: var(--font-sans);
+    font-style: normal;
+    font-weight: 600;
+    font-size: 12.5px;
+    line-height: 1.4;
+    margin-top: 4px;
+  }
+  input[aria-invalid="true"],
+  .inputWithSuffix > input[aria-invalid="true"] {
+    border-color: var(--danger);
+  }
+  .inputWithSuffix > .inputSuffix {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    color: var(--text-muted, var(--text-secondary));
+    font-size: 12.5px;
+    font-weight: 600;
+    pointer-events: none;
+    user-select: none;
   }
   .warningList,
   .storageNotice,

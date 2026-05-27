@@ -99,10 +99,23 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
   const [file, setFile] = useState<File | null>(null);
   const [onConflict, setOnConflict] = useState<'skip' | 'rename' | 'overwrite'>('skip');
   const [sourceUrl, setSourceUrl] = useState('');
-  const [maxImageSize, setMaxImageSize] = useState('');
+  const [maxImageSizeMb, setMaxImageSizeMb] = useState('10');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState('');
+
+  // Validate the Max image size field on every keystroke so the user sees
+  // "out of range" feedback immediately instead of only after submitting.
+  // Empty is allowed — the backend defaults to 10MB when omitted.
+  const maxImageSizeError = (() => {
+    const trimmed = maxImageSizeMb.trim();
+    if (trimmed === '') return '';
+    const parsed = Number(trimmed);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 10) {
+      return 'Enter an integer between 1 and 10 MB.';
+    }
+    return '';
+  })();
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -118,16 +131,22 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
       return;
     }
     let maxImageSizeBytes: number | undefined;
-    const trimmedSize = maxImageSize.trim();
+    const trimmedSize = maxImageSizeMb.trim();
     if (trimmedSize.length > 0) {
-      const parsed = parseSizeSpec(trimmedSize);
-      if (parsed === null) {
+      const parsed = Number(trimmedSize);
+      // Mirror the input's HTML constraints (min=1, max=10, step=1) as a JS
+      // backstop — users can still paste arbitrary text into a `type=number`
+      // field on most browsers.
+      if (!Number.isInteger(parsed) || parsed < 1 || parsed > 10) {
         setLocalError(
-          `Invalid max image size: "${trimmedSize}". Use values like "10MB", "1GB", or "0" to disable the cap.`,
+          `Invalid max image size: "${trimmedSize}". Enter an integer between 1 and 10 MB.`,
         );
         return;
       }
-      maxImageSizeBytes = parsed;
+      // Convert MB → bytes for the backend. The UI is MB-only on purpose;
+      // the bytes wire format keeps server-side validation and the CLI
+      // `--max-image-size` flag honest.
+      maxImageSizeBytes = parsed * 1024 * 1024;
     }
     const trimmedSource = sourceUrl.trim();
     if (trimmedSource.length > 0) {
@@ -253,17 +272,36 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
           <summary>Advanced</summary>
           <label class="field wide">
             <span>Max image size</span>
-            <input
-              id="ghostImportMaxImageSize"
-              placeholder="10MB"
-              value={maxImageSize}
-              disabled={busy}
-              onInput={(event) => setMaxImageSize((event.currentTarget as HTMLInputElement).value)}
-            />
-            <span class="meta">
-              Per-image cap. Accepts <code>10MB</code>, <code>1GB</code>, or <code>0</code> to
-              disable. Defaults to 10MB when blank.
-            </span>
+            <div class="inputWithSuffix">
+              <input
+                id="ghostImportMaxImageSize"
+                type="number"
+                min="1"
+                max="10"
+                step="1"
+                inputMode="numeric"
+                placeholder="10"
+                value={maxImageSizeMb}
+                disabled={busy}
+                aria-invalid={maxImageSizeError ? 'true' : 'false'}
+                aria-describedby={maxImageSizeError ? 'ghostImportMaxImageSizeError' : undefined}
+                onInput={(event) =>
+                  setMaxImageSizeMb((event.currentTarget as HTMLInputElement).value)
+                }
+              />
+              <span class="inputSuffix" aria-hidden="true">
+                MB
+              </span>
+            </div>
+            {maxImageSizeError ? (
+              <span id="ghostImportMaxImageSizeError" class="fieldError" role="alert">
+                {maxImageSizeError}
+              </span>
+            ) : (
+              <span class="meta">
+                Per-image cap in MB. Integer between 1 and 10. Defaults to 10MB when blank.
+              </span>
+            )}
           </label>
         </details>
         <div class="editorActions">
@@ -271,7 +309,7 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
             class="btn"
             id="applyGhostImport"
             type="button"
-            disabled={busy || !file}
+            disabled={busy || !file || !!maxImageSizeError}
             onClick={() => {
               void run();
             }}
@@ -337,30 +375,6 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-// Mirrors src/cli/commands/import-ghost.ts:parseSizeSpec. Kept duplicated to
-// avoid pulling node-targeted CLI modules into the dashboard browser bundle.
-function parseSizeSpec(input: string): number | null {
-  const s = input.trim();
-  if (s.length === 0) return null;
-  const m = /^(\d+(?:\.\d+)?)\s*([kmgt]?b)?$/i.exec(s);
-  if (!m) return null;
-  const numeric = m[1];
-  if (numeric === undefined) return null;
-  const value = Number.parseFloat(numeric);
-  if (!Number.isFinite(value) || value < 0) return null;
-  const unit = (m[2] ?? 'B').toUpperCase();
-  const multipliers: Record<string, number> = {
-    B: 1,
-    KB: 1024,
-    MB: 1024 * 1024,
-    GB: 1024 * 1024 * 1024,
-    TB: 1024 * 1024 * 1024 * 1024,
-  };
-  const mult = multipliers[unit];
-  if (mult === undefined) return null;
-  return Math.floor(value * mult);
 }
 
 function PageBundleImportPanel(props: ImportPanelProps): JSX.Element {
