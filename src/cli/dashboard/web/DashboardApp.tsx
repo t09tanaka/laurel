@@ -753,7 +753,12 @@ export function DashboardApp(): JSX.Element {
                 }}
               />
             ) : ui.view === 'migration' ? (
-              <MigrationView onSettingsSaved={() => load({ force: true })} />
+              <MigrationView
+                onSettingsSaved={() => load({ force: true })}
+                onGhostImportSuccess={() => {
+                  void navigateView('posts');
+                }}
+              />
             ) : (
               <SettingsView
                 state={state}
