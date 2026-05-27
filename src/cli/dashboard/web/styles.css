@@ -332,8 +332,8 @@
     );
     pointer-events: none;
   }
-  /* Footer floats to the bottom of the sidebar regardless of the number
-   * of recent entries above it. */
+  /* Footer floats to the bottom of the sidebar regardless of how the
+   * groups above it stack. */
   .side .sideFooter {
     margin-top: auto;
   }
@@ -476,65 +476,6 @@
   .nav .navCount:empty {
     display: none;
   }
-  /* Recently edited — quick jump to the last 5 files touched. Adds real
-   * daily-driver utility to the sidebar (replaces the dead empty middle). */
-  .recents {
-    display: grid;
-    gap: 6px;
-    min-width: 0;
-  }
-  /* Editorial section marker — italic serif label with a hairline rule
-   * underneath, like a magazine "in this issue" column header. */
-  .recentsHead {
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-weight: 400;
-    font-size: 12px;
-    line-height: 16px;
-    letter-spacing: 0;
-    color: var(--sidebar-muted);
-    padding: 0 4px 8px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    margin-bottom: 4px;
-  }
-  .recentsList {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 1px;
-  }
-  .recentItem {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 0;
-    padding: 6px 4px;
-    background: transparent;
-    border: 0;
-    border-radius: 5px;
-    color: var(--sidebar-muted);
-    font: inherit;
-    /* Recents in italic serif so each entry reads like a citation, not
-     * a nav row. Subtler than the primary nav, more editorial than sans. */
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-weight: 400;
-    font-size: 13.5px;
-    line-height: 1.3;
-    letter-spacing: -0.003em;
-    text-align: left;
-    cursor: pointer;
-    transition: background-color 0.12s ease, color 0.12s ease;
-  }
-  .recentItem:hover,
-  .recentItem:focus-visible {
-    background: rgba(255, 255, 255, 0.045);
-    color: var(--sidebar-ink);
-    outline: none;
-  }
-  /* Removed visual kind glyph — kept in DOM for assistive context.
-   * The recents list reads as a single editorial column of titles now. */
   /* Skip-to-main: keyboard-only affordance, slides into view on focus.
    * Hidden under the viewport for sighted/mouse users (#1968). */
   .pagerLabel {
@@ -575,30 +516,6 @@
     flex: 0 0 auto;
     color: currentColor;
     opacity: 0.7;
-  }
-  .recentItemKind {
-    flex: 0 0 auto;
-    font-family: var(--font-mono);
-    font-size: 9px;
-    line-height: 1;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    padding: 3px 5px;
-    border-radius: 3px;
-    background: color-mix(in srgb, currentColor 8%, transparent);
-    color: var(--text-muted);
-    opacity: 0.7;
-  }
-  .recentItemKind[data-kind="posts"] {
-    color: var(--accent-color, var(--text-primary));
-    opacity: 0.85;
-  }
-  .recentItemTitle {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   /* Two-row sidebar footer.
    *   Row 1 (sideFooterRowBuild) — Build site action and the post-build
@@ -5153,11 +5070,6 @@
       padding: 18px 18px 14px;
       gap: 14px;
     }
-    /* Recents hidden on mobile — list view itself surfaces files at scale,
-     * the Recently rail belongs to the desktop sidebar. */
-    .side .recents {
-      display: none;
-    }
     .side .statusRail {
       margin-top: 0;
     }
@@ -5266,8 +5178,8 @@
 
   /* Mobile / narrow viewport (<=720px): switch the 2-column shell to a
    * stacked layout — sidebar becomes a compact top bar, main fills the
-   * width. Sidebar nav collapses to icon+label chips, sync rail and
-   * Recently list hide to recover vertical space. (#1942 #2059) */
+   * width. Sidebar nav collapses to icon+label chips, sync rail hides
+   * to recover vertical space. (#1942 #2059) */
   @media (max-width: 720px) {
     .shell {
       grid-template-columns: 1fr;
@@ -5311,7 +5223,6 @@
     .side .navLabel {
       font-size: 13px;
     }
-    .side .recents,
     .side .statusRail {
       display: none;
     }
