@@ -13,7 +13,7 @@ import {
 import { getNectarVersion } from '~/util/nectar-version.ts';
 import { checkLatestRelease, formatReleaseCheck } from '~/util/release-check.ts';
 import { warnIfBunEngineMismatch } from './bun-engine.ts';
-import { devGlyphs } from './commands/dev-banner.ts';
+import { devGlyphs } from './commands/startup-banner.ts';
 import { type GlobalFlags, extractGlobalFlags } from './global-flags.ts';
 import { suggestCommand } from './parse.ts';
 import { reportError } from './report.ts';
@@ -80,7 +80,7 @@ async function handleFatalCrash(err: unknown): Promise<void> {
 }
 
 // Top-level help layout. Mirrors the visual family established by the dev /
-// dashboard startup banner (src/cli/commands/dev-banner.ts): three-space
+// dashboard startup banner (src/cli/commands/startup-banner.ts): three-space
 // indent, cyan "Nectar" accent, dim middot separator with `-` fallback when
 // color is off, dim section labels. The command list is pulled from
 // COMMAND_SPECS so new subcommands appear here automatically.
