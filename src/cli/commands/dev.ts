@@ -1,5 +1,5 @@
 import { type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
-import { isAbsolute, join, normalize } from 'node:path';
+import { basename, isAbsolute, join, normalize } from 'node:path';
 import type { Server, ServerWebSocket } from 'bun';
 import { type BuildSummary, build } from '~/build/pipeline.ts';
 import { loadConfig } from '~/config/loader.ts';
@@ -13,10 +13,20 @@ import {
   injectLiveReload,
 } from '~/dev/livereload.ts';
 import { EXIT_CODES, exitCodeForError } from '~/util/errors.ts';
-import { logger } from '~/util/logger.ts';
+import { logger, setWarningSubscriber } from '~/util/logger.ts';
+import { getNectarVersion } from '~/util/nectar-version.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { DEV_SPEC } from '../specs.ts';
+import {
+  emitDevEvent,
+  formatPath,
+  renderBanner,
+  renderReady,
+  renderWarnings,
+  summarizeWatching,
+  writeBlock,
+} from './dev-banner.ts';
 
 const DEFAULT_PORT = 4321;
 const DEFAULT_HOST = 'localhost';
@@ -76,24 +86,50 @@ export async function runDev(args: string[]): Promise<number> {
     return exitCodeForError(err);
   }
   const distDir = join(cwd, config.build.output_dir);
+  const watchPaths = gatherWatchPaths(cwd, config);
+  const version = await getNectarVersion();
 
-  // Always run an initial build so the developer never sees a stale dist/
-  // from a previous run. Failing here is fatal — there is nothing to serve.
-  // `captureReusable` asks the build to hand back its loaded config + theme
-  // so subsequent rebuilds can skip those load steps when the watcher confirms
-  // the corresponding files did not change.
-  logger.info(`Running initial build before starting dev server (${distDir}).`);
+  // Banner -> build -> ready ordering: dev.start advertises what is about
+  // to spin up, the build runs with warnings captured into a buffer, and
+  // the Ready block carries the URL only after the server is actually up.
+  // If the build fails the captured warnings still flush so they don't get
+  // lost behind the error report.
+  writeBlock(
+    renderBanner({
+      version,
+      mode: 'dev',
+      siteDir: basename(cwd) || cwd,
+      configFile: findActiveConfigDisplay(cwd, configPath),
+      themeName: config.theme.name,
+      outputDir: formatPath(cwd, distDir, { trailingSlash: true }),
+      watching: summarizeWatching(cwd, watchPaths),
+    }),
+  );
+  emitDevEvent('dev.start', { mode: 'dev', port, host: hostname });
+
   let reusable: NonNullable<BuildSummary['reusable']> | undefined;
+  let routeCount = 0;
+  let assetCount = 0;
+  const capturedWarnings: string[] = [];
+  const buildStarted = performance.now();
+  setWarningSubscriber((msg) => {
+    capturedWarnings.push(msg);
+    emitDevEvent('build.warning', { message: msg });
+    return true;
+  });
   try {
     const summary = await build({ cwd, configPath, captureReusable: true });
     reusable = summary.reusable;
-    logger.info(
-      `Initial build complete: ${summary.routeCount} routes (${summary.assetCount} assets) → ${summary.outputDir}`,
-    );
+    routeCount = summary.routeCount;
+    assetCount = summary.assetCount;
   } catch (err) {
+    setWarningSubscriber(undefined);
+    writeBlock(renderWarnings(capturedWarnings));
     reportError(err, cwd);
     return exitCodeForError(err);
   }
+  setWarningSubscriber(undefined);
+  const buildElapsedMs = performance.now() - buildStarted;
 
   const clients = new Set<ServerWebSocket<unknown>>();
   // Recent Bun types require an explicit WebSocket data parameter even when
@@ -166,11 +202,28 @@ export async function runDev(args: string[]): Promise<number> {
   const announcedPort = server.port;
   const displayHost = hostname === '0.0.0.0' ? 'localhost' : hostname;
   const basePath = config.build.base_path || '/';
-  logger.info(
-    `Listening on http://${displayHost}:${announcedPort}${basePath} (bound to ${hostname})`,
-  );
+  const localUrl = `http://${displayHost}:${announcedPort}${basePath}`;
+  const configuredSiteUrl = typeof config.site.url === 'string' ? config.site.url : undefined;
 
-  const watchPaths = gatherWatchPaths(cwd, config);
+  writeBlock(
+    renderReady({
+      elapsedMs: buildElapsedMs,
+      url: localUrl,
+      routes: routeCount,
+      assets: assetCount,
+      siteUrl: configuredSiteUrl,
+    }),
+  );
+  writeBlock(renderWarnings(capturedWarnings));
+  emitDevEvent('dev.ready', {
+    url: localUrl,
+    routes: routeCount,
+    assets: assetCount,
+    elapsedMs: Math.round(buildElapsedMs),
+    warnings: capturedWarnings.length,
+    siteUrl: configuredSiteUrl,
+  });
+
   const watchers: FSWatcher[] = [];
   let rebuildTimer: ReturnType<typeof setTimeout> | undefined;
   let building = false;
@@ -280,8 +333,6 @@ export async function runDev(args: string[]): Promise<number> {
       );
     }
   }
-  logger.info(`Watch mode enabled: tracking ${watchers.length} path(s) for changes`);
-
   const signal = await waitForShutdownSignal();
 
   if (rebuildTimer !== undefined) clearTimeout(rebuildTimer);
@@ -335,6 +386,21 @@ function resolveHost(raw: unknown): string | CliUsageError {
 interface WatchTarget {
   path: string;
   category: DevChangeCategory;
+}
+
+// Decide what to show next to `Config:` in the banner. We don't have the
+// resolved config path back from `loadConfig`, so reproduce its discovery
+// rule (nectar.toml -> nectar.config.toml -> nectar.config.json) and fall
+// back to the explicit `--config` argument when one was supplied. Pure
+// display logic; the real load already happened via loadConfig().
+function findActiveConfigDisplay(cwd: string, configPath: string | undefined): string {
+  if (configPath !== undefined && configPath.length > 0) {
+    return formatPath(cwd, isAbsolute(configPath) ? configPath : join(cwd, configPath));
+  }
+  for (const name of ['nectar.toml', 'nectar.config.toml', 'nectar.config.json']) {
+    if (existsSync(join(cwd, name))) return name;
+  }
+  return 'nectar.toml';
 }
 
 function gatherWatchPaths(cwd: string, config: NectarConfig): WatchTarget[] {

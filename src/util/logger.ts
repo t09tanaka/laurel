@@ -26,6 +26,19 @@ let warningCount = 0;
 let warningsAsErrors = false;
 let warningsAsErrorsFailure = false;
 
+// `nectar dev` sets a subscriber during the initial build so warnings can be
+// suppressed in real time and re-emitted as a tidy summary block under the
+// Ready banner. Returning true tells the logger to skip writing the warning
+// to the underlying stream; anything else lets it through unchanged. The
+// subscriber receives the already-formatted message body (no `[warn]` prefix)
+// because the caller is expected to render its own decoration around it.
+export type WarningSubscriber = (message: string) => boolean | undefined;
+let warningSubscriber: WarningSubscriber | undefined;
+
+export function setWarningSubscriber(subscriber: WarningSubscriber | undefined): void {
+  warningSubscriber = subscriber;
+}
+
 // Output mode controls how `logger.<level>(...)` is serialised. `text` (the
 // default) keeps human-readable info/debug/trace output on stdout and
 // warning/error output on stderr.
@@ -118,6 +131,7 @@ export function refreshColorFromEnv(env: NodeJS.ProcessEnv = process.env): void 
 const ANSI: Record<string, string> = {
   reset: '\x1b[0m',
   red: '\x1b[31m',
+  green: '\x1b[32m',
   yellow: '\x1b[33m',
   gray: '\x1b[90m',
   cyan: '\x1b[36m',
@@ -164,6 +178,14 @@ function emit(level: Level, parts: unknown[]): void {
   if (order[effectiveLevel] < threshold) return;
   const { fields, rest } = splitFields(parts);
   const message = rest.map(formatPart).join(' ');
+  // Subscribers only fire when the level stays at `warn` (i.e. not promoted
+  // to error by `warningsAsErrors`). The subscriber decides whether the
+  // logger still writes to the underlying stream; the `warningCount`
+  // bookkeeping above runs regardless so `--warnings-as-errors` semantics
+  // are preserved even when the dev banner buffers warnings.
+  if (level === 'warn' && effectiveLevel === 'warn' && warningSubscriber !== undefined) {
+    if (warningSubscriber(message) === true) return;
+  }
   if (outputMode === 'json') {
     const record: Record<string, unknown> = {
       ...(fields ? sanitizeFields(fields) : undefined),

@@ -133,12 +133,12 @@ describe('cli dev — help', () => {
         stderr: 'pipe',
       });
       try {
-        const stdout = await readUntil(proc.stdout, 'Watch mode enabled', 15_000);
-        expect(stdout).toContain('Listening on');
-        expect(stdout).toContain('Watch mode enabled');
+        const stdout = await readUntil(proc.stdout, 'Ready in', 15_000);
+        expect(stdout).toContain('Nectar');
+        expect(stdout).toContain('Ready in');
         // --port 0 → kernel picks a real port; the announced URL must contain
         // a concrete (non-zero) port so users can actually visit it.
-        const match = stdout.match(/Listening on http:\/\/localhost:(\d+)/);
+        const match = stdout.match(/http:\/\/localhost:(\d+)/);
         expect(match).not.toBeNull();
         if (match !== null) {
           const announcedPort = Number(match[1]);
@@ -172,11 +172,12 @@ describe('cli dev — lifecycle', () => {
       stderr: 'pipe',
     });
     try {
-      const stdout = await readUntil(proc.stdout, 'Watch mode enabled', 15_000);
-      expect(stdout).toContain('Running initial build');
-      expect(stdout).toContain('Initial build complete');
-      expect(stdout).toContain('Listening on');
-      expect(stdout).toContain('Watch mode enabled');
+      const stdout = await readUntil(proc.stdout, 'Ready in', 15_000);
+      expect(stdout).toContain('Nectar');
+      expect(stdout).toContain('dev mode');
+      expect(stdout).toContain('Watching:');
+      expect(stdout).toContain('Ready in');
+      expect(stdout).toMatch(/http:\/\/localhost:\d+/);
       expect(proc.killed).toBe(false);
     } finally {
       proc.kill('SIGTERM');
@@ -191,8 +192,8 @@ describe('cli dev — lifecycle', () => {
       stderr: 'pipe',
     });
     try {
-      const stdout = await readUntil(proc.stdout, 'Listening on', 15_000);
-      const match = stdout.match(/Listening on http:\/\/localhost:(\d+)/);
+      const stdout = await readUntil(proc.stdout, 'Ready in', 15_000);
+      const match = stdout.match(/http:\/\/localhost:(\d+)/);
       expect(match).not.toBeNull();
       if (match === null) return;
       const port = Number(match[1]);
@@ -215,8 +216,8 @@ describe('cli dev — lifecycle', () => {
       stderr: 'pipe',
     });
     try {
-      const stdout = await readUntil(proc.stdout, 'Listening on', 15_000);
-      const match = stdout.match(/Listening on http:\/\/localhost:(\d+)/);
+      const stdout = await readUntil(proc.stdout, 'Ready in', 15_000);
+      const match = stdout.match(/http:\/\/localhost:(\d+)/);
       expect(match).not.toBeNull();
       if (match === null) return;
       const port = Number(match[1]);
@@ -237,8 +238,8 @@ describe('cli dev — lifecycle', () => {
       stderr: 'pipe',
     });
     try {
-      const stdout = await readUntil(proc.stdout, 'Watch mode enabled', 15_000);
-      const match = stdout.match(/Listening on http:\/\/localhost:(\d+)/);
+      const stdout = await readUntil(proc.stdout, 'Ready in', 15_000);
+      const match = stdout.match(/http:\/\/localhost:(\d+)/);
       expect(match).not.toBeNull();
       if (match === null) return;
       const port = Number(match[1]);

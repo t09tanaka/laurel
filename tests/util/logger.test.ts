@@ -14,6 +14,7 @@ import {
   setColorEnabled,
   setLogLevel,
   setOutputMode,
+  setWarningSubscriber,
   setWarningsAsErrors,
 } from '~/util/logger.ts';
 
@@ -413,5 +414,64 @@ describe('logger color detection', () => {
   test('FORCE_COLOR=1 enables color even when stderr is not a TTY', () => {
     refreshColorFromEnv({ FORCE_COLOR: '1' });
     expect(colorize('hi', 'red')).toContain('\x1b[31m');
+  });
+});
+
+describe('logger warning subscriber', () => {
+  afterEach(() => {
+    setWarningSubscriber(undefined);
+    resetWarningCount();
+    setWarningsAsErrors(false);
+    resetWarningsAsErrorsFailure();
+  });
+
+  test('subscriber receives the formatted message body without [warn] prefix', () => {
+    const received: string[] = [];
+    setWarningSubscriber((msg) => {
+      received.push(msg);
+      return true;
+    });
+    const { stderr } = captureStreams(() => {
+      logger.warn('hello', 'world');
+    });
+    expect(received).toEqual(['hello world']);
+    expect(stderr).toBe(''); // suppress=true → nothing written
+  });
+
+  test('subscriber returning false / undefined still lets the warning through', () => {
+    const received: string[] = [];
+    setWarningSubscriber((msg) => {
+      received.push(msg);
+      return false;
+    });
+    const { stderr } = captureStreams(() => {
+      logger.warn('still printed');
+    });
+    expect(received).toEqual(['still printed']);
+    expect(stderr).toContain('still printed');
+  });
+
+  test('warningCount increments even when subscriber suppresses output', () => {
+    setWarningSubscriber(() => true);
+    resetWarningCount();
+    captureStreams(() => {
+      logger.warn('one');
+      logger.warn('two');
+    });
+    expect(getWarningCount()).toBe(2);
+  });
+
+  test('warningsAsErrors bypasses the subscriber (level promoted to error)', () => {
+    const received: string[] = [];
+    setWarningSubscriber((msg) => {
+      received.push(msg);
+      return true;
+    });
+    setWarningsAsErrors(true);
+    const { stderr } = captureStreams(() => {
+      logger.warn('promoted');
+    });
+    expect(received).toEqual([]); // subscriber not invoked once promoted to error
+    expect(stderr).toContain('promoted');
   });
 });
