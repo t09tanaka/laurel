@@ -7,6 +7,7 @@ import {
   formatPath,
   renderBanner,
   renderReady,
+  renderRebuild,
   renderWarnings,
   summarizeWatching,
 } from '~/cli/commands/dev-banner.ts';
@@ -95,6 +96,7 @@ describe('dev-banner — devGlyphs', () => {
     expect(g.check).toBe('✓');
     expect(g.warn).toBe('⚠');
     expect(g.separator).toBe('·');
+    expect(g.cycle).toBe('↻');
   });
 
   test('ASCII fallback when color is disabled (piped, NO_COLOR, etc.)', () => {
@@ -103,6 +105,7 @@ describe('dev-banner — devGlyphs', () => {
     expect(g.check).toBe('OK');
     expect(g.warn).toBe('WARN');
     expect(g.separator).toBe('-');
+    expect(g.cycle).toBe('~');
   });
 });
 
@@ -206,6 +209,71 @@ describe('dev-banner — renderBanner / renderReady / renderWarnings', () => {
     ).toBe('');
     expect(renderReady({ elapsedMs: 1, url: 'http://x/', routes: 0, assets: 0 })).toBe('');
     expect(renderWarnings(['a'])).toBe('');
+    expect(
+      renderRebuild({ routes: 1, assets: 0, elapsedMs: 1, changeType: 'reload', clients: 0 }),
+    ).toBe('');
+  });
+});
+
+describe('dev-banner — renderRebuild', () => {
+  const originalColor = getColorEnabled();
+  const originalMode = getOutputMode();
+  beforeEach(() => setColorEnabled(false));
+  afterEach(() => {
+    setColorEnabled(originalColor);
+    setOutputMode(originalMode);
+  });
+
+  test('renders glyph, route/asset counts, elapsed ms, and reload fragment', () => {
+    const plain = stripAnsi(
+      renderRebuild({ routes: 11, assets: 19, elapsedMs: 142, changeType: 'reload', clients: 1 }),
+    );
+    expect(plain).toContain('~ Rebuilt 11 routes (19 assets) in 142ms');
+    expect(plain).toContain('pushed reload (1 client)');
+  });
+
+  test('CSS-only changes flip the trailing fragment to "pushed css"', () => {
+    const plain = stripAnsi(
+      renderRebuild({ routes: 11, assets: 19, elapsedMs: 87, changeType: 'css', clients: 2 }),
+    );
+    expect(plain).toContain('pushed css (2 clients)');
+  });
+
+  test('pluralises client label correctly', () => {
+    const one = stripAnsi(
+      renderRebuild({ routes: 1, assets: 0, elapsedMs: 10, changeType: 'reload', clients: 1 }),
+    );
+    expect(one).toContain('(1 client)');
+    expect(one).not.toContain('clients)');
+    const many = stripAnsi(
+      renderRebuild({ routes: 1, assets: 0, elapsedMs: 10, changeType: 'reload', clients: 3 }),
+    );
+    expect(many).toContain('(3 clients)');
+    const zero = stripAnsi(
+      renderRebuild({ routes: 1, assets: 0, elapsedMs: 10, changeType: 'reload', clients: 0 }),
+    );
+    expect(zero).toContain('(0 clients)');
+  });
+
+  test('elapsed >= 1s switches to seconds (matches renderReady formatting)', () => {
+    const plain = stripAnsi(
+      renderRebuild({
+        routes: 1,
+        assets: 0,
+        elapsedMs: 2500,
+        changeType: 'reload',
+        clients: 1,
+      }),
+    );
+    expect(plain).toContain('in 2.50s');
+  });
+
+  test('uses Unicode cycle glyph when color is enabled', () => {
+    setColorEnabled(true);
+    const plain = stripAnsi(
+      renderRebuild({ routes: 1, assets: 0, elapsedMs: 10, changeType: 'reload', clients: 1 }),
+    );
+    expect(plain).toContain('↻ Rebuilt');
   });
 });
 
@@ -248,5 +316,36 @@ describe('dev-banner — emitDevEvent', () => {
     expect(parsed.port).toBe(4321);
     expect(parsed.routes).toBe(11);
     expect(parsed.msg).toBe('dev.ready');
+  });
+
+  test('json mode: dev.rebuilt event carries rebuild fields', () => {
+    setOutputMode('json');
+    const written: string[] = [];
+    const orig = process.stdout.write.bind(process.stdout);
+    (process.stdout as unknown as { write: (s: string) => boolean }).write = (s) => {
+      written.push(s);
+      return true;
+    };
+    try {
+      emitDevEvent('dev.rebuilt', {
+        routes: 11,
+        assets: 19,
+        elapsedMs: 142,
+        reuse: 'reused config+theme',
+        changeType: 'reload',
+        clients: 1,
+      });
+    } finally {
+      (process.stdout as unknown as { write: typeof orig }).write = orig;
+    }
+    expect(written.length).toBe(1);
+    const parsed = JSON.parse(written[0] ?? '{}') as Record<string, unknown>;
+    expect(parsed.event).toBe('dev.rebuilt');
+    expect(parsed.routes).toBe(11);
+    expect(parsed.assets).toBe(19);
+    expect(parsed.elapsedMs).toBe(142);
+    expect(parsed.changeType).toBe('reload');
+    expect(parsed.clients).toBe(1);
+    expect(parsed.reuse).toBe('reused config+theme');
   });
 });
