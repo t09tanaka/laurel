@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { dirname, extname, join, resolve, sep } from 'node:path';
 import { ensureDir } from '~/util/fs.ts';
@@ -151,6 +152,7 @@ export class GhostImageDownloader {
   private readonly cache = new Map<string, CacheEntry | null>();
   private _downloaded = 0;
   private _failed = 0;
+  private _skipped = 0;
 
   constructor(opts: GhostImageDownloaderOptions) {
     this.fetcher = opts.fetcher ?? globalThis.fetch.bind(globalThis);
@@ -168,6 +170,10 @@ export class GhostImageDownloader {
 
   get failed(): number {
     return this._failed;
+  }
+
+  get skipped(): number {
+    return this._skipped;
   }
 
   // Turn an image reference from the export into an absolute URL we can fetch.
@@ -206,6 +212,26 @@ export class GhostImageDownloader {
     const cached = this.cache.get(cacheKey);
     if (cached !== undefined) {
       return cached?.rewrittenUrl ?? null;
+    }
+
+    // Fast path: when we can derive the destination file from the URL alone
+    // (Ghost-CDN paths and external URLs whose pathname already carries a
+    // known image extension), check whether the file is already on disk and
+    // skip the network round-trip entirely. This makes re-imports of an
+    // unchanged Ghost export effectively instant — most of the wall-clock
+    // cost of a fresh import is image fetching, not Markdown writing.
+    //
+    // We deliberately pass an empty contentType to `derivePaths`; if the
+    // URL has no recognisable extension the call returns `.bin` and we fall
+    // through to fetching, where the response's `Content-Type` is used.
+    const predicted = derivePaths(fetchUrl, '', opts);
+    if (!predicted.localPath.endsWith('.bin')) {
+      const absPath = join(this.contentRoot, stripContentPrefix(predicted.localPath));
+      if (existsSync(absPath)) {
+        this.cache.set(cacheKey, { rewrittenUrl: predicted.rewrittenUrl });
+        this._skipped += 1;
+        return predicted.rewrittenUrl;
+      }
     }
 
     try {
