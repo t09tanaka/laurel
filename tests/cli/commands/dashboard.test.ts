@@ -1443,6 +1443,48 @@ describe('dashboard data', () => {
     }
   });
 
+  test('flags theme status as missing with a vendor hint when the theme directory does not exist', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const state = await loadDashboardState({ cwd: dir });
+      const settings = await readDashboardSettings({ cwd: dir });
+
+      // Fixture references `[theme] name = "source"` but never vendors the
+      // directory, so both surfaces should flag it as missing and offer a
+      // ready-to-paste git clone command pointing at the canonical Source
+      // theme repo. This mirrors the `NectarError` that `loadTheme()` raises
+      // at build time.
+      expect(state.settings.theme.status.missing).toBe(true);
+      expect(state.settings.theme.status.expectedPath).toBe('themes/source');
+      expect(state.settings.theme.status.cloneCommand).toBe(
+        'git clone https://github.com/TryGhost/Source themes/source',
+      );
+      expect(state.settings.theme.status.message).toContain('source');
+      expect(state.settings.theme.status.hint).toContain('Vendor');
+
+      expect(settings.theme.status.missing).toBe(true);
+      expect(settings.theme.status.expectedPath).toBe('themes/source');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('marks theme status as present once the configured theme is vendored', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await writeDashboardThemeFixture(dir, 'source');
+      const state = await loadDashboardState({ cwd: dir });
+
+      expect(state.settings.theme.status.missing).toBe(false);
+      expect(state.settings.theme.status.expectedPath).toBe('themes/source');
+      expect(state.settings.theme.status.cloneCommand).toBeUndefined();
+      expect(state.settings.theme.status.message).toBeUndefined();
+      expect(state.settings.theme.status.hint).toBeUndefined();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('serializes dashboard writes through the content formatter', async () => {
     const dir = await makeDashboardFixture();
     try {

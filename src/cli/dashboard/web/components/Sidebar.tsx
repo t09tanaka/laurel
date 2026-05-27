@@ -1,12 +1,6 @@
 import type { JSX } from 'preact';
 import type { DashboardShellSection, DashboardState } from '../types.ts';
 
-export interface RecentEntry {
-  kind: 'posts' | 'pages';
-  slug: string;
-  title: string;
-}
-
 export type SidebarBuildPhase = 'idle' | 'running' | 'done' | 'error';
 
 export type SidebarNavTarget = 'posts' | 'pages' | 'components' | 'authors' | 'tags' | 'settings';
@@ -20,7 +14,6 @@ interface SidebarProps {
   componentsTotal?: number;
   authorsTotal?: number;
   tagsTotal?: number;
-  recents?: RecentEntry[];
   syncLabel: string;
   syncState: string;
   buildLabel: string;
@@ -33,7 +26,6 @@ interface SidebarProps {
   onBuildClick: () => void;
   onDownloadClick: () => void;
   onNavigate: (target: SidebarNavTarget) => void;
-  onOpenEntry?: (kind: 'posts' | 'pages', slug: string) => void;
   onForceSync: () => void;
 }
 
@@ -123,25 +115,6 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           />
         </div>
       </nav>
-      {props.recents && props.recents.length > 0 ? (
-        <div class="recents" aria-label="Recently edited">
-          <div class="recentsHead">Recently</div>
-          <ul class="recentsList">
-            {props.recents.slice(0, 5).map((entry) => (
-              <li key={`${entry.kind}/${entry.slug}`}>
-                <button
-                  type="button"
-                  class="recentItem"
-                  onClick={() => props.onOpenEntry?.(entry.kind, entry.slug)}
-                  title={`${entry.kind === 'posts' ? 'Post' : 'Page'}: ${entry.title}`}
-                >
-                  <span class="recentItemTitle">{entry.title}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
       {/* Sidebar footer — two rows:
        *   row 1: Build site action (primary writer action) + Download zip
        *          once the latest build succeeded
