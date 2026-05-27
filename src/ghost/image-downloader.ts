@@ -56,9 +56,58 @@ const BOOKMARK_SHORTCODE_RE =
 const HEADER_SHORTCODE_RE = /\{%\s+header((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*%\}/g;
 const HEADER_HUGO_SHORTCODE_RE =
   /\{\{<\s+header((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
+// Image-bearing Koenig card shortcodes the turndown layer emits for
+// `<figure class="kg-image-card">` and `<div class="kg-gallery-card">`.
+// Without crawling these the body's referenced images never reach the
+// downloader, so the post ends up pointing at `/content/images/2026/...`
+// paths that have no corresponding file on disk.
+const IMAGE_SHORTCODE_RE =
+  /\{\{<\s+(?:figure|gallery-image)((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 const SHORTCODE_ATTR_RE = /([a-zA-Z][\w-]*)="((?:\\.|[^"\\])*)"/g;
 const BOOKMARK_IMAGE_ATTRS = new Set(['icon', 'thumbnail']);
 const HEADER_IMAGE_ATTRS = new Set(['background', 'background_image']);
+
+// `src` and `src*_src` attributes carry a single URL. `srcset` and
+// `src*_srcset` carry a comma-separated list of `<url> <descriptor>` pairs
+// (e.g. `foo.jpg 600w, bar.jpg 1000w`). Figure / gallery-image shortcodes
+// generate both kinds — `src` for the canonical image plus per-source
+// `source1_src` / `source1_srcset` / … for `<picture>` variants.
+function isImageShortcodeSrcAttr(name: string): boolean {
+  return name === 'src' || name.endsWith('_src');
+}
+function isImageShortcodeSrcsetAttr(name: string): boolean {
+  return name === 'srcset' || name.endsWith('_srcset');
+}
+function parseSrcsetUrls(srcset: string): string[] {
+  const urls: string[] = [];
+  for (const piece of srcset.split(',')) {
+    const trimmed = piece.trim();
+    if (trimmed.length === 0) continue;
+    const url = trimmed.split(/\s+/, 1)[0];
+    if (url) urls.push(url);
+  }
+  return urls;
+}
+function rewriteSrcset(srcset: string, replacements: Map<string, string>): string {
+  let changed = false;
+  const rewritten = srcset
+    .split(',')
+    .map((piece) => {
+      const leading = piece.match(/^\s*/)?.[0] ?? '';
+      const trimmed = piece.slice(leading.length);
+      const m = trimmed.match(/^(\S+)(\s.*)?$/);
+      if (!m) return piece;
+      const url = m[1];
+      const rest = m[2] ?? '';
+      if (!url) return piece;
+      const rep = replacements.get(url);
+      if (!rep) return piece;
+      changed = true;
+      return `${leading}${rep}${rest}`;
+    })
+    .join(',');
+  return changed ? rewritten : srcset;
+}
 
 const KNOWN_IMAGE_EXTS = new Set([
   '.jpg',
@@ -244,6 +293,28 @@ export class GhostImageDownloader {
     )) {
       urls.add(url);
     }
+    // Image-bearing Koenig card shortcodes (`{{< figure ... />}}`,
+    // `{{< gallery-image ... />}}`). Walk every `src*` and `srcset*` attr
+    // so the canonical image AND the per-`<source>` variants both get
+    // downloaded and rewritten — otherwise the post body would still
+    // point at `/content/images/...` paths the import never persisted.
+    for (const m of text.matchAll(IMAGE_SHORTCODE_RE)) {
+      const attrs = m[1];
+      if (!attrs) continue;
+      SHORTCODE_ATTR_RE.lastIndex = 0;
+      let attr = SHORTCODE_ATTR_RE.exec(attrs);
+      while (attr !== null) {
+        const name = attr[1];
+        const value = attr[2];
+        if (name && value) {
+          if (isImageShortcodeSrcAttr(name)) urls.add(value);
+          else if (isImageShortcodeSrcsetAttr(name)) {
+            for (const url of parseSrcsetUrls(value)) urls.add(url);
+          }
+        }
+        attr = SHORTCODE_ATTR_RE.exec(attrs);
+      }
+    }
     const bookmarkUrls = collectBookmarkImageUrls(text);
     if (urls.size === 0 && bookmarkUrls.size === 0) return text;
 
@@ -293,6 +364,33 @@ export class GhostImageDownloader {
       .replace(HEADER_HUGO_SHORTCODE_RE, (full, attrs: string) =>
         rewriteShortcodeImageAttrs(full, attrs, replacements, HEADER_IMAGE_ATTRS),
       )
+      .replace(IMAGE_SHORTCODE_RE, (full, attrs: string) => {
+        if (!attrs) return full;
+        let changed = false;
+        const rewritten = attrs.replace(
+          /([a-zA-Z][\w-]*)="((?:\\.|[^"\\])*)"/g,
+          (match, name: string, value: string) => {
+            if (isImageShortcodeSrcAttr(name)) {
+              const rep = replacements.get(value);
+              if (rep) {
+                changed = true;
+                return `${name}="${rep}"`;
+              }
+              return match;
+            }
+            if (isImageShortcodeSrcsetAttr(name)) {
+              const next = rewriteSrcset(value, replacements);
+              if (next !== value) {
+                changed = true;
+                return `${name}="${next}"`;
+              }
+              return match;
+            }
+            return match;
+          },
+        );
+        return changed ? full.replace(attrs, rewritten) : full;
+      })
       .replace(BOOKMARK_SHORTCODE_RE, (full, attrs: string) =>
         rewriteShortcodeImageAttrs(full, attrs, bookmarkReplacements, BOOKMARK_IMAGE_ATTRS),
       );
@@ -356,7 +454,17 @@ function derivePaths(
   // Ghost CDN style: keep the /content/(images|media)/<rest> layout so the
   // imported markdown already lines up with how the build pipeline resolves
   // `/content/images/...` URLs.
-  const ghostMatch = pathname.match(/^\/content\/(images|media)\/(.+)$/);
+  //
+  // The `/content/(images|media)/` segment is matched anywhere in the
+  // pathname (not anchored to `^`) so a Ghost instance mounted under a
+  // subpath — e.g. `https://example.com/ja/blog/content/images/...` —
+  // still resolves into `content/images/...` locally instead of falling
+  // through to the `external/<hash>` bucket. False-positive risk is
+  // negligible: the segment is specific enough that a non-Ghost URL
+  // happening to contain `/content/images/<file>` is rare, and the worst
+  // case is a single file written under the Ghost layout instead of
+  // external — still correctly stored, just in a different folder.
+  const ghostMatch = pathname.match(/\/content\/(images|media)\/(.+)$/);
   if (ghostMatch?.[1] && ghostMatch[2] && !ghostMatch[2].includes('..')) {
     const subdir = ghostMatch[1];
     const rest = ghostMatch[2];
