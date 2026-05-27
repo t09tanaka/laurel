@@ -75,6 +75,7 @@ import type { ThemeBundle } from '~/theme/types.ts';
 import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { createCleanupRegistry } from '~/util/cleanup.ts';
 import { logger } from '~/util/logger.ts';
+import { getNectarVersion } from '~/util/nectar-version.ts';
 import { absolutise, resolveContentSlugPath } from '../content-paths.ts';
 import { createBuildStreamResponse, createExportZipResponse } from '../dashboard/build-runner.ts';
 import { renderDashboardHtml as renderDashboardShellHtml } from '../dashboard/html.ts';
@@ -87,6 +88,16 @@ import { renameAuthor } from './authors.ts';
 import { rewriteFrontmatterSlug } from './content.ts';
 import { type CheckResult, runChecks } from './doctor.ts';
 import { inferServeContentType } from './serve.ts';
+import {
+  countContentFiles,
+  emitStartupEvent,
+  findActiveConfigDisplay,
+  formatContentCounts,
+  renderBanner,
+  renderNotice,
+  renderSimpleReady,
+  writeBlock,
+} from './startup-banner.ts';
 import { renameTag } from './tags.ts';
 
 const DEFAULT_PORT = 4322;
@@ -885,6 +896,44 @@ export async function runDashboard(args: string[]): Promise<number> {
   const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
   const mode: DashboardServerMode = parsed.values.dev === true ? 'dev' : 'prod';
 
+  // Banner first so the user sees what is about to spin up (version, site,
+  // theme, content counts, which bundle path is serving the dashboard JS).
+  // The actual server starts below; the Ready block then carries the URL
+  // only once the bind succeeds.
+  let bannerConfig: NectarConfig;
+  try {
+    bannerConfig = await loadConfig({ cwd, configPath });
+  } catch (err) {
+    reportError(err, cwd);
+    return 1;
+  }
+  const version = await getNectarVersion();
+  const counts = await countContentFiles(cwd, {
+    posts_dir: bannerConfig.content.posts_dir,
+    pages_dir: bannerConfig.content.pages_dir,
+    components_dir: bannerConfig.content.components_dir,
+    authors_dir: bannerConfig.content.authors_dir,
+    tags_dir: bannerConfig.content.tags_dir,
+  });
+  const modeLabel = mode === 'dev' ? 'dashboard (dev, HMR)' : 'dashboard (prod)';
+  const bundleLabel =
+    mode === 'dev' ? 'bun fullstack dev server (HMR)' : 'dist/dashboard-bundle/ (pre-built)';
+  const siteDirLabel = cwd.split('/').pop() || cwd;
+  writeBlock(
+    renderBanner({
+      version,
+      mode: modeLabel,
+      rows: [
+        ['Site', siteDirLabel],
+        ['Config', findActiveConfigDisplay(cwd, configPath)],
+        ['Theme', bannerConfig.theme.name],
+        ['Content', formatContentCounts(counts)],
+        ['Bundle', bundleLabel],
+      ],
+    }),
+  );
+  emitStartupEvent('dashboard.start', { mode, port, host });
+
   let handle: DashboardServerHandle;
   try {
     handle = await startDashboardServer({ cwd, configPath, port, host, mode });
@@ -896,16 +945,40 @@ export async function runDashboard(args: string[]): Promise<number> {
   const cleanup = createCleanupRegistry();
   cleanup.register(() => handle.stop(), { name: 'dashboard-server' });
 
-  logger.info(
-    mode === 'dev'
-      ? `Dashboard listening on ${handle.url} (dev mode, HMR enabled)`
-      : `Dashboard listening on ${handle.url}`,
-  );
+  const configuredSiteUrl =
+    typeof bannerConfig.site.url === 'string' ? bannerConfig.site.url : undefined;
+  writeBlock(renderSimpleReady({ url: handle.url, siteUrl: configuredSiteUrl }));
+
   if (isLanExposedHost(host)) {
-    logger.warn(
-      'Dashboard is listening on a LAN-facing host. Keep the startup URL private because this process can write local project files.',
+    writeBlock(
+      renderNotice(
+        'warning',
+        'Exposed on LAN. Keep this URL private — the dashboard can write local project files.',
+      ),
     );
   }
+  if (mode === 'dev') {
+    // Surface the known SourceMapStore segfault (oven-sh/bun#23617 and
+    // related) at startup so contributors who hit it during a long HMR
+    // session know it is upstream Bun, not Nectar, and that restarting the
+    // dev server is the right recovery. The full backstory lives next to
+    // the Bun.serve call in startDashboardServer.
+    writeBlock(
+      renderNotice(
+        'warning',
+        'Bun 1.3.14 dev server can segfault after many HMR cycles (oven-sh/bun#23617). Restart this command if it happens.',
+      ),
+    );
+  }
+  emitStartupEvent('dashboard.ready', {
+    mode,
+    url: handle.url,
+    port: handle.port,
+    ...counts,
+    siteUrl: configuredSiteUrl,
+    lanExposed: isLanExposedHost(host),
+  });
+
   if (parsed.values.open === true) {
     openBrowser(handle.url);
   }

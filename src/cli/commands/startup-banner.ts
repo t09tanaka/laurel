@@ -1,5 +1,7 @@
+import { existsSync } from 'node:fs';
+import { readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, relative as pathRelative } from 'node:path';
+import { dirname, isAbsolute, join, relative as pathRelative } from 'node:path';
 import { colorize, getColorEnabled, getOutputMode, logger } from '~/util/logger.ts';
 
 // Decoration glyphs used by the dev startup blocks. We treat
@@ -99,14 +101,14 @@ function collapseToCommonParent(paths: string[]): string | null {
   return parent === '' ? null : `${parent}/`;
 }
 
+// Generic banner: each caller assembles its own rows (label -> value) so the
+// banner can carry whatever metadata makes sense for that command. `mode` is
+// rendered verbatim after the separator, so callers control the full suffix
+// (e.g. `"dev mode"`, `"dashboard (dev, HMR)"`).
 export interface BannerMeta {
   version: string;
   mode: string;
-  siteDir: string;
-  configFile: string;
-  themeName: string;
-  outputDir: string;
-  watching: string[];
+  rows: Array<[string, string]>;
 }
 
 export function renderBanner(meta: BannerMeta): string {
@@ -114,22 +116,18 @@ export function renderBanner(meta: BannerMeta): string {
   const dim = (s: string) => colorize(s, 'gray');
   const accent = (s: string) => colorize(s, 'cyan');
   const g = devGlyphs();
-  const header = `${accent('Nectar')} ${meta.version}  ${dim(g.separator)}  ${dim(`${meta.mode} mode`)}`;
-  const rows: Array<[string, string]> = [
-    ['Site', meta.siteDir],
-    ['Config', meta.configFile],
-    ['Theme', meta.themeName],
-    ['Output', meta.outputDir],
-    ['Watching', meta.watching.join(', ')],
-  ];
-  const labelWidth = rows.reduce((w, [k]) => Math.max(w, k.length), 0);
-  const body = rows
+  const header = `${accent('Nectar')} ${meta.version}  ${dim(g.separator)}  ${dim(meta.mode)}`;
+  if (meta.rows.length === 0) return `\n   ${header}\n`;
+  const labelWidth = meta.rows.reduce((w, [k]) => Math.max(w, k.length), 0);
+  const body = meta.rows
     .map(([k, v]) => `   ${dim('-')} ${dim(`${k}:`.padEnd(labelWidth + 1))} ${v}`)
     .join('\n');
   return `\n   ${header}\n\n${body}\n`;
 }
 
-export interface ReadyBlock {
+// Dev-server flavoured Ready: include build timing + route/asset counts +
+// optional configured site URL row underneath the URL.
+export interface DevReadyBlock {
   elapsedMs: number;
   url: string;
   routes: number;
@@ -137,7 +135,7 @@ export interface ReadyBlock {
   siteUrl?: string;
 }
 
-export function renderReady(ready: ReadyBlock): string {
+export function renderReady(ready: DevReadyBlock): string {
   if (getOutputMode() === 'json') return '';
   const g = devGlyphs();
   const dim = (s: string) => colorize(s, 'gray');
@@ -145,6 +143,31 @@ export function renderReady(ready: ReadyBlock): string {
   const link = (s: string) => colorize(s, 'cyan');
   const head = ` ${ok(g.check)} Ready in ${formatMs(ready.elapsedMs)}  ${dim(g.separator)}  ${link(ready.url)}`;
   const lines = [head, `   ${dim(`${ready.routes} routes, ${ready.assets} assets`)}`];
+  if (ready.siteUrl !== undefined && ready.siteUrl.length > 0 && ready.siteUrl !== ready.url) {
+    lines.push(`   ${dim('Site URL:')} ${ready.siteUrl}`);
+  }
+  return `\n${lines.join('\n')}\n`;
+}
+
+// Dashboard flavoured Ready: no build timing or stats (the dashboard does not
+// produce a static bundle at startup), just the URL plus an optional `Site URL:`
+// row so operators can tell which project they are pointed at. Kept as a
+// separate function rather than overloading renderReady so the type signatures
+// stay narrow and the dashboard-specific copy ("Ready" instead of "Ready in N
+// ms") is explicit at the call site.
+export interface SimpleReadyBlock {
+  url: string;
+  siteUrl?: string;
+}
+
+export function renderSimpleReady(ready: SimpleReadyBlock): string {
+  if (getOutputMode() === 'json') return '';
+  const g = devGlyphs();
+  const dim = (s: string) => colorize(s, 'gray');
+  const ok = (s: string) => colorize(s, 'green');
+  const link = (s: string) => colorize(s, 'cyan');
+  const head = ` ${ok(g.check)} Ready  ${dim(g.separator)}  ${link(ready.url)}`;
+  const lines = [head];
   if (ready.siteUrl !== undefined && ready.siteUrl.length > 0 && ready.siteUrl !== ready.url) {
     lines.push(`   ${dim('Site URL:')} ${ready.siteUrl}`);
   }
@@ -215,6 +238,20 @@ export function renderBuildComplete(block: BuildCompleteBlock): string {
   return `\n${head}\n   ${dim(detail)}\n`;
 }
 
+// Single-line notice block used by the dashboard for transient hints such as
+// "Bun dev mode may segfault, restart if it happens" or "this URL is reachable
+// over the LAN". `kind` decides the glyph colour: warning → yellow ⚠, info →
+// dim · . The message stays in default terminal colour so it remains readable
+// over both light and dark themes.
+export type NoticeKind = 'warning' | 'info';
+
+export function renderNotice(kind: NoticeKind, message: string): string {
+  if (getOutputMode() === 'json') return '';
+  const g = devGlyphs();
+  const glyph = kind === 'warning' ? colorize(g.warn, 'yellow') : colorize(g.separator, 'gray');
+  return `\n ${glyph} ${message}\n`;
+}
+
 function formatMs(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)}ms`;
   const s = ms / 1000;
@@ -254,7 +291,86 @@ export function writeBlock(text: string): void {
 // so the existing JSON formatter wraps them in the {ts, level, msg, ...}
 // envelope CI consumers already parse. No-op in text mode because the banner
 // blocks cover the human surface.
-export function emitDevEvent(name: string, fields: Record<string, unknown>): void {
+export function emitStartupEvent(name: string, fields: Record<string, unknown>): void {
   if (getOutputMode() !== 'json') return;
   logger.info(name, { event: name, ...fields });
+}
+
+// Lightweight content stats for the dashboard banner. Counts top-level `.md`
+// files in each content dir without parsing frontmatter, so startup stays
+// cheap even on large blogs. The dashboard's real loader runs lazily on first
+// API request and produces the authoritative graph; this is purely for the
+// "Content: 12 posts, 3 pages, ..." line.
+export interface ContentCounts {
+  posts: number;
+  pages: number;
+  components: number;
+  authors: number;
+  tags: number;
+}
+
+export async function countContentFiles(
+  cwd: string,
+  dirs: {
+    posts_dir: string;
+    pages_dir: string;
+    components_dir: string;
+    authors_dir: string;
+    tags_dir: string;
+  },
+): Promise<ContentCounts> {
+  return {
+    posts: await countMarkdownFiles(cwd, dirs.posts_dir),
+    pages: await countMarkdownFiles(cwd, dirs.pages_dir),
+    components: await countMarkdownFiles(cwd, dirs.components_dir),
+    authors: await countMarkdownFiles(cwd, dirs.authors_dir),
+    tags: await countMarkdownFiles(cwd, dirs.tags_dir),
+  };
+}
+
+async function countMarkdownFiles(cwd: string, dir: string): Promise<number> {
+  const abs = isAbsolute(dir) ? dir : join(cwd, dir);
+  if (!existsSync(abs)) return 0;
+  try {
+    const entries = await readdir(abs, { withFileTypes: true });
+    let n = 0;
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith('.md') && !entry.name.startsWith('.')) n += 1;
+    }
+    return n;
+  } catch {
+    return 0;
+  }
+}
+
+// "12 posts, 3 pages, 5 components, 4 authors, 6 tags" with English-plural
+// suffixes and zero-counts kept (a `0 tags` entry tells the reader that no
+// tag files exist, which is useful triage signal).
+export function formatContentCounts(counts: ContentCounts): string {
+  return [
+    `${counts.posts} ${plural('post', counts.posts)}`,
+    `${counts.pages} ${plural('page', counts.pages)}`,
+    `${counts.components} ${plural('component', counts.components)}`,
+    `${counts.authors} ${plural('author', counts.authors)}`,
+    `${counts.tags} ${plural('tag', counts.tags)}`,
+  ].join(', ');
+}
+
+function plural(noun: string, n: number): string {
+  return n === 1 ? noun : `${noun}s`;
+}
+
+// Decide what to show next to `Config:` in the banner. We don't have the
+// resolved config path back from `loadConfig`, so reproduce its discovery
+// rule (nectar.toml -> nectar.config.toml -> nectar.config.json) and fall
+// back to the explicit `--config` argument when one was supplied. Pure
+// display logic; the real load already happened via loadConfig().
+export function findActiveConfigDisplay(cwd: string, configPath: string | undefined): string {
+  if (configPath !== undefined && configPath.length > 0) {
+    return formatPath(cwd, isAbsolute(configPath) ? configPath : join(cwd, configPath));
+  }
+  for (const name of ['nectar.toml', 'nectar.config.toml', 'nectar.config.json']) {
+    if (existsSync(join(cwd, name))) return name;
+  }
+  return 'nectar.toml';
 }
