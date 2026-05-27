@@ -75,27 +75,28 @@ function parseEnvFlag(raw: string | undefined): boolean {
 }
 
 function detectColorEnabled(env: NodeJS.ProcessEnv): boolean {
-  // NECTAR_NO_COLOR is the project-namespaced override. Parse it as boolean
-  // so `NECTAR_NO_COLOR=0` (explicit re-enable) wins over a globally-set
-  // `NO_COLOR=1`. Anything truthy → off; explicit `0`/`false`/empty → leave
-  // color on (and skip the NO_COLOR check).
-  const nectarNoColor = env.NECTAR_NO_COLOR;
-  if (nectarNoColor !== undefined && nectarNoColor !== '') {
-    if (/^(1|true|yes|on)$/i.test(nectarNoColor.trim())) return false;
-    if (/^(0|false|no|off)$/i.test(nectarNoColor.trim())) {
-      // Explicit re-enable: jump past the NO_COLOR check and fall through to
-      // FORCE_COLOR / TTY detection.
-    } else {
-      // Unrecognised value: ignore and continue.
-    }
-  } else if (env.NO_COLOR !== undefined && env.NO_COLOR !== '') {
-    return false;
-  }
   const force = env.FORCE_COLOR;
   if (force !== undefined) {
     const v = force.trim().toLowerCase();
     if (v === '0' || v === 'false') return false;
     if (v === '' || v === '1' || v === '2' || v === '3' || v === 'true') return true;
+  }
+
+  // NECTAR_NO_COLOR is the project-namespaced override. Parse it as boolean
+  // so `NECTAR_NO_COLOR=0` (explicit re-enable) wins over a globally-set
+  // `NO_COLOR=1`. Anything truthy -> off; explicit `0`/`false`/empty -> leave
+  // color detection to the remaining environment / TTY checks.
+  const nectarNoColor = env.NECTAR_NO_COLOR;
+  if (nectarNoColor !== undefined && nectarNoColor !== '') {
+    if (/^(1|true|yes|on)$/i.test(nectarNoColor.trim())) return false;
+    if (/^(0|false|no|off)$/i.test(nectarNoColor.trim())) {
+      // Explicit re-enable: jump past the NO_COLOR check and fall through to
+      // TTY detection.
+    } else {
+      // Unrecognised value: ignore and continue.
+    }
+  } else if (env.NO_COLOR !== undefined && env.NO_COLOR !== '') {
+    return false;
   }
   // `Bun.write(process.stderr, ...)` does not expose isTTY directly; fall back
   // to the underlying stream. process.stderr.isTTY is `true | undefined` per

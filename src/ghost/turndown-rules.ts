@@ -28,7 +28,7 @@ interface DomNode {
   readonly innerHTML: string;
   readonly textContent: string | null;
   readonly attributes?: ArrayLike<{ readonly name: string; readonly value: string }>;
-  readonly childNodes?: ArrayLike<DomNode>;
+  readonly childNodes?: ArrayLike<unknown>;
   getAttribute(name: string): string | null;
   querySelector(selector: string): DomNode | null;
   querySelectorAll(selector: string): ArrayLike<DomNode>;
@@ -59,7 +59,7 @@ function countNodes(nodes: ArrayLike<DomNode>): number {
 
 function directChildText(node: DomNode, nodeName: string): string {
   const wanted = nodeName.toUpperCase();
-  for (const child of Array.from(node.childNodes ?? [])) {
+  for (const child of Array.from((node.childNodes ?? []) as ArrayLike<DomNode>)) {
     if (child.nodeName === wanted) return text(child);
   }
   return '';

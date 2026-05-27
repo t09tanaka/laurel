@@ -889,7 +889,7 @@ async function serveResponse(
   init: ServeResponseInit,
   compression: ServeCompressionMode,
 ): Promise<Response> {
-  const headers = new Headers(init.headers as Bun.HeadersInit | undefined);
+  const headers = new Headers(init.headers);
   const encoding = selectServeCompressionEncoding(request, headers, compression);
   if (encoding === undefined)
     return new Response(body, { status: init.status, headers: headersToRecord(headers) });
@@ -907,7 +907,9 @@ async function serveResponse(
 
 function headersToRecord(headers: Headers): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const [key, value] of headers) out[key] = value;
+  headers.forEach((value, key) => {
+    out[key] = value;
+  });
   return out;
 }
 

@@ -33,7 +33,8 @@ const LOCALE_ENV = globalEnvVarName('locale');
 // (NECTAR_QUIET / NECTAR_VERBOSE / NECTAR_LOG_FORMAT / NECTAR_JSON /
 // NECTAR_NO_COLOR / NECTAR_DEBUG / NECTAR_WARNINGS_AS_ERRORS).
 // We also recognise the conventional `NO_COLOR` (any non-empty value disables
-// color) so nectar matches the rest of the CLI ecosystem out of the box.
+// color) and `FORCE_COLOR` (overrides env-level no-color defaults) so nectar
+// matches the rest of the CLI ecosystem out of the box.
 export function extractGlobalFlags(
   argv: string[],
   env: Record<string, string | undefined> = {},
@@ -165,14 +166,17 @@ export function extractGlobalFlags(
   if (!logFormatFromCli && logFormatRaw !== undefined && logFormatRaw !== '') {
     logFormat = parseLogFormat(logFormatRaw, LOG_FORMAT_ENV);
   }
-  // `NO_COLOR` (conventional) → off whenever set to a non-empty value.
+  const forceColor = parseForceColor(env.FORCE_COLOR);
+  // `NO_COLOR` (conventional) -> off whenever set to a non-empty value.
   // `NECTAR_NO_COLOR` (project-specific) parses the usual boolean spelling so
   // `0`/`false` can explicitly re-enable color even when the upstream env has
   // it disabled, e.g. when running inside a CI that exports `NO_COLOR=1`
-  // globally. Precedence: CLI > NECTAR_NO_COLOR > NO_COLOR.
+  // globally. Precedence: CLI > FORCE_COLOR > NECTAR_NO_COLOR > NO_COLOR.
   if (!noColorFromCli) {
-    const nectarRaw = env[NO_COLOR_ENV_NECTAR];
-    if (nectarRaw !== undefined) {
+    if (forceColor !== undefined) {
+      noColor = !forceColor;
+    } else if (env[NO_COLOR_ENV_NECTAR] !== undefined) {
+      const nectarRaw = env[NO_COLOR_ENV_NECTAR];
       noColor = parseBooleanEnv(nectarRaw, NO_COLOR_ENV_NECTAR);
     } else if (env.NO_COLOR !== undefined && env.NO_COLOR !== '') {
       noColor = true;
@@ -217,6 +221,7 @@ export function extractGlobalFlags(
     }
     if (
       !noColorFromCli &&
+      forceColor === undefined &&
       env[NO_COLOR_ENV_NECTAR] === undefined &&
       (env.NO_COLOR === undefined || env.NO_COLOR === '')
     ) {
@@ -276,4 +281,14 @@ function parseLocale(raw: string, source: string): string {
   throw new CliUsageError(
     `Invalid ${source}: ${JSON.stringify(raw)} (expected a BCP 47 locale tag like "en-US")`,
   );
+}
+
+function parseForceColor(raw: string | undefined): boolean | undefined {
+  if (raw === undefined) return undefined;
+  const value = raw.trim().toLowerCase();
+  if (value === '0' || value === 'false') return false;
+  if (value === '' || value === '1' || value === '2' || value === '3' || value === 'true') {
+    return true;
+  }
+  return undefined;
 }

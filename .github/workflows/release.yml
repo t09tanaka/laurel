@@ -149,6 +149,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Build embedded dashboard assets
+        run: bun run build:dashboard-bundle
+
       - name: Compile standalone binary
         shell: bash
         run: |
@@ -724,6 +727,7 @@ jobs:
 
       - name: Build distribution
         run: |
+          bun run build:dashboard-bundle
           bun run build:cli
           bun run build:types
 

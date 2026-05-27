@@ -6,7 +6,14 @@
     "useIgnoreFile": true
   },
   "files": {
-    "ignore": ["node_modules", "dist", "example/dist", "example/themes/source", "**/*.hbs"]
+    "ignore": [
+      "node_modules",
+      "dist",
+      "example/dist",
+      "example/themes/source",
+      "src/cli/dashboard/bundled-assets.ts",
+      "**/*.hbs"
+    ]
   },
   "formatter": {
     "enabled": true,
