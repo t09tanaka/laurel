@@ -57,7 +57,9 @@ describe('cli init', () => {
 
     const toml = await readFile(join(dir, 'nectar.toml'), 'utf8');
     expect(toml).toContain('[site]');
-    expect(toml).toContain('title = "My Nectar Site"');
+    // Title is derived from the target directory (here: `nectar-init-XXXXXX`
+    // from mkdtemp) → title-cased. No hardcoded "My Nectar Site" default.
+    expect(toml).toMatch(/title = "[A-Z][^"]+"/);
     expect(toml).toContain('url = "http://localhost:4321"');
     expect(toml).toContain('[theme]');
     expect(toml).toContain('name = "source"');
@@ -69,12 +71,18 @@ describe('cli init', () => {
     expect(gitignore).toContain('dist/');
 
     const readme = await readFile(join(dir, 'README.md'), 'utf8');
-    expect(readme).toContain('# My Nectar Site');
-    expect(readme).toContain('bunx nectar build');
-    expect(readme).toContain('GitHub Pages');
+    expect(readme).toMatch(/^# [A-Z]/m);
+    expect(readme).toContain('nectar build');
+    expect(readme).toContain('nectar dashboard');
+
+    // Every content/ subdirectory is seeded with a .gitkeep so git tracks
+    // the layout even when the operator skipped starter content.
+    for (const sub of ['posts', 'pages', 'authors', 'tags', 'images']) {
+      expect(await fileExists(join(dir, `content/${sub}/.gitkeep`))).toBe(true);
+    }
 
     const welcome = await readFile(join(dir, 'content/posts/welcome.md'), 'utf8');
-    expect(welcome).toContain('title: "Welcome to My Nectar Site"');
+    expect(welcome).toMatch(/title: "Welcome to [A-Z]/);
     expect(welcome).toContain('slug: welcome');
 
     const about = await readFile(join(dir, 'content/pages/about.md'), 'utf8');
@@ -140,7 +148,6 @@ describe('cli init', () => {
       '2', // theme: casper (second in KNOWN_THEMES)
       'n', // starter content: no
       'n', // rss: no
-      '2', // deploy: netlify
       '',
     ].join('\n');
 
@@ -153,21 +160,54 @@ describe('cli init', () => {
     expect(toml).toContain('name = "casper"');
     expect(toml).toContain('enabled = false');
 
-    const readme = await readFile(join(dir, 'README.md'), 'utf8');
-    expect(readme).toContain('Netlify');
-
     expect(await fileExists(join(dir, 'content/posts/welcome.md'))).toBe(false);
     expect(await fileExists(join(dir, 'content/pages/about.md'))).toBe(false);
   });
 
+  test('interactive mode tolerates leading control bytes in the choice prompt', async () => {
+    // Reproduces the `Invalid choice: �2` regression: terminals occasionally
+    // leak ANSI escape bytes (or a stray U+FFFD from non-UTF-8 paste) into
+    // the line buffer alongside the digit the user actually typed. The
+    // sanitiser must strip those and still pick the right option.
+    const stdin = [
+      '', // title (accept default)
+      '', // url (accept default)
+      '\x1b 2', // theme: casper, prefixed by a stray escape byte and space
+      '',
+      '',
+    ].join('\n');
+    const { exitCode, stderr } = await runCli(['init'], dir, stdin);
+    expect(exitCode).toBe(0);
+    expect(stderr).not.toContain('Invalid choice');
+    const toml = await readFile(join(dir, 'nectar.toml'), 'utf8');
+    expect(toml).toContain('name = "casper"');
+  });
+
   test('interactive mode accepts defaults via empty input', async () => {
-    const stdin = '\n\n\n\n\n\n';
+    const stdin = '\n\n\n\n\n';
     const { exitCode } = await runCli(['init'], dir, stdin);
     expect(exitCode).toBe(0);
 
     const toml = await readFile(join(dir, 'nectar.toml'), 'utf8');
-    expect(toml).toContain('title = "My Nectar Site"');
+    // Empty title input → derive from target directory name (title-cased).
+    expect(toml).toMatch(/title = "[A-Z][^"]+"/);
     expect(toml).toContain('name = "source"');
+  });
+
+  test('skips README and .gitignore if already present', async () => {
+    await writeFile(join(dir, 'README.md'), '# pre-existing\n');
+    await writeFile(join(dir, '.gitignore'), 'custom\n');
+
+    const { exitCode, stdout } = await runCli(['init', '--yes'], dir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Skipped existing README.md');
+    expect(stdout).toContain('Skipped existing .gitignore');
+
+    const readme = await readFile(join(dir, 'README.md'), 'utf8');
+    expect(readme).toBe('# pre-existing\n');
+    const gitignore = await readFile(join(dir, '.gitignore'), 'utf8');
+    expect(gitignore).toBe('custom\n');
+    expect(await fileExists(join(dir, 'nectar.toml'))).toBe(true);
   });
 
   test('--help prints subcommand help', async () => {
