@@ -17,6 +17,7 @@ import { SkeletonContentTable } from './components/SkeletonContentTable.tsx';
 import { StatePanel } from './components/StatePanel.tsx';
 import { TaxonomyEditorView } from './components/TaxonomyEditorView.tsx';
 import { TaxonomyView } from './components/TaxonomyView.tsx';
+import { ThemeMissingBanner } from './components/ThemeMissingBanner.tsx';
 import { useToastHost } from './components/Toast.tsx';
 import { Toolbar } from './components/Toolbar.tsx';
 import { useEventStream } from './hooks/useEventStream.ts';
@@ -624,6 +625,7 @@ export function DashboardApp(): JSX.Element {
       <a class="skipToMain" href="#main">
         Skip to main content
       </a>
+      <ThemeMissingBanner status={state?.settings.theme.status} />
       <Sidebar
         section={section}
         siteTitle={state?.site.title ?? ''}
