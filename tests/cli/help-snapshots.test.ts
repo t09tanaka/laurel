@@ -32,7 +32,11 @@ async function runCli(args: string[]): Promise<RunResult> {
 }
 
 function normalizeHelp(output: string): string {
-  return output.replace(/^nectar \d+\.\d+\.\d+$/m, 'nectar <version>');
+  // Match both legacy `nectar 1.2.3` per-subcommand headers and the branded
+  // `Nectar 1.2.3` top-level header so a version bump doesn't churn snapshots.
+  return output
+    .replace(/^nectar \d+\.\d+\.\d+$/m, 'nectar <version>')
+    .replace(/(Nectar) \d+\.\d+\.\d+/g, '$1 <version>');
 }
 
 async function readSnapshot(name: string): Promise<string> {
