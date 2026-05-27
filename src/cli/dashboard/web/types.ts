@@ -49,7 +49,6 @@ export interface TaxonomySummary {
   url?: string;
   source: 'file' | 'generated';
   editable: boolean;
-  orphaned?: boolean;
   materializePath?: string;
   [key: string]: unknown;
 }
@@ -126,6 +125,17 @@ export interface ThemeOption {
   version?: string;
 }
 
+// Mirrors `DashboardThemeStatus` from src/cli/commands/dashboard.ts. Used by
+// the top-of-dashboard banner that fires when [theme] in nectar.toml points
+// at a directory that doesn't exist on disk.
+export interface ThemeStatus {
+  missing: boolean;
+  expectedPath: string;
+  cloneCommand?: string;
+  message?: string;
+  hint?: string;
+}
+
 export interface DashboardState {
   site: {
     title: string;
@@ -158,7 +168,7 @@ export interface DashboardState {
     fingerprint: ContentFingerprint;
     contentDirs: Record<string, string>;
     outputDir: string;
-    theme: { name: string; dir?: string; available?: ThemeOption[] };
+    theme: { name: string; dir?: string; available?: ThemeOption[]; status?: ThemeStatus };
     cards: SettingsCard[];
     operations: {
       search: {
