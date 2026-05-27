@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { importGhostUpload, importPageBundleUpload } from '../lib/api.ts';
 import { StatePanel } from './StatePanel.tsx';
 
@@ -33,12 +33,7 @@ interface GhostImportPanelProps extends ImportPanelProps {
 }
 
 function GhostImportPanel(props: GhostImportPanelProps): JSX.Element {
-  const [file, setFile] = useState<File | null>(null);
-  const [onConflict, setOnConflict] = useState<'skip' | 'rename' | 'overwrite'>('skip');
-  const [downloadImages, setDownloadImages] = useState(true);
-  const [maxImageSize, setMaxImageSize] = useState('');
-  const [notice, setNotice] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [result, setResult] = useState<{
     error?: string;
     mode?: string;
@@ -46,135 +41,25 @@ function GhostImportPanel(props: GhostImportPanelProps): JSX.Element {
     summary?: Record<string, unknown>;
   } | null>(null);
 
-  async function run() {
-    if (!file) {
-      setResult({ error: 'Pick a Ghost export (.zip or .json) first.' });
-      return;
-    }
-    let maxImageSizeBytes: number | undefined;
-    const trimmedSize = maxImageSize.trim();
-    if (trimmedSize.length > 0) {
-      const parsed = parseSizeSpec(trimmedSize);
-      if (parsed === null) {
-        setResult({
-          error: `Invalid max image size: "${trimmedSize}". Use values like "10MB", "1GB", or "0" to disable the cap.`,
-        });
-        return;
-      }
-      maxImageSizeBytes = parsed;
-    }
-    if (!confirm('Import writes Markdown and assets into the configured content dir. Continue?')) {
-      return;
-    }
-    setBusy(true);
-    setNotice(downloadImages ? 'Importing files and downloading images…' : 'Importing files…');
-    try {
-      const { status, data } = await importGhostUpload({
-        file,
-        onConflict,
-        downloadImages,
-        maxImageSizeBytes,
-      });
-      if (status >= 400) {
-        const error = (data as { error?: string }).error;
-        setResult({ error: error ?? 'Import failed' });
-        return;
-      }
-      setResult(data as typeof result);
-      await props.onApplied();
-      props.onImportSuccess();
-    } catch (err) {
-      setResult({ error: err instanceof Error ? err.message : String(err) });
-    } finally {
-      setBusy(false);
-      setNotice('');
-    }
-  }
-
   return (
     <article class="settingsCard migrationCard field wide" data-migration="ghost">
       <header class="migrationCardHead">
         <div>
           <h3>Ghost import</h3>
           <p class="meta">
-            Drop a Ghost export (.zip or ghost-export.json). Imported posts land in the content dir
-            configured in nectar.toml.
+            Bring posts, pages, authors, tags, and (when a source URL is supplied) referenced images
+            in from a Ghost export.
           </p>
         </div>
-      </header>
-      <UploadDropzone
-        accept=".zip,.json,application/zip,application/json"
-        file={file}
-        disabled={busy}
-        hint="Click or drop a Ghost export (.zip / .json)"
-        onPick={setFile}
-        match={(name) => /\.(zip|json)$/i.test(name)}
-      />
-      <div class="fields">
-        <label class="field">
-          <span>Conflict policy</span>
-          <select
-            id="ghostImportConflict"
-            value={onConflict}
-            onChange={(event) =>
-              setOnConflict(
-                (event.currentTarget as HTMLSelectElement).value as 'skip' | 'rename' | 'overwrite',
-              )
-            }
-          >
-            <option value="skip">skip</option>
-            <option value="rename">rename</option>
-            <option value="overwrite">overwrite</option>
-          </select>
-        </label>
-      </div>
-      <label class="field wide" data-field="ghost-download-images">
-        <input
-          type="checkbox"
-          id="ghostImportDownloadImages"
-          checked={downloadImages}
-          onChange={(event) => setDownloadImages((event.currentTarget as HTMLInputElement).checked)}
-        />
-        <span>Download referenced images</span>
-      </label>
-      <p class="meta wide">
-        Fetch image URLs in posts and frontmatter, save under <code>content/images/</code>, and
-        rewrite references to site-relative paths. Skipped during preview.
-      </p>
-      {downloadImages ? (
-        <details class="advancedPanel" data-field="ghost-image-advanced">
-          <summary>Advanced</summary>
-          <label class="field wide">
-            <span>Max image size</span>
-            <input
-              id="ghostImportMaxImageSize"
-              placeholder="10MB"
-              value={maxImageSize}
-              onInput={(event) => setMaxImageSize((event.currentTarget as HTMLInputElement).value)}
-            />
-            <span class="meta">
-              Per-image cap. Accepts <code>10MB</code>, <code>1GB</code>, or <code>0</code> to
-              disable. Defaults to 10MB when blank.
-            </span>
-          </label>
-        </details>
-      ) : null}
-      <div class="editorActions">
         <button
-          class="btn"
-          id="applyGhostImport"
           type="button"
-          disabled={busy || !file}
-          onClick={() => {
-            void run();
-          }}
+          class="btn secondary btnCompact"
+          onClick={() => setUploadOpen(true)}
+          id="openGhostImport"
         >
-          Import files
+          Upload export
         </button>
-      </div>
-      <output class="notice" id="ghostImportNotice">
-        {notice}
-      </output>
+      </header>
       <div id="ghostImportResult">
         {result?.error ? (
           <StatePanel kind="error" message={result.error} />
@@ -184,7 +69,222 @@ function GhostImportPanel(props: GhostImportPanelProps): JSX.Element {
           />
         ) : null}
       </div>
+      {uploadOpen ? (
+        <GhostImportModal
+          onClose={() => setUploadOpen(false)}
+          onResult={async (next) => {
+            setResult(next);
+            if (next.summary) {
+              await props.onApplied();
+              props.onImportSuccess();
+            }
+          }}
+        />
+      ) : null}
     </article>
+  );
+}
+
+interface GhostImportModalProps {
+  onClose: () => void;
+  onResult: (result: {
+    error?: string;
+    mode?: string;
+    target?: string;
+    summary?: Record<string, unknown>;
+  }) => Promise<void> | void;
+}
+
+function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Element {
+  const [file, setFile] = useState<File | null>(null);
+  const [onConflict, setOnConflict] = useState<'skip' | 'rename' | 'overwrite'>('skip');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [maxImageSize, setMaxImageSize] = useState('');
+  const [notice, setNotice] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [localError, setLocalError] = useState('');
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !busy) onClose();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [busy, onClose]);
+
+  async function run() {
+    if (!file) {
+      setLocalError('Pick a Ghost export (.zip or .json) first.');
+      return;
+    }
+    let maxImageSizeBytes: number | undefined;
+    const trimmedSize = maxImageSize.trim();
+    if (trimmedSize.length > 0) {
+      const parsed = parseSizeSpec(trimmedSize);
+      if (parsed === null) {
+        setLocalError(
+          `Invalid max image size: "${trimmedSize}". Use values like "10MB", "1GB", or "0" to disable the cap.`,
+        );
+        return;
+      }
+      maxImageSizeBytes = parsed;
+    }
+    const trimmedSource = sourceUrl.trim();
+    if (trimmedSource.length > 0) {
+      try {
+        const parsed = new URL(trimmedSource);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+          throw new Error('non-http(s)');
+        }
+      } catch {
+        setLocalError(
+          `Invalid source URL: "${trimmedSource}". Expected an absolute URL like https://oldblog.com.`,
+        );
+        return;
+      }
+    }
+    if (!confirm('Import writes Markdown and assets into the configured content dir. Continue?')) {
+      return;
+    }
+    setLocalError('');
+    setBusy(true);
+    setNotice(trimmedSource ? 'Importing files and downloading images…' : 'Importing files…');
+    try {
+      const { status, data } = await importGhostUpload({
+        file,
+        onConflict,
+        sourceUrl: trimmedSource || undefined,
+        maxImageSizeBytes,
+      });
+      if (status >= 400) {
+        const error = (data as { error?: string }).error;
+        await onResult({ error: error ?? 'Import failed' });
+        setLocalError(error ?? 'Import failed');
+        return;
+      }
+      await onResult(data as Parameters<typeof onResult>[0]);
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await onResult({ error: message });
+      setLocalError(message);
+    } finally {
+      setBusy(false);
+      setNotice('');
+    }
+  }
+
+  return (
+    <div
+      class="modalBackdrop"
+      role="presentation"
+      tabIndex={-1}
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !busy) onClose();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && !busy) onClose();
+      }}
+    >
+      <dialog class="modalDialog" aria-modal="true" aria-label="Upload Ghost export" open>
+        <header class="modalHead">
+          <h3>Upload Ghost export</h3>
+          <button
+            type="button"
+            class="modalClose"
+            aria-label="Close"
+            disabled={busy}
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </header>
+        <p class="meta">
+          Drop a Ghost export <code>.zip</code> or <code>ghost-export.json</code>. Imported posts
+          land in the content dir configured in <code>nectar.toml</code>.
+        </p>
+        <UploadDropzone
+          accept=".zip,.json,application/zip,application/json"
+          file={file}
+          disabled={busy}
+          hint="Click or drop a Ghost export (.zip / .json)"
+          onPick={setFile}
+          match={(name) => /\.(zip|json)$/i.test(name)}
+        />
+        <div class="fields">
+          <label class="field">
+            <span>Conflict policy</span>
+            <select
+              id="ghostImportConflict"
+              value={onConflict}
+              disabled={busy}
+              onChange={(event) =>
+                setOnConflict(
+                  (event.currentTarget as HTMLSelectElement).value as
+                    | 'skip'
+                    | 'rename'
+                    | 'overwrite',
+                )
+              }
+            >
+              <option value="skip">skip</option>
+              <option value="rename">rename</option>
+              <option value="overwrite">overwrite</option>
+            </select>
+          </label>
+        </div>
+        <label class="field wide">
+          <span>Source URL</span>
+          <input
+            id="ghostImportSourceUrl"
+            type="url"
+            placeholder="https://oldblog.com"
+            value={sourceUrl}
+            disabled={busy}
+            onInput={(event) => setSourceUrl((event.currentTarget as HTMLInputElement).value)}
+          />
+          <span class="meta">
+            Origin of the source Ghost site. Required to fetch images — Ghost exports store image
+            URLs as <code>__GHOST_URL__/content/images/...</code>, and the downloader needs a real
+            origin to resolve them. Leave blank to skip image downloads.
+          </span>
+        </label>
+        <details class="advancedPanel" data-field="ghost-image-advanced">
+          <summary>Advanced</summary>
+          <label class="field wide">
+            <span>Max image size</span>
+            <input
+              id="ghostImportMaxImageSize"
+              placeholder="10MB"
+              value={maxImageSize}
+              disabled={busy}
+              onInput={(event) => setMaxImageSize((event.currentTarget as HTMLInputElement).value)}
+            />
+            <span class="meta">
+              Per-image cap. Accepts <code>10MB</code>, <code>1GB</code>, or <code>0</code> to
+              disable. Defaults to 10MB when blank.
+            </span>
+          </label>
+        </details>
+        <div class="editorActions">
+          <button
+            class="btn"
+            id="applyGhostImport"
+            type="button"
+            disabled={busy || !file}
+            onClick={() => {
+              void run();
+            }}
+          >
+            Import files
+          </button>
+        </div>
+        <output class="notice" id="ghostImportNotice">
+          {notice}
+        </output>
+        {localError ? <StatePanel kind="error" message={localError} /> : null}
+      </dialog>
+    </div>
   );
 }
 

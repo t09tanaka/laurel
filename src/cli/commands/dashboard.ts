@@ -1656,6 +1656,7 @@ export async function handleDashboardRequest(
           outputDir: (form?.get('outputDir') as string | null) ?? undefined,
           downloadImages,
           maxImageSizeBytes,
+          sourceUrl: (form?.get('sourceUrl') as string | null) ?? undefined,
         };
       } else {
         const json = await readJsonPayload<DashboardGhostImportPayload>(request, ctx.maxBodyBytes);

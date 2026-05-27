@@ -648,6 +648,9 @@ async function importFromResolvedInput(
           outputRoot,
           fetcher: opts.fetcher,
           maxImageSizeBytes: opts.maxImageSizeBytes,
+          // Lets the downloader fetch `/content/images/...` paths that
+          // `stripGhostUrlPlaceholder` already rewrote to leading-slash form.
+          sourceUrl: opts.sourceUrl,
         })
       : undefined;
   const urlRewriter = opts.sourceUrl ? new GhostUrlRewriter(opts.sourceUrl) : undefined;

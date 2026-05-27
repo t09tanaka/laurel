@@ -339,7 +339,12 @@ export async function importGhost(
 export interface GhostImportUploadArgs {
   file: File;
   onConflict: 'skip' | 'rename' | 'overwrite';
-  downloadImages?: boolean;
+  // Origin of the source Ghost site (e.g. `https://oldblog.com`). Required if
+  // the user wants images downloaded — Ghost exports store image URLs as
+  // `__GHOST_URL__/content/images/...` which becomes `/content/images/...`
+  // after placeholder stripping, and the downloader needs an origin to make
+  // those fetchable.
+  sourceUrl?: string;
   maxImageSizeBytes?: number;
 }
 
@@ -350,9 +355,10 @@ export async function importGhostUpload(
   fd.append('file', args.file);
   fd.append('dryRun', 'false');
   fd.append('onConflict', args.onConflict);
-  if (args.downloadImages !== undefined) {
-    fd.append('downloadImages', String(args.downloadImages));
-  }
+  // Always download referenced images — there is no UI toggle. Opting out
+  // produces broken local references and is never what an operator wants.
+  fd.append('downloadImages', 'true');
+  if (args.sourceUrl) fd.append('sourceUrl', args.sourceUrl);
   if (args.maxImageSizeBytes !== undefined) {
     fd.append('maxImageSizeBytes', String(args.maxImageSizeBytes));
   }

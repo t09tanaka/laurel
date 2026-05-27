@@ -27,6 +27,13 @@ export interface GhostImageDownloaderOptions {
   // server lies or omits the header), so a single oversize asset cannot
   // exhaust memory or disk.
   maxImageSizeBytes?: number;
+  // Origin of the source Ghost site (e.g. `https://oldblog.ghost.io`). When
+  // provided, the downloader expands site-relative paths like
+  // `/content/images/2025/06/foo.jpg` — which is what Ghost exports leave
+  // behind after `__GHOST_URL__` placeholder substitution — into absolute URLs
+  // it can actually fetch. Without it, only fully-qualified `http(s)://` URLs
+  // are downloaded; relative paths are silently skipped.
+  sourceUrl?: string;
 }
 
 interface CacheEntry {
@@ -83,6 +90,11 @@ export class GhostImageDownloader {
   private readonly fetcher: typeof fetch;
   private readonly contentRoot: string;
   private readonly maxBytes: number;
+  // Origin (`https://host[:port]`) of the source Ghost site, used to expand
+  // site-relative `/content/images/...` URLs into absolute URLs the fetcher
+  // can hit. Undefined when no source URL was supplied; in that case relative
+  // paths are left untouched.
+  private readonly sourceOrigin: string | undefined;
   // Per-URL cache. `null` means a prior attempt failed; future calls reuse
   // that verdict instead of re-fetching.
   private readonly cache = new Map<string, CacheEntry | null>();
@@ -96,6 +108,7 @@ export class GhostImageDownloader {
     // than silently rejecting every fetch.
     const raw = opts.maxImageSizeBytes ?? DEFAULT_MAX_IMAGE_SIZE_BYTES;
     this.maxBytes = raw > 0 ? raw : 0;
+    this.sourceOrigin = normalizeSourceOrigin(opts.sourceUrl);
   }
 
   get downloaded(): number {
@@ -106,6 +119,22 @@ export class GhostImageDownloader {
     return this._failed;
   }
 
+  // Turn an image reference from the export into an absolute URL we can fetch.
+  // Returns:
+  //   - the input unchanged when it is already an `http(s)://...` URL
+  //   - `<sourceOrigin><url>` when the input is a `/content/...` (or other
+  //     leading-slash) site-relative path AND a source URL was supplied
+  //   - `null` otherwise — relative paths with no source URL, `data:` URIs,
+  //     `mailto:` etc. The caller treats `null` as "skip, leave the value
+  //     alone" so the downloader is safe to call against every image field.
+  private resolveFetchUrl(url: string): string | null {
+    if (typeof url !== 'string' || url.length === 0) return null;
+    if (isHttpUrl(url)) return url;
+    if (!this.sourceOrigin) return null;
+    if (!url.startsWith('/')) return null;
+    return `${this.sourceOrigin}${url}`;
+  }
+
   // Download a single image URL and return the rewritten site-relative URL,
   // or `null` if the input should be left alone (non-http(s), already
   // relative, or download failed).
@@ -113,8 +142,15 @@ export class GhostImageDownloader {
     url: string,
     opts?: { externalDir?: 'external' | 'bookmarks' },
   ): Promise<string | null> {
-    if (!isHttpUrl(url)) return null;
-    const cacheKey = opts?.externalDir ? `${opts.externalDir}\0${url}` : url;
+    // `stripGhostUrlPlaceholder` runs over the export before the downloader
+    // sees a thing, so what arrives here for Ghost-hosted assets is a
+    // site-relative path like `/content/images/2025/06/foo.jpg`, not an
+    // absolute URL. When the caller supplied a source URL, expand it back to
+    // something fetchable; otherwise we cannot reach the bytes and the
+    // download silently no-ops.
+    const fetchUrl = this.resolveFetchUrl(url);
+    if (fetchUrl === null) return null;
+    const cacheKey = opts?.externalDir ? `${opts.externalDir}\0${fetchUrl}` : fetchUrl;
 
     const cached = this.cache.get(cacheKey);
     if (cached !== undefined) {
@@ -122,9 +158,9 @@ export class GhostImageDownloader {
     }
 
     try {
-      const response = await this.fetcher(url);
+      const response = await this.fetcher(fetchUrl);
       if (!response.ok) {
-        logger.warn(`Failed to download image ${url}: HTTP ${response.status}`);
+        logger.warn(`Failed to download image ${fetchUrl}: HTTP ${response.status}`);
         this.cache.set(cacheKey, null);
         this._failed += 1;
         return null;
@@ -139,7 +175,7 @@ export class GhostImageDownloader {
           const advertised = Number.parseInt(cl, 10);
           if (Number.isFinite(advertised) && advertised > this.maxBytes) {
             logger.warn(
-              `Failed to download image ${url}: advertised size ${advertised} exceeds max ${this.maxBytes} bytes`,
+              `Failed to download image ${fetchUrl}: advertised size ${advertised} exceeds max ${this.maxBytes} bytes`,
             );
             this.cache.set(cacheKey, null);
             this._failed += 1;
@@ -151,13 +187,13 @@ export class GhostImageDownloader {
       const buf = new Uint8Array(await response.arrayBuffer());
       if (this.maxBytes > 0 && buf.byteLength > this.maxBytes) {
         logger.warn(
-          `Failed to download image ${url}: payload ${buf.byteLength} exceeds max ${this.maxBytes} bytes`,
+          `Failed to download image ${fetchUrl}: payload ${buf.byteLength} exceeds max ${this.maxBytes} bytes`,
         );
         this.cache.set(cacheKey, null);
         this._failed += 1;
         return null;
       }
-      const { localPath, rewrittenUrl } = derivePaths(url, contentType, opts);
+      const { localPath, rewrittenUrl } = derivePaths(fetchUrl, contentType, opts);
       const absPath = join(this.contentRoot, stripContentPrefix(localPath));
       // Defense in depth: pathname normalization in `URL` already strips
       // `..`, but assert we stay under the configured content output root.
@@ -170,7 +206,7 @@ export class GhostImageDownloader {
       return rewrittenUrl;
     } catch (err) {
       logger.warn(
-        `Failed to download image ${url}: ${err instanceof Error ? err.message : String(err)}`,
+        `Failed to download image ${fetchUrl}: ${err instanceof Error ? err.message : String(err)}`,
       );
       this.cache.set(cacheKey, null);
       this._failed += 1;
@@ -277,6 +313,23 @@ function isHttpUrl(s: string): boolean {
     return u.protocol === 'http:' || u.protocol === 'https:';
   } catch {
     return false;
+  }
+}
+
+// Reduce a user-supplied source URL to a bare origin (`https://host[:port]`)
+// so the downloader can safely concatenate it with a leading-slash path.
+// Returns undefined when the input is empty / invalid / non-http(s); callers
+// then behave as if no source URL was provided at all.
+function normalizeSourceOrigin(raw: string | undefined): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return undefined;
+  try {
+    const u = new URL(trimmed);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return undefined;
+    return u.origin;
+  } catch {
+    return undefined;
   }
 }
 
