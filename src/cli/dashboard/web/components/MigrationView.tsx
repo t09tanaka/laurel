@@ -162,9 +162,6 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
         return;
       }
     }
-    if (!confirm('Import writes Markdown and assets into the configured content dir. Continue?')) {
-      return;
-    }
     setLocalError('');
     setBusy(true);
     setNotice(trimmedSource ? 'Importing files and downloading images…' : 'Importing files…');
