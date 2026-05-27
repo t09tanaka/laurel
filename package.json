@@ -81,7 +81,7 @@
     "docs:cli": "bun run src/cli/docs.ts",
     "docs:config": "bun run src/config/docs.ts",
     "docs:theme-reference": "bun run scripts/docs-theme-reference.ts",
-    "prepublishOnly": "bun run build:cli && bun run build:types && bun run build:dashboard-bundle",
+    "prepublishOnly": "bun run build:dashboard-bundle && bun run build:cli && bun run build:types",
     "test": "bun test --parallel",
     "test:serial": "bun test",
     "test:e2e": "bun test tests/e2e",

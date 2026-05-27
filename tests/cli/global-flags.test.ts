@@ -212,6 +212,11 @@ describe('extractGlobalFlags env var fallbacks', () => {
     expect(flags.noColor).toBe(false);
   });
 
+  test('FORCE_COLOR=1 overrides NO_COLOR=1', () => {
+    const { flags } = extractGlobalFlags(['build'], { NO_COLOR: '1', FORCE_COLOR: '1' });
+    expect(flags.noColor).toBe(false);
+  });
+
   test('NECTAR_JSON=1 sets json mode', () => {
     const { flags } = extractGlobalFlags(['build'], { NECTAR_JSON: '1' });
     expect(flags.json).toBe(true);

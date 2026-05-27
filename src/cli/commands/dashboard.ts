@@ -78,6 +78,7 @@ import { logger } from '~/util/logger.ts';
 import { getNectarVersion } from '~/util/nectar-version.ts';
 import { absolutise, resolveContentSlugPath } from '../content-paths.ts';
 import { createBuildStreamResponse, createExportZipResponse } from '../dashboard/build-runner.ts';
+import { DASHBOARD_BUNDLE_ASSETS } from '../dashboard/bundled-assets.ts';
 import { renderDashboardHtml as renderDashboardShellHtml } from '../dashboard/html.ts';
 import { fetchOgp } from '../dashboard/ogp.ts';
 import { rewriteThemeCss } from '../dashboard/theme-css-rewriter.ts';
@@ -4933,30 +4934,18 @@ function jsonResponse(data: unknown, status = 200): Response {
   });
 }
 
-const DASHBOARD_BUNDLE_DIR = resolve(import.meta.dir, '..', '..', '..', 'dist', 'dashboard-bundle');
-const DASHBOARD_BUNDLE_MIME: Record<string, string> = {
-  '/assets/dashboard.js': 'application/javascript; charset=utf-8',
-  '/assets/dashboard.css': 'text/css; charset=utf-8',
-};
-const DASHBOARD_BUNDLE_FILE: Record<string, string> = {
-  '/assets/dashboard.js': 'dashboard.js',
-  '/assets/dashboard.css': 'dashboard.css',
-};
-
 async function serveDashboardBundleAsset(pathname: string): Promise<Response> {
-  const filename = DASHBOARD_BUNDLE_FILE[pathname];
-  const mime = DASHBOARD_BUNDLE_MIME[pathname];
-  if (!filename || !mime) return new Response('Not Found', { status: 404 });
-  const file = Bun.file(resolve(DASHBOARD_BUNDLE_DIR, filename));
-  if (!(await file.exists())) {
+  const asset = DASHBOARD_BUNDLE_ASSETS[pathname as keyof typeof DASHBOARD_BUNDLE_ASSETS];
+  if (!asset) return new Response('Not Found', { status: 404 });
+  if (asset.body === '') {
     return new Response(
-      `Dashboard bundle not found at ${DASHBOARD_BUNDLE_DIR}/${filename}. Run \`bun run build:dashboard-bundle\` before starting the dashboard.`,
+      'Dashboard bundle is empty. Run `bun run build:dashboard-bundle` before starting the dashboard.',
       { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } },
     );
   }
-  return new Response(file, {
+  return new Response(asset.body, {
     headers: {
-      'Content-Type': mime,
+      'Content-Type': asset.contentType,
       'Cache-Control': 'no-store',
     },
   });

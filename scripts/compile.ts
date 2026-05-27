@@ -77,6 +77,17 @@ async function compileOne(target: Target, outDir: string): Promise<void> {
   console.log(`Built ${outfile}`);
 }
 
+async function buildEmbeddedDashboardAssets(): Promise<void> {
+  const proc = Bun.spawn(['bun', 'run', 'scripts/build-dashboard-bundle.ts'], {
+    stdout: 'inherit',
+    stderr: 'inherit',
+  });
+  const code = await proc.exited;
+  if (code !== 0) {
+    throw new Error(`dashboard bundle build failed before binary compile (exit ${code})`);
+  }
+}
+
 async function writeShasums(outDir: string, targets: ReadonlyArray<Target>): Promise<void> {
   const lines: string[] = [];
   for (const target of targets) {
@@ -94,6 +105,7 @@ async function writeShasums(outDir: string, targets: ReadonlyArray<Target>): Pro
 const argv = process.argv.slice(2);
 const outDir = 'dist-bin';
 await mkdir(outDir, { recursive: true });
+await buildEmbeddedDashboardAssets();
 
 const targets = selectTargets(argv);
 for (const target of targets) {

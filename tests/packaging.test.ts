@@ -20,6 +20,37 @@ import {
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
+async function waitForDashboardUrl(
+  server: Bun.Subprocess<'ignore', 'pipe', 'pipe'>,
+): Promise<string> {
+  const reader = server.stdout.getReader();
+  const decoder = new TextDecoder();
+  const deadline = Date.now() + 5_000;
+  let buffered = '';
+
+  while (Date.now() < deadline) {
+    const timeoutMs = Math.max(1, deadline - Date.now());
+    const result = await Promise.race([
+      reader.read(),
+      new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), timeoutMs)),
+    ]);
+    if (result === 'timeout') break;
+    if (result.done) break;
+
+    buffered += decoder.decode(result.value, { stream: true });
+    for (const line of buffered.split('\n')) {
+      const match = line.match(/http:\/\/127\.0\.0\.1:\d+\//);
+      if (match) {
+        reader.releaseLock();
+        return match[0];
+      }
+    }
+  }
+
+  reader.releaseLock();
+  throw new Error(`dashboard did not report a listening URL.\nstdout:\n${buffered}`);
+}
+
 describe('packaging', () => {
   test('package.json has an explicit files whitelist', () => {
     expect(Array.isArray(pkg.files)).toBe(true);
@@ -104,6 +135,98 @@ describe('packaging', () => {
   });
 
   describe('cli bundle', () => {
+    test('packaged dashboard serves bundled assets from package dist/', async () => {
+      const outRoot = join(REPO_ROOT, '.nectar-cache');
+      await mkdir(outRoot, { recursive: true });
+      const outdir = await mkdtemp(join(outRoot, 'test-packaged-dashboard-'));
+      const packageDist = join(outdir, 'package', 'dist');
+      let server: Bun.Subprocess<'ignore', 'pipe', 'pipe'> | undefined;
+
+      try {
+        for (const script of ['scripts/build-dashboard-bundle.ts', 'scripts/build-cli.ts']) {
+          const proc = Bun.spawn(['bun', 'run', script], {
+            cwd: REPO_ROOT,
+            env: { ...process.env, NECTAR_BUILD_OUTDIR: packageDist },
+            stdout: 'pipe',
+            stderr: 'pipe',
+          });
+          const [stdout, stderr, exitCode] = await Promise.all([
+            new Response(proc.stdout).text(),
+            new Response(proc.stderr).text(),
+            proc.exited,
+          ]);
+          expect(stderr).toBe('');
+          expect(exitCode, stdout).toBe(0);
+        }
+
+        const bundledCli = join(packageDist, 'cli.mjs');
+        server = Bun.spawn(
+          ['bun', bundledCli, 'dashboard', '--port', '0', '--host', '127.0.0.1', '--json'],
+          {
+            cwd: REPO_ROOT,
+            stdout: 'pipe',
+            stderr: 'pipe',
+          },
+        );
+        const url = await waitForDashboardUrl(server);
+        const response = await fetch(new URL('/assets/dashboard.js', url));
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get('content-type')).toContain('javascript');
+        expect(await response.text()).toContain('/api/dashboard/bootstrap');
+      } finally {
+        if (server) {
+          server.kill();
+          await server.exited;
+        }
+        await rm(outdir, { recursive: true, force: true });
+      }
+    });
+
+    test('compiled binary serves embedded dashboard assets', async () => {
+      const outRoot = join(REPO_ROOT, '.nectar-cache');
+      await mkdir(outRoot, { recursive: true });
+      const outdir = await mkdtemp(join(outRoot, 'test-compiled-dashboard-'));
+      const binary = join(outdir, process.platform === 'win32' ? 'nectar.exe' : 'nectar');
+      let server: Bun.Subprocess<'ignore', 'pipe', 'pipe'> | undefined;
+
+      try {
+        const compile = Bun.spawn(
+          ['bun', 'build', '--compile', '--outfile', binary, 'src/cli/index.ts'],
+          {
+            cwd: REPO_ROOT,
+            stdout: 'pipe',
+            stderr: 'pipe',
+          },
+        );
+        const [stdout, stderr, exitCode] = await Promise.all([
+          new Response(compile.stdout).text(),
+          new Response(compile.stderr).text(),
+          compile.exited,
+        ]);
+        expect(stderr).toBe('');
+        expect(exitCode, stdout).toBe(0);
+
+        server = Bun.spawn([binary, 'dashboard', '--port', '0', '--host', '127.0.0.1', '--json'], {
+          cwd: REPO_ROOT,
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        const url = await waitForDashboardUrl(server);
+        const response = await fetch(new URL('/assets/dashboard.js', url));
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get('content-type')).toContain('javascript');
+        expect(await response.text()).toContain('/api/dashboard/bootstrap');
+      } finally {
+        if (server) {
+          server.kill();
+          await server.exited;
+        }
+        await rm(outdir, { recursive: true, force: true });
+      }
+    });
+
     test('command dispatch imports use distributable JS specifiers', async () => {
       const source = await readFile(join(REPO_ROOT, 'src/cli/index.ts'), 'utf8');
 

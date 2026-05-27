@@ -704,8 +704,12 @@ async function copyContentAssetStream(src: string, dst: string): Promise<void> {
   const tmp = tempSiblingPath(dst);
   try {
     const writer = Bun.file(tmp).writer({ highWaterMark: COPY_STREAM_HIGH_WATER_MARK });
+    const reader = Bun.file(src).stream().getReader();
     try {
-      for await (const chunk of Bun.file(src).stream()) {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = value;
         writer.write(chunk);
         await writer.flush();
       }

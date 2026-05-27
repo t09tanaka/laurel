@@ -405,9 +405,11 @@ describe('logger color detection', () => {
 
   test('NECTAR_NO_COLOR=0 + FORCE_COLOR=1 re-enables even when NO_COLOR=1', () => {
     refreshColorFromEnv({ NO_COLOR: '1', NECTAR_NO_COLOR: '0', FORCE_COLOR: '1' });
-    // Explicit `NECTAR_NO_COLOR=0` skips the NO_COLOR check; FORCE_COLOR=1
-    // then turns color on. This is the documented escape hatch for CI
-    // images that set NO_COLOR globally.
+    expect(colorize('hi', 'red')).toContain('\x1b[31m');
+  });
+
+  test('FORCE_COLOR=1 overrides NO_COLOR=1', () => {
+    refreshColorFromEnv({ NO_COLOR: '1', FORCE_COLOR: '1' });
     expect(colorize('hi', 'red')).toContain('\x1b[31m');
   });
 
