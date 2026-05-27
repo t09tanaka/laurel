@@ -80,6 +80,7 @@ import { getNectarVersion } from '~/util/nectar-version.ts';
 import { absolutise, resolveContentSlugPath } from '../content-paths.ts';
 import { createBuildStreamResponse, createExportZipResponse } from '../dashboard/build-runner.ts';
 import { DASHBOARD_BUNDLE_ASSETS } from '../dashboard/bundled-assets.ts';
+import { createGhostImportStreamResponse } from '../dashboard/ghost-import-runner.ts';
 import { renderDashboardHtml as renderDashboardShellHtml } from '../dashboard/html.ts';
 import { fetchOgp } from '../dashboard/ogp.ts';
 import { rewriteThemeCss } from '../dashboard/theme-css-rewriter.ts';
@@ -1662,6 +1663,23 @@ export async function handleDashboardRequest(
         const json = await readJsonPayload<DashboardGhostImportPayload>(request, ctx.maxBodyBytes);
         if (json instanceof Response) return json;
         payload = json;
+      }
+      // Multipart uploads come from the dashboard UI and benefit from the
+      // streaming progress feed — the per-image download events drive the
+      // full-screen import overlay. JSON callers (CLI parity / scripted
+      // imports) keep the single-shot JSON response so existing consumers
+      // don't have to learn the NDJSON framing.
+      if (contentType.startsWith('multipart/')) {
+        return createGhostImportStreamResponse({
+          cwd: ctx.cwd,
+          payload,
+          stagedPath,
+          onComplete: ({ ok }) => {
+            if (ok && payload.dryRun === false) {
+              ctx.changeBus.broadcast({ reason: 'dashboard-import', kind: 'project' });
+            }
+          },
+        });
       }
       try {
         const result = await runDashboardGhostImport({ cwd: ctx.cwd, payload });

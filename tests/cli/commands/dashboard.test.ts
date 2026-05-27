@@ -739,12 +739,26 @@ describe('dashboard data', () => {
         { cwd: dir, changeBus: createChangeBus() },
       );
 
+      // Multipart Ghost-import responses stream NDJSON events (one JSON
+      // object per line) so the dashboard overlay can render per-image
+      // progress. The terminal event carries the import summary.
       expect(response.status).toBe(200);
-      const body = (await response.json()) as {
-        summary: { dryRun: boolean; posts: number; imagesDownloaded?: number };
-      };
-      expect(body.summary.dryRun).toBe(true);
-      expect(body.summary.posts).toBe(1);
+      expect(response.headers.get('content-type') ?? '').toContain('application/x-ndjson');
+      const raw = await response.text();
+      const events = raw
+        .split('\n')
+        .filter((line) => line.trim().length > 0)
+        .map(
+          (line) =>
+            JSON.parse(line) as {
+              type: string;
+              summary?: { dryRun: boolean; posts: number; imagesDownloaded?: number };
+              message?: string;
+            },
+        );
+      const done = events.find((e) => e.type === 'done');
+      expect(done?.summary?.dryRun).toBe(true);
+      expect(done?.summary?.posts).toBe(1);
 
       const formBad = new FormData();
       formBad.append(

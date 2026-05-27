@@ -274,11 +274,24 @@ export interface ImportSummary {
   plannedPaths: string[];
 }
 
-export interface ImportProgressEvent {
-  type: 'posts';
-  processedPosts: number;
-  totalPosts: number;
-}
+export type ImportProgressEvent =
+  | {
+      type: 'posts';
+      processedPosts: number;
+      totalPosts: number;
+    }
+  | {
+      // Per-image lifecycle event from the downloader. `status: 'fetching'`
+      // fires before each network call; the same URL follows up with one of
+      // `done` / `skipped` / `failed`. Counters are cumulative across the
+      // import so a UI can render running totals without keeping state.
+      type: 'image';
+      url: string;
+      status: 'fetching' | 'done' | 'skipped' | 'failed';
+      downloaded: number;
+      skipped: number;
+      failed: number;
+    };
 
 export interface ImportGhostOptions {
   cwd: string;
@@ -651,6 +664,11 @@ async function importFromResolvedInput(
           // Lets the downloader fetch `/content/images/...` paths that
           // `stripGhostUrlPlaceholder` already rewrote to leading-slash form.
           sourceUrl: opts.sourceUrl,
+          // Forward per-image events into the import-level progress hook so
+          // dashboard consumers can stream them out to a UI overlay.
+          onEvent: opts.onProgress
+            ? (event) => opts.onProgress?.({ type: 'image', ...event })
+            : undefined,
         })
       : undefined;
   const urlRewriter = opts.sourceUrl ? new GhostUrlRewriter(opts.sourceUrl) : undefined;

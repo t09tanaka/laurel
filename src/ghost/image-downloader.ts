@@ -13,6 +13,18 @@ import { logger } from '~/util/logger.ts';
 // `maxImageSizeBytes` / `--max-image-size`.
 export const DEFAULT_MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 
+// One event per image the downloader processed. `status` distinguishes the
+// outcome so a UI can render counts of done / skipped / failed alongside the
+// current URL. Counters are cumulative across the lifetime of the downloader
+// instance, so a consumer can render them directly without bookkeeping.
+export interface GhostImageDownloadEvent {
+  url: string;
+  status: 'fetching' | 'done' | 'skipped' | 'failed';
+  downloaded: number;
+  skipped: number;
+  failed: number;
+}
+
 export interface GhostImageDownloaderOptions {
   // Project root. Downloaded files are written under <cwd>/content/images/.
   cwd: string;
@@ -35,6 +47,11 @@ export interface GhostImageDownloaderOptions {
   // it can actually fetch. Without it, only fully-qualified `http(s)://` URLs
   // are downloaded; relative paths are silently skipped.
   sourceUrl?: string;
+  // Per-image progress hook. Fires once with `status: 'fetching'` before each
+  // network call and again with the outcome (`done` / `skipped` / `failed`).
+  // Cache hits within the same import run are silent — the consumer already
+  // saw the original event for that URL on the first encounter.
+  onEvent?: (event: GhostImageDownloadEvent) => void;
 }
 
 interface CacheEntry {
@@ -147,6 +164,7 @@ export class GhostImageDownloader {
   // images correctly. Undefined when no source URL was supplied; in that
   // case site-relative paths are left untouched.
   private readonly sourceBase: string | undefined;
+  private readonly onEvent: ((event: GhostImageDownloadEvent) => void) | undefined;
   // Per-URL cache. `null` means a prior attempt failed; future calls reuse
   // that verdict instead of re-fetching.
   private readonly cache = new Map<string, CacheEntry | null>();
@@ -162,6 +180,17 @@ export class GhostImageDownloader {
     const raw = opts.maxImageSizeBytes ?? DEFAULT_MAX_IMAGE_SIZE_BYTES;
     this.maxBytes = raw > 0 ? raw : 0;
     this.sourceBase = normalizeSourceBase(opts.sourceUrl);
+    this.onEvent = opts.onEvent;
+  }
+
+  private emit(url: string, status: GhostImageDownloadEvent['status']): void {
+    this.onEvent?.({
+      url,
+      status,
+      downloaded: this._downloaded,
+      skipped: this._skipped,
+      failed: this._failed,
+    });
   }
 
   get downloaded(): number {
@@ -230,16 +259,19 @@ export class GhostImageDownloader {
       if (existsSync(absPath)) {
         this.cache.set(cacheKey, { rewrittenUrl: predicted.rewrittenUrl });
         this._skipped += 1;
+        this.emit(fetchUrl, 'skipped');
         return predicted.rewrittenUrl;
       }
     }
 
+    this.emit(fetchUrl, 'fetching');
     try {
       const response = await this.fetcher(fetchUrl);
       if (!response.ok) {
         logger.warn(`Failed to download image ${fetchUrl}: HTTP ${response.status}`);
         this.cache.set(cacheKey, null);
         this._failed += 1;
+        this.emit(fetchUrl, 'failed');
         return null;
       }
       // Trust-but-verify Content-Length: refuse upfront when the server
@@ -256,6 +288,7 @@ export class GhostImageDownloader {
             );
             this.cache.set(cacheKey, null);
             this._failed += 1;
+            this.emit(fetchUrl, 'failed');
             return null;
           }
         }
@@ -268,6 +301,7 @@ export class GhostImageDownloader {
         );
         this.cache.set(cacheKey, null);
         this._failed += 1;
+        this.emit(fetchUrl, 'failed');
         return null;
       }
       const { localPath, rewrittenUrl } = derivePaths(fetchUrl, contentType, opts);
@@ -280,6 +314,7 @@ export class GhostImageDownloader {
       const entry: CacheEntry = { rewrittenUrl };
       this.cache.set(cacheKey, entry);
       this._downloaded += 1;
+      this.emit(fetchUrl, 'done');
       return rewrittenUrl;
     } catch (err) {
       logger.warn(
@@ -287,6 +322,7 @@ export class GhostImageDownloader {
       );
       this.cache.set(cacheKey, null);
       this._failed += 1;
+      this.emit(fetchUrl, 'failed');
       return null;
     }
   }
