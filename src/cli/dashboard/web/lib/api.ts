@@ -338,9 +338,7 @@ export async function importGhost(
 
 export interface GhostImportUploadArgs {
   file: File;
-  dryRun: boolean;
   onConflict: 'skip' | 'rename' | 'overwrite';
-  outputDir?: string;
   downloadImages?: boolean;
   maxImageSizeBytes?: number;
 }
@@ -350,9 +348,8 @@ export async function importGhostUpload(
 ): Promise<{ status: number; data: unknown }> {
   const fd = new FormData();
   fd.append('file', args.file);
-  fd.append('dryRun', String(args.dryRun));
+  fd.append('dryRun', 'false');
   fd.append('onConflict', args.onConflict);
-  if (args.outputDir) fd.append('outputDir', args.outputDir);
   if (args.downloadImages !== undefined) {
     fd.append('downloadImages', String(args.downloadImages));
   }

@@ -280,6 +280,13 @@
     grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
     background: transparent;
   }
+  /* When ThemeMissingBanner is present it sits in an auto-sized row above
+   * both the sidebar and main columns. When the component returns null
+   * (theme present, or banner dismissed) the rule does not match, so the
+   * shell falls back to its single-row layout — no wasted vertical band. */
+  .shell:has(> .themeMissingBanner) {
+    grid-template-rows: auto 1fr;
+  }
   /* When the editor is open, the writing surface owns the full viewport.
    * Collapse the dashboard sidebar (the editor has its own "← Posts"
    * breadcrumb). Must live in the components layer so .side's flex
@@ -325,8 +332,8 @@
     );
     pointer-events: none;
   }
-  /* Footer floats to the bottom of the sidebar regardless of the number
-   * of recent entries above it. */
+  /* Footer floats to the bottom of the sidebar regardless of how the
+   * groups above it stack. */
   .side .sideFooter {
     margin-top: auto;
   }
@@ -469,65 +476,6 @@
   .nav .navCount:empty {
     display: none;
   }
-  /* Recently edited — quick jump to the last 5 files touched. Adds real
-   * daily-driver utility to the sidebar (replaces the dead empty middle). */
-  .recents {
-    display: grid;
-    gap: 6px;
-    min-width: 0;
-  }
-  /* Editorial section marker — italic serif label with a hairline rule
-   * underneath, like a magazine "in this issue" column header. */
-  .recentsHead {
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-weight: 400;
-    font-size: 12px;
-    line-height: 16px;
-    letter-spacing: 0;
-    color: var(--sidebar-muted);
-    padding: 0 4px 8px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    margin-bottom: 4px;
-  }
-  .recentsList {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 1px;
-  }
-  .recentItem {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 0;
-    padding: 6px 4px;
-    background: transparent;
-    border: 0;
-    border-radius: 5px;
-    color: var(--sidebar-muted);
-    font: inherit;
-    /* Recents in italic serif so each entry reads like a citation, not
-     * a nav row. Subtler than the primary nav, more editorial than sans. */
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-weight: 400;
-    font-size: 13.5px;
-    line-height: 1.3;
-    letter-spacing: -0.003em;
-    text-align: left;
-    cursor: pointer;
-    transition: background-color 0.12s ease, color 0.12s ease;
-  }
-  .recentItem:hover,
-  .recentItem:focus-visible {
-    background: rgba(255, 255, 255, 0.045);
-    color: var(--sidebar-ink);
-    outline: none;
-  }
-  /* Removed visual kind glyph — kept in DOM for assistive context.
-   * The recents list reads as a single editorial column of titles now. */
   /* Skip-to-main: keyboard-only affordance, slides into view on focus.
    * Hidden under the viewport for sighted/mouse users (#1968). */
   .pagerLabel {
@@ -568,30 +516,6 @@
     flex: 0 0 auto;
     color: currentColor;
     opacity: 0.7;
-  }
-  .recentItemKind {
-    flex: 0 0 auto;
-    font-family: var(--font-mono);
-    font-size: 9px;
-    line-height: 1;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    padding: 3px 5px;
-    border-radius: 3px;
-    background: color-mix(in srgb, currentColor 8%, transparent);
-    color: var(--text-muted);
-    opacity: 0.7;
-  }
-  .recentItemKind[data-kind="posts"] {
-    color: var(--accent-color, var(--text-primary));
-    opacity: 0.85;
-  }
-  .recentItemTitle {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   /* Two-row sidebar footer.
    *   Row 1 (sideFooterRowBuild) — Build site action and the post-build
@@ -1909,8 +1833,8 @@
     background: transparent;
     box-shadow: none;
   }
-  /* Taxonomy source expressed via cell typography too — generated rows
-   * dim (auto-created stubs), orphaned rows wear a caution stripe. */
+  /* Generated taxonomy rows (auto-created stubs awaiting a backing file)
+   * dim, with a typographic marker on hover. */
   .contentRow[data-source="generated"] {
     opacity: 0.62;
   }
@@ -1924,18 +1848,6 @@
     font-weight: 400;
     color: var(--text-muted);
     letter-spacing: 0;
-  }
-  .contentRow[data-orphaned="true"] {
-    box-shadow: inset 2px 0 0 var(--danger);
-  }
-  .contentRow[data-orphaned="true"] .titleText::before {
-    content: "orphaned ";
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-weight: 400;
-    font-size: 12px;
-    color: var(--danger);
-    margin-right: 6px;
   }
   /* Status & approval expressed via cell typography rather than chips.
    * The row's title is the canvas; weight + style + a subtle inline
@@ -4852,6 +4764,85 @@
     padding: 1px 5px;
     border-radius: 3px;
   }
+  /* Top-of-dashboard banner that fires when [theme] in nectar.toml points at
+   * a directory that doesn't exist on disk. Rendered as a global strip in
+   * the shell grid row above sidebar+main (`grid-column: 1 / -1`) so it
+   * reads as a workspace-level alert rather than a posts-scoped error.
+   * Reuses the existing warning palette (--caution / --caution-subdued)
+   * and the toast-style icon/copy/dismiss column layout. */
+  .themeMissingBanner {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
+    align-items: start;
+    margin: 0;
+    padding: 12px 22px;
+    border: 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--caution) 45%, var(--border-default));
+    border-radius: 0;
+    background: var(--caution-subdued);
+    color: var(--text-primary);
+  }
+  .themeMissingBannerIcon {
+    font-size: 18px;
+    line-height: 1.1;
+    color: var(--caution);
+  }
+  .themeMissingBannerCopy {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+  .themeMissingBannerHeadline {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  .themeMissingBannerHint {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-secondary, var(--text-primary));
+  }
+  .themeMissingBannerPath {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--caution) 14%, transparent);
+  }
+  .themeMissingBannerLink {
+    color: var(--text-primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .themeMissingBannerLink:hover {
+    text-decoration-thickness: 2px;
+  }
+  .themeMissingBannerDismiss {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--text-muted, var(--text-primary));
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .themeMissingBannerDismiss:hover {
+    background: color-mix(in srgb, var(--caution) 18%, transparent);
+    color: var(--text-primary);
+  }
+  .themeMissingBannerDismiss:focus-visible {
+    outline: 2px solid var(--caution);
+    outline-offset: 2px;
+  }
   .themeEmpty {
     display: grid;
     gap: 8px;
@@ -5067,11 +5058,6 @@
       padding: 18px 18px 14px;
       gap: 14px;
     }
-    /* Recents hidden on mobile — list view itself surfaces files at scale,
-     * the Recently rail belongs to the desktop sidebar. */
-    .side .recents {
-      display: none;
-    }
     .side .statusRail {
       margin-top: 0;
     }
@@ -5180,8 +5166,8 @@
 
   /* Mobile / narrow viewport (<=720px): switch the 2-column shell to a
    * stacked layout — sidebar becomes a compact top bar, main fills the
-   * width. Sidebar nav collapses to icon+label chips, sync rail and
-   * Recently list hide to recover vertical space. (#1942 #2059) */
+   * width. Sidebar nav collapses to icon+label chips, sync rail hides
+   * to recover vertical space. (#1942 #2059) */
   @media (max-width: 720px) {
     .shell {
       grid-template-columns: 1fr;
@@ -5225,7 +5211,6 @@
     .side .navLabel {
       font-size: 13px;
     }
-    .side .recents,
     .side .statusRail {
       display: none;
     }

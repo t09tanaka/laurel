@@ -17,6 +17,7 @@ import { SkeletonContentTable } from './components/SkeletonContentTable.tsx';
 import { StatePanel } from './components/StatePanel.tsx';
 import { TaxonomyEditorView } from './components/TaxonomyEditorView.tsx';
 import { TaxonomyView } from './components/TaxonomyView.tsx';
+import { ThemeMissingBanner } from './components/ThemeMissingBanner.tsx';
 import { useToastHost } from './components/Toast.tsx';
 import { Toolbar } from './components/Toolbar.tsx';
 import { useEventStream } from './hooks/useEventStream.ts';
@@ -516,18 +517,6 @@ export function DashboardApp(): JSX.Element {
       ui.view === 'tags');
   const surfaceState =
     ui.loadStatus === 'error' ? 'error' : ui.loadStatus === 'conflict' ? 'conflict' : 'loading';
-  // Sidebar "Recently" list — newest 5 entries across posts + pages by createdAt.
-  const recents = (() => {
-    if (!state) return [];
-    const items: Array<{ kind: 'posts' | 'pages'; slug: string; title: string; ts: number }> = [];
-    for (const p of state.posts.items.slice(0, 12)) {
-      items.push({ kind: 'posts', slug: p.slug, title: p.title, ts: Date.parse(p.createdAt) || 0 });
-    }
-    for (const p of state.pages.items.slice(0, 12)) {
-      items.push({ kind: 'pages', slug: p.slug, title: p.title, ts: Date.parse(p.createdAt) || 0 });
-    }
-    return items.sort((a, b) => b.ts - a.ts).slice(0, 5);
-  })();
 
   // Command palette items — all posts/pages + workspace actions. Built each
   // render but cheap (linear in item count).
@@ -624,6 +613,7 @@ export function DashboardApp(): JSX.Element {
       <a class="skipToMain" href="#main">
         Skip to main content
       </a>
+      <ThemeMissingBanner status={state?.settings.theme.status} />
       <Sidebar
         section={section}
         siteTitle={state?.site.title ?? ''}
@@ -633,7 +623,6 @@ export function DashboardApp(): JSX.Element {
         componentsTotal={state?.components?.total}
         authorsTotal={state?.authors?.total}
         tagsTotal={state?.tags?.total}
-        recents={recents}
         syncLabel={rail.sync.label}
         syncState={rail.sync.state}
         buildLabel={rail.build.label}
@@ -648,9 +637,6 @@ export function DashboardApp(): JSX.Element {
         }}
         onDownloadClick={handleDownloadZip}
         onNavigate={(target) => navigateView(target)}
-        onOpenEntry={(kind, slug) => {
-          void openEditor(kind, slug);
-        }}
         onForceSync={() => {
           void load({ force: true }).then(() => {
             toastHost.api.push({
@@ -767,7 +753,12 @@ export function DashboardApp(): JSX.Element {
                 }}
               />
             ) : ui.view === 'migration' ? (
-              <MigrationView onSettingsSaved={() => load({ force: true })} />
+              <MigrationView
+                onSettingsSaved={() => load({ force: true })}
+                onGhostImportSuccess={() => {
+                  void navigateView('posts');
+                }}
+              />
             ) : (
               <SettingsView
                 state={state}
