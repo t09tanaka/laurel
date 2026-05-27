@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import * as clack from '@clack/prompts';
 import { ensureDir } from '~/util/fs.ts';
-import { logger } from '~/util/logger.ts';
+import { colorize, getColorEnabled } from '~/util/logger.ts';
 import { writeGeneratedTextFile } from '../line-endings.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { INIT_SPEC } from '../specs.ts';
@@ -149,35 +149,106 @@ export async function runInit(args: string[]): Promise<number> {
     await writeGeneratedTextFile(dest, file.contents);
   }
 
-  logger.info(`Initialised Nectar project in ${targetDir}`);
-  for (const path of skipped) {
-    logger.info(`  Skipped existing ${path}`);
-  }
-  for (const path of merged) {
-    logger.info(`  Merged into existing ${path}`);
-  }
-  logger.info('');
-  logger.info('Next steps:');
-  logger.info('');
-  logger.info('  Vendor a Ghost theme (one-time):');
-  logger.info(
-    `    git clone https://github.com/TryGhost/${themeRepo(answers.theme)} themes/${answers.theme}`,
-  );
-  logger.info('');
-  logger.info('  GUI development (dashboard):');
-  logger.info('    nectar dashboard       → http://localhost:4322/   (editor UI)');
-  logger.info('');
-  logger.info('  CLI development:');
-  logger.info('    nectar dev             → http://localhost:4321/   (live reload)');
-  logger.info('    nectar build           → dist/');
-  logger.info('');
-  logger.info(
-    'Tip: migrating from Ghost? Open `nectar dashboard` → Migration tab to upload your Ghost JSON export and vendor the theme into themes/.',
-  );
-  logger.info(
-    'Tip: create CLAUDE.md or AGENTS.md, then run `nectar skill install` to teach your AI assistant about Nectar conventions.',
-  );
+  writeNextSteps({
+    targetDir,
+    theme: answers.theme,
+    skipped,
+    merged,
+  });
   return 0;
+}
+
+interface NextStepsOptions {
+  targetDir: string;
+  theme: string;
+  skipped: string[];
+  merged: string[];
+}
+
+// Render the post-init "what now?" block. Direct stdout writes (no logger
+// prefixes) so the section icons + indent stay aligned; emojis are gated on
+// `getColorEnabled()` because the same predicate already covers "rich
+// terminal" detection elsewhere in the CLI, and a piped / NO_COLOR run
+// gets the plain-ASCII variant for free.
+function writeNextSteps(opts: NextStepsOptions): void {
+  const rich = getColorEnabled();
+  const g = sectionGlyphs(rich);
+  const dim = (s: string) => colorize(s, 'gray');
+  const accent = (s: string) => colorize(s, 'cyan');
+  const ok = (s: string) => colorize(s, 'green');
+  const out: string[] = [];
+
+  out.push('');
+  out.push(`   ${g.brand}  ${accent('Nectar project initialised')}`);
+  out.push(`      ${dim(opts.targetDir)}`);
+  if (opts.skipped.length > 0 || opts.merged.length > 0) {
+    out.push('');
+    for (const path of opts.skipped) out.push(`      ${dim(`· Skipped existing ${path}`)}`);
+    for (const path of opts.merged) out.push(`      ${dim(`· Merged into existing ${path}`)}`);
+  }
+  out.push('');
+  out.push(`   ${g.theme}  ${accent('Vendor a Ghost theme')}  ${dim('(one-time)')}`);
+  out.push(
+    `       git clone https://github.com/TryGhost/${themeRepo(opts.theme)} themes/${opts.theme}`,
+  );
+  out.push('');
+  out.push(`   ${g.gui}  ${accent('GUI development (dashboard)')}`);
+  out.push(
+    `       nectar dashboard       ${dim('→')} ${accent('http://localhost:4322/')}   ${dim('(editor UI)')}`,
+  );
+  out.push('');
+  out.push(`   ${g.cli}  ${accent('CLI development')}`);
+  out.push(
+    `       nectar dev             ${dim('→')} ${accent('http://localhost:4321/')}   ${dim('(live reload)')}`,
+  );
+  out.push(`       nectar build           ${dim('→')} dist/`);
+  out.push('');
+  out.push(`   ${g.tip}  ${accent('Migrating from Ghost?')}`);
+  out.push(
+    `       ${dim('Open `nectar dashboard` → Migration tab to upload your Ghost JSON export.')}`,
+  );
+  out.push('');
+  out.push(`   ${g.ai}  ${accent('Teach your AI assistant about Nectar')}`);
+  out.push(`       ${dim('Create CLAUDE.md or AGENTS.md, then run `nectar skill install`.')}`);
+  out.push('');
+  // A single trailing OK line so non-colour users still see a clear
+  // success marker without needing to scan for the brand glyph.
+  out.push(`   ${ok(rich ? '✓' : 'OK')} Ready.`);
+  out.push('');
+  process.stdout.write(`${out.join('\n')}\n`);
+}
+
+interface SectionGlyphs {
+  brand: string;
+  theme: string;
+  gui: string;
+  cli: string;
+  tip: string;
+  ai: string;
+}
+
+// Rich (TTY + colour) → emoji icons that mirror the section purpose.
+// ASCII fallback uses bracketed labels so a plain pipe still groups the
+// blocks visually. Same predicate drives every glyph choice.
+function sectionGlyphs(rich: boolean): SectionGlyphs {
+  if (rich) {
+    return {
+      brand: '🐝',
+      theme: '📂',
+      gui: '🖥️ ',
+      cli: '⚡',
+      tip: '💡',
+      ai: '🤖',
+    };
+  }
+  return {
+    brand: '[*]',
+    theme: '[theme]',
+    gui: '[gui]',
+    cli: '[cli]',
+    tip: '[tip]',
+    ai: '[ai]',
+  };
 }
 
 function dirnameOf(path: string): string {
