@@ -2,6 +2,7 @@
 
 import { EXIT_CODES } from '~/util/errors.ts';
 import {
+  colorize,
   hasWarningsAsErrorsFailure,
   logger,
   setColorEnabled,
@@ -12,6 +13,7 @@ import {
 import { getNectarVersion } from '~/util/nectar-version.ts';
 import { checkLatestRelease, formatReleaseCheck } from '~/util/release-check.ts';
 import { warnIfBunEngineMismatch } from './bun-engine.ts';
+import { devGlyphs } from './commands/dev-banner.ts';
 import { type GlobalFlags, extractGlobalFlags } from './global-flags.ts';
 import { suggestCommand } from './parse.ts';
 import { reportError } from './report.ts';
@@ -77,52 +79,75 @@ async function handleFatalCrash(err: unknown): Promise<void> {
   process.exit(EXIT_CODES.generic);
 }
 
+// Top-level help layout. Mirrors the visual family established by the dev /
+// dashboard startup banner (src/cli/commands/dev-banner.ts): three-space
+// indent, cyan "Nectar" accent, dim middot separator with `-` fallback when
+// color is off, dim section labels. The command list is pulled from
+// COMMAND_SPECS so new subcommands appear here automatically.
+const TOP_LEVEL_TAGLINE = 'Ghost-theme-compatible static site generator';
+
 function printTopUsage(version: string, stream: NodeJS.WriteStream = process.stdout): void {
+  const dim = (s: string) => colorize(s, 'gray');
+  const accent = (s: string) => colorize(s, 'cyan');
+  const g = devGlyphs();
+
   const lines: string[] = [];
-  lines.push(`nectar ${version}`);
   lines.push('');
-  lines.push('Usage:');
-  lines.push('  nectar [global options] <command> [options]');
+  lines.push(`   ${accent('Nectar')} ${version}  ${dim(g.separator)}  ${dim(TOP_LEVEL_TAGLINE)}`);
   lines.push('');
-  lines.push('Commands:');
-  const width = Math.max(...COMMAND_NAMES.map((n) => n.length)) + 2;
+  lines.push(`   ${dim('Usage:')}`);
+  lines.push('     nectar [global options] <command> [options]');
+  lines.push('');
+  lines.push(`   ${dim('Commands:')}`);
+
+  // Synthesize the two CLI-builtin commands so `version` and `help` appear in
+  // the same column as the spec-backed commands without being added to
+  // COMMAND_SPECS (which would also re-render them in docs/cli.md).
+  const commandEntries: Array<[string, string]> = [];
   for (const name of COMMAND_NAMES) {
     const spec = COMMAND_SPECS[name];
     if (!spec) continue;
-    lines.push(`  ${name.padEnd(width)}${spec.summary}`);
+    commandEntries.push([name, spec.summary]);
   }
-  lines.push(
-    `  ${'version'.padEnd(width)}Print the version, optionally as JSON, or check for updates`,
-  );
-  lines.push(`  ${'help'.padEnd(width)}Show this help or help for a command`);
+  commandEntries.push(['version', 'Print the version, optionally as JSON, or check for updates']);
+  commandEntries.push(['help', 'Show this help or help for a command']);
+
+  const commandColumn = Math.max(...commandEntries.map(([name]) => name.length)) + 2;
+  for (const [name, summary] of commandEntries) {
+    lines.push(`     ${name.padEnd(commandColumn)}${summary}`);
+  }
+
   lines.push('');
-  lines.push('Global options:');
-  const globalOptionWidth =
-    Math.max('--log-format <json|pretty>'.length, '--warnings-as-errors'.length) + 2;
-  lines.push(`  ${'-q, --quiet'.padEnd(globalOptionWidth)}Suppress non-error log output`);
-  lines.push(
-    `  ${'-V, --verbose'.padEnd(globalOptionWidth)}Increase verbosity to debug (stack -VV for trace)`,
-  );
-  lines.push(
-    `  ${'-j, --json'.padEnd(globalOptionWidth)}Emit one JSON object per log line + JSON-shaped command output where supported`,
-  );
-  lines.push(
-    `  ${'--log-format <json|pretty>'.padEnd(globalOptionWidth)}Choose logger output format without changing command output`,
-  );
-  lines.push(
-    `  ${'--locale <tag>'.padEnd(globalOptionWidth)}Set the process locale for CLI diagnostics and locale-sensitive output`,
-  );
-  lines.push(
-    `  ${'--no-color'.padEnd(globalOptionWidth)}Disable ANSI color (also NO_COLOR=1 / NECTAR_NO_COLOR=1; FORCE_COLOR overrides)`,
-  );
-  lines.push(
-    `  ${'--debug'.padEnd(globalOptionWidth)}Show full stack traces on error (also NECTAR_DEBUG=1; default prints a short message)`,
-  );
-  lines.push(
-    `  ${'--warnings-as-errors'.padEnd(globalOptionWidth)}Treat logger warnings as errors and exit 1 if any warning is emitted`,
-  );
+  lines.push(`   ${dim('Global options:')}`);
+  const globalEntries: Array<[string, string]> = [
+    ['-q, --quiet', 'Suppress non-error log output'],
+    ['-V, --verbose', 'Increase verbosity to debug (stack -VV for trace)'],
+    [
+      '-j, --json',
+      'Emit one JSON object per log line + JSON-shaped command output where supported',
+    ],
+    ['--log-format <json|pretty>', 'Choose logger output format without changing command output'],
+    ['--locale <tag>', 'Set the process locale for CLI diagnostics and locale-sensitive output'],
+    [
+      '--no-color',
+      'Disable ANSI color (also NO_COLOR=1 / NECTAR_NO_COLOR=1; FORCE_COLOR overrides)',
+    ],
+    [
+      '--debug',
+      'Show full stack traces on error (also NECTAR_DEBUG=1; default prints a short message)',
+    ],
+    [
+      '--warnings-as-errors',
+      'Treat logger warnings as errors and exit 1 if any warning is emitted',
+    ],
+  ];
+  const globalColumn = Math.max(...globalEntries.map(([flag]) => flag.length)) + 2;
+  for (const [flag, desc] of globalEntries) {
+    lines.push(`     ${flag.padEnd(globalColumn)}${desc}`);
+  }
+
   lines.push('');
-  lines.push('Run `nectar help <command>` or `nectar <command> --help` for more details.');
+  lines.push('   Run `nectar <command> --help` for details on each command.');
   lines.push('');
   stream.write(lines.join('\n'));
 }

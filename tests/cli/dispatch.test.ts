@@ -100,7 +100,7 @@ describe('cli dispatch', () => {
     const pkg = JSON.parse(await readFile(PACKAGE_JSON, 'utf8')) as { version: string };
     const { stdout, exitCode } = await runCli(['--help']);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain(`nectar ${pkg.version}`);
+    expect(stdout).toContain(`Nectar ${pkg.version}`);
   });
 
   test('version --check respects NECTAR_NO_UPDATE_CHECK', async () => {
@@ -382,5 +382,45 @@ describe('cli dispatch', () => {
     const { stdout, exitCode } = await runCli(['-j', 'config', 'path']);
     expect(exitCode).toBe(0);
     expect(stdout.trim().startsWith('{')).toBe(true);
+  });
+
+  test('top-level help carries the Nectar brand header and tagline', async () => {
+    const { stdout, exitCode } = await runCli(['--help'], {
+      NO_COLOR: '1',
+      FORCE_COLOR: '0',
+      NECTAR_NO_COLOR: '1',
+    });
+    expect(exitCode).toBe(0);
+    // Brand line: capitalised "Nectar", version, dim separator (ASCII `-` when
+    // color is off), and the tagline that matches package.json description.
+    expect(stdout).toMatch(/Nectar \d+\.\d+\.\d+ {2}- {2}Ghost-theme-compatible/);
+    // Section labels and footer hint.
+    expect(stdout).toContain('Usage:');
+    expect(stdout).toContain('Commands:');
+    expect(stdout).toContain('Global options:');
+    expect(stdout).toContain('Run `nectar <command> --help` for details on each command.');
+    // Lines are indented with three spaces like the dev banner.
+    expect(stdout).toMatch(/^ {3}Nectar /m);
+  });
+
+  test('top-level help lists every command from COMMAND_SPECS', async () => {
+    const { COMMAND_NAMES } = await import('~/cli/specs.ts');
+    const { stdout, exitCode } = await runCli(['--help']);
+    expect(exitCode).toBe(0);
+    for (const name of COMMAND_NAMES) {
+      expect(stdout).toContain(name);
+    }
+    // Built-in CLI verbs that aren't in COMMAND_SPECS still surface.
+    expect(stdout).toContain('version');
+    expect(stdout).toContain('help');
+  });
+
+  test('top-level help uses ANSI color when FORCE_COLOR is set', async () => {
+    const { stdout, exitCode } = await runCli(['--help'], { FORCE_COLOR: '1' });
+    expect(exitCode).toBe(0);
+    // Cyan accent wraps the "Nectar" word.
+    expect(stdout).toContain('\x1b[36mNectar\x1b[0m');
+    // Color mode swaps the ASCII `-` separator for the middot used by the banner.
+    expect(stdout).toContain('·');
   });
 });
