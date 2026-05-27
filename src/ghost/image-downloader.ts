@@ -90,11 +90,13 @@ export class GhostImageDownloader {
   private readonly fetcher: typeof fetch;
   private readonly contentRoot: string;
   private readonly maxBytes: number;
-  // Origin (`https://host[:port]`) of the source Ghost site, used to expand
-  // site-relative `/content/images/...` URLs into absolute URLs the fetcher
-  // can hit. Undefined when no source URL was supplied; in that case relative
-  // paths are left untouched.
-  private readonly sourceOrigin: string | undefined;
+  // Base (`https://host[:port][/sub/path]`) of the source Ghost site, used
+  // to expand site-relative `/content/images/...` URLs into absolute URLs
+  // the fetcher can hit. The pathname is preserved so a Ghost instance
+  // mounted under a subpath (e.g. `https://example.com/ja/blog`) resolves
+  // images correctly. Undefined when no source URL was supplied; in that
+  // case site-relative paths are left untouched.
+  private readonly sourceBase: string | undefined;
   // Per-URL cache. `null` means a prior attempt failed; future calls reuse
   // that verdict instead of re-fetching.
   private readonly cache = new Map<string, CacheEntry | null>();
@@ -108,7 +110,7 @@ export class GhostImageDownloader {
     // than silently rejecting every fetch.
     const raw = opts.maxImageSizeBytes ?? DEFAULT_MAX_IMAGE_SIZE_BYTES;
     this.maxBytes = raw > 0 ? raw : 0;
-    this.sourceOrigin = normalizeSourceOrigin(opts.sourceUrl);
+    this.sourceBase = normalizeSourceBase(opts.sourceUrl);
   }
 
   get downloaded(): number {
@@ -130,9 +132,9 @@ export class GhostImageDownloader {
   private resolveFetchUrl(url: string): string | null {
     if (typeof url !== 'string' || url.length === 0) return null;
     if (isHttpUrl(url)) return url;
-    if (!this.sourceOrigin) return null;
+    if (!this.sourceBase) return null;
     if (!url.startsWith('/')) return null;
-    return `${this.sourceOrigin}${url}`;
+    return `${this.sourceBase}${url}`;
   }
 
   // Download a single image URL and return the rewritten site-relative URL,
@@ -316,18 +318,28 @@ function isHttpUrl(s: string): boolean {
   }
 }
 
-// Reduce a user-supplied source URL to a bare origin (`https://host[:port]`)
-// so the downloader can safely concatenate it with a leading-slash path.
-// Returns undefined when the input is empty / invalid / non-http(s); callers
-// then behave as if no source URL was provided at all.
-function normalizeSourceOrigin(raw: string | undefined): string | undefined {
+// Reduce a user-supplied source URL to a clean base
+// (`https://host[:port][/sub/path]`) so the downloader can safely
+// concatenate it with a leading-slash path. The pathname is preserved (with
+// any trailing slashes stripped) so a Ghost instance mounted under a
+// subpath — e.g. `https://example.com/ja/blog/` — resolves to
+// `https://example.com/ja/blog/content/images/...` instead of
+// `https://example.com/content/images/...`, which would 404 / 403.
+//
+// Returns undefined when the input is empty / invalid / non-http(s);
+// callers then behave as if no source URL was provided at all.
+function normalizeSourceBase(raw: string | undefined): string | undefined {
   if (typeof raw !== 'string') return undefined;
   const trimmed = raw.trim();
   if (trimmed.length === 0) return undefined;
   try {
     const u = new URL(trimmed);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return undefined;
-    return u.origin;
+    // Strip trailing slashes so concat with a leading-slash path never
+    // produces a `//content/...` double-slash that some CDNs normalise
+    // away and others 404.
+    const path = u.pathname.replace(/\/+$/, '');
+    return `${u.origin}${path}`;
   } catch {
     return undefined;
   }
