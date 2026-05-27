@@ -5,6 +5,7 @@ import { StatePanel } from './StatePanel.tsx';
 
 interface MigrationViewProps {
   onSettingsSaved: () => Promise<void> | void;
+  onGhostImportSuccess: () => void;
 }
 
 export function MigrationView(props: MigrationViewProps): JSX.Element {
@@ -13,7 +14,10 @@ export function MigrationView(props: MigrationViewProps): JSX.Element {
       {/* Section h2 dropped — the page-level viewTitle already says
        * "Migration". The two import cards below name themselves. */}
       <div class="migrationGrid">
-        <GhostImportPanel onApplied={props.onSettingsSaved} />
+        <GhostImportPanel
+          onApplied={props.onSettingsSaved}
+          onImportSuccess={props.onGhostImportSuccess}
+        />
         <PageBundleImportPanel onApplied={props.onSettingsSaved} />
       </div>
     </div>
@@ -24,9 +28,12 @@ interface ImportPanelProps {
   onApplied: () => Promise<void> | void;
 }
 
-function GhostImportPanel(props: ImportPanelProps): JSX.Element {
+interface GhostImportPanelProps extends ImportPanelProps {
+  onImportSuccess: () => void;
+}
+
+function GhostImportPanel(props: GhostImportPanelProps): JSX.Element {
   const [file, setFile] = useState<File | null>(null);
-  const [outputDir, setOutputDir] = useState('');
   const [onConflict, setOnConflict] = useState<'skip' | 'rename' | 'overwrite'>('skip');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -37,33 +44,26 @@ function GhostImportPanel(props: ImportPanelProps): JSX.Element {
     summary?: Record<string, unknown>;
   } | null>(null);
 
-  async function run(dryRun: boolean) {
+  async function run() {
     if (!file) {
       setResult({ error: 'Pick a Ghost export (.zip or .json) first.' });
       return;
     }
-    if (
-      !dryRun &&
-      !confirm('Import writes Markdown and assets into the selected target. Continue?')
-    ) {
+    if (!confirm('Import writes Markdown and assets into the configured content dir. Continue?')) {
       return;
     }
     setBusy(true);
-    setNotice(dryRun ? 'Previewing import…' : 'Importing files…');
+    setNotice('Importing files…');
     try {
-      const { status, data } = await importGhostUpload({
-        file,
-        dryRun,
-        onConflict,
-        outputDir: outputDir.trim() || undefined,
-      });
+      const { status, data } = await importGhostUpload({ file, onConflict });
       if (status >= 400) {
         const error = (data as { error?: string }).error;
         setResult({ error: error ?? 'Import failed' });
         return;
       }
       setResult(data as typeof result);
-      if (!dryRun) await props.onApplied();
+      await props.onApplied();
+      props.onImportSuccess();
     } catch (err) {
       setResult({ error: err instanceof Error ? err.message : String(err) });
     } finally {
@@ -78,7 +78,8 @@ function GhostImportPanel(props: ImportPanelProps): JSX.Element {
         <div>
           <h3>Ghost import</h3>
           <p class="meta">
-            Drop a Ghost export (.zip or ghost-export.json). Preview never writes files.
+            Drop a Ghost export (.zip or ghost-export.json). Imported posts land in the content dir
+            configured in nectar.toml.
           </p>
         </div>
       </header>
@@ -107,35 +108,15 @@ function GhostImportPanel(props: ImportPanelProps): JSX.Element {
             <option value="overwrite">overwrite</option>
           </select>
         </label>
-        <label class="field">
-          <span>Output dir</span>
-          <input
-            id="ghostImportOutput"
-            placeholder="content/"
-            value={outputDir}
-            onInput={(event) => setOutputDir((event.currentTarget as HTMLInputElement).value)}
-          />
-        </label>
       </div>
       <div class="editorActions">
-        <button
-          class="btn secondary"
-          id="previewGhostImport"
-          type="button"
-          disabled={busy || !file}
-          onClick={() => {
-            void run(true);
-          }}
-        >
-          Preview import
-        </button>
         <button
           class="btn"
           id="applyGhostImport"
           type="button"
           disabled={busy || !file}
           onClick={() => {
-            void run(false);
+            void run();
           }}
         >
           Import files
