@@ -187,6 +187,7 @@ when prompts are enabled.
 | [`nectar completions`](#nectar-completions) | Print or install a shell completion script |
 | [`nectar config`](#nectar-config) | Inspect or update the loaded Nectar config |
 | [`nectar schema`](#nectar-schema) | Print JSON Schema for Nectar config, frontmatter, or theme package.json |
+| [`nectar skill`](#nectar-skill) | Install bundled agent skills (Claude Code / Codex) so AI assistants understand how to work in this Nectar project |
 | [`nectar content`](#nectar-content) | Inspect or modify content in the project (posts, pages) |
 | [`nectar redirects`](#nectar-redirects) | Inspect redirect rules loaded from redirects.yaml and Ghost exports |
 | [`nectar info`](#nectar-info) | Print Nectar, Bun, and project environment information |
@@ -771,6 +772,41 @@ Examples:
 nectar schema config > nectar.config.schema.json
 nectar schema frontmatter > nectar.frontmatter.schema.json
 nectar schema theme > nectar.theme.schema.json
+```
+
+### `nectar skill`
+
+Install bundled agent skills (Claude Code / Codex) so AI assistants understand how to work in this Nectar project
+
+Usage:
+
+```
+nectar skill [--format <list>] [--json] <subcommand> [slug...]
+```
+
+Arguments:
+
+| Name | Required | Description |
+| --- | --- | --- |
+| `<subcommand>` | required | `list`, `install`, or `remove` |
+| `[slug...]` | optional (variadic) | Skill slug(s); omit for `install` to install all bundled skills |
+
+Options:
+
+| Flag | Type | Env var | Description |
+| --- | --- | --- | --- |
+| `--format <list>` | string | `NECTAR_SKILL_FORMAT` | Comma-separated list of agent formats to target: `claude`, `codex`, or `all`. Defaults to auto-detect via CLAUDE.md / AGENTS.md presence |
+| `-j, --json` | boolean | `NECTAR_SKILL_JSON` | `list` only: emit the skill catalog as JSON for CI / scripting |
+
+Examples:
+
+```
+nectar skill list
+nectar skill install                                # auto-detect + install all
+nectar skill install frontmatter-authoring          # one skill
+nectar skill install --format codex                 # only emit Codex format
+nectar skill install --format all                   # emit every format
+nectar skill remove build-troubleshoot
 ```
 
 ### `nectar content`

@@ -32,6 +32,7 @@ import { loadRedirects } from '~/build/redirects.ts';
 import { renderRouteHtml } from '~/build/route-render.ts';
 import { loadRoutesYaml, resolveCollections, resolveRouteEntries } from '~/build/routes-yaml.ts';
 import { planRoutes } from '~/build/routes.ts';
+import { findOutdatedSkills } from '~/cli/skill/check-updates.ts';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import {
@@ -971,6 +972,15 @@ export async function runDashboard(args: string[]): Promise<number> {
       ),
     );
   }
+  const outdatedSkills = await findOutdatedSkills(cwd);
+  if (outdatedSkills.length > 0) {
+    writeBlock(
+      renderNotice(
+        'info',
+        `${outdatedSkills.length} skill ${outdatedSkills.length === 1 ? 'update' : 'updates'} available — run \`nectar skill install\` to apply.`,
+      ),
+    );
+  }
   emitStartupEvent('dashboard.ready', {
     mode,
     url: handle.url,
@@ -978,6 +988,7 @@ export async function runDashboard(args: string[]): Promise<number> {
     ...counts,
     siteUrl: configuredSiteUrl,
     lanExposed: isLanExposedHost(host),
+    skillUpdatesAvailable: outdatedSkills.length,
   });
 
   if (parsed.values.open === true) {

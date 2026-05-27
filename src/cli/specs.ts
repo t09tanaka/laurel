@@ -1192,6 +1192,44 @@ export const CONFIG_SPEC: CommandSpec = {
   ],
 };
 
+export const SKILL_SPEC: CommandSpec = {
+  name: 'skill',
+  summary:
+    'Install bundled agent skills (Claude Code / Codex) so AI assistants understand how to work in this Nectar project',
+  options: {
+    format: {
+      type: 'string',
+      description:
+        'Comma-separated list of agent formats to target: `claude`, `codex`, or `all`. Defaults to auto-detect via CLAUDE.md / AGENTS.md presence',
+      placeholder: '<list>',
+    },
+    json: {
+      type: 'boolean',
+      description: '`list` only: emit the skill catalog as JSON for CI / scripting',
+    },
+  },
+  positionals: [
+    {
+      name: 'subcommand',
+      description: '`list`, `install`, or `remove`',
+      required: true,
+    },
+    {
+      name: 'slug',
+      description: 'Skill slug(s); omit for `install` to install all bundled skills',
+      variadic: true,
+    },
+  ],
+  examples: [
+    'nectar skill list',
+    'nectar skill install                                # auto-detect + install all',
+    'nectar skill install frontmatter-authoring          # one skill',
+    'nectar skill install --format codex                 # only emit Codex format',
+    'nectar skill install --format all                   # emit every format',
+    'nectar skill remove build-troubleshoot',
+  ],
+};
+
 export const SCHEMA_SPEC: CommandSpec = {
   name: 'schema',
   summary: 'Print JSON Schema for Nectar config, frontmatter, or theme package.json',
@@ -1730,6 +1768,7 @@ export const COMMAND_SPECS: Record<string, CommandSpec> = {
   completions: COMPLETIONS_SPEC,
   config: CONFIG_SPEC,
   schema: SCHEMA_SPEC,
+  skill: SKILL_SPEC,
   content: CONTENT_SPEC,
   redirects: REDIRECTS_SPEC,
   info: INFO_SPEC,

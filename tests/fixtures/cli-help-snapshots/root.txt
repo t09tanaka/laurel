@@ -22,6 +22,7 @@
      completions       Print or install a shell completion script
      config            Inspect or update the loaded Nectar config
      schema            Print JSON Schema for Nectar config, frontmatter, or theme package.json
+     skill             Install bundled agent skills (Claude Code / Codex) so AI assistants understand how to work in this Nectar project
      content           Inspect or modify content in the project (posts, pages)
      redirects         Inspect redirect rules loaded from redirects.yaml and Ghost exports
      info              Print Nectar, Bun, and project environment information

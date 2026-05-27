@@ -2,6 +2,7 @@ import { type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
 import { basename, isAbsolute, join, normalize } from 'node:path';
 import type { Server, ServerWebSocket } from 'bun';
 import { type BuildSummary, build } from '~/build/pipeline.ts';
+import { findOutdatedSkills } from '~/cli/skill/check-updates.ts';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import { type DevChangeCategory, decideDevReuse } from '~/dev/incremental.ts';
@@ -23,6 +24,7 @@ import {
   findActiveConfigDisplay,
   formatPath,
   renderBanner,
+  renderNotice,
   renderReady,
   renderRebuild,
   renderWarnings,
@@ -219,6 +221,15 @@ export async function runDev(args: string[]): Promise<number> {
     }),
   );
   writeBlock(renderWarnings(capturedWarnings));
+  const outdatedSkills = await findOutdatedSkills(cwd);
+  if (outdatedSkills.length > 0) {
+    writeBlock(
+      renderNotice(
+        'info',
+        `${outdatedSkills.length} skill ${outdatedSkills.length === 1 ? 'update' : 'updates'} available — run \`nectar skill install\` to apply.`,
+      ),
+    );
+  }
   emitStartupEvent('dev.ready', {
     url: localUrl,
     routes: routeCount,
@@ -226,6 +237,7 @@ export async function runDev(args: string[]): Promise<number> {
     elapsedMs: Math.round(buildElapsedMs),
     warnings: capturedWarnings.length,
     siteUrl: configuredSiteUrl,
+    skillUpdatesAvailable: outdatedSkills.length,
   });
 
   const watchers: FSWatcher[] = [];
