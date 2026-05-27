@@ -243,7 +243,6 @@ export interface DashboardTaxonomySummary {
   editable: boolean;
   missing: boolean;
   generated: boolean;
-  orphaned: boolean;
   source: 'file' | 'generated';
   materializePath: string;
 }
@@ -2924,7 +2923,6 @@ function taxonomySummary(
     editable,
     missing: !editable,
     generated: !editable,
-    orphaned: editable && item.count.posts === 0,
     source: editable ? 'file' : 'generated',
     materializePath: `${
       kind === 'authors' ? config.content.authors_dir : config.content.tags_dir

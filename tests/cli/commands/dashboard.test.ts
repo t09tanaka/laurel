@@ -293,7 +293,7 @@ describe('dashboard data', () => {
     }
   });
 
-  test('marks generated and orphaned taxonomy records in the API response', async () => {
+  test('marks generated taxonomy records in the API response', async () => {
     const dir = await makeDashboardFixture();
     try {
       await writeFile(
@@ -317,7 +317,6 @@ describe('dashboard data', () => {
 
       const fileBacked = state.tags.items.find((item) => item.slug === 'news');
       expect(fileBacked?.editable).toBe(true);
-      expect(fileBacked?.orphaned).toBe(true);
       const generated = state.tags.items.find((item) => item.slug === 'ghosted');
       expect(generated?.editable).toBe(false);
       expect(generated?.missing).toBe(true);

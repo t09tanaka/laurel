@@ -59,7 +59,6 @@ export function TaxonomyView(props: TaxonomyViewProps): JSX.Element {
                     key={item.slug}
                     class="contentRow"
                     data-source={item.source ?? 'file'}
-                    data-orphaned={item.orphaned ? 'true' : undefined}
                     data-editable={item.editable ? 'true' : 'false'}
                     onClick={onRowClick}
                   >
