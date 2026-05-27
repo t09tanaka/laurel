@@ -1602,10 +1602,8 @@ export async function handleDashboardRequest(
         if (file.size > MAX_BYTES) {
           return jsonResponse({ error: 'ghost export exceeds 200MB limit' }, 413);
         }
-        const safe = (file.name || 'ghost-export').replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 80);
-        stagedPath = resolve(ctx.cwd, '.nectar', `import-ghost-${Date.now()}-${safe}`);
-        await mkdir(dirname(stagedPath), { recursive: true });
-        await Bun.write(stagedPath, new Uint8Array(await file.arrayBuffer()));
+        // Validate cheap form fields before touching disk so a bad request
+        // never leaves a staged copy of the upload behind.
         const rawDownloadImages = form?.get('downloadImages');
         const downloadImages =
           typeof rawDownloadImages === 'string' ? rawDownloadImages !== 'false' : undefined;
@@ -1621,6 +1619,10 @@ export async function handleDashboardRequest(
           }
           maxImageSizeBytes = parsed;
         }
+        const safe = (file.name || 'ghost-export').replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 80);
+        stagedPath = resolve(ctx.cwd, '.nectar', `import-ghost-${Date.now()}-${safe}`);
+        await mkdir(dirname(stagedPath), { recursive: true });
+        await Bun.write(stagedPath, new Uint8Array(await file.arrayBuffer()));
         payload = {
           file: stagedPath,
           dryRun: String(form?.get('dryRun') ?? 'true') !== 'false',

@@ -4,6 +4,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   realpath,
   rm,
   symlink,
@@ -763,6 +764,11 @@ describe('dashboard data', () => {
       expect(badResponse.status).toBe(400);
       const badBody = (await badResponse.json()) as { error: string };
       expect(badBody.error).toContain('maxImageSizeBytes');
+      // Validation must run before the upload is staged so a rejected
+      // request never leaks a copy of the export under .nectar/.
+      const stagedRoot = join(dir, '.nectar');
+      const stagedEntries = await readdir(stagedRoot).catch(() => [] as string[]);
+      expect(stagedEntries.some((name) => name.startsWith('import-ghost-'))).toBe(false);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
