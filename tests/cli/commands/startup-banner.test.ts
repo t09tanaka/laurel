@@ -1,18 +1,24 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { homedir } from 'node:os';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  countContentFiles,
   devGlyphs,
-  emitDevEvent,
+  emitStartupEvent,
+  findActiveConfigDisplay,
   formatBytes,
+  formatContentCounts,
   formatPath,
   renderBanner,
   renderBuildComplete,
+  renderNotice,
   renderReady,
   renderRebuild,
+  renderSimpleReady,
   renderWarnings,
   summarizeWatching,
-} from '~/cli/commands/dev-banner.ts';
+} from '~/cli/commands/startup-banner.ts';
 import { getColorEnabled, getOutputMode, setColorEnabled, setOutputMode } from '~/util/logger.ts';
 
 // Strip ANSI escapes so assertions can match plain strings regardless of
@@ -22,7 +28,7 @@ function stripAnsi(s: string): string {
   return s.replace(/\x1b\[[0-9;]*m/g, '');
 }
 
-describe('dev-banner — formatPath', () => {
+describe('startup-banner — formatPath', () => {
   test('cwd-relative for nested paths', () => {
     expect(formatPath('/a/b', '/a/b/c/d.toml')).toBe('c/d.toml');
   });
@@ -58,7 +64,7 @@ describe('dev-banner — formatPath', () => {
   });
 });
 
-describe('dev-banner — summarizeWatching', () => {
+describe('startup-banner — summarizeWatching', () => {
   test('collapses sibling content paths under their common parent', () => {
     const items = summarizeWatching('/site', [
       { path: '/site/content/posts', category: 'content' },
@@ -88,7 +94,7 @@ describe('dev-banner — summarizeWatching', () => {
   });
 });
 
-describe('dev-banner — devGlyphs', () => {
+describe('startup-banner — devGlyphs', () => {
   const originalColor = getColorEnabled();
   afterEach(() => setColorEnabled(originalColor));
 
@@ -111,7 +117,7 @@ describe('dev-banner — devGlyphs', () => {
   });
 });
 
-describe('dev-banner — renderBanner / renderReady / renderWarnings', () => {
+describe('startup-banner — renderBanner / renderReady / renderWarnings', () => {
   const originalColor = getColorEnabled();
   const originalMode = getOutputMode();
   beforeEach(() => setColorEnabled(false)); // deterministic ASCII output for matchers
@@ -123,12 +129,14 @@ describe('dev-banner — renderBanner / renderReady / renderWarnings', () => {
   test('banner contains version, mode, and aligned label rows', () => {
     const text = renderBanner({
       version: '0.1.0',
-      mode: 'dev',
-      siteDir: 'docs-site',
-      configFile: 'nectar.toml',
-      themeName: 'source',
-      outputDir: 'dist/',
-      watching: ['content/', 'themes/source/', 'nectar.toml'],
+      mode: 'dev mode',
+      rows: [
+        ['Site', 'docs-site'],
+        ['Config', 'nectar.toml'],
+        ['Theme', 'source'],
+        ['Output', 'dist/'],
+        ['Watching', 'content/, themes/source/, nectar.toml'],
+      ],
     });
     const plain = stripAnsi(text);
     expect(plain).toContain('Nectar 0.1.0');
@@ -201,12 +209,8 @@ describe('dev-banner — renderBanner / renderReady / renderWarnings', () => {
     expect(
       renderBanner({
         version: '0.1.0',
-        mode: 'dev',
-        siteDir: 'x',
-        configFile: 'y',
-        themeName: 'z',
-        outputDir: 'd/',
-        watching: [],
+        mode: 'dev mode',
+        rows: [],
       }),
     ).toBe('');
     expect(renderReady({ elapsedMs: 1, url: 'http://x/', routes: 0, assets: 0 })).toBe('');
@@ -217,7 +221,7 @@ describe('dev-banner — renderBanner / renderReady / renderWarnings', () => {
   });
 });
 
-describe('dev-banner — renderRebuild', () => {
+describe('startup-banner — renderRebuild', () => {
   const originalColor = getColorEnabled();
   const originalMode = getOutputMode();
   beforeEach(() => setColorEnabled(false));
@@ -279,7 +283,7 @@ describe('dev-banner — renderRebuild', () => {
   });
 });
 
-describe('dev-banner — formatBytes', () => {
+describe('startup-banner — formatBytes', () => {
   test('renders binary units with one decimal', () => {
     expect(formatBytes(0)).toBe('0 B');
     expect(formatBytes(1)).toBe('1 B');
@@ -291,7 +295,7 @@ describe('dev-banner — formatBytes', () => {
   });
 });
 
-describe('dev-banner — renderBuildComplete', () => {
+describe('startup-banner — renderBuildComplete', () => {
   const originalColor = getColorEnabled();
   const originalMode = getOutputMode();
   beforeEach(() => setColorEnabled(false));
@@ -360,7 +364,7 @@ describe('dev-banner — renderBuildComplete', () => {
   });
 });
 
-describe('dev-banner — emitDevEvent', () => {
+describe('startup-banner — emitStartupEvent', () => {
   const originalMode = getOutputMode();
   afterEach(() => setOutputMode(originalMode));
 
@@ -373,7 +377,7 @@ describe('dev-banner — emitDevEvent', () => {
       return true;
     };
     try {
-      emitDevEvent('dev.ready', { port: 4321 });
+      emitStartupEvent('dev.ready', { port: 4321 });
     } finally {
       (process.stdout as unknown as { write: typeof orig }).write = orig;
     }
@@ -389,7 +393,7 @@ describe('dev-banner — emitDevEvent', () => {
       return true;
     };
     try {
-      emitDevEvent('dev.ready', { port: 4321, routes: 11 });
+      emitStartupEvent('dev.ready', { port: 4321, routes: 11 });
     } finally {
       (process.stdout as unknown as { write: typeof orig }).write = orig;
     }
@@ -410,7 +414,7 @@ describe('dev-banner — emitDevEvent', () => {
       return true;
     };
     try {
-      emitDevEvent('dev.rebuilt', {
+      emitStartupEvent('dev.rebuilt', {
         routes: 11,
         assets: 19,
         elapsedMs: 142,
@@ -430,5 +434,133 @@ describe('dev-banner — emitDevEvent', () => {
     expect(parsed.changeType).toBe('reload');
     expect(parsed.clients).toBe(1);
     expect(parsed.reuse).toBe('reused config+theme');
+  });
+});
+
+describe('startup-banner — renderSimpleReady', () => {
+  const originalColor = getColorEnabled();
+  const originalMode = getOutputMode();
+  beforeEach(() => setColorEnabled(false));
+  afterEach(() => {
+    setColorEnabled(originalColor);
+    setOutputMode(originalMode);
+  });
+
+  test('renders Ready line with URL but no timing or counts', () => {
+    const plain = stripAnsi(renderSimpleReady({ url: 'http://127.0.0.1:4322/' }));
+    expect(plain).toContain('Ready');
+    expect(plain).toContain('http://127.0.0.1:4322/');
+    expect(plain).not.toContain('Ready in');
+    expect(plain).not.toContain('routes');
+  });
+
+  test('appends Site URL row only when configured and different from local', () => {
+    const same = stripAnsi(renderSimpleReady({ url: 'http://x/', siteUrl: 'http://x/' }));
+    expect(same).not.toContain('Site URL:');
+    const diff = stripAnsi(
+      renderSimpleReady({ url: 'http://127.0.0.1:4322/', siteUrl: 'https://nectar.dev' }),
+    );
+    expect(diff).toContain('Site URL: https://nectar.dev');
+  });
+
+  test('JSON mode returns empty string', () => {
+    setOutputMode('json');
+    expect(renderSimpleReady({ url: 'http://x/' })).toBe('');
+  });
+});
+
+describe('startup-banner — renderNotice', () => {
+  const originalColor = getColorEnabled();
+  const originalMode = getOutputMode();
+  beforeEach(() => setColorEnabled(false));
+  afterEach(() => {
+    setColorEnabled(originalColor);
+    setOutputMode(originalMode);
+  });
+
+  test('warning notice carries the WARN glyph', () => {
+    const plain = stripAnsi(renderNotice('warning', 'careful here'));
+    expect(plain).toContain('WARN');
+    expect(plain).toContain('careful here');
+  });
+
+  test('info notice uses the dim separator glyph instead of WARN', () => {
+    const plain = stripAnsi(renderNotice('info', 'fyi'));
+    expect(plain).not.toContain('WARN');
+    expect(plain).toContain('fyi');
+  });
+
+  test('JSON mode returns empty string', () => {
+    setOutputMode('json');
+    expect(renderNotice('warning', 'silenced')).toBe('');
+  });
+});
+
+describe('startup-banner — formatContentCounts', () => {
+  test('English pluralisation per kind, keeping zero counts', () => {
+    expect(formatContentCounts({ posts: 1, pages: 7, components: 0, authors: 1, tags: 1 })).toBe(
+      '1 post, 7 pages, 0 components, 1 author, 1 tag',
+    );
+  });
+});
+
+describe('startup-banner — countContentFiles', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'nectar-banner-counts-'));
+  });
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('counts top-level .md files per kind and skips missing dirs', async () => {
+    await mkdir(join(dir, 'content/posts'), { recursive: true });
+    await writeFile(join(dir, 'content/posts/a.md'), '');
+    await writeFile(join(dir, 'content/posts/b.md'), '');
+    await writeFile(join(dir, 'content/posts/c.txt'), ''); // wrong ext, ignored
+    await writeFile(join(dir, 'content/posts/.hidden.md'), ''); // dotfile, ignored
+    await mkdir(join(dir, 'content/pages'), { recursive: true });
+    await writeFile(join(dir, 'content/pages/one.md'), '');
+
+    const counts = await countContentFiles(dir, {
+      posts_dir: 'content/posts',
+      pages_dir: 'content/pages',
+      components_dir: 'content/components',
+      authors_dir: 'content/authors',
+      tags_dir: 'content/tags',
+    });
+
+    expect(counts).toEqual({ posts: 2, pages: 1, components: 0, authors: 0, tags: 0 });
+  });
+});
+
+describe('startup-banner — findActiveConfigDisplay', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'nectar-banner-cfg-'));
+  });
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('echoes explicit --config argument as cwd-relative path', () => {
+    expect(findActiveConfigDisplay(dir, 'sites/main/nectar.toml')).toBe('sites/main/nectar.toml');
+  });
+
+  test('prefers nectar.toml when both .toml and .config.toml exist', async () => {
+    await writeFile(join(dir, 'nectar.toml'), '');
+    await writeFile(join(dir, 'nectar.config.toml'), '');
+    expect(findActiveConfigDisplay(dir, undefined)).toBe('nectar.toml');
+  });
+
+  test('falls through discovery order when canonical name is missing', async () => {
+    await writeFile(join(dir, 'nectar.config.toml'), '');
+    expect(findActiveConfigDisplay(dir, undefined)).toBe('nectar.config.toml');
+  });
+
+  test('returns canonical name when no config file is present', () => {
+    expect(findActiveConfigDisplay(dir, undefined)).toBe('nectar.toml');
   });
 });

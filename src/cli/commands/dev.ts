@@ -19,7 +19,8 @@ import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } fr
 import { reportError } from '../report.ts';
 import { DEV_SPEC } from '../specs.ts';
 import {
-  emitDevEvent,
+  emitStartupEvent,
+  findActiveConfigDisplay,
   formatPath,
   renderBanner,
   renderReady,
@@ -27,7 +28,7 @@ import {
   renderWarnings,
   summarizeWatching,
   writeBlock,
-} from './dev-banner.ts';
+} from './startup-banner.ts';
 
 const DEFAULT_PORT = 4321;
 const DEFAULT_HOST = 'localhost';
@@ -98,15 +99,17 @@ export async function runDev(args: string[]): Promise<number> {
   writeBlock(
     renderBanner({
       version,
-      mode: 'dev',
-      siteDir: basename(cwd) || cwd,
-      configFile: findActiveConfigDisplay(cwd, configPath),
-      themeName: config.theme.name,
-      outputDir: formatPath(cwd, distDir, { trailingSlash: true }),
-      watching: summarizeWatching(cwd, watchPaths),
+      mode: 'dev mode',
+      rows: [
+        ['Site', basename(cwd) || cwd],
+        ['Config', findActiveConfigDisplay(cwd, configPath)],
+        ['Theme', config.theme.name],
+        ['Output', formatPath(cwd, distDir, { trailingSlash: true })],
+        ['Watching', summarizeWatching(cwd, watchPaths).join(', ')],
+      ],
     }),
   );
-  emitDevEvent('dev.start', { mode: 'dev', port, host: hostname });
+  emitStartupEvent('dev.start', { mode: 'dev', port, host: hostname });
 
   let reusable: NonNullable<BuildSummary['reusable']> | undefined;
   let routeCount = 0;
@@ -115,7 +118,7 @@ export async function runDev(args: string[]): Promise<number> {
   const buildStarted = performance.now();
   setWarningSubscriber((msg) => {
     capturedWarnings.push(msg);
-    emitDevEvent('build.warning', { message: msg });
+    emitStartupEvent('build.warning', { message: msg });
     return true;
   });
   try {
@@ -216,7 +219,7 @@ export async function runDev(args: string[]): Promise<number> {
     }),
   );
   writeBlock(renderWarnings(capturedWarnings));
-  emitDevEvent('dev.ready', {
+  emitStartupEvent('dev.ready', {
     url: localUrl,
     routes: routeCount,
     assets: assetCount,
@@ -285,7 +288,7 @@ export async function runDev(args: string[]): Promise<number> {
           clients: clients.size,
         }),
       );
-      emitDevEvent('dev.rebuilt', {
+      emitStartupEvent('dev.rebuilt', {
         routes: summary.routeCount,
         assets: summary.assetCount,
         elapsedMs: Math.round(rebuildElapsedMs),
@@ -402,21 +405,6 @@ function resolveHost(raw: unknown): string | CliUsageError {
 interface WatchTarget {
   path: string;
   category: DevChangeCategory;
-}
-
-// Decide what to show next to `Config:` in the banner. We don't have the
-// resolved config path back from `loadConfig`, so reproduce its discovery
-// rule (nectar.toml -> nectar.config.toml -> nectar.config.json) and fall
-// back to the explicit `--config` argument when one was supplied. Pure
-// display logic; the real load already happened via loadConfig().
-function findActiveConfigDisplay(cwd: string, configPath: string | undefined): string {
-  if (configPath !== undefined && configPath.length > 0) {
-    return formatPath(cwd, isAbsolute(configPath) ? configPath : join(cwd, configPath));
-  }
-  for (const name of ['nectar.toml', 'nectar.config.toml', 'nectar.config.json']) {
-    if (existsSync(join(cwd, name))) return name;
-  }
-  return 'nectar.toml';
 }
 
 function gatherWatchPaths(cwd: string, config: NectarConfig): WatchTarget[] {

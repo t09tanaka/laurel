@@ -18,7 +18,7 @@ import {
 import { createBuildProgressDisplay } from '../progress.ts';
 import { reportError } from '../report.ts';
 import { BUILD_SPEC } from '../specs.ts';
-import { emitDevEvent, formatPath, renderBuildComplete, writeBlock } from './dev-banner.ts';
+import { emitStartupEvent, formatPath, renderBuildComplete, writeBlock } from './startup-banner.ts';
 
 const WATCH_DEBOUNCE_MS = 100;
 
@@ -159,7 +159,7 @@ export async function runBuild(args: string[]): Promise<number> {
       // / log-collector consumers can key on a single `*.complete` namespace.
       // Emitted *before* the legacy `build.done` payload so existing consumers
       // that read the last JSON line (`tail -n1 | jq`) still see `build.done`.
-      emitDevEvent('build.complete', {
+      emitStartupEvent('build.complete', {
         routes: summary.routeCount,
         assets: summary.assetCount,
         bytes: summary.outputBytes,
