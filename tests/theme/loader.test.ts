@@ -352,4 +352,27 @@ describe('loadTheme', () => {
       expect(theme.locales.en).toEqual({ Search: 'Find', Subscribe: 'Subscribe' });
     });
   });
+
+  // First-time onboarding error: when no theme has been vendored yet, the
+  // NectarError hint must include the canonical `git clone` command pointed
+  // at the expected directory so a fresh contributor knows what to run.
+  test('missing theme directory error embeds a git clone hint', async () => {
+    await withTempDir(async (cwd) => {
+      const config = configSchema.parse({
+        site: { title: 'X', url: 'https://x.test' },
+        theme: { name: 'source', dir: 'themes' },
+      });
+      try {
+        await loadTheme({ cwd, config });
+        throw new Error('expected loadTheme to throw');
+      } catch (err) {
+        const hint =
+          err !== null && typeof err === 'object' && 'hint' in err
+            ? String((err as { hint?: unknown }).hint ?? '')
+            : '';
+        expect(hint).toContain('git clone https://github.com/TryGhost/Source themes/source');
+        expect(hint).toContain('[theme].dir');
+      }
+    });
+  });
 });

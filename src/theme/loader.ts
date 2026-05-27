@@ -22,9 +22,11 @@ export const THEME_EMAIL_TEMPLATE_NAMES = ['email', 'email-template'] as const;
 export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<ThemeBundle> {
   const rootDir = resolveThemeRoot(cwd, config.theme.dir, config.theme.name);
   if (!existsSync(rootDir)) {
+    const relRoot = relative(cwd, rootDir);
+    const cloneTarget = relRoot && !relRoot.startsWith('..') ? relRoot : rootDir;
     throw new NectarError({
       message: `Theme directory not found: ${rootDir}`,
-      hint: 'Set [theme].dir to the directory holding the theme (or to an npm package name like `@scope/nectar-theme-foo` resolvable via `node_modules/<spec>`).',
+      hint: `Vendor a Ghost theme into this directory before building. For the default Source theme, run:\n  git clone https://github.com/TryGhost/Source ${cloneTarget}\nOther Ghost-compatible themes (Casper, Headline, Edition, Wave, Liebling, …) follow the same pattern — clone the repository into the directory shown above. Or set [theme].dir to a directory holding the theme (or to an npm package name like \`@scope/nectar-theme-foo\` resolvable via \`node_modules/<spec>\`).`,
       code: 'theme',
     });
   }
