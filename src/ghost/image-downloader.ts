@@ -572,7 +572,13 @@ function collectShortcodeImageUrls(
     while (attr !== null) {
       const name = attr[1];
       const value = attr[2];
-      if (name && value && imageAttrs.has(name) && isHttpUrl(value)) urls.add(value);
+      // `isHttpUrl` was the gate here; site-relative `/content/images/...`
+      // values silently dropped, so bookmark icon / thumbnail URLs that come
+      // out of `stripGhostUrlPlaceholder` as leading-slash paths were never
+      // downloaded. `resolveFetchUrl` already rejects anything it can't
+      // turn into an absolute URL, so widening to "any non-empty value" is
+      // safe — non-fetchable values just no-op at the next step.
+      if (name && value && imageAttrs.has(name)) urls.add(value);
       attr = SHORTCODE_ATTR_RE.exec(attrs);
     }
   }
