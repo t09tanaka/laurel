@@ -314,6 +314,10 @@ async function dispatch(command: string, rest: string[]): Promise<number> {
       const { runSchema } = await import('./commands/schema.js');
       return runSchema(rest);
     }
+    case 'skill': {
+      const { runSkill } = await import('./commands/skill.js');
+      return runSkill(rest);
+    }
     case 'lint': {
       const { runLint } = await import('./commands/lint.js');
       return runLint(rest);

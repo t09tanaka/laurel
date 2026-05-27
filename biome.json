@@ -12,6 +12,7 @@
       "example/dist",
       "example/themes/source",
       "src/cli/dashboard/bundled-assets.ts",
+      "src/cli/skill/bundled-skills.ts",
       "**/*.hbs"
     ]
   },
