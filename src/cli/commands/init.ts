@@ -19,13 +19,30 @@ export interface InitAnswers {
   rss: boolean;
 }
 
-const DEFAULT_ANSWERS: InitAnswers = {
-  title: 'My Nectar Site',
+// Site title intentionally has no hardcoded default. The placeholder is
+// derived from the target directory at runtime (e.g. `stork-blog` →
+// `Stork Blog`) so the operator never sees a misleading "My Nectar Site"
+// pre-fill that doesn't match their project.
+const DEFAULT_ANSWERS: Omit<InitAnswers, 'title'> = {
   url: 'http://localhost:4321',
   theme: 'source',
   starterContent: true,
   rss: true,
 };
+
+// Turn a directory slug into a human-readable site title. Splits on
+// hyphens / underscores / whitespace, drops empty fragments, then
+// capitalises each word. Empty input falls back to "My Site" so the
+// generated nectar.toml always has a non-empty `[site].title`.
+function deriveSiteTitle(targetDir: string): string {
+  const raw = targetDir.length > 0 ? basename(targetDir) : '';
+  const words = raw
+    .split(/[-_\s]+/)
+    .map((w) => w.trim())
+    .filter((w) => w.length > 0)
+    .map((w) => `${w[0]?.toUpperCase() ?? ''}${w.slice(1).toLowerCase()}`);
+  return words.length > 0 ? words.join(' ') : 'My Site';
+}
 
 // Conflict policy for individual generated files. Files split into three
 // buckets so a half-initialised project doesn't fail outright on the next
@@ -69,9 +86,10 @@ export async function runInit(args: string[]): Promise<number> {
 
   await ensureDir(targetDir);
 
+  const titleFallback = deriveSiteTitle(targetDir);
   let answers: InitAnswers;
   if (yes) {
-    answers = { ...DEFAULT_ANSWERS };
+    answers = { title: titleFallback, ...DEFAULT_ANSWERS };
   } else {
     try {
       // Use the clack-based picker when stdin is an actual terminal (arrow
@@ -81,8 +99,8 @@ export async function runInit(args: string[]): Promise<number> {
       // works.
       answers =
         process.stdin.isTTY === true
-          ? await promptAnswersInteractive(DEFAULT_ANSWERS)
-          : await promptAnswersFromStdin(DEFAULT_ANSWERS);
+          ? await promptAnswersInteractive(DEFAULT_ANSWERS, titleFallback)
+          : await promptAnswersFromStdin(DEFAULT_ANSWERS, titleFallback);
     } catch (err) {
       process.stderr.write(
         `Failed to read answers from stdin: ${err instanceof Error ? err.message : String(err)}\n`,
@@ -140,14 +158,22 @@ export async function runInit(args: string[]): Promise<number> {
   }
   logger.info('');
   logger.info('Next steps:');
-  logger.info('  1. Install dependencies:    npm install   (or: bun install)');
-  logger.info(
-    `  2. Vendor a Ghost theme:    git clone https://github.com/TryGhost/${themeRepo(answers.theme)} themes/${answers.theme}`,
-  );
-  logger.info('  3. Start the dev server:    npm run dev          → http://localhost:4321/');
-  logger.info('  4. Open the dashboard:      npm run dashboard    → http://localhost:4322/');
-  logger.info('  5. Build for production:    npm run build        → dist/');
   logger.info('');
+  logger.info('  Vendor a Ghost theme (one-time):');
+  logger.info(
+    `    git clone https://github.com/TryGhost/${themeRepo(answers.theme)} themes/${answers.theme}`,
+  );
+  logger.info('');
+  logger.info('  GUI development (dashboard):');
+  logger.info('    nectar dashboard       → http://localhost:4322/   (editor UI)');
+  logger.info('');
+  logger.info('  CLI development:');
+  logger.info('    nectar dev             → http://localhost:4321/   (live reload)');
+  logger.info('    nectar build           → dist/');
+  logger.info('');
+  logger.info(
+    'Tip: migrating from Ghost? Open `nectar dashboard` → Migration tab to upload your Ghost JSON export and vendor the theme into themes/.',
+  );
   logger.info(
     'Tip: create CLAUDE.md or AGENTS.md, then run `nectar skill install` to teach your AI assistant about Nectar conventions.',
   );
@@ -177,20 +203,21 @@ function themeRepo(theme: string): string {
   }
 }
 
-export function renderProject(answers: InitAnswers, targetDir = ''): ProjectFile[] {
-  const pkgName = derivePackageName(targetDir);
-  const pkgContents = renderPackageJson(pkgName);
+// Content subdirectories that mirror `[content]` keys in nectar.toml. We
+// always seed them with `.gitkeep` so the layout shows up in git even when
+// the operator skipped starter content -- empty dirs would otherwise be
+// invisible and contributors might not realise where to drop new files.
+const CONTENT_SUBDIRS = ['posts', 'pages', 'authors', 'tags', 'images'] as const;
+
+export function renderProject(answers: InitAnswers, _targetDir = ''): ProjectFile[] {
   const files: ProjectFile[] = [
     { path: 'nectar.toml', contents: renderConfig(answers) },
     { path: '.gitignore', contents: renderGitignore(), policy: 'skip' },
     { path: 'README.md', contents: renderReadme(answers), policy: 'skip' },
-    {
-      path: 'package.json',
-      contents: pkgContents,
-      policy: 'merge',
-      merge: (existing) => mergePackageJson(existing, pkgContents),
-    },
   ];
+  for (const sub of CONTENT_SUBDIRS) {
+    files.push({ path: `content/${sub}/.gitkeep`, contents: '', policy: 'skip' });
+  }
   if (answers.starterContent) {
     files.push({
       path: 'content/posts/welcome.md',
@@ -277,14 +304,21 @@ function renderReadme(a: InitAnswers): string {
   lines.push('');
   lines.push('## Getting started');
   lines.push('');
+  lines.push('Assumes [Nectar](https://github.com/t09tanaka/nectar) is installed globally');
+  lines.push('(`npm install -g nectar`). Once the theme is vendored, drive the project');
+  lines.push('either from the dashboard or from the CLI:');
+  lines.push('');
   lines.push('```sh');
-  lines.push('npm install                # or: bun install');
   lines.push(
     `git clone https://github.com/TryGhost/${themeRepo(a.theme)} themes/${a.theme}   # vendor the theme`,
   );
-  lines.push('npm run dev                # http://localhost:4321/  (live reload)');
-  lines.push('npm run dashboard          # http://localhost:4322/  (editor UI)');
-  lines.push('npm run build              # writes dist/');
+  lines.push('');
+  lines.push('# GUI development');
+  lines.push('nectar dashboard           # http://localhost:4322/  (editor UI)');
+  lines.push('');
+  lines.push('# CLI development');
+  lines.push('nectar dev                 # http://localhost:4321/  (live reload)');
+  lines.push('nectar build               # writes dist/');
   lines.push('```');
   lines.push('');
   lines.push('## Project layout');
@@ -349,75 +383,6 @@ function renderDefaultAuthor(): string {
   return lines.join('\n');
 }
 
-// Generated package.json shape. `private: true` keeps the project from being
-// accidentally published to npm if the operator runs `npm publish` later, and
-// `type: "module"` aligns with Nectar's ESM-only distribution. Scripts use the
-// bare `nectar` name because npm/bun add `node_modules/.bin` to PATH for
-// script execution, so users don't have to remember `bunx` vs `npx`.
-function renderPackageJson(name: string): string {
-  const pkg = {
-    name,
-    private: true,
-    version: '0.0.0',
-    type: 'module' as const,
-    scripts: {
-      dev: 'nectar dev',
-      build: 'nectar build',
-      serve: 'nectar serve',
-      dashboard: 'nectar dashboard',
-    },
-    devDependencies: {
-      nectar: '^0.1.0',
-    },
-  };
-  return `${JSON.stringify(pkg, null, 2)}\n`;
-}
-
-// Non-destructive merge: add Nectar's expected scripts + devDeps to an
-// existing package.json without touching anything the operator already set.
-// If a script key already exists we leave it -- the operator presumably has
-// a reason. Same for devDependencies. Invalid JSON is returned unchanged
-// (better than mangling a file the user is mid-edit on).
-function mergePackageJson(existing: string, generated: string): string {
-  let current: Record<string, unknown>;
-  let template: Record<string, unknown>;
-  try {
-    current = JSON.parse(existing) as Record<string, unknown>;
-    template = JSON.parse(generated) as Record<string, unknown>;
-  } catch {
-    return existing;
-  }
-  const result: Record<string, unknown> = { ...current };
-  const tplScripts = (template.scripts ?? {}) as Record<string, string>;
-  const curScripts = ((current.scripts ?? {}) as Record<string, string>) || {};
-  const mergedScripts: Record<string, string> = { ...curScripts };
-  for (const [k, v] of Object.entries(tplScripts)) {
-    if (!(k in mergedScripts)) mergedScripts[k] = v;
-  }
-  result.scripts = mergedScripts;
-  const tplDev = (template.devDependencies ?? {}) as Record<string, string>;
-  const curDev = ((current.devDependencies ?? {}) as Record<string, string>) || {};
-  const mergedDev: Record<string, string> = { ...curDev };
-  for (const [k, v] of Object.entries(tplDev)) {
-    if (!(k in mergedDev)) mergedDev[k] = v;
-  }
-  result.devDependencies = mergedDev;
-  return `${JSON.stringify(result, null, 2)}\n`;
-}
-
-// Derive a valid npm package name from the target directory. The npm spec
-// (https://docs.npmjs.com/cli/v10/configuring-npm/package-json#name) forbids
-// uppercase, leading dots/underscores, and most punctuation; collapse anything
-// outside [a-z0-9-] to hyphens and clamp the leading/trailing edges.
-function derivePackageName(targetDir: string): string {
-  const raw = targetDir.length > 0 ? basename(targetDir) : '';
-  const slug = raw
-    .toLowerCase()
-    .replace(/[^a-z0-9-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return slug.length > 0 ? slug : 'my-nectar-site';
-}
-
 function tomlString(value: string): string {
   return JSON.stringify(value);
 }
@@ -426,12 +391,19 @@ function tomlString(value: string): string {
 // and Ctrl-C cancellation across platforms. We catch the symbol clack
 // returns when the user cancels and throw so the caller falls into the
 // normal error path instead of writing a half-formed answer set.
-async function promptAnswersInteractive(defaults: InitAnswers): Promise<InitAnswers> {
+//
+// `titleFallback` is the directory-derived placeholder shown to the
+// operator. We do NOT pre-fill the text field with it — `initialValue`
+// stays undefined so the operator can just type, and the placeholder
+// only shows what we would default to on empty submit.
+async function promptAnswersInteractive(
+  defaults: Omit<InitAnswers, 'title'>,
+  titleFallback: string,
+): Promise<InitAnswers> {
   clack.intro('Nectar project setup');
   const title = await clack.text({
     message: 'Site title',
-    placeholder: defaults.title,
-    initialValue: defaults.title,
+    placeholder: titleFallback,
   });
   ensureNotCancelled(title);
   const url = await clack.text({
@@ -458,7 +430,7 @@ async function promptAnswersInteractive(defaults: InitAnswers): Promise<InitAnsw
   ensureNotCancelled(rss);
   clack.outro('Generating files...');
   return {
-    title: typeof title === 'string' && title.trim().length > 0 ? title.trim() : defaults.title,
+    title: typeof title === 'string' && title.trim().length > 0 ? title.trim() : titleFallback,
     url: typeof url === 'string' && url.trim().length > 0 ? url.trim() : defaults.url,
     theme: theme as string,
     starterContent: starter === true,
@@ -476,11 +448,14 @@ function ensureNotCancelled(value: unknown): void {
 // Pipe / CI mode: read newline-delimited answers from stdin so existing
 // automation that feeds responses via a Blob keeps working. Mirrors the
 // legacy implementation; only the input sanitiser is new.
-async function promptAnswersFromStdin(defaults: InitAnswers): Promise<InitAnswers> {
+async function promptAnswersFromStdin(
+  defaults: Omit<InitAnswers, 'title'>,
+  titleFallback: string,
+): Promise<InitAnswers> {
   const reader = createLineReader();
   process.stdout.write('Nectar project setup — press Enter to accept defaults.\n\n');
 
-  const title = await ask(reader, `Site title [${defaults.title}]: `, defaults.title);
+  const title = await ask(reader, `Site title [${titleFallback}]: `, titleFallback);
   const url = await ask(reader, `Site URL [${defaults.url}]: `, defaults.url);
   const themeChoice = await chooseFromList(reader, 'Theme', [...KNOWN_THEMES], defaults.theme);
   const starter = await yesNo(
