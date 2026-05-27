@@ -325,8 +325,8 @@
     );
     pointer-events: none;
   }
-  /* Footer floats to the bottom of the sidebar regardless of the number
-   * of recent entries above it. */
+  /* Footer floats to the bottom of the sidebar regardless of how the
+   * groups above it stack. */
   .side .sideFooter {
     margin-top: auto;
   }
