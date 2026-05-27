@@ -280,6 +280,13 @@
     grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
     background: transparent;
   }
+  /* When ThemeMissingBanner is present it sits in an auto-sized row above
+   * both the sidebar and main columns. When the component returns null
+   * (theme present, or banner dismissed) the rule does not match, so the
+   * shell falls back to its single-row layout — no wasted vertical band. */
+  .shell:has(> .themeMissingBanner) {
+    grid-template-rows: auto 1fr;
+  }
   /* When the editor is open, the writing surface owns the full viewport.
    * Collapse the dashboard sidebar (the editor has its own "← Posts"
    * breadcrumb). Must live in the components layer so .side's flex
@@ -4853,20 +4860,22 @@
     border-radius: 3px;
   }
   /* Top-of-dashboard banner that fires when [theme] in nectar.toml points at
-   * a directory that doesn't exist on disk. Reuses the existing warning
-   * palette (--caution / --caution-subdued) so it matches the rest of the
-   * surface, but pulls the layout pattern from the toast row: icon column on
-   * the left, copy in the middle, dismiss button on the right. Sits above
-   * PageHeader so it spans the full main column. */
+   * a directory that doesn't exist on disk. Rendered as a global strip in
+   * the shell grid row above sidebar+main (`grid-column: 1 / -1`) so it
+   * reads as a workspace-level alert rather than a posts-scoped error.
+   * Reuses the existing warning palette (--caution / --caution-subdued)
+   * and the toast-style icon/copy/dismiss column layout. */
   .themeMissingBanner {
+    grid-column: 1 / -1;
     display: grid;
     grid-template-columns: auto 1fr auto;
     gap: 12px;
     align-items: start;
-    margin: 0 0 16px;
-    padding: 12px 14px;
-    border-radius: var(--radius);
-    border: 1px solid color-mix(in srgb, var(--caution) 40%, var(--border-default));
+    margin: 0;
+    padding: 12px 22px;
+    border: 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--caution) 45%, var(--border-default));
+    border-radius: 0;
     background: var(--caution-subdued);
     color: var(--text-primary);
   }
@@ -4893,20 +4902,22 @@
     line-height: 1.5;
     color: var(--text-secondary, var(--text-primary));
   }
-  .themeMissingBannerCommand {
-    margin: 0;
-    padding: 8px 10px;
-    border-radius: 4px;
-    background: color-mix(in srgb, var(--caution) 14%, transparent);
-    overflow-x: auto;
+  .themeMissingBannerPath {
     font-family: var(--font-mono);
     font-size: 12.5px;
-    line-height: 1.4;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--caution) 14%, transparent);
   }
-  .themeMissingBannerCommand code {
-    font-family: inherit;
-    background: transparent;
-    padding: 0;
+  .themeMissingBannerLink {
+    color: var(--text-primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .themeMissingBannerLink:hover {
+    text-decoration-thickness: 2px;
   }
   .themeMissingBannerDismiss {
     appearance: none;

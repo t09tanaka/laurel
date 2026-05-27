@@ -6,12 +6,15 @@ interface ThemeMissingBannerProps {
   status: ThemeStatus | undefined;
 }
 
-// Top-of-dashboard alert that surfaces the same `Theme directory not found`
-// error `loadTheme()` raises at build time. Dismissible for the current
-// render but re-mounts on reload so the operator can't lose track of an
-// unfixed misconfiguration. Persistence intentionally lives in component
-// state, not session/localStorage — reloading the page is the recovery path
-// when the operator vendors the theme.
+// Global strip across the top of the shell that surfaces the same
+// `Theme directory not found` error `loadTheme()` raises at build time.
+// Mounted as a direct child of `.shell` (not inside `<main>`) so it spans
+// the sidebar + content columns — otherwise the alert reads as a
+// posts-scoped error. Dismissible for the current render but re-mounts on
+// reload so the operator can't lose track of an unfixed misconfiguration.
+// Persistence intentionally lives in component state, not
+// session/localStorage — reloading the page is the recovery path when the
+// operator vendors the theme.
 export function ThemeMissingBanner({ status }: ThemeMissingBannerProps): JSX.Element | null {
   const [dismissed, setDismissed] = useState(false);
   if (!status?.missing) return null;
@@ -24,12 +27,19 @@ export function ThemeMissingBanner({ status }: ThemeMissingBannerProps): JSX.Ele
       </span>
       <div class="themeMissingBannerCopy">
         <p class="themeMissingBannerHeadline">{message}</p>
-        {status.hint ? <p class="themeMissingBannerHint">{status.hint}</p> : null}
-        {status.cloneCommand ? (
-          <pre class="themeMissingBannerCommand">
-            <code>{status.cloneCommand}</code>
-          </pre>
-        ) : null}
+        <p class="themeMissingBannerHint">
+          Download a Ghost-compatible theme into{' '}
+          <code class="themeMissingBannerPath">{status.expectedPath}</code> to preview or build the
+          site.{' '}
+          <a
+            class="themeMissingBannerLink"
+            href="https://ghost.org/themes/"
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            Browse Ghost themes ↗
+          </a>
+        </p>
       </div>
       <button
         type="button"

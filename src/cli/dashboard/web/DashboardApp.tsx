@@ -625,6 +625,7 @@ export function DashboardApp(): JSX.Element {
       <a class="skipToMain" href="#main">
         Skip to main content
       </a>
+      <ThemeMissingBanner status={state?.settings.theme.status} />
       <Sidebar
         section={section}
         siteTitle={state?.site.title ?? ''}
@@ -676,7 +677,6 @@ export function DashboardApp(): JSX.Element {
         }}
       />
       <main class="main" id="main" tabIndex={-1}>
-        <ThemeMissingBanner status={state?.settings.theme.status} />
         {editor ? null : (
           <PageHeader
             copy={headCopy}
