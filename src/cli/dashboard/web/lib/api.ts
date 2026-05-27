@@ -321,6 +321,8 @@ export interface GhostImportPayload {
   dryRun: boolean;
   onConflict: 'skip' | 'rename' | 'overwrite';
   outputDir?: string;
+  downloadImages?: boolean;
+  maxImageSizeBytes?: number;
 }
 
 export async function importGhost(
@@ -339,6 +341,8 @@ export interface GhostImportUploadArgs {
   dryRun: boolean;
   onConflict: 'skip' | 'rename' | 'overwrite';
   outputDir?: string;
+  downloadImages?: boolean;
+  maxImageSizeBytes?: number;
 }
 
 export async function importGhostUpload(
@@ -349,6 +353,12 @@ export async function importGhostUpload(
   fd.append('dryRun', String(args.dryRun));
   fd.append('onConflict', args.onConflict);
   if (args.outputDir) fd.append('outputDir', args.outputDir);
+  if (args.downloadImages !== undefined) {
+    fd.append('downloadImages', String(args.downloadImages));
+  }
+  if (args.maxImageSizeBytes !== undefined) {
+    fd.append('maxImageSizeBytes', String(args.maxImageSizeBytes));
+  }
   const response = await fetch('/api/import/ghost', {
     method: 'POST',
     headers: { 'x-nectar-dashboard-token': dashboardToken },

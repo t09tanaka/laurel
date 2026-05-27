@@ -28,6 +28,8 @@ function GhostImportPanel(props: ImportPanelProps): JSX.Element {
   const [file, setFile] = useState<File | null>(null);
   const [outputDir, setOutputDir] = useState('');
   const [onConflict, setOnConflict] = useState<'skip' | 'rename' | 'overwrite'>('skip');
+  const [downloadImages, setDownloadImages] = useState(true);
+  const [maxImageSize, setMaxImageSize] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{
@@ -42,6 +44,18 @@ function GhostImportPanel(props: ImportPanelProps): JSX.Element {
       setResult({ error: 'Pick a Ghost export (.zip or .json) first.' });
       return;
     }
+    let maxImageSizeBytes: number | undefined;
+    const trimmedSize = maxImageSize.trim();
+    if (trimmedSize.length > 0) {
+      const parsed = parseSizeSpec(trimmedSize);
+      if (parsed === null) {
+        setResult({
+          error: `Invalid max image size: "${trimmedSize}". Use values like "10MB", "1GB", or "0" to disable the cap.`,
+        });
+        return;
+      }
+      maxImageSizeBytes = parsed;
+    }
     if (
       !dryRun &&
       !confirm('Import writes Markdown and assets into the selected target. Continue?')
@@ -49,13 +63,21 @@ function GhostImportPanel(props: ImportPanelProps): JSX.Element {
       return;
     }
     setBusy(true);
-    setNotice(dryRun ? 'Previewing import…' : 'Importing files…');
+    setNotice(
+      dryRun
+        ? 'Previewing import…'
+        : downloadImages
+          ? 'Importing files and downloading images…'
+          : 'Importing files…',
+    );
     try {
       const { status, data } = await importGhostUpload({
         file,
         dryRun,
         onConflict,
         outputDir: outputDir.trim() || undefined,
+        downloadImages,
+        maxImageSizeBytes,
       });
       if (status >= 400) {
         const error = (data as { error?: string }).error;
@@ -117,6 +139,37 @@ function GhostImportPanel(props: ImportPanelProps): JSX.Element {
           />
         </label>
       </div>
+      <label class="field wide" data-field="ghost-download-images">
+        <input
+          type="checkbox"
+          id="ghostImportDownloadImages"
+          checked={downloadImages}
+          onChange={(event) => setDownloadImages((event.currentTarget as HTMLInputElement).checked)}
+        />
+        <span>Download referenced images</span>
+      </label>
+      <p class="meta wide">
+        Fetch image URLs in posts and frontmatter, save under <code>content/images/</code>, and
+        rewrite references to site-relative paths. Skipped during preview.
+      </p>
+      {downloadImages ? (
+        <details class="advancedPanel" data-field="ghost-image-advanced">
+          <summary>Advanced</summary>
+          <label class="field wide">
+            <span>Max image size</span>
+            <input
+              id="ghostImportMaxImageSize"
+              placeholder="10MB"
+              value={maxImageSize}
+              onInput={(event) => setMaxImageSize((event.currentTarget as HTMLInputElement).value)}
+            />
+            <span class="meta">
+              Per-image cap. Accepts <code>10MB</code>, <code>1GB</code>, or <code>0</code> to
+              disable. Defaults to 10MB when blank.
+            </span>
+          </label>
+        </details>
+      ) : null}
       <div class="editorActions">
         <button
           class="btn secondary"
@@ -206,6 +259,30 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Mirrors src/cli/commands/import-ghost.ts:parseSizeSpec. Kept duplicated to
+// avoid pulling node-targeted CLI modules into the dashboard browser bundle.
+function parseSizeSpec(input: string): number | null {
+  const s = input.trim();
+  if (s.length === 0) return null;
+  const m = /^(\d+(?:\.\d+)?)\s*([kmgt]?b)?$/i.exec(s);
+  if (!m) return null;
+  const numeric = m[1];
+  if (numeric === undefined) return null;
+  const value = Number.parseFloat(numeric);
+  if (!Number.isFinite(value) || value < 0) return null;
+  const unit = (m[2] ?? 'B').toUpperCase();
+  const multipliers: Record<string, number> = {
+    B: 1,
+    KB: 1024,
+    MB: 1024 * 1024,
+    GB: 1024 * 1024 * 1024,
+    TB: 1024 * 1024 * 1024 * 1024,
+  };
+  const mult = multipliers[unit];
+  if (mult === undefined) return null;
+  return Math.floor(value * mult);
 }
 
 function PageBundleImportPanel(props: ImportPanelProps): JSX.Element {

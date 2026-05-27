@@ -714,6 +714,60 @@ describe('dashboard data', () => {
     }
   });
 
+  test('multipart Ghost import passes downloadImages and maxImageSizeBytes through to the importer', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const exportDir = join(dir, 'tmp-ghost-export-multipart');
+      const zipPath = join(dir, 'dashboard-import-multipart.zip');
+      await makeGhostExportZip(zipPath, exportDir);
+
+      const fileBytes = await readFile(zipPath);
+      const form = new FormData();
+      form.append(
+        'file',
+        new File([new Uint8Array(fileBytes)], 'dashboard-import-multipart.zip', {
+          type: 'application/zip',
+        }),
+      );
+      form.append('dryRun', 'true');
+      form.append('onConflict', 'overwrite');
+      form.append('downloadImages', 'true');
+      form.append('maxImageSizeBytes', String(5 * 1024 * 1024));
+
+      const response = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/import/ghost', { method: 'POST', body: form }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as {
+        summary: { dryRun: boolean; posts: number; imagesDownloaded?: number };
+      };
+      expect(body.summary.dryRun).toBe(true);
+      expect(body.summary.posts).toBe(1);
+
+      const formBad = new FormData();
+      formBad.append(
+        'file',
+        new File([new Uint8Array(fileBytes)], 'dashboard-import-multipart.zip', {
+          type: 'application/zip',
+        }),
+      );
+      formBad.append('dryRun', 'true');
+      formBad.append('onConflict', 'overwrite');
+      formBad.append('maxImageSizeBytes', 'not-a-number');
+      const badResponse = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/import/ghost', { method: 'POST', body: formBad }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(badResponse.status).toBe(400);
+      const badBody = (await badResponse.json()) as { error: string };
+      expect(badBody.error).toContain('maxImageSizeBytes');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('previews and applies a Ghost zip import through the dashboard API', async () => {
     const dir = await makeDashboardFixture();
     try {
