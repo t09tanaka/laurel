@@ -2113,7 +2113,7 @@
     background: var(--surface-normal);
     color: var(--text-muted);
     cursor: pointer;
-    transition: border-color 0.12s ease, background 0.12s ease;
+    transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
   }
   .themeUploadDrop:hover {
     border-color: var(--text-primary);
@@ -2127,6 +2127,130 @@
     font-family: var(--font-serif);
     font-style: italic;
     font-size: 13px;
+  }
+  /* "Filled" state: the dropzone has a file. Switch from the dashed empty
+   * slot to a solid pinned-document card so empty vs ready reads at a
+   * glance — the user complaint was that the two states looked identical.
+   * Ink-coloured border + raised surface + a small document badge + a
+   * green confirmation tick lock the state in visually. */
+  .themeUploadDrop.filled {
+    border-style: solid;
+    border-color: var(--text-primary);
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    padding: 12px 14px;
+    min-height: 72px;
+    box-shadow: var(--shadow-elevation-1);
+  }
+  .themeUploadDrop.filled:hover {
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-elevation-2);
+  }
+  .themeUploadCard {
+    width: 100%;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    text-align: left;
+    animation: themeUploadCardEnter 200ms ease-out both;
+  }
+  @keyframes themeUploadCardEnter {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  /* CSS-drawn document badge: a small paper card with a folded top-right
+   * corner and a green ✓ confirmation dot. No SVG / no emoji so it stays
+   * crisp at any zoom and inherits the dashboard's ink palette. */
+  .themeUploadCardGlyph {
+    position: relative;
+    width: 32px;
+    height: 40px;
+    flex: 0 0 auto;
+    background: var(--surface-normal);
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+  }
+  .themeUploadCardGlyph::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    width: 10px;
+    height: 10px;
+    background: var(--border-strong);
+    clip-path: polygon(100% 0, 0 0, 100% 100%);
+  }
+  .themeUploadCardGlyph::after {
+    content: "✓";
+    position: absolute;
+    right: -6px;
+    bottom: -6px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--color-success, #117a47);
+    color: var(--text-invert, #fff);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+    box-shadow: 0 0 0 2px var(--surface-raised);
+  }
+  .themeUploadCardBody {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+  .themeUploadCardName {
+    font-family: var(--font-serif);
+    font-style: normal;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .themeUploadCardMeta {
+    font-family: var(--font-mono);
+    font-style: normal;
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .themeUploadCardClear {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    font-size: 18px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .themeUploadCardClear:hover {
+    background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    color: var(--text-primary);
+  }
+  .themeUploadCardClear:focus-visible {
+    outline: 2px solid var(--color-focus, var(--text-primary));
+    outline-offset: 2px;
   }
   /* Quiet text-only link / button used wherever a secondary action
    * should recede (Preview in list rows, Preview in editor header). */

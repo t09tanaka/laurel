@@ -228,6 +228,7 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
           disabled={busy}
           hint="Click or drop a Ghost export (.zip / .json)"
           onPick={setFile}
+          onClear={() => setFile(null)}
           match={(name) => /\.(zip|json)$/i.test(name)}
         />
         <div class="fields">
@@ -263,9 +264,10 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
             onInput={(event) => setSourceUrl((event.currentTarget as HTMLInputElement).value)}
           />
           <span class="meta">
-            Origin of the source Ghost site. Required to fetch images — Ghost exports store image
-            URLs as <code>__GHOST_URL__/content/images/...</code>, and the downloader needs a real
-            origin to resolve them. Leave blank to skip image downloads.
+            Public URL of the source Ghost site. Required to fetch images — Ghost exports store
+            image URLs as <code>__GHOST_URL__/content/images/...</code>, and the downloader needs a
+            real base to resolve them. Include the subpath if the blog is mounted under one (e.g.{' '}
+            <code>https://example.com/ja/blog</code>). Leave blank to skip image downloads.
           </span>
         </label>
         <details class="advancedPanel" data-field="ghost-image-advanced">
@@ -332,13 +334,18 @@ interface UploadDropzoneProps {
   disabled: boolean;
   hint: string;
   onPick: (file: File) => void;
+  // Optional reset hook for the × button on the filled card. When omitted
+  // the remove affordance is hidden; clicking the card still re-opens the
+  // file picker so the operator can replace.
+  onClear?: () => void;
   match: (name: string) => boolean;
 }
 
 function UploadDropzone(props: UploadDropzoneProps): JSX.Element {
+  const filled = props.file !== null;
   return (
     <label
-      class={`themeUploadDrop${props.disabled ? ' busy' : ''}`}
+      class={`themeUploadDrop${props.disabled ? ' busy' : ''}${filled ? ' filled' : ''}`}
       onDragOver={(event) => {
         if (event.dataTransfer?.types?.includes('Files')) {
           event.preventDefault();
@@ -360,13 +367,44 @@ function UploadDropzone(props: UploadDropzoneProps): JSX.Element {
         class="srOnly"
         disabled={props.disabled}
         onChange={(event) => {
-          const picked = (event.currentTarget as HTMLInputElement).files?.[0];
+          const input = event.currentTarget as HTMLInputElement;
+          const picked = input.files?.[0];
           if (picked) props.onPick(picked);
+          // Reset so picking the same file twice in a row still fires.
+          input.value = '';
         }}
       />
-      <span class="themeUploadHint">
-        {props.file ? `${props.file.name} (${formatBytes(props.file.size)})` : props.hint}
-      </span>
+      {filled && props.file ? (
+        <div class="themeUploadCard">
+          <span class="themeUploadCardGlyph" aria-hidden="true" />
+          <div class="themeUploadCardBody">
+            <span class="themeUploadCardName">{props.file.name}</span>
+            <span class="themeUploadCardMeta">
+              {formatBytes(props.file.size)} · click to replace
+            </span>
+          </div>
+          {props.onClear ? (
+            <button
+              type="button"
+              class="themeUploadCardClear"
+              aria-label="Remove file"
+              disabled={props.disabled}
+              onClick={(event) => {
+                // Stop the click from bubbling to the wrapping <label>,
+                // which would otherwise re-open the file picker the
+                // instant the user tries to clear.
+                event.preventDefault();
+                event.stopPropagation();
+                props.onClear?.();
+              }}
+            >
+              ×
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <span class="themeUploadHint">{props.hint}</span>
+      )}
     </label>
   );
 }
@@ -451,6 +489,7 @@ function PageBundleImportPanel(props: ImportPanelProps): JSX.Element {
         disabled={busy}
         hint="Click or drop a page bundle (.json / .zip)"
         onPick={setFile}
+        onClear={() => setFile(null)}
         match={(name) => /\.(json|zip)$/i.test(name)}
       />
       <div class="fields">
