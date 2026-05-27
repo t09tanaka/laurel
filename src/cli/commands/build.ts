@@ -18,6 +18,7 @@ import {
 import { createBuildProgressDisplay } from '../progress.ts';
 import { reportError } from '../report.ts';
 import { BUILD_SPEC } from '../specs.ts';
+import { emitDevEvent, formatPath, renderBuildComplete, writeBlock } from './dev-banner.ts';
 
 const WATCH_DEBOUNCE_MS = 100;
 
@@ -132,22 +133,41 @@ export async function runBuild(args: string[]): Promise<number> {
     createBuildProgressDisplay({
       enabled: progress && !asJson && canEmitInfoProgress(),
     });
-  const runBuildOnce = async (): Promise<BuildSummary> => {
+  const runBuildOnce = async (): Promise<{ summary: BuildSummary; elapsedMs: number }> => {
     const progressDisplay = createProgressDisplay();
     const removeWarningForwarder = installDependencyWarningForwarder();
+    const started = performance.now();
     try {
-      return await build({
+      const summary = await build({
         ...buildArgs,
         progress: progressDisplay?.onProgress,
       });
+      return { summary, elapsedMs: performance.now() - started };
     } finally {
       removeWarningForwarder();
       progressDisplay?.finish();
     }
   };
 
-  const reportSummary = (summary: BuildSummary, opts: { prefix?: string } = {}): void => {
+  const reportSummary = (
+    summary: BuildSummary,
+    elapsedMs: number,
+    opts: { prefix?: string } = {},
+  ): void => {
     if (asJson) {
+      // Parallel structured event mirroring the `dev.ready` shape so dashboard
+      // / log-collector consumers can key on a single `*.complete` namespace.
+      // Emitted *before* the legacy `build.done` payload so existing consumers
+      // that read the last JSON line (`tail -n1 | jq`) still see `build.done`.
+      emitDevEvent('build.complete', {
+        routes: summary.routeCount,
+        assets: summary.assetCount,
+        bytes: summary.outputBytes,
+        elapsedMs: Math.round(elapsedMs),
+        outputDir: summary.outputDir,
+        dryRun: summary.dryRun === true,
+        warnings: summary.warningCount,
+      });
       // Emit one JSON line per invocation (initial build + each rebuild) so
       // CI consumers can `tail -f | jq` the stream. The payload mirrors the
       // BuildSummary surface without leaking internal types.
@@ -159,6 +179,7 @@ export async function runBuild(args: string[]): Promise<number> {
         assetCount: summary.assetCount,
         outputDir: summary.outputDir,
         outputBytes: summary.outputBytes,
+        elapsedMs: Math.round(elapsedMs),
         profilePath: summary.profilePath,
         peakRssBytes: summary.peakRssBytes,
         warningCount: summary.warningCount,
@@ -172,15 +193,19 @@ export async function runBuild(args: string[]): Promise<number> {
       return;
     }
     if (!progress) return;
-    const prefix = opts.prefix ?? (summary.dryRun ? t('build.dryRun.prefix') : 'Built');
-    logger.info(
-      t('build.summary', {
-        prefix,
-        routeCount: summary.routeCount,
-        assetCount: summary.assetCount,
-        outputSizeSuffix:
-          summary.outputBytes === undefined ? '' : `, ${formatBytes(summary.outputBytes)}`,
-        outputDir: summary.outputDir,
+    // Respect --quiet / NECTAR_LOG_LEVEL=warn. The finish block is an
+    // info-level signal — readers who silenced info logs explicitly opted out
+    // of progress chatter, so we must not bypass that gate via direct stdout.
+    if (!canEmitInfoProgress()) return;
+    const label = opts.prefix ?? (summary.dryRun ? t('build.dryRun.prefix') : 'Built');
+    writeBlock(
+      renderBuildComplete({
+        elapsedMs,
+        routes: summary.routeCount,
+        assets: summary.assetCount,
+        bytes: summary.outputBytes,
+        outputDir: formatPath(cwd, summary.outputDir, { trailingSlash: true }),
+        label,
       }),
     );
     if (summary.profilePath) {
@@ -213,8 +238,9 @@ export async function runBuild(args: string[]): Promise<number> {
 
   let initialSummary: BuildSummary;
   try {
-    initialSummary = await runBuildOnce();
-    reportSummary(initialSummary);
+    const { summary, elapsedMs } = await runBuildOnce();
+    initialSummary = summary;
+    reportSummary(summary, elapsedMs);
     if (!watch && strict && initialSummary.warningCount > 0) {
       logger.error(
         t('build.strict.failed', {
@@ -236,8 +262,8 @@ export async function runBuild(args: string[]): Promise<number> {
     cwd,
     configPath,
     onRebuild: async () => {
-      const summary = await runBuildOnce();
-      reportSummary(summary, { prefix: 'Rebuilt' });
+      const { summary, elapsedMs } = await runBuildOnce();
+      reportSummary(summary, elapsedMs, { prefix: 'Rebuilt' });
       if (strict && summary.warningCount > 0) {
         logger.warn(
           t('build.strict.watchWarning', {

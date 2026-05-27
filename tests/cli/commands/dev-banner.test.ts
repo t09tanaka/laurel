@@ -4,8 +4,10 @@ import { join } from 'node:path';
 import {
   devGlyphs,
   emitDevEvent,
+  formatBytes,
   formatPath,
   renderBanner,
+  renderBuildComplete,
   renderReady,
   renderRebuild,
   renderWarnings,
@@ -274,6 +276,87 @@ describe('dev-banner — renderRebuild', () => {
       renderRebuild({ routes: 1, assets: 0, elapsedMs: 10, changeType: 'reload', clients: 1 }),
     );
     expect(plain).toContain('↻ Rebuilt');
+  });
+});
+
+describe('dev-banner — formatBytes', () => {
+  test('renders binary units with one decimal', () => {
+    expect(formatBytes(0)).toBe('0 B');
+    expect(formatBytes(1)).toBe('1 B');
+    expect(formatBytes(1024)).toBe('1 KiB');
+    expect(formatBytes(1536)).toBe('1.5 KiB');
+    expect(formatBytes(1024 * 1024)).toBe('1 MiB');
+    expect(formatBytes(Math.round(1.2 * 1024 * 1024))).toBe('1.2 MiB');
+    expect(formatBytes(1024 * 1024 * 1024)).toBe('1 GiB');
+  });
+});
+
+describe('dev-banner — renderBuildComplete', () => {
+  const originalColor = getColorEnabled();
+  const originalMode = getOutputMode();
+  beforeEach(() => setColorEnabled(false));
+  afterEach(() => {
+    setColorEnabled(originalColor);
+    setOutputMode(originalMode);
+  });
+
+  test('renders Built header, elapsed time, counts, bytes and outputDir', () => {
+    const text = renderBuildComplete({
+      elapsedMs: 1234,
+      routes: 11,
+      assets: 19,
+      bytes: Math.round(1.2 * 1024 * 1024),
+      outputDir: 'dist/',
+    });
+    const plain = stripAnsi(text);
+    expect(plain).toContain('OK Built in 1.23s');
+    expect(plain).toContain('11 routes, 19 assets, 1.2 MiB');
+    expect(plain).toContain('-> dist/');
+  });
+
+  test('omits bytes segment when undefined (dry run case)', () => {
+    const text = renderBuildComplete({
+      elapsedMs: 50,
+      routes: 3,
+      assets: 0,
+      outputDir: 'dist/',
+    });
+    const plain = stripAnsi(text);
+    expect(plain).toContain('OK Built in 50ms');
+    expect(plain).toContain('3 routes, 0 assets -> dist/');
+    expect(plain).not.toMatch(/MiB|KiB|GiB/);
+  });
+
+  test('honours custom label (watch-mode "Rebuilt")', () => {
+    const text = renderBuildComplete({
+      elapsedMs: 200,
+      routes: 1,
+      assets: 1,
+      outputDir: 'dist/',
+      label: 'Rebuilt',
+    });
+    expect(stripAnsi(text)).toContain('OK Rebuilt in 200ms');
+  });
+
+  test('uses Unicode glyphs when color is enabled', () => {
+    setColorEnabled(true);
+    const text = renderBuildComplete({
+      elapsedMs: 100,
+      routes: 1,
+      assets: 1,
+      bytes: 2048,
+      outputDir: 'dist/',
+    });
+    const plain = stripAnsi(text);
+    expect(plain).toContain('✓ Built in 100ms');
+    expect(plain).toContain('→ dist/');
+  });
+
+  test('JSON output mode suppresses the block', () => {
+    setOutputMode('json');
+    expect(renderBuildComplete({ elapsedMs: 1, routes: 0, assets: 0, outputDir: 'dist/' })).toBe(
+      '',
+    );
   });
 });
 
