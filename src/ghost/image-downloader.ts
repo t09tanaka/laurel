@@ -13,6 +13,33 @@ import { logger } from '~/util/logger.ts';
 // `maxImageSizeBytes` / `--max-image-size`.
 export const DEFAULT_MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 
+// Rate-limit knobs for the sequential download loop.
+//
+// `PER_FETCH_SLEEP_MS` paces successive requests so we don't pound the
+// source Ghost CDN with hundreds of back-to-back fetches. At 100ms / image
+// a 200-image import only pays an extra 20s of wall-clock — invisible next
+// to the actual transfer time — and it stays a polite citizen.
+//
+// `YIELD_EVERY_N_FETCHES` periodically hands control back to the event
+// loop and nudges Bun's GC. Bun 1.3.14 has known stability issues when a
+// single async loop holds the runtime for minutes (the dashboard segfaults
+// after ~80–200s of continuous fetch+writeFile), and forcing a breather
+// every 25 images both flushes pending I/O callbacks and gives the
+// collector a chance to reclaim Response/ArrayBuffer churn.
+const PER_FETCH_SLEEP_MS = 100;
+const YIELD_EVERY_N_FETCHES = 25;
+
+declare const Bun: { gc?: (sync: boolean) => void } | undefined;
+
+function tryReleaseBody(body: ReadableStream<Uint8Array> | null | undefined): void {
+  if (!body) return;
+  // `arrayBuffer()` on the happy path has already drained the stream; the
+  // extra cancel is a no-op there. Error paths (HTTP !ok, size cap hit
+  // before body consumption) need it to free the underlying native handle
+  // promptly so the runtime doesn't accumulate unread bodies.
+  body.cancel().catch(() => {});
+}
+
 // One event per image the downloader processed. `status` distinguishes the
 // outcome so a UI can render counts of done / skipped / failed alongside the
 // current URL. Counters are cumulative across the lifetime of the downloader
@@ -171,6 +198,7 @@ export class GhostImageDownloader {
   private _downloaded = 0;
   private _failed = 0;
   private _skipped = 0;
+  private _fetchCount = 0;
 
   constructor(opts: GhostImageDownloaderOptions) {
     this.fetcher = opts.fetcher ?? globalThis.fetch.bind(globalThis);
@@ -191,6 +219,24 @@ export class GhostImageDownloader {
       skipped: this._skipped,
       failed: this._failed,
     });
+  }
+
+  // Called right before every real network fetch. Sleeps `PER_FETCH_SLEEP_MS`
+  // unconditionally (rate-limit) and, every `YIELD_EVERY_N_FETCHES` calls,
+  // additionally hands control back to the event loop and nudges GC. Both
+  // are workarounds for the Bun 1.3.14 SIGSEGV that fires after long
+  // continuous fetch+writeFile loops.
+  private async preFetchBreather(): Promise<void> {
+    this._fetchCount += 1;
+    await new Promise<void>((resolve) => setTimeout(resolve, PER_FETCH_SLEEP_MS));
+    if (this._fetchCount % YIELD_EVERY_N_FETCHES === 0) {
+      try {
+        Bun?.gc?.(false);
+      } catch {
+        // `Bun.gc` is best-effort; tolerate any environment without it.
+      }
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
   }
 
   get downloaded(): number {
@@ -265,8 +311,10 @@ export class GhostImageDownloader {
     }
 
     this.emit(fetchUrl, 'fetching');
+    await this.preFetchBreather();
+    let response: Response | undefined;
     try {
-      const response = await this.fetcher(fetchUrl);
+      response = await this.fetcher(fetchUrl);
       if (!response.ok) {
         logger.warn(`Failed to download image ${fetchUrl}: HTTP ${response.status}`);
         this.cache.set(cacheKey, null);
@@ -324,6 +372,13 @@ export class GhostImageDownloader {
       this._failed += 1;
       this.emit(fetchUrl, 'failed');
       return null;
+    } finally {
+      // Always release the body. Happy path already drained it via
+      // arrayBuffer (cancel becomes a no-op); error paths that returned
+      // before arrayBuffer rely on this to free the underlying native
+      // handle so Bun doesn't accumulate unread Response objects across a
+      // long import.
+      tryReleaseBody(response?.body);
     }
   }
 
