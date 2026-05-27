@@ -13,13 +13,14 @@ export interface DevGlyphs {
   separator: string;
   arrow: string;
   bullet: string;
+  cycle: string;
 }
 
 export function devGlyphs(): DevGlyphs {
   if (!getColorEnabled()) {
-    return { check: 'OK', warn: 'WARN', separator: '-', arrow: '->', bullet: '-' };
+    return { check: 'OK', warn: 'WARN', separator: '-', arrow: '->', bullet: '-', cycle: '~' };
   }
-  return { check: '✓', warn: '⚠', separator: '·', arrow: '→', bullet: '-' };
+  return { check: '✓', warn: '⚠', separator: '·', arrow: '→', bullet: '-', cycle: '↻' };
 }
 
 // Display path: cwd-relative when the target sits inside cwd, `~`-shortened
@@ -157,6 +158,33 @@ export function renderWarnings(messages: string[]): string {
   const head = ` ${colorize(g.warn, 'yellow')} ${messages.length} warning${messages.length === 1 ? '' : 's'}`;
   const bullets = messages.map((m) => `   ${colorize(g.bullet, 'gray')} ${m}`);
   return `\n${[head, ...bullets].join('\n')}\n`;
+}
+
+export interface RebuildBlock {
+  routes: number;
+  assets: number;
+  elapsedMs: number;
+  changeType: 'reload' | 'css';
+  clients: number;
+}
+
+// Watch-loop rebuild log. Same visual family as renderReady -- glyph + accented
+// summary + dim separator + dim trailing fragment -- but emitted as a single
+// line because it fires on every file change and a multi-line block would
+// quickly dominate the terminal. The trailing "pushed reload/css (N client)"
+// fragment captures what the previous `pushing reload to N client(s)` wording
+// did, just shorter. We intentionally drop the "reused config+theme" hint
+// here: it doesn't change between rebuilds in the common case and the time
+// delta is the more useful signal to track on each cycle.
+export function renderRebuild(block: RebuildBlock): string {
+  if (getOutputMode() === 'json') return '';
+  const g = devGlyphs();
+  const dim = (s: string) => colorize(s, 'gray');
+  const accent = (s: string) => colorize(s, 'cyan');
+  const head = `${accent(g.cycle)} Rebuilt ${block.routes} routes (${block.assets} assets) in ${formatMs(block.elapsedMs)}`;
+  const pushLabel = block.changeType === 'css' ? 'pushed css' : 'pushed reload';
+  const clientLabel = `${block.clients} ${block.clients === 1 ? 'client' : 'clients'}`;
+  return `\n ${head}  ${dim(g.separator)}  ${dim(`${pushLabel} (${clientLabel})`)}\n`;
 }
 
 function formatMs(ms: number): string {

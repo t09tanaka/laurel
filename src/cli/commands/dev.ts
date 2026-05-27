@@ -23,6 +23,7 @@ import {
   formatPath,
   renderBanner,
   renderReady,
+  renderRebuild,
   renderWarnings,
   summarizeWatching,
   writeBlock,
@@ -262,21 +263,36 @@ export async function runDev(args: string[]): Promise<number> {
           }
         : undefined;
     try {
+      const rebuildStart = performance.now();
       const summary = await build({
         cwd,
         configPath,
         captureReusable: true,
         ...(reuseArg !== undefined ? { reuse: reuseArg } : {}),
       });
+      const rebuildElapsedMs = performance.now() - rebuildStart;
       // A successful build either confirms the reused state is still valid or
       // produces a fresh one; either way, refresh `reusable` so the next
       // rebuild keeps benefiting from the cache.
       if (summary.reusable !== undefined) reusable = summary.reusable;
       const messageType = isCssOnly ? 'css' : 'reload';
-      const reuseLabel = describeReuse(reuseArg);
-      logger.info(
-        `Rebuilt ${summary.routeCount} routes (${summary.assetCount} assets, ${reuseLabel}); pushing ${messageType} to ${clients.size} client(s)`,
+      writeBlock(
+        renderRebuild({
+          routes: summary.routeCount,
+          assets: summary.assetCount,
+          elapsedMs: rebuildElapsedMs,
+          changeType: messageType,
+          clients: clients.size,
+        }),
       );
+      emitDevEvent('dev.rebuilt', {
+        routes: summary.routeCount,
+        assets: summary.assetCount,
+        elapsedMs: Math.round(rebuildElapsedMs),
+        reuse: describeReuse(reuseArg),
+        changeType: messageType,
+        clients: clients.size,
+      });
       broadcast({ type: messageType });
     } catch (err) {
       // file:line format is the responsibility of reportError → formatNectarError;
