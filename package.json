@@ -105,6 +105,7 @@
     "qa:dashboard-visual": "bun scripts/dashboard-visual-qa.ts"
   },
   "dependencies": {
+    "@clack/prompts": "^1.4.0",
     "@iarna/toml": "^2.2.5",
     "dayjs": "^1.11.13",
     "dom-serializer": "2.0.0",

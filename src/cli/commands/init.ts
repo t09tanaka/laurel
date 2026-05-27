@@ -1,5 +1,7 @@
 import { existsSync } from 'node:fs';
-import { isAbsolute, join, resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { basename, isAbsolute, join, resolve } from 'node:path';
+import * as clack from '@clack/prompts';
 import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 import { writeGeneratedTextFile } from '../line-endings.ts';
@@ -9,16 +11,12 @@ import { INIT_SPEC } from '../specs.ts';
 const KNOWN_THEMES = ['source', 'casper', 'edition', 'dawn', 'alto'] as const;
 type KnownTheme = (typeof KNOWN_THEMES)[number];
 
-const DEPLOY_TARGETS = ['github-pages', 'netlify', 'vercel', 'cloudflare-pages', 'custom'] as const;
-type DeployTarget = (typeof DEPLOY_TARGETS)[number];
-
 export interface InitAnswers {
   title: string;
   url: string;
   theme: string;
   starterContent: boolean;
   rss: boolean;
-  deploy: DeployTarget;
 }
 
 const DEFAULT_ANSWERS: InitAnswers = {
@@ -27,8 +25,25 @@ const DEFAULT_ANSWERS: InitAnswers = {
   theme: 'source',
   starterContent: true,
   rss: true,
-  deploy: 'github-pages',
 };
+
+// Conflict policy for individual generated files. Files split into three
+// buckets so a half-initialised project doesn't fail outright on the next
+// `nectar init` run while still protecting the load-bearing nectar.toml:
+//   - 'overwrite': refuse to clobber without --force (used for nectar.toml).
+//   - 'skip':     leave the existing copy alone and continue; emit an info log.
+//   - 'merge':    read existing content, augment it via the file's `merge` hook
+//                  (used for package.json: add scripts + devDependencies that
+//                  Nectar wants without disturbing anything the operator already
+//                  configured).
+type ConflictPolicy = 'overwrite' | 'skip' | 'merge';
+
+interface ProjectFile {
+  path: string;
+  contents: string;
+  policy?: ConflictPolicy;
+  merge?: (existing: string) => string;
+}
 
 export async function runInit(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
@@ -59,7 +74,15 @@ export async function runInit(args: string[]): Promise<number> {
     answers = { ...DEFAULT_ANSWERS };
   } else {
     try {
-      answers = await promptAnswers(DEFAULT_ANSWERS);
+      // Use the clack-based picker when stdin is an actual terminal (arrow
+      // keys, highlighting, cancel-on-Ctrl-C). Pipe / CI / test environments
+      // (`bun test` spawns with a Blob stdin) keep the legacy readline-based
+      // flow so existing automation that pipes answers via newlines still
+      // works.
+      answers =
+        process.stdin.isTTY === true
+          ? await promptAnswersInteractive(DEFAULT_ANSWERS)
+          : await promptAnswersFromStdin(DEFAULT_ANSWERS);
     } catch (err) {
       process.stderr.write(
         `Failed to read answers from stdin: ${err instanceof Error ? err.message : String(err)}\n`,
@@ -68,27 +91,66 @@ export async function runInit(args: string[]): Promise<number> {
     }
   }
 
-  const files = renderProject(answers);
-  const conflicts = files.map((f) => join(targetDir, f.path)).filter((p) => existsSync(p));
-  if (conflicts.length > 0 && !force) {
-    const list = conflicts.map((p) => `  ${p}`).join('\n');
+  const files = renderProject(answers, targetDir);
+  // Only files marked 'overwrite' (the default) participate in the refuse-
+  // without-force gate. 'skip' / 'merge' files handle conflicts themselves.
+  const blockingConflicts = files
+    .filter((f) => (f.policy ?? 'overwrite') === 'overwrite')
+    .map((f) => ({ file: f, abs: join(targetDir, f.path) }))
+    .filter(({ abs }) => existsSync(abs));
+  if (blockingConflicts.length > 0 && !force) {
+    const list = blockingConflicts.map(({ abs }) => `  ${abs}`).join('\n');
     process.stderr.write(
       `Refusing to overwrite existing files:\n${list}\nPass --force to overwrite.\n`,
     );
     return 1;
   }
 
+  const skipped: string[] = [];
+  const merged: string[] = [];
   for (const file of files) {
     const dest = join(targetDir, file.path);
+    const exists = existsSync(dest);
+    const policy = file.policy ?? 'overwrite';
+    if (exists && policy === 'skip') {
+      skipped.push(file.path);
+      continue;
+    }
+    if (exists && policy === 'merge' && file.merge) {
+      const current = await readFile(dest, 'utf8');
+      const next = file.merge(current);
+      if (next !== current) {
+        await writeGeneratedTextFile(dest, next);
+        merged.push(file.path);
+      } else {
+        skipped.push(file.path);
+      }
+      continue;
+    }
     await ensureDir(dirnameOf(dest));
     await writeGeneratedTextFile(dest, file.contents);
   }
 
   logger.info(`Initialised Nectar project in ${targetDir}`);
+  for (const path of skipped) {
+    logger.info(`  Skipped existing ${path}`);
+  }
+  for (const path of merged) {
+    logger.info(`  Merged into existing ${path}`);
+  }
+  logger.info('');
   logger.info('Next steps:');
-  logger.info('  1. Drop a Ghost theme into themes/<name>/ (e.g. themes/source/).');
-  logger.info('  2. Run `bunx nectar build` to render the site.');
-  logger.info('  3. Run `bunx nectar serve` to preview locally.');
+  logger.info('  1. Install dependencies:    npm install   (or: bun install)');
+  logger.info(
+    `  2. Vendor a Ghost theme:    git clone https://github.com/TryGhost/${themeRepo(answers.theme)} themes/${answers.theme}`,
+  );
+  logger.info('  3. Start the dev server:    npm run dev          → http://localhost:4321/');
+  logger.info('  4. Open the dashboard:      npm run dashboard    → http://localhost:4322/');
+  logger.info('  5. Build for production:    npm run build        → dist/');
+  logger.info('');
+  logger.info(
+    'Tip: create CLAUDE.md or AGENTS.md, then run `nectar skill install` to teach your AI assistant about Nectar conventions.',
+  );
   return 0;
 }
 
@@ -97,29 +159,53 @@ function dirnameOf(path: string): string {
   return idx === -1 ? '.' : path.slice(0, idx);
 }
 
-interface ProjectFile {
-  path: string;
-  contents: string;
+// Recommended upstream repo per known theme. Used in the `git clone` hint
+// printed after `nectar init`. Falls back to the canonical Source repo for
+// any value Nectar doesn't recognise — the operator can swap it as needed.
+function themeRepo(theme: string): string {
+  switch (theme) {
+    case 'casper':
+      return 'Casper';
+    case 'edition':
+      return 'Edition';
+    case 'dawn':
+      return 'Dawn';
+    case 'alto':
+      return 'Alto';
+    default:
+      return 'Source';
+  }
 }
 
-export function renderProject(answers: InitAnswers): ProjectFile[] {
+export function renderProject(answers: InitAnswers, targetDir = ''): ProjectFile[] {
+  const pkgName = derivePackageName(targetDir);
+  const pkgContents = renderPackageJson(pkgName);
   const files: ProjectFile[] = [
     { path: 'nectar.toml', contents: renderConfig(answers) },
-    { path: '.gitignore', contents: renderGitignore() },
-    { path: 'README.md', contents: renderReadme(answers) },
+    { path: '.gitignore', contents: renderGitignore(), policy: 'skip' },
+    { path: 'README.md', contents: renderReadme(answers), policy: 'skip' },
+    {
+      path: 'package.json',
+      contents: pkgContents,
+      policy: 'merge',
+      merge: (existing) => mergePackageJson(existing, pkgContents),
+    },
   ];
   if (answers.starterContent) {
     files.push({
       path: 'content/posts/welcome.md',
       contents: renderWelcomePost(answers),
+      policy: 'skip',
     });
     files.push({
       path: 'content/pages/about.md',
       contents: renderAboutPage(answers),
+      policy: 'skip',
     });
     files.push({
       path: 'content/authors/default.md',
       contents: renderDefaultAuthor(),
+      policy: 'skip',
     });
   }
   return files;
@@ -179,7 +265,7 @@ function renderConfig(a: InitAnswers): string {
 }
 
 function renderGitignore(): string {
-  return ['node_modules/', 'dist/', '.worktrees/', '.DS_Store', ''].join('\n');
+  return ['node_modules/', 'dist/', '.worktrees/', '.theme-cache/', '.DS_Store', ''].join('\n');
 }
 
 function renderReadme(a: InitAnswers): string {
@@ -192,9 +278,13 @@ function renderReadme(a: InitAnswers): string {
   lines.push('## Getting started');
   lines.push('');
   lines.push('```sh');
-  lines.push('bun install');
-  lines.push('bunx nectar build');
-  lines.push('bunx nectar serve');
+  lines.push('npm install                # or: bun install');
+  lines.push(
+    `git clone https://github.com/TryGhost/${themeRepo(a.theme)} themes/${a.theme}   # vendor the theme`,
+  );
+  lines.push('npm run dev                # http://localhost:4321/  (live reload)');
+  lines.push('npm run dashboard          # http://localhost:4322/  (editor UI)');
+  lines.push('npm run build              # writes dist/');
   lines.push('```');
   lines.push('');
   lines.push('## Project layout');
@@ -204,41 +294,15 @@ function renderReadme(a: InitAnswers): string {
   lines.push('- `content/pages/` — Static pages (about, contact, …).');
   lines.push('- `content/authors/` — Author metadata.');
   lines.push(`- \`themes/${a.theme}/\` — Ghost theme used for rendering.`);
-  lines.push('  Vendor a theme here before building (e.g. clone TryGhost/Source).');
+  lines.push('  Vendor a theme here before building (see Getting started).');
   lines.push('');
   lines.push('## Deployment');
   lines.push('');
-  lines.push(deploymentNotes(a.deploy));
+  lines.push('Deploy the generated `dist/` directory to any static host (GitHub Pages, Netlify,');
+  lines.push('Vercel, Cloudflare Pages, S3, …). Use `npm run build` as the build command and');
+  lines.push('`dist/` as the publish directory.');
   lines.push('');
   return lines.join('\n');
-}
-
-function deploymentNotes(target: DeployTarget): string {
-  switch (target) {
-    case 'github-pages':
-      return [
-        'Configured for **GitHub Pages**. Add a workflow (e.g.',
-        '`.github/workflows/deploy.yml`) that runs `bunx nectar build` and uploads',
-        '`dist/` via `actions/deploy-pages`.',
-      ].join('\n');
-    case 'netlify':
-      return [
-        'Configured for **Netlify**. Set the build command to `bunx nectar build`',
-        'and the publish directory to `dist/`.',
-      ].join('\n');
-    case 'vercel':
-      return [
-        'Configured for **Vercel**. Use `bunx nectar build` as the build command',
-        'and `dist` as the output directory in `vercel.json` or project settings.',
-      ].join('\n');
-    case 'cloudflare-pages':
-      return [
-        'Configured for **Cloudflare Pages**. Build command: `bunx nectar build`.',
-        'Output directory: `dist`.',
-      ].join('\n');
-    case 'custom':
-      return 'Custom deployment — wire `bunx nectar build` into your pipeline of choice.';
-  }
 }
 
 function renderWelcomePost(a: InitAnswers): string {
@@ -254,7 +318,7 @@ function renderWelcomePost(a: InitAnswers): string {
   lines.push(`# Welcome to ${a.title}`);
   lines.push('');
   lines.push('This is your first post. Edit it in `content/posts/welcome.md`,');
-  lines.push('or scaffold a new one with `bunx nectar new post "My Title"`.');
+  lines.push('or scaffold a new one with `nectar new post "My Title"`.');
   lines.push('');
   return lines.join('\n');
 }
@@ -285,11 +349,134 @@ function renderDefaultAuthor(): string {
   return lines.join('\n');
 }
 
+// Generated package.json shape. `private: true` keeps the project from being
+// accidentally published to npm if the operator runs `npm publish` later, and
+// `type: "module"` aligns with Nectar's ESM-only distribution. Scripts use the
+// bare `nectar` name because npm/bun add `node_modules/.bin` to PATH for
+// script execution, so users don't have to remember `bunx` vs `npx`.
+function renderPackageJson(name: string): string {
+  const pkg = {
+    name,
+    private: true,
+    version: '0.0.0',
+    type: 'module' as const,
+    scripts: {
+      dev: 'nectar dev',
+      build: 'nectar build',
+      serve: 'nectar serve',
+      dashboard: 'nectar dashboard',
+    },
+    devDependencies: {
+      nectar: '^0.1.0',
+    },
+  };
+  return `${JSON.stringify(pkg, null, 2)}\n`;
+}
+
+// Non-destructive merge: add Nectar's expected scripts + devDeps to an
+// existing package.json without touching anything the operator already set.
+// If a script key already exists we leave it -- the operator presumably has
+// a reason. Same for devDependencies. Invalid JSON is returned unchanged
+// (better than mangling a file the user is mid-edit on).
+function mergePackageJson(existing: string, generated: string): string {
+  let current: Record<string, unknown>;
+  let template: Record<string, unknown>;
+  try {
+    current = JSON.parse(existing) as Record<string, unknown>;
+    template = JSON.parse(generated) as Record<string, unknown>;
+  } catch {
+    return existing;
+  }
+  const result: Record<string, unknown> = { ...current };
+  const tplScripts = (template.scripts ?? {}) as Record<string, string>;
+  const curScripts = ((current.scripts ?? {}) as Record<string, string>) || {};
+  const mergedScripts: Record<string, string> = { ...curScripts };
+  for (const [k, v] of Object.entries(tplScripts)) {
+    if (!(k in mergedScripts)) mergedScripts[k] = v;
+  }
+  result.scripts = mergedScripts;
+  const tplDev = (template.devDependencies ?? {}) as Record<string, string>;
+  const curDev = ((current.devDependencies ?? {}) as Record<string, string>) || {};
+  const mergedDev: Record<string, string> = { ...curDev };
+  for (const [k, v] of Object.entries(tplDev)) {
+    if (!(k in mergedDev)) mergedDev[k] = v;
+  }
+  result.devDependencies = mergedDev;
+  return `${JSON.stringify(result, null, 2)}\n`;
+}
+
+// Derive a valid npm package name from the target directory. The npm spec
+// (https://docs.npmjs.com/cli/v10/configuring-npm/package-json#name) forbids
+// uppercase, leading dots/underscores, and most punctuation; collapse anything
+// outside [a-z0-9-] to hyphens and clamp the leading/trailing edges.
+function derivePackageName(targetDir: string): string {
+  const raw = targetDir.length > 0 ? basename(targetDir) : '';
+  const slug = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug.length > 0 ? slug : 'my-nectar-site';
+}
+
 function tomlString(value: string): string {
   return JSON.stringify(value);
 }
 
-async function promptAnswers(defaults: InitAnswers): Promise<InitAnswers> {
+// Interactive mode (TTY): clack handles arrow-key selection, highlighting,
+// and Ctrl-C cancellation across platforms. We catch the symbol clack
+// returns when the user cancels and throw so the caller falls into the
+// normal error path instead of writing a half-formed answer set.
+async function promptAnswersInteractive(defaults: InitAnswers): Promise<InitAnswers> {
+  clack.intro('Nectar project setup');
+  const title = await clack.text({
+    message: 'Site title',
+    placeholder: defaults.title,
+    initialValue: defaults.title,
+  });
+  ensureNotCancelled(title);
+  const url = await clack.text({
+    message: 'Site URL',
+    placeholder: defaults.url,
+    initialValue: defaults.url,
+  });
+  ensureNotCancelled(url);
+  const theme = await clack.select<KnownTheme>({
+    message: 'Theme',
+    options: KNOWN_THEMES.map((name) => ({ value: name, label: name })),
+    initialValue: defaults.theme as KnownTheme,
+  });
+  ensureNotCancelled(theme);
+  const starter = await clack.confirm({
+    message: 'Include starter content (welcome post, about page)?',
+    initialValue: defaults.starterContent,
+  });
+  ensureNotCancelled(starter);
+  const rss = await clack.confirm({
+    message: 'Enable RSS feed?',
+    initialValue: defaults.rss,
+  });
+  ensureNotCancelled(rss);
+  clack.outro('Generating files...');
+  return {
+    title: typeof title === 'string' && title.trim().length > 0 ? title.trim() : defaults.title,
+    url: typeof url === 'string' && url.trim().length > 0 ? url.trim() : defaults.url,
+    theme: theme as string,
+    starterContent: starter === true,
+    rss: rss === true,
+  };
+}
+
+function ensureNotCancelled(value: unknown): void {
+  if (clack.isCancel(value)) {
+    clack.cancel('Aborted.');
+    throw new Error('cancelled');
+  }
+}
+
+// Pipe / CI mode: read newline-delimited answers from stdin so existing
+// automation that feeds responses via a Blob keeps working. Mirrors the
+// legacy implementation; only the input sanitiser is new.
+async function promptAnswersFromStdin(defaults: InitAnswers): Promise<InitAnswers> {
   const reader = createLineReader();
   process.stdout.write('Nectar project setup — press Enter to accept defaults.\n\n');
 
@@ -302,12 +489,6 @@ async function promptAnswers(defaults: InitAnswers): Promise<InitAnswers> {
     defaults.starterContent,
   );
   const rss = await yesNo(reader, 'Enable RSS feed?', defaults.rss);
-  const deploy = (await chooseFromList(
-    reader,
-    'Deployment target',
-    [...DEPLOY_TARGETS],
-    defaults.deploy,
-  )) as DeployTarget;
 
   return {
     title,
@@ -315,7 +496,6 @@ async function promptAnswers(defaults: InitAnswers): Promise<InitAnswers> {
     theme: themeChoice,
     starterContent: starter,
     rss,
-    deploy,
   };
 }
 
@@ -357,11 +537,21 @@ function createLineReader(): LineReader {
   };
 }
 
+// Strip leading/trailing whitespace plus any ASCII control characters (C0,
+// DEL, C1) and the Unicode replacement marker U+FFFD that TextDecoder emits
+// when stdin holds non-UTF-8 bytes (paste artefacts, lingering ANSI escapes
+// from an arrow-key press, etc.). Without this the original validator
+// rejected inputs like `\x1b2` even though the operator typed `2` cleanly.
+function sanitizeInput(line: string): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control bytes is exactly the point of this regex.
+  return line.replace(/[\x00-\x1f\x7f-\x9f�]/g, '').trim();
+}
+
 async function ask(reader: LineReader, prompt: string, fallback: string): Promise<string> {
   process.stdout.write(prompt);
   const line = await reader.next();
   if (line === null) return fallback;
-  const trimmed = line.trim();
+  const trimmed = sanitizeInput(line);
   return trimmed || fallback;
 }
 
@@ -379,7 +569,7 @@ async function chooseFromList<T extends string>(
     process.stdout.write(`Pick one [${defaultLabel}]: `);
     const line = await reader.next();
     if (line === null) return fallback;
-    const raw = line.trim();
+    const raw = sanitizeInput(line);
     if (!raw) return fallback;
     const asIndex = Number.parseInt(raw, 10);
     if (Number.isInteger(asIndex) && asIndex >= 1 && asIndex <= choices.length) {
@@ -398,7 +588,7 @@ async function yesNo(reader: LineReader, label: string, fallback: boolean): Prom
     process.stdout.write(`${label} [${hint}]: `);
     const line = await reader.next();
     if (line === null) return fallback;
-    const raw = line.trim().toLowerCase();
+    const raw = sanitizeInput(line).toLowerCase();
     if (!raw) return fallback;
     if (raw === 'y' || raw === 'yes' || raw === 'true') return true;
     if (raw === 'n' || raw === 'no' || raw === 'false') return false;
@@ -406,5 +596,5 @@ async function yesNo(reader: LineReader, label: string, fallback: boolean): Prom
   }
 }
 
-export { KNOWN_THEMES, DEPLOY_TARGETS };
-export type { KnownTheme, DeployTarget };
+export { KNOWN_THEMES };
+export type { KnownTheme };

@@ -70,8 +70,18 @@ describe('cli init', () => {
 
     const readme = await readFile(join(dir, 'README.md'), 'utf8');
     expect(readme).toContain('# My Nectar Site');
-    expect(readme).toContain('bunx nectar build');
+    expect(readme).toContain('npm run build');
     expect(readme).toContain('GitHub Pages');
+
+    const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'));
+    expect(pkg.private).toBe(true);
+    expect(pkg.scripts).toEqual({
+      dev: 'nectar dev',
+      build: 'nectar build',
+      serve: 'nectar serve',
+      dashboard: 'nectar dashboard',
+    });
+    expect(pkg.devDependencies.nectar).toBeDefined();
 
     const welcome = await readFile(join(dir, 'content/posts/welcome.md'), 'utf8');
     expect(welcome).toContain('title: "Welcome to My Nectar Site"');
@@ -92,6 +102,7 @@ describe('cli init', () => {
       'nectar.toml',
       '.gitignore',
       'README.md',
+      'package.json',
       'content/posts/welcome.md',
       'content/pages/about.md',
       'content/authors/default.md',
@@ -140,7 +151,6 @@ describe('cli init', () => {
       '2', // theme: casper (second in KNOWN_THEMES)
       'n', // starter content: no
       'n', // rss: no
-      '2', // deploy: netlify
       '',
     ].join('\n');
 
@@ -153,21 +163,84 @@ describe('cli init', () => {
     expect(toml).toContain('name = "casper"');
     expect(toml).toContain('enabled = false');
 
-    const readme = await readFile(join(dir, 'README.md'), 'utf8');
-    expect(readme).toContain('Netlify');
-
     expect(await fileExists(join(dir, 'content/posts/welcome.md'))).toBe(false);
     expect(await fileExists(join(dir, 'content/pages/about.md'))).toBe(false);
   });
 
+  test('interactive mode tolerates leading control bytes in the choice prompt', async () => {
+    // Reproduces the `Invalid choice: �2` regression: terminals occasionally
+    // leak ANSI escape bytes (or a stray U+FFFD from non-UTF-8 paste) into
+    // the line buffer alongside the digit the user actually typed. The
+    // sanitiser must strip those and still pick the right option.
+    const stdin = [
+      '', // title (accept default)
+      '', // url (accept default)
+      '\x1b 2', // theme: casper, prefixed by a stray escape byte and space
+      '',
+      '',
+    ].join('\n');
+    const { exitCode, stderr } = await runCli(['init'], dir, stdin);
+    expect(exitCode).toBe(0);
+    expect(stderr).not.toContain('Invalid choice');
+    const toml = await readFile(join(dir, 'nectar.toml'), 'utf8');
+    expect(toml).toContain('name = "casper"');
+  });
+
   test('interactive mode accepts defaults via empty input', async () => {
-    const stdin = '\n\n\n\n\n\n';
+    const stdin = '\n\n\n\n\n';
     const { exitCode } = await runCli(['init'], dir, stdin);
     expect(exitCode).toBe(0);
 
     const toml = await readFile(join(dir, 'nectar.toml'), 'utf8');
     expect(toml).toContain('title = "My Nectar Site"');
     expect(toml).toContain('name = "source"');
+  });
+
+  test('skips README and .gitignore if already present, but still writes nectar.toml + package.json', async () => {
+    await writeFile(join(dir, 'README.md'), '# pre-existing\n');
+    await writeFile(join(dir, '.gitignore'), 'custom\n');
+
+    const { exitCode, stdout } = await runCli(['init', '--yes'], dir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Skipped existing README.md');
+    expect(stdout).toContain('Skipped existing .gitignore');
+
+    const readme = await readFile(join(dir, 'README.md'), 'utf8');
+    expect(readme).toBe('# pre-existing\n');
+    const gitignore = await readFile(join(dir, '.gitignore'), 'utf8');
+    expect(gitignore).toBe('custom\n');
+    expect(await fileExists(join(dir, 'nectar.toml'))).toBe(true);
+    expect(await fileExists(join(dir, 'package.json'))).toBe(true);
+  });
+
+  test('merges nectar scripts into an existing package.json without clobbering custom keys', async () => {
+    await writeFile(
+      join(dir, 'package.json'),
+      `${JSON.stringify(
+        {
+          name: 'existing-project',
+          private: true,
+          scripts: { test: 'jest', dev: 'node ./scripts/dev.js' },
+          devDependencies: { jest: '^29.0.0' },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    const { exitCode, stdout } = await runCli(['init', '--yes'], dir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Merged into existing package.json');
+
+    const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'));
+    // Existing scripts win when a key collides; Nectar adds the missing ones.
+    expect(pkg.name).toBe('existing-project');
+    expect(pkg.scripts.test).toBe('jest');
+    expect(pkg.scripts.dev).toBe('node ./scripts/dev.js');
+    expect(pkg.scripts.build).toBe('nectar build');
+    expect(pkg.scripts.dashboard).toBe('nectar dashboard');
+    expect(pkg.devDependencies.jest).toBe('^29.0.0');
+    expect(pkg.devDependencies.nectar).toBeDefined();
   });
 
   test('--help prints subcommand help', async () => {
