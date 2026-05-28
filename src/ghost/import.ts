@@ -56,7 +56,7 @@ interface GhostExportDbEntry {
     tiers?: GhostTier[];
     settings?: GhostSetting[];
     posts_tags?: Array<{ post_id: string; tag_id: string; sort_order?: number }>;
-    posts_authors?: Array<{ post_id: string; user_id: string; sort_order?: number }>;
+    posts_authors?: GhostPostsAuthor[];
     posts_tiers?: Array<{ post_id: string; tier_id: string; sort_order?: number }>;
     posts_meta?: GhostPostMeta[];
   };
@@ -85,7 +85,7 @@ interface MergedGhostData {
   tiers: GhostTier[];
   settings: GhostSetting[];
   postsTags: Array<{ post_id: string; tag_id: string; sort_order?: number }>;
-  postsAuthors: Array<{ post_id: string; user_id: string; sort_order?: number }>;
+  postsAuthors: GhostPostsAuthor[];
   postsTiers: Array<{ post_id: string; tier_id: string; sort_order?: number }>;
   postsMeta: GhostPostMeta[];
 }
@@ -129,6 +129,13 @@ interface GhostPost {
   canonical_url?: string | null;
   codeinjection_head?: string | null;
   codeinjection_foot?: string | null;
+}
+
+interface GhostPostsAuthor {
+  post_id: string;
+  user_id?: string;
+  author_id?: string;
+  sort_order?: number;
 }
 
 interface GhostPostMeta {
@@ -741,7 +748,7 @@ async function importFromResolvedInput(
   const authorSlugsForPost = (post: GhostPost): string[] => {
     const joined = (postsAuthorsByPost.get(post.id) ?? [])
       .map((r) => {
-        const u = userById.get(r.user_id);
+        const u = userById.get(r.user_id ?? r.author_id ?? '');
         if (!u) return '';
         return safeSlug(u.slug) || safeSlug(u.name);
       })
