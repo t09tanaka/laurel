@@ -2121,13 +2121,33 @@ const HTML_ENTITY_TEXT: Record<string, string> = {
   '#39': "'",
 };
 
+// `new Intl.Segmenter(...)` is expensive to build relative to a single
+// `segment()` call, and word/reading-char counting runs once per post. The
+// segmenter is stateless across `segment()` calls, so cache one instance per
+// (granularity, locale). In the markdown worker pool this cache is per-worker,
+// which still amortises construction across that worker's share of posts.
+const segmenterCache = new Map<string, Intl.Segmenter>();
+
+function getSegmenter(
+  locale: string | undefined,
+  granularity: 'word' | 'grapheme',
+): Intl.Segmenter {
+  const key = `${granularity}:${locale ?? ''}`;
+  let segmenter = segmenterCache.get(key);
+  if (!segmenter) {
+    segmenter = new Intl.Segmenter(locale, { granularity });
+    segmenterCache.set(key, segmenter);
+  }
+  return segmenter;
+}
+
 // Whitespace tokenisation returns 1 for an entire CJK essay because Japanese,
 // Chinese, and Korean don't put spaces between words. Intl.Segmenter with
 // granularity:'word' uses ICU's locale-aware word boundaries, so reading_time
 // stays meaningful regardless of script.
 function countWords(text: string, locale: string | undefined): number {
   if (!text) return 0;
-  const segmenter = new Intl.Segmenter(locale, { granularity: 'word' });
+  const segmenter = getSegmenter(locale, 'word');
   let count = 0;
   for (const segment of segmenter.segment(text)) {
     if (segment.isWordLike) count += 1;
@@ -2154,7 +2174,7 @@ function isCjkLocale(locale: string | undefined): boolean {
 
 function countReadingChars(text: string, locale: string | undefined): number {
   if (!text) return 0;
-  const segmenter = new Intl.Segmenter(locale, { granularity: 'grapheme' });
+  const segmenter = getSegmenter(locale, 'grapheme');
   let count = 0;
   for (const seg of segmenter.segment(text)) {
     if (/^\s+$/.test(seg.segment)) continue;
@@ -2216,7 +2236,7 @@ function computeReadingTime(
 // for Latin scripts and works for CJK where words run together without spaces.
 export function truncateByWords(text: string, words: number, locale: string | undefined): string {
   if (!text || words <= 0) return '';
-  const segmenter = new Intl.Segmenter(locale, { granularity: 'word' });
+  const segmenter = getSegmenter(locale, 'word');
   let count = 0;
   let end = 0;
   for (const seg of segmenter.segment(text)) {

@@ -463,13 +463,29 @@ function truncateWordNodes(nodes: ChildNode[], state: HtmlWordTruncateState): vo
   }
 }
 
+// `new Intl.Segmenter(...)` is expensive to construct relative to a single
+// `segment()` call, and excerpt truncation calls this once per text node across
+// every route. The segmenter is stateless across `segment()` calls, so cache one
+// instance per locale (the locale is effectively constant within a build).
+const wordSegmenterCache = new Map<string, Intl.Segmenter>();
+
+function wordSegmenter(locale: string | undefined): Intl.Segmenter {
+  const key = locale ?? '';
+  let segmenter = wordSegmenterCache.get(key);
+  if (!segmenter) {
+    segmenter = new Intl.Segmenter(locale, { granularity: 'word' });
+    wordSegmenterCache.set(key, segmenter);
+  }
+  return segmenter;
+}
+
 function truncateTextNodeByWords(
   text: string,
   words: number,
   locale: string | undefined,
 ): { text: string; words: number; limitReached: boolean } {
   if (!text || words <= 0) return { text: '', words: 0, limitReached: true };
-  const segmenter = new Intl.Segmenter(locale, { granularity: 'word' });
+  const segmenter = wordSegmenter(locale);
   let count = 0;
   let end = 0;
   for (const seg of segmenter.segment(text)) {
