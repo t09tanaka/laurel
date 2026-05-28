@@ -88,12 +88,7 @@ export function calloutMarkdownItPlugin(md: MarkdownIt): void {
 
       const body = rest.slice(0, closeMatch.index);
       const closeEnd = searchFrom + closeMatch.index + closeMatch[0].length;
-      const nextLine = lineAfterOffset(
-        state.eMarks as number[],
-        startLine,
-        endLine,
-        closeEnd,
-      );
+      const nextLine = lineAfterOffset(state.eMarks as number[], startLine, endLine, closeEnd);
 
       const attrs = parseCalloutAttrs(open[1] ?? '');
 
