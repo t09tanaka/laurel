@@ -182,6 +182,11 @@ The importer:
    [turndown](https://github.com/mixmark-io/turndown), preserving Koenig card
    fences for `<!--kg-card-begin: markdown -->` / `html` / `email` / `email-cta`
    blocks so they round-trip cleanly.
+   Ordinary static Ghost image cards are stored as editable Markdown images.
+   Links remain Markdown image links, captions become the following blockquote,
+   and Ghost width modifiers are kept as Markdown image titles. During preview
+   and build, Nectar promotes those images back to `kg-image-card` figures for
+   Source/Casper-compatible theme output.
 3. Writes `content/posts/*.md`, `content/pages/*.md`, `content/tags/*.md`, and
    `content/authors/*.md`. Frontmatter is YAML; see the mapping table below.
 4. Copies the `images/`, `files/`, and `media/` directories from `--assets`
