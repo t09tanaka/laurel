@@ -294,38 +294,59 @@ export interface RouteContentInput {
   size: number;
 }
 
+export interface RouteContentInputIndex {
+  posts: ReadonlyMap<string, RouteContentInput>;
+  pages: ReadonlyMap<string, RouteContentInput>;
+  tags: ReadonlyMap<string, RouteContentInput>;
+  authors: ReadonlyMap<string, RouteContentInput>;
+}
+
+export function createRouteContentInputIndex(content: ContentGraph): RouteContentInputIndex {
+  return {
+    posts: buildContentInputMap('post', content.sources?.posts),
+    pages: buildContentInputMap('page', content.sources?.pages),
+    tags: buildContentInputMap('tag', content.sources?.tags),
+    authors: buildContentInputMap('author', content.sources?.authors),
+  };
+}
+
+function buildContentInputMap(
+  kind: RouteContentInput['kind'],
+  sources: ReadonlyMap<string, ContentSourceFingerprint> | undefined,
+): ReadonlyMap<string, RouteContentInput> {
+  const out = new Map<string, RouteContentInput>();
+  if (!sources) return out;
+  for (const [id, source] of sources) {
+    out.set(id, { kind, id, ...source });
+  }
+  return out;
+}
+
 export function collectRouteContentInputs(
   route: RouteContext,
   content: ContentGraph,
+  index?: RouteContentInputIndex,
 ): RouteContentInput[] {
   const inputs = new Map<string, RouteContentInput>();
-  const add = (
-    kind: RouteContentInput['kind'],
-    id: string | undefined,
-    source: ContentSourceFingerprint | undefined,
-  ) => {
-    if (!id || !source) return;
-    inputs.set(`${kind}:${id}`, { kind, id, ...source });
+  const sourceIndex = index ?? {
+    posts: buildContentInputMap('post', content.sources?.posts),
+    pages: buildContentInputMap('page', content.sources?.pages),
+    tags: buildContentInputMap('tag', content.sources?.tags),
+    authors: buildContentInputMap('author', content.sources?.authors),
+  };
+  const add = (kind: RouteContentInput['kind'], id: string | undefined) => {
+    if (!id) return;
+    const input = sourceIndex[`${kind}s`].get(id);
+    if (!input) return;
+    inputs.set(`${kind}:${id}`, input);
   };
 
-  add(
-    'post',
-    route.data.post?.id,
-    route.data.post && content.sources?.posts.get(route.data.post.id),
-  );
-  add(
-    'page',
-    route.data.page?.id,
-    route.data.page && content.sources?.pages.get(route.data.page.id),
-  );
-  add('tag', route.data.tag?.id, route.data.tag && content.sources?.tags.get(route.data.tag.id));
-  add(
-    'author',
-    route.data.author?.id,
-    route.data.author && content.sources?.authors.get(route.data.author.id),
-  );
+  add('post', route.data.post?.id);
+  add('page', route.data.page?.id);
+  add('tag', route.data.tag?.id);
+  add('author', route.data.author?.id);
   for (const post of route.data.posts ?? []) {
-    add('post', post.id, content.sources?.posts.get(post.id));
+    add('post', post.id);
   }
 
   return [...inputs.values()].sort((a, b) => {
@@ -335,8 +356,12 @@ export function collectRouteContentInputs(
   });
 }
 
-export function computeRouteContentFingerprint(route: RouteContext, content: ContentGraph): string {
-  return computeRouteContentInputsFingerprint(collectRouteContentInputs(route, content));
+export function computeRouteContentFingerprint(
+  route: RouteContext,
+  content: ContentGraph,
+  index?: RouteContentInputIndex,
+): string {
+  return computeRouteContentInputsFingerprint(collectRouteContentInputs(route, content, index));
 }
 
 export function computeRouteContentInputsFingerprint(inputs: readonly RouteContentInput[]): string {

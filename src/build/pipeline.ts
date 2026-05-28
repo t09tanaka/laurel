@@ -111,6 +111,7 @@ import {
   computeRouteContentInputsFingerprint,
   computeRouteHash,
   computeThemeFingerprint,
+  createRouteContentInputIndex,
   loadManifest,
   reusePreviousRouteHash,
   saveManifest,
@@ -934,9 +935,10 @@ async function runBuild({
   let completedRoutes = 0;
   const renderedImageDimensionCache = new Map();
   const renderedImageLqipCache = new Map<string, string | null>();
+  const routeContentInputIndex = createRouteContentInputIndex(content);
   const renderOneRoute = (route: RouteContext): Promise<RenderResult> =>
     renderLimit(async (): Promise<RenderResult> => {
-      const contentInputs = collectRouteContentInputs(route, content);
+      const contentInputs = collectRouteContentInputs(route, content, routeContentInputIndex);
       const contentFingerprint = computeRouteContentInputsFingerprint(contentInputs);
       const previous = previousRoutes[route.url];
       const routeHash =

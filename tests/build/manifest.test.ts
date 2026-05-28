@@ -4,17 +4,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   MANIFEST_VERSION,
+  collectRouteContentInputs,
   computeGeneratorSourceFingerprint,
   computeGlobalHash,
   computeManifestEntryIntegrity,
   computeRouteHash,
   createGeneratorSourceFingerprintCache,
+  createRouteContentInputIndex,
   loadManifest,
   manifestPath,
   reusePreviousRouteHash,
   saveManifest,
   stableStringify,
 } from '~/build/manifest.ts';
+import type { ContentGraph } from '~/content/model.ts';
 import type { RouteContext } from '~/render/types.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 
@@ -245,4 +248,74 @@ describe('build manifest serialization', () => {
       }),
     ).toBeUndefined();
   });
+
+  test('indexed route content inputs match the conservative collector for built-in routes', () => {
+    const postA = { id: 'post-a', slug: 'a' } as ContentGraph['posts'][number];
+    const postB = { id: 'post-b', slug: 'b' } as ContentGraph['posts'][number];
+    const page = { id: 'page-about', slug: 'about' } as ContentGraph['pages'][number];
+    const tag = { id: 'tag-news', slug: 'news' } as ContentGraph['tags'][number];
+    const author = { id: 'author-ada', slug: 'ada' } as ContentGraph['authors'][number];
+    const content = {
+      posts: [postA, postB],
+      pages: [page],
+      tags: [tag],
+      authors: [author],
+      sources: {
+        posts: new Map([
+          ['post-a', { path: 'posts/a.md', mtimeMs: 1, size: 10 }],
+          ['post-b', { path: 'posts/b.md', mtimeMs: 2, size: 20 }],
+        ]),
+        pages: new Map([['page-about', { path: 'pages/about.md', mtimeMs: 3, size: 30 }]]),
+        tags: new Map([['tag-news', { path: 'tags/news.md', mtimeMs: 4, size: 40 }]]),
+        authors: new Map([['author-ada', { path: 'authors/ada.md', mtimeMs: 5, size: 50 }]]),
+      },
+    } as unknown as ContentGraph;
+    const routes: RouteContext[] = [
+      route('home', { posts: [postA, postB] }),
+      route('post', { post: postA }),
+      route('page', { page }),
+      route('tag', { tag, posts: [postA] }),
+      route('author', { author, posts: [postB] }),
+    ];
+    const index = createRouteContentInputIndex(content);
+
+    for (const routeContext of routes) {
+      expect(collectRouteContentInputs(routeContext, content, index)).toEqual(
+        collectRouteContentInputs(routeContext, content),
+      );
+    }
+  });
+
+  test('indexed route content inputs keep custom routes on the conservative collector behavior', () => {
+    const post = { id: 'post-custom', slug: 'custom' } as ContentGraph['posts'][number];
+    const content = {
+      posts: [post],
+      pages: [],
+      tags: [],
+      authors: [],
+      sources: {
+        posts: new Map([['post-custom', { path: 'posts/custom.md', mtimeMs: 1, size: 10 }]]),
+        pages: new Map(),
+        tags: new Map(),
+        authors: new Map(),
+      },
+    } as unknown as ContentGraph;
+    const customRoute = route('custom', { posts: [post] });
+    const index = createRouteContentInputIndex(content);
+
+    expect(collectRouteContentInputs(customRoute, content, index)).toEqual(
+      collectRouteContentInputs(customRoute, content),
+    );
+  });
 });
+
+function route(kind: RouteContext['kind'], data: RouteContext['data']): RouteContext {
+  return {
+    kind,
+    url: `/${kind}/`,
+    outputPath: `${kind}/index.html`,
+    template: kind === 'custom' ? 'custom' : 'index',
+    data,
+    meta: { title: '', description: '', canonical: '', image: undefined },
+  };
+}
