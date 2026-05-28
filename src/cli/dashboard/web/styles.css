@@ -4113,7 +4113,39 @@
     padding: 0 0 12px;
     margin-bottom: 32px;
     min-width: 0;
+    /* The hairline rule now lives on the full-bleed ::before band below so it
+     * spans the whole viewport width instead of just the content column. */
+    /* Keep the header above the fixed metadata aside (z-index: 5) and paint
+     * the same surface as the body so the aside can never bleed over or peek
+     * out beneath the header. background-attachment: fixed anchors the wash to
+     * the viewport so this slice lines up exactly with the body's gradient. */
+    position: relative;
+    z-index: 6;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.18 0 0 0 0 0.16 0 0 0 0 0.13 0 0 0 0.05 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"),
+      linear-gradient(180deg, #f7f4ee 0, #ffffff 38%, var(--background-secondary));
+    background-attachment: fixed;
+  }
+  /* Full-bleed top band behind the header. The header box itself only spans the
+   * content column (66..viewport-66), so the area above the buttons and in the
+   * left/right gutters stayed transparent and the fixed metadata aside could
+   * peek through there. This fixed band paints the body surface across the whole
+   * viewport width from the top edge down through the header's hairline, so the
+   * aside is masked everywhere around the buttons. It rides the header's z-index
+   * (6) stacking context at z-index:-1, so it sits above the aside (5) yet below
+   * the header's own controls. Not clipped by .editorPage's overflow:hidden
+   * because fixed elements resolve against the viewport here. */
+  .editorTopRow::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 95px;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.18 0 0 0 0 0.16 0 0 0 0 0.13 0 0 0 0.05 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"),
+      linear-gradient(180deg, #f7f4ee 0, #ffffff 38%, var(--background-secondary));
+    background-attachment: fixed;
     border-bottom: 1px solid var(--border-weak);
+    z-index: -1;
   }
   /* Quiet "← Posts" breadcrumb — replaces the prior Close button. Reads
    * as a return path, not a destructive control. */
