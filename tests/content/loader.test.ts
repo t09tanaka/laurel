@@ -92,7 +92,7 @@ async function readRenderCacheEntry(
     };
   };
 }> {
-  const cacheDir = join(cwd, '.nectar/cache');
+  const cacheDir = join(cwd, '.nectar/cache/markdown');
   const files = await readdir(cacheDir);
   for (const file of files) {
     if (!file.endsWith('.json')) continue;

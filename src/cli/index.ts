@@ -15,6 +15,7 @@ import { checkLatestRelease, formatReleaseCheck } from '~/util/release-check.ts'
 import { warnIfBunEngineMismatch } from './bun-engine.ts';
 import { devGlyphs } from './commands/startup-banner.ts';
 import { type GlobalFlags, extractGlobalFlags } from './global-flags.ts';
+import { warnIfLegacyCacheDir } from './legacy-cache-warning.ts';
 import { suggestCommand } from './parse.ts';
 import { reportError } from './report.ts';
 import { installSourceMapStackTraceSupport } from './source-map-stack.ts';
@@ -488,6 +489,8 @@ async function main(argv: string[]): Promise<number> {
   // already type `--json` after the subcommand (rest already has it).
   const argsForDispatch =
     globalJson && !resolvedRest.includes('--json') ? ['--json', ...resolvedRest] : resolvedRest;
+
+  warnIfLegacyCacheDir(logger.warn);
 
   const startedAt = performance.now();
   let code: number;

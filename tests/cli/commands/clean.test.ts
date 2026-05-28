@@ -3,6 +3,8 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+const NECTAR_CACHE_REL = join('.nectar', 'cache');
 import { fileURLToPath } from 'node:url';
 
 const CLI_ENTRY = fileURLToPath(new URL('../../../src/cli/index.ts', import.meta.url));
@@ -47,7 +49,7 @@ describe('cli clean', () => {
     const dir = await makeFixture();
     try {
       await Bun.write(join(dir, 'dist/index.html'), '<!doctype html>ok');
-      await Bun.write(join(dir, '.nectar-cache/marker'), 'cache');
+      await Bun.write(join(dir, '.nectar/cache/marker'), 'cache');
       const { stdout, exitCode } = await runCli(['clean', '--dry-run', '--json'], dir);
       expect(exitCode).toBe(0);
       const parsed = JSON.parse(stdout) as {
@@ -56,25 +58,25 @@ describe('cli clean', () => {
         total_bytes: number;
       };
       expect(parsed.dry_run).toBe(true);
-      expect(parsed.removed.sort()).toEqual(['.nectar-cache', 'dist']);
+      expect(parsed.removed.sort()).toEqual([NECTAR_CACHE_REL, 'dist'].sort());
       expect(parsed.total_bytes).toBeGreaterThan(0);
       // dry-run must not actually delete
       expect(existsSync(join(dir, 'dist'))).toBe(true);
-      expect(existsSync(join(dir, '.nectar-cache'))).toBe(true);
+      expect(existsSync(join(dir, '.nectar/cache'))).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  test('--yes deletes dist/ and .nectar-cache', async () => {
+  test('--yes deletes dist/ and .nectar/cache', async () => {
     const dir = await makeFixture();
     try {
       await Bun.write(join(dir, 'dist/index.html'), '<!doctype html>ok');
-      await Bun.write(join(dir, '.nectar-cache/marker'), 'cache');
+      await Bun.write(join(dir, '.nectar/cache/marker'), 'cache');
       const { exitCode } = await runCli(['clean', '--yes', '--json'], dir);
       expect(exitCode).toBe(0);
       expect(existsSync(join(dir, 'dist'))).toBe(false);
-      expect(existsSync(join(dir, '.nectar-cache'))).toBe(false);
+      expect(existsSync(join(dir, '.nectar/cache'))).toBe(false);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

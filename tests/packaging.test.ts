@@ -136,7 +136,7 @@ describe('packaging', () => {
 
   describe('cli bundle', () => {
     test('packaged dashboard serves bundled assets from package dist/', async () => {
-      const outRoot = join(REPO_ROOT, '.nectar-cache');
+      const outRoot = join(REPO_ROOT, '.nectar/cache');
       await mkdir(outRoot, { recursive: true });
       const outdir = await mkdtemp(join(outRoot, 'test-packaged-dashboard-'));
       const packageDist = join(outdir, 'package', 'dist');
@@ -184,7 +184,7 @@ describe('packaging', () => {
     });
 
     test('compiled binary serves embedded dashboard assets', async () => {
-      const outRoot = join(REPO_ROOT, '.nectar-cache');
+      const outRoot = join(REPO_ROOT, '.nectar/cache');
       await mkdir(outRoot, { recursive: true });
       const outdir = await mkdtemp(join(outRoot, 'test-compiled-dashboard-'));
       const binary = join(outdir, process.platform === 'win32' ? 'nectar.exe' : 'nectar');
@@ -236,7 +236,7 @@ describe('packaging', () => {
     });
 
     test('build:cli output dispatches subcommands under Node without raw .ts command imports', async () => {
-      const outRoot = join(REPO_ROOT, '.nectar-cache');
+      const outRoot = join(REPO_ROOT, '.nectar/cache');
       await mkdir(outRoot, { recursive: true });
       const outdir = await mkdtemp(join(outRoot, 'test-cli-bundle-'));
 
@@ -288,7 +288,7 @@ describe('packaging', () => {
     });
 
     test('build:cli emits source maps and maps debug stacks back to TypeScript sources', async () => {
-      const outRoot = join(REPO_ROOT, '.nectar-cache');
+      const outRoot = join(REPO_ROOT, '.nectar/cache');
       await mkdir(outRoot, { recursive: true });
       const outdir = await mkdtemp(join(outRoot, 'test-cli-sourcemaps-'));
 
@@ -400,6 +400,7 @@ describe('packaging', () => {
       expect(entries).toContain('.worktrees/');
       expect(entries).toContain('node_modules/');
       expect(entries).toContain('dist/');
+      expect(entries).toContain('.nectar/');
       expect(entries).toContain('.nectar-cache/');
     });
 

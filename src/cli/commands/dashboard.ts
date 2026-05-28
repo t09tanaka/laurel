@@ -3846,7 +3846,7 @@ async function buildDashboardOperations({
   const [doctor, cache, redirects, routes, assets, trash, contentTemplates, internalLinks] =
     await Promise.all([
       runChecks({ cwd, configPath, skipNetwork: true }),
-      readCacheStats(resolve(cwd, '.nectar-cache')),
+      readCacheStats(resolve(cwd, '.nectar/cache')),
       readRedirectInventory(cwd),
       readRoutesInventory(cwd),
       readAssetInventory(cwd, config, [...posts, ...pages]),

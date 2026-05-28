@@ -186,7 +186,15 @@ function containsHelper(source: string, helper: string): boolean {
 
 async function listFiles(root: string): Promise<string[]> {
   const out: string[] = [];
-  const skip = new Set(['node_modules', '.git', 'dist', 'build', '.cache', '.nectar-cache']);
+  const skip = new Set([
+    'node_modules',
+    '.git',
+    'dist',
+    'build',
+    '.cache',
+    '.nectar',
+    '.nectar-cache',
+  ]);
   async function walk(dir: string): Promise<void> {
     const entries = await readdir(dir, { withFileTypes: true });
     for (const entry of entries) {

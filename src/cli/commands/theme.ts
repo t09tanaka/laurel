@@ -265,6 +265,7 @@ async function collectThemeFiles(root: string): Promise<ZipSource[]> {
     'dist',
     'build',
     '.cache',
+    '.nectar',
     '.nectar-cache',
     '.DS_Store',
   ]);

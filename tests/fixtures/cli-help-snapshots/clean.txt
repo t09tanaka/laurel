@@ -1,4 +1,4 @@
-Remove dist/ and .nectar-cache build artifacts
+Remove dist/ and .nectar/cache build artifacts
 
 Usage:
   nectar clean [--config <path>] [--yes] [--dry-run] [--keep <path[,path...]>] [--json]
