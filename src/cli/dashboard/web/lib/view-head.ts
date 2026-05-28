@@ -50,7 +50,7 @@ const VIEW_HEAD: Record<DashboardView, ViewHeadCopy> = {
   migration: {
     kicker: 'Settings · Migration',
     title: 'Migration',
-    meta: 'Ghost JSON/ZIP and Page bundle imports. Preview always; apply only writes after confirmation.',
+    meta: 'Bring posts, pages, authors, and tags in from a Ghost JSON/ZIP export.',
   },
 };
 
