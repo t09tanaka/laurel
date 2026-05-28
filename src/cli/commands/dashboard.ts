@@ -82,6 +82,10 @@ import { createBuildStreamResponse, createExportZipResponse } from '../dashboard
 import { DASHBOARD_BUNDLE_ASSETS } from '../dashboard/bundled-assets.ts';
 import { createGhostImportStreamResponse } from '../dashboard/ghost-import-runner.ts';
 import { renderDashboardHtml as renderDashboardShellHtml } from '../dashboard/html.ts';
+import {
+  dashboardPreviewImageOutputDir,
+  enqueueDashboardImageVariantGeneration,
+} from '../dashboard/image-variant-queue.ts';
 import { fetchOgp } from '../dashboard/ogp.ts';
 import { rewriteThemeCss } from '../dashboard/theme-css-rewriter.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
@@ -1681,6 +1685,11 @@ export async function handleDashboardRequest(
           onComplete: ({ ok }) => {
             if (ok && payload.dryRun === false) {
               ctx.changeBus.broadcast({ reason: 'dashboard-import', kind: 'project' });
+              enqueueDashboardImageVariantGeneration({
+                cwd: ctx.cwd,
+                configPath: ctx.configPath,
+                reason: 'Ghost import',
+              });
             }
           },
         });
@@ -1689,6 +1698,11 @@ export async function handleDashboardRequest(
         const result = await runDashboardGhostImport({ cwd: ctx.cwd, payload });
         if (result.mode === 'apply') {
           ctx.changeBus.broadcast({ reason: 'dashboard-import', kind: 'project' });
+          enqueueDashboardImageVariantGeneration({
+            cwd: ctx.cwd,
+            configPath: ctx.configPath,
+            reason: 'Ghost import',
+          });
         }
         return jsonResponse(result);
       } catch (err) {
@@ -1920,6 +1934,11 @@ export async function handleDashboardRequest(
         reason: 'image-upload',
         kind: 'project',
         changedPath: relPath,
+      });
+      enqueueDashboardImageVariantGeneration({
+        cwd: ctx.cwd,
+        configPath: ctx.configPath,
+        reason: 'image upload',
       });
       return jsonResponse({ ok: true, path: relPath, name: filename, size: file.size }, 201);
     }
@@ -3193,7 +3212,10 @@ async function renderDashboardContentPreview({
     portalUrls: resolvePortalUrls(ctx.config.components.portal),
     recommendationsEnabled: ctx.config.recommendations.length > 0,
   });
-  return { html, route: target };
+  return {
+    html: await filterUnavailablePreviewPictureSources(html, { cwd, config: ctx.config }),
+    route: target,
+  };
 }
 
 async function loadDashboardPreviewRenderContext({
@@ -3307,7 +3329,13 @@ async function serveDashboardPreviewAsset({
   }
   const contentAssetsPrefix = `/${config.content.assets_dir.replace(/^\/+|\/+$/g, '')}/`;
   if (normalized.startsWith(contentAssetsPrefix)) {
-    const rel = stripGhostImageTransformSegments(normalized.slice(contentAssetsPrefix.length));
+    const requestedRel = normalized.slice(contentAssetsPrefix.length);
+    const generated = await dashboardPreviewGeneratedImageResponse({
+      cwd,
+      requestedRel,
+    });
+    if (generated) return generated;
+    const rel = stripGhostImageTransformSegments(requestedRel);
     return fileResponse(
       resolve(cwd, config.content.assets_dir),
       resolve(cwd, config.content.assets_dir, rel),
@@ -3351,6 +3379,113 @@ function stripGhostImageTransformSegments(rel: string): string {
     out.push(part);
   }
   return out.join('/');
+}
+
+async function dashboardPreviewGeneratedImageResponse({
+  cwd,
+  requestedRel,
+}: {
+  cwd: string;
+  requestedRel: string;
+}): Promise<Response | undefined> {
+  if (!isGhostImageTransformRel(requestedRel)) return undefined;
+  return fileResponse(
+    resolve(dashboardPreviewImageOutputDir(cwd), 'content/images'),
+    resolve(dashboardPreviewImageOutputDir(cwd), 'content/images', requestedRel),
+  );
+}
+
+function isGhostImageTransformRel(rel: string): boolean {
+  if (rel === '' || rel.includes('..')) return false;
+  const parts = rel.split('/').filter(Boolean);
+  if (parts.length < 2) return false;
+  return parts[0] === 'size' || parts[0] === 'format';
+}
+
+export async function filterUnavailablePreviewPictureSources(
+  html: string,
+  opts: { cwd: string; config: NectarConfig },
+): Promise<string> {
+  if (!html.includes('<source') || !html.includes('/content/images/')) return html;
+  return html.replace(/<source\b([^>]*?)(\/?)>/gi, (match, attrsRaw: string) => {
+    const attrs = parseHtmlAttrs(attrsRaw);
+    const srcset = attrs.get('srcset');
+    if (typeof srcset !== 'string' || srcset.trim() === '') return match;
+    const urls = parsePreviewSrcsetUrls(srcset);
+    if (urls.length === 0) return match;
+    const localVariantUrls = urls.filter((candidate) =>
+      previewContentImageVariantPath(candidate, opts),
+    );
+    if (localVariantUrls.length === 0) return match;
+    const allExist = localVariantUrls.every((candidate) => {
+      const filePath = previewContentImageVariantPath(candidate, opts);
+      return filePath ? existsSync(filePath) : true;
+    });
+    return allExist ? match : '';
+  });
+}
+
+function parsePreviewSrcsetUrls(srcset: string): string[] {
+  return srcset
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const space = part.search(/\s/);
+      return space < 0 ? part : part.slice(0, space);
+    });
+}
+
+const HTML_ATTR_RE =
+  /([a-zA-Z][a-zA-Z0-9:_.-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+
+function parseHtmlAttrs(attrsRaw: string): Map<string, string | true> {
+  const out = new Map<string, string | true>();
+  HTML_ATTR_RE.lastIndex = 0;
+  let match: RegExpExecArray | null = HTML_ATTR_RE.exec(attrsRaw);
+  while (match !== null) {
+    const rawName = match[1];
+    if (rawName) {
+      out.set(rawName.toLowerCase(), match[2] ?? match[3] ?? match[4] ?? true);
+    }
+    match = HTML_ATTR_RE.exec(attrsRaw);
+  }
+  return out;
+}
+
+function previewContentImageVariantPath(
+  rawUrl: string,
+  opts: { cwd: string; config: NectarConfig },
+): string | undefined {
+  const pathname = normalizePreviewLocalPathname(rawUrl, opts.config);
+  if (!pathname) return undefined;
+  const contentAssetsPrefix = `/${opts.config.content.assets_dir.replace(/^\/+|\/+$/g, '')}/`;
+  if (!pathname.startsWith(contentAssetsPrefix)) return undefined;
+  const rel = pathname.slice(contentAssetsPrefix.length);
+  if (!rel.startsWith('size/') && !rel.startsWith('format/')) return undefined;
+  if (rel === '' || rel.includes('..')) return undefined;
+  const root = resolve(dashboardPreviewImageOutputDir(opts.cwd), 'content/images');
+  const filePath = resolve(root, rel);
+  const inside = relative(root, filePath);
+  if (inside.startsWith('..') || isAbsolute(inside)) return undefined;
+  return filePath;
+}
+
+function normalizePreviewLocalPathname(rawUrl: string, config: NectarConfig): string | undefined {
+  if (rawUrl.startsWith('//')) return undefined;
+  let pathname = rawUrl.split(/[?#]/)[0] ?? '';
+  if (/^[a-z][a-z0-9+.-]*:/i.test(pathname)) {
+    try {
+      const parsed = new URL(rawUrl);
+      const site = new URL(config.site.url);
+      if (parsed.origin !== site.origin) return undefined;
+      pathname = parsed.pathname;
+    } catch {
+      return undefined;
+    }
+  }
+  if (!pathname.startsWith('/')) return undefined;
+  return stripPreviewBasePath(safeDecodeRoutePath(pathname), config);
 }
 
 async function fileResponse(root: string, filePath: string): Promise<Response | undefined> {
