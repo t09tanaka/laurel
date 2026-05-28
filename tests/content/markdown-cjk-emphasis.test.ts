@@ -68,6 +68,13 @@ describe('cjkFriendlyEmphasis — things that must NOT become emphasis', () => {
       '上述のように**「日本の主回線」**は',
     );
   });
+
+  test('underscore adjacent to full-width punctuation is NOT emphasis', () => {
+    // markdown-it-cjk-friendly only relaxes `*`/`**`, leaving `_` at standard
+    // CommonMark; the build must match (no `<em>`/`<strong>` here).
+    expect(render('これは_（主回線）_が大事')).toBe('これは_（主回線）_が大事');
+    expect(render('これは__（主回線）__が大事')).toBe('これは__（主回線）__が大事');
+  });
 });
 
 describe('renderMarkdown end-to-end keeps CJK bold through sanitisation', () => {
@@ -104,6 +111,9 @@ describe('marked output matches the editor (markdown-it-cjk-friendly) for realis
     '日本***強調***です',
     '**bold** and *em* and _under_',
     '日本の主回線をオンにして**SMSを受信するだけであれば、無料のため大きな心配はありません。**',
+    'これは_（主回線）_が大事',
+    'これは__（主回線）__が大事',
+    '半角A**強調**B と 全角Ａ**強調**Ｂ',
   ])('parity: %p', (src) => {
     expect(skeleton(render(src))).toBe(skeleton(mdit.renderInline(src)));
   });
