@@ -92,7 +92,7 @@ asset pipelines, or custom collections. Review the generated Markdown and
 | Tiers attached to posts | `tiers: [...]` frontmatter for posts |
 | Feature, Open Graph, Twitter, profile, and cover image fields | Frontmatter image fields, sanitized to http(s) or relative paths |
 | `images/`, `files/`, `media/` from `--assets` | Copied under the target content directory |
-| Remote images with `--download-images` | Downloaded into `content/images/` and references rewritten |
+| Ghost content images/media with `--download-images` | Downloaded into `content/images/` and references rewritten; third-party service URLs remain external |
 | Ghost `content/data/redirects.json` | Reviewable redirect snippets under `migration/redirects/` |
 
 Posts with `status: published` and `status: draft` are imported. Other statuses

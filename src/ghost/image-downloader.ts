@@ -302,17 +302,19 @@ export class GhostImageDownloader {
 
   // Turn an image reference from the export into an absolute URL we can fetch.
   // Returns:
-  //   - the input unchanged when it is already an `http(s)://...` URL
-  //   - `<sourceOrigin><url>` when the input is a `/content/...` (or other
-  //     leading-slash) site-relative path AND a source URL was supplied
+  //   - the input unchanged when it is already an `http(s)://...` Ghost
+  //     content asset URL (`/.../content/images/...` or `.../content/media/...`)
+  //   - `<sourceOrigin><url>` when the input is a Ghost content asset
+  //     site-relative path AND a source URL was supplied
   //   - `null` otherwise — relative paths with no source URL, `data:` URIs,
-  //     `mailto:` etc. The caller treats `null` as "skip, leave the value
-  //     alone" so the downloader is safe to call against every image field.
+  //     third-party service URLs, `mailto:` etc. The caller treats `null` as
+  //     "skip, leave the value alone" so the downloader is safe to call
+  //     against every image field.
   private resolveFetchUrl(url: string): string | null {
     if (typeof url !== 'string' || url.length === 0) return null;
-    if (isHttpUrl(url)) return url;
+    if (isHttpUrl(url)) return isGhostContentAssetUrl(url) ? url : null;
     if (!this.sourceBase) return null;
-    if (!url.startsWith('/')) return null;
+    if (!isRootRelativeGhostContentAssetPath(url)) return null;
     return `${this.sourceBase}${url}`;
   }
 
@@ -351,7 +353,10 @@ export class GhostImageDownloader {
     // something fetchable; otherwise we cannot reach the bytes and the
     // download silently no-ops.
     const fetchUrl = this.resolveFetchUrl(url);
-    if (fetchUrl === null) return null;
+    if (fetchUrl === null) {
+      if (isHttpUrl(url)) this._skipped += 1;
+      return null;
+    }
     const cacheKey = opts?.externalDir ? `${opts.externalDir}\0${fetchUrl}` : fetchUrl;
 
     const cached = this.cache.get(cacheKey);
@@ -599,6 +604,19 @@ function isHttpUrl(s: string): boolean {
   } catch {
     return false;
   }
+}
+
+function isGhostContentAssetUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    return isRootRelativeGhostContentAssetPath(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function isRootRelativeGhostContentAssetPath(pathname: string): boolean {
+  return /^\/(?:.*\/)?content\/(?:images|media)\//.test(pathname);
 }
 
 // Reduce a user-supplied source URL to a clean base

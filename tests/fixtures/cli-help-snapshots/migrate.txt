@@ -13,7 +13,7 @@ Options:
   --on-conflict <skip|overwrite|rename>  How to handle existing files when slugs collide: skip (default), overwrite, or rename (ghost/wordpress only)
   --dry-run           Parse the source and print a summary of what would land without writing files (ghost/wordpress only; hugo/jekyll/eleventy print a copy plan)
   --assets <dir>      ghost only: path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/
-  --download-images   ghost only: download remote image URLs into content/images/ and rewrite references to local paths
+  --download-images   ghost only: download Ghost content image/media URLs into content/images/ and rewrite references to local paths; third-party service URLs stay external
   --max-image-size <size>  ghost only: per-image size cap when --download-images is set (e.g. 10MB; default 10MB; 0 disables)
   --source-url <url>  ghost only: absolute URL of the source Ghost site; rewrites in-body links pointing at this host to site-relative paths
   --max-size <size>   ghost only: max JSON export size before refusing to parse (e.g. 256MB; default 256MB; 0 disables)

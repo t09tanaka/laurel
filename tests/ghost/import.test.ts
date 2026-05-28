@@ -2078,7 +2078,7 @@ describe('importGhostExport — --download-images (#128)', () => {
     expect(md).toContain('/content/images/2024/01/cover.jpg');
   });
 
-  test('downloads external Unsplash-style URLs under content/images/external/', async () => {
+  test('leaves external Unsplash-style URLs untouched without fetching them', async () => {
     const unsplashUrl = 'https://images.unsplash.com/photo-12345?w=1200';
     await writeFile(
       exportFile,
@@ -2103,7 +2103,7 @@ describe('importGhostExport — --download-images (#128)', () => {
       }),
     );
 
-    const { fetcher } = fakeFetch({
+    const { fetcher, calls } = fakeFetch({
       ok: { [unsplashUrl]: { body: 'UNSPLASH', contentType: 'image/jpeg' } },
     });
 
@@ -2114,21 +2114,18 @@ describe('importGhostExport — --download-images (#128)', () => {
       fetcher,
     });
 
-    expect(summary.imagesDownloaded).toBe(1);
-
-    const externalDir = join(cwd, 'content/images/external');
-    const files = await readdir(externalDir);
-    expect(files.length).toBe(1);
-    expect(files[0]).toMatch(/^[a-f0-9]{16}\.jpg$/);
+    expect(summary.imagesDownloaded).toBe(0);
+    expect(summary.imagesFailed).toBe(0);
+    expect(calls).toEqual([]);
+    await expect(readdir(join(cwd, 'content/images/external'))).rejects.toThrow();
 
     const md = await readFile(join(cwd, 'content/posts/unsplash.md'), 'utf8');
-    expect(md).not.toContain('images.unsplash.com');
-    expect(md).toContain(`/content/images/external/${files[0]}`);
-    expect(md).toContain(`feature_image: "/content/images/external/${files[0]}"`);
+    expect(md).toContain(unsplashUrl);
+    expect(md).toContain(`feature_image: "${unsplashUrl}"`);
   });
 
   test('sanitizes downloaded SVG payloads before writing them', async () => {
-    const svgUrl = 'https://cdn.example.com/logo.svg';
+    const svgUrl = 'https://cdn.example.com/content/images/logo.svg';
     await writeFile(exportFile, singleImagePostExport(svgUrl));
 
     const { fetcher } = fakeFetch({
@@ -2154,9 +2151,7 @@ describe('importGhostExport — --download-images (#128)', () => {
     });
 
     expect(summary.imagesDownloaded).toBe(1);
-    const files = await readdir(join(cwd, 'content/images/external'));
-    expect(files).toEqual([expect.stringMatching(/\.svg$/)]);
-    const svg = await readFile(join(cwd, 'content/images/external', files[0] ?? ''), 'utf8');
+    const svg = await readFile(join(cwd, 'content/images/logo.svg'), 'utf8');
     expect(svg).toContain('<svg');
     expect(svg).not.toContain('<script');
     expect(svg).not.toContain('onload=');
@@ -2165,7 +2160,7 @@ describe('importGhostExport — --download-images (#128)', () => {
   });
 
   test('strips EXIF metadata from downloaded JPEG payloads before writing them', async () => {
-    const jpgUrl = 'https://cdn.example.com/photo.jpg';
+    const jpgUrl = 'https://cdn.example.com/content/images/photo.jpg';
     await writeFile(exportFile, singleImagePostExport(jpgUrl));
 
     const { fetcher } = fakeFetch({
@@ -2180,15 +2175,13 @@ describe('importGhostExport — --download-images (#128)', () => {
     });
 
     expect(summary.imagesDownloaded).toBe(1);
-    const files = await readdir(join(cwd, 'content/images/external'));
-    expect(files).toEqual([expect.stringMatching(/\.jpg$/)]);
-    const jpg = await readFile(join(cwd, 'content/images/external', files[0] ?? ''));
+    const jpg = await readFile(join(cwd, 'content/images/photo.jpg'));
     expect(jpg.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
     expect(jpg.includes(Buffer.from('Exif\0\0', 'binary'))).toBe(false);
     expect(jpg.includes(Buffer.from('SECRET_GPS'))).toBe(false);
   });
 
-  test('downloads bookmark icon and thumbnail URLs under content/images/bookmarks/', async () => {
+  test('leaves bookmark icon and thumbnail service URLs untouched', async () => {
     const iconUrl = 'https://example.com/favicon.ico';
     const thumbnailUrl = 'https://cdn.example.com/thumb.jpg?width=1200';
     await writeFile(
@@ -2241,22 +2234,14 @@ describe('importGhostExport — --download-images (#128)', () => {
       fetcher,
     });
 
-    expect(summary.imagesDownloaded).toBe(2);
+    expect(summary.imagesDownloaded).toBe(0);
     expect(summary.imagesFailed).toBe(0);
-    expect(calls.sort()).toEqual([iconUrl, thumbnailUrl].sort());
-
-    const bookmarkDir = join(cwd, 'content/images/bookmarks');
-    const files = (await readdir(bookmarkDir)).sort();
-    expect(files.length).toBe(2);
-    expect(files).toContainEqual(expect.stringMatching(/^[a-f0-9]{16}\.ico$/));
-    expect(files).toContainEqual(expect.stringMatching(/^[a-f0-9]{16}\.jpg$/));
+    expect(calls).toEqual([]);
+    await expect(readdir(join(cwd, 'content/images/bookmarks'))).rejects.toThrow();
 
     const md = await readFile(join(cwd, 'content/posts/bookmark.md'), 'utf8');
-    expect(md).not.toContain(iconUrl);
-    expect(md).not.toContain(thumbnailUrl);
-    expect(md).toContain('/content/images/bookmarks/');
-    expect(md).toContain('icon="/content/images/bookmarks/');
-    expect(md).toContain('thumbnail="/content/images/bookmarks/');
+    expect(md).toContain(iconUrl);
+    expect(md).toContain(thumbnailUrl);
   });
 
   test('downloads header card background-image URLs and rewrites the inline style', async () => {
@@ -2313,7 +2298,7 @@ describe('importGhostExport — --download-images (#128)', () => {
     expect(md).toContain('heading="Hero"');
   });
 
-  test('rewrites markdown ![alt](url) bodies emitted by Turndown', async () => {
+  test('leaves markdown ![alt](url) service URLs emitted by Turndown untouched', async () => {
     // Turndown converts <img src=... alt=...> into ![alt](url), so the
     // rewriter sees markdown image syntax in the final body. Verify that
     // path explicitly.
@@ -2340,7 +2325,7 @@ describe('importGhostExport — --download-images (#128)', () => {
       }),
     );
 
-    const { fetcher } = fakeFetch({
+    const { fetcher, calls } = fakeFetch({
       ok: { [remoteUrl]: { body: 'PNG', contentType: 'image/png' } },
     });
 
@@ -2351,14 +2336,15 @@ describe('importGhostExport — --download-images (#128)', () => {
       fetcher,
     });
 
-    expect(summary.imagesDownloaded).toBe(1);
+    expect(summary.imagesDownloaded).toBe(0);
+    expect(summary.imagesFailed).toBe(0);
+    expect(calls).toEqual([]);
     const md = await readFile(join(cwd, 'content/posts/md.md'), 'utf8');
-    expect(md).not.toContain(remoteUrl);
-    expect(md).toMatch(/!\[alt text\]\(\/content\/images\/external\/[a-f0-9]{16}\.png\)/);
+    expect(md).toContain(`![alt text](${remoteUrl})`);
   });
 
   test('leaves URLs untouched and counts failures when downloads fail', async () => {
-    const failUrl = 'https://images.unsplash.com/missing.jpg';
+    const failUrl = 'https://my-ghost-site.com/content/images/missing.jpg';
     await writeFile(
       exportFile,
       JSON.stringify({
@@ -2461,16 +2447,14 @@ describe('importGhostExport — --download-images (#128)', () => {
       onConflict: 'overwrite',
     });
 
-    expect(summary.imagesDownloaded).toBe(3);
+    expect(summary.imagesDownloaded).toBe(1);
     expect(await readFile(join(cwd, 'content/images/cover.jpg'), 'utf8')).toBe('C');
 
     const tagMd = await readFile(join(cwd, 'content/tags/news.md'), 'utf8');
-    expect(tagMd).not.toContain('images.unsplash.com');
-    expect(tagMd).toMatch(/feature_image: "\/content\/images\/external\/[a-f0-9]{16}\.jpg"/);
+    expect(tagMd).toContain(`feature_image: "${tagImg}"`);
 
     const authorMd = await readFile(join(cwd, 'content/authors/casper.md'), 'utf8');
-    expect(authorMd).not.toContain('images.unsplash.com');
-    expect(authorMd).toMatch(/profile_image: "\/content\/images\/external\/[a-f0-9]{16}\.jpg"/);
+    expect(authorMd).toContain(`profile_image: "${profileImg}"`);
     expect(authorMd).toContain('cover_image: "/content/images/cover.jpg"');
   });
 
@@ -2551,7 +2535,7 @@ describe('importGhostExport — --download-images (#128)', () => {
     expect(md).toContain(`feature_image: "${ghostUrl}"`);
   });
 
-  test('infers extension from Content-Type when URL has none', async () => {
+  test('does not fetch extensionless third-party service URLs', async () => {
     const extlessUrl = 'https://cdn.example.com/random-id';
     await writeFile(
       exportFile,
@@ -2575,7 +2559,7 @@ describe('importGhostExport — --download-images (#128)', () => {
       }),
     );
 
-    const { fetcher } = fakeFetch({
+    const { fetcher, calls } = fakeFetch({
       ok: { [extlessUrl]: { body: 'WEBP', contentType: 'image/webp' } },
     });
 
@@ -2586,15 +2570,14 @@ describe('importGhostExport — --download-images (#128)', () => {
       fetcher,
     });
 
-    expect(summary.imagesDownloaded).toBe(1);
-    const externalDir = join(cwd, 'content/images/external');
-    const files = await readdir(externalDir);
-    expect(files.length).toBe(1);
-    expect(files[0]).toMatch(/^[a-f0-9]{16}\.webp$/);
+    expect(summary.imagesDownloaded).toBe(0);
+    expect(summary.imagesFailed).toBe(0);
+    expect(calls).toEqual([]);
+    await expect(readdir(join(cwd, 'content/images/external'))).rejects.toThrow();
   });
 
   test('survives a thrown fetch error and continues importing', async () => {
-    const throwUrl = 'https://images.unsplash.com/boom.jpg';
+    const throwUrl = 'https://my-ghost-site.com/content/images/boom.jpg';
     await writeFile(
       exportFile,
       JSON.stringify({
@@ -2692,7 +2675,7 @@ describe('importGhostExport — --max-image-size (#239)', () => {
   }
 
   test('rejects upfront when Content-Length exceeds the cap (no buffer allocated)', async () => {
-    const url = 'https://cdn.example.com/huge.jpg';
+    const url = 'https://cdn.example.com/content/images/huge.jpg';
     await writeFile(exportFile, singlePostExport(url));
 
     // Advertised 20 MB, cap 5 MB. The body is small (we never read it because
@@ -2714,7 +2697,7 @@ describe('importGhostExport — --max-image-size (#239)', () => {
   });
 
   test('rejects after download when the server lied about Content-Length', async () => {
-    const url = 'https://cdn.example.com/lies.jpg';
+    const url = 'https://cdn.example.com/content/images/lies.jpg';
     await writeFile(exportFile, singlePostExport(url));
 
     // Server says 100 bytes, actually streams 2 MiB. Body-length check must
@@ -2730,12 +2713,11 @@ describe('importGhostExport — --max-image-size (#239)', () => {
 
     expect(summary.imagesDownloaded).toBe(0);
     expect(summary.imagesFailed).toBe(1);
-    const externalDir = join(cwd, 'content/images/external');
-    await expect(readdir(externalDir)).rejects.toThrow();
+    await expect(access(join(cwd, 'content/images/lies.jpg'))).rejects.toThrow();
   });
 
   test('rejects after download when Content-Length header is missing', async () => {
-    const url = 'https://cdn.example.com/no-header.jpg';
+    const url = 'https://cdn.example.com/content/images/no-header.jpg';
     await writeFile(exportFile, singlePostExport(url));
 
     const fetcher = sizedFetch(url, 2 * 1024 * 1024, { advertisedLength: 'omit' });
@@ -2752,7 +2734,7 @@ describe('importGhostExport — --max-image-size (#239)', () => {
   });
 
   test('accepts an image exactly at the cap', async () => {
-    const url = 'https://cdn.example.com/edge.jpg';
+    const url = 'https://cdn.example.com/content/images/edge.jpg';
     await writeFile(exportFile, singlePostExport(url));
 
     const cap = 1024;
@@ -2770,7 +2752,7 @@ describe('importGhostExport — --max-image-size (#239)', () => {
   });
 
   test('0 disables the cap and allows arbitrarily large images', async () => {
-    const url = 'https://cdn.example.com/unbounded.jpg';
+    const url = 'https://cdn.example.com/content/images/unbounded.jpg';
     await writeFile(exportFile, singlePostExport(url));
 
     // 16 MiB body, no cap. With cap = 0 the downloader must skip both the
@@ -2789,7 +2771,7 @@ describe('importGhostExport — --max-image-size (#239)', () => {
   });
 
   test('defaults to 10 MiB cap when maxImageSizeBytes is not set', async () => {
-    const url = 'https://cdn.example.com/just-over.jpg';
+    const url = 'https://cdn.example.com/content/images/just-over.jpg';
     await writeFile(exportFile, singlePostExport(url));
 
     // 11 MiB body with no explicit cap. Default 10 MiB cap should refuse it.

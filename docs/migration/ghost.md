@@ -188,6 +188,12 @@ The importer:
    into `content/` so that the `/content/images/...` URLs Ghost wrote into your
    post bodies continue to resolve.
 
+If the export still contains Ghost-hosted image URLs and you cannot provide a
+media archive, pass `--download-images --source-url https://old-site.example` to
+fetch Ghost `/content/images/` and `/content/media/` assets into the local
+`content/` tree. Third-party service URLs such as Unsplash remain external; the
+importer does not re-host or optimize them.
+
 ![Terminal output for nectar import-ghost](../migration-from-ghost/02-import-cli.svg)
 
 A typical run looks like the screenshot above:
