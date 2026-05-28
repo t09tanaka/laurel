@@ -3840,11 +3840,12 @@
   }
   .proseCalloutToolbar {
     position: absolute;
-    top: -14px;
+    top: auto;
+    bottom: calc(100% + 4px);
     right: 8px;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     padding: 4px 6px;
     background: var(--surface-card, #fff);
     border: 1px solid var(--border-default, rgba(0, 0, 0, 0.12));
@@ -3882,8 +3883,8 @@
   }
   .proseCalloutPalette {
     display: flex;
-    gap: 4px;
-    padding: 0 4px;
+    gap: 6px;
+    padding: 0 8px;
     border-left: 1px solid var(--border-default, rgba(0, 0, 0, 0.12));
     border-right: 1px solid var(--border-default, rgba(0, 0, 0, 0.12));
   }
