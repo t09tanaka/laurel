@@ -2295,6 +2295,19 @@
     border-color: var(--text-primary);
     background: var(--surface-raised);
   }
+  /* Dragging a file over the dropzone — "armed" state. Solid focus-blue frame
+   * + soft focus ring + tinted fill so the drop target is unmistakable while
+   * a file hovers. Reuses --focus, the one semantic interactive accent. */
+  .themeUploadDrop.isDragging {
+    border-style: solid;
+    border-color: var(--focus);
+    background: color-mix(in srgb, var(--focus) 7%, var(--surface-raised));
+    color: var(--focus);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 18%, transparent);
+  }
+  .themeUploadDrop.isDragging .themeUploadHint {
+    color: var(--focus);
+  }
   .themeUploadDrop.busy {
     opacity: 0.6;
     cursor: progress;
@@ -2321,6 +2334,11 @@
   .themeUploadDrop.filled:hover {
     background: var(--surface-raised);
     box-shadow: var(--shadow-elevation-2);
+  }
+  .themeUploadDrop.filled.isDragging {
+    border-color: var(--focus);
+    box-shadow: var(--shadow-elevation-2), 0 0 0 3px
+      color-mix(in srgb, var(--focus) 20%, transparent);
   }
   .themeUploadCard {
     width: 100%;
@@ -4513,13 +4531,28 @@
     color: var(--text-muted);
     text-align: center;
     background: transparent;
-    transition: border-color 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+    transition: border-color 0.12s ease, background-color 0.12s ease, color 0.12s ease, box-shadow
+      0.12s ease;
     position: relative;
   }
   .featureImageZone:hover {
     border-color: var(--text-primary);
     color: var(--text-primary);
     background: var(--surface-raised);
+  }
+  /* Dragging a file over the zone — "armed" state. Solid focus-blue frame +
+   * a soft focus ring so the operator sees a clear "release to drop" target.
+   * Reuses --focus (the dashboard's one semantic interactive accent) rather
+   * than inventing a new colour, keeping the editorial palette tight. */
+  .featureImageZone.isDragging {
+    border-style: solid;
+    border-color: var(--focus);
+    color: var(--focus);
+    background: color-mix(in srgb, var(--focus) 7%, var(--surface-raised));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 18%, transparent);
+  }
+  .featureImageZone.isDragging .featureImageEmpty em {
+    color: var(--focus);
   }
   .featureImageZone.filled {
     border: 0;
@@ -4529,6 +4562,18 @@
   }
   .featureImageZone.filled:hover {
     background: transparent;
+  }
+  /* Filled zone has no border (the preview image fills it), so surface the
+   * armed state as a focus ring around the image plus the replace hint. */
+  .featureImageZone.filled.isDragging {
+    background: transparent;
+    border-radius: 6px;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 38%, transparent);
+  }
+  .featureImageZone.filled.isDragging .featureImageHint {
+    opacity: 1;
+    color: var(--focus);
+    background: color-mix(in srgb, var(--focus) 12%, var(--surface-normal));
   }
   .featureImageEmpty {
     font-family: var(--font-serif);
