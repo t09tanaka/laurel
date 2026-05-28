@@ -34,10 +34,58 @@ declare const Bun: { gc?: (sync: boolean) => void } | undefined;
 function tryCancelUnreadBody(body: ReadableStream<Uint8Array> | null | undefined): void {
   if (!body) return;
   // Error paths (HTTP !ok, size cap hit before body consumption) need this
-  // to free the underlying native handle promptly. Once `arrayBuffer()` has
-  // drained the stream, avoid a second lifecycle operation on Bun's native
-  // body handle.
+  // to free the underlying native handle promptly. Once the stream reader has
+  // drained the body, avoid a second lifecycle operation on Bun's native body
+  // handle.
   body.cancel().catch(() => {});
+}
+
+interface BodyReadResult {
+  bytes: Uint8Array;
+  drained: boolean;
+  tooLarge: number | null;
+}
+
+async function readResponseBodyBytes(
+  response: Response,
+  maxBytes: number,
+  label: string,
+): Promise<BodyReadResult> {
+  if (!response.body) {
+    return { bytes: new Uint8Array(), drained: true, tooLarge: null };
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (maxBytes > 0 && total > maxBytes) {
+        await reader.cancel(`Image ${label} exceeded max size ${maxBytes} bytes`).catch(() => {});
+        return { bytes: new Uint8Array(), drained: false, tooLarge: total };
+      }
+      chunks.push(value);
+    }
+    return { bytes: concatChunks(chunks, total), drained: true, tooLarge: null };
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function concatChunks(chunks: Uint8Array[], total: number): Uint8Array {
+  if (chunks.length === 0) return new Uint8Array();
+  if (chunks.length === 1) return chunks[0] ?? new Uint8Array();
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
 }
 
 // One event per image the downloader processed. `status` distinguishes the
@@ -365,17 +413,18 @@ export class GhostImageDownloader {
         }
       }
       const contentType = response.headers.get('content-type') ?? '';
-      const buf = new Uint8Array(await response.arrayBuffer());
-      bodyDrained = true;
-      if (this.maxBytes > 0 && buf.byteLength > this.maxBytes) {
+      const read = await readResponseBodyBytes(response, this.maxBytes, fetchUrl);
+      bodyDrained = read.drained;
+      if (read.tooLarge !== null) {
         logger.warn(
-          `Failed to download image ${fetchUrl}: payload ${buf.byteLength} exceeds max ${this.maxBytes} bytes`,
+          `Failed to download image ${fetchUrl}: payload ${read.tooLarge} exceeds max ${this.maxBytes} bytes`,
         );
         this.cache.set(cacheKey, null);
         this._failed += 1;
         this.emit(fetchUrl, 'failed');
         return null;
       }
+      const buf = read.bytes;
       const { localPath, rewrittenUrl } = derivePaths(fetchUrl, contentType, opts);
       const absPath = join(this.contentRoot, stripContentPrefix(localPath));
       // Defense in depth: pathname normalization in `URL` already strips
