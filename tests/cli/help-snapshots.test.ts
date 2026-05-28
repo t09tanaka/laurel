@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { beforeAll, describe, expect, test } from 'bun:test';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { COMMAND_NAMES } from '~/cli/specs.ts';
@@ -43,39 +43,78 @@ async function readSnapshot(name: string): Promise<string> {
   return readFile(`${SNAPSHOT_DIR}/${name}.txt`, 'utf8');
 }
 
+// Each `--help` invocation is an independent, read-only CLI spawn, so running
+// them one test-at-a-time wastes most of the wall-clock waiting on process
+// startup. `bun test` has no cross-test concurrency, so we spawn every
+// invocation up front through a bounded pool and let each test assert against
+// the cached result. Per-invocation test granularity is preserved, so a single
+// drifted snapshot still points at the exact command + invocation form.
+const SPAWN_CONCURRENCY = 16;
+
+interface Invocation {
+  key: string;
+  args: string[];
+  snapshot: string;
+}
+
+function invocationsFor(command: string): Invocation[] {
+  return [
+    { key: `${command}:--help`, args: [command, '--help'], snapshot: command },
+    { key: `${command}:-h`, args: [command, '-h'], snapshot: command },
+    { key: `${command}:help-prefix`, args: ['help', command], snapshot: command },
+    { key: `${command}:help-suffix`, args: [command, 'help'], snapshot: command },
+  ];
+}
+
+const ALL_INVOCATIONS: Invocation[] = [
+  { key: 'root:--help', args: ['--help'], snapshot: 'root' },
+  ...COMMAND_NAMES.flatMap(invocationsFor),
+];
+
+const results = new Map<string, RunResult>();
+
+async function runPool(invocations: Invocation[], limit: number): Promise<void> {
+  let cursor = 0;
+  async function worker(): Promise<void> {
+    while (true) {
+      const invocation = invocations[cursor++];
+      if (!invocation) break;
+      results.set(invocation.key, await runCli(invocation.args));
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, invocations.length) }, worker));
+}
+
 describe('cli help snapshots', () => {
+  beforeAll(async () => {
+    await runPool(ALL_INVOCATIONS, SPAWN_CONCURRENCY);
+  });
+
+  async function expectSnapshot(key: string, snapshot: string): Promise<void> {
+    const result = results.get(key);
+    expect(result, `missing precomputed result for ${key}`).toBeDefined();
+    expect(result?.exitCode).toBe(0);
+    expect(result?.stderr).toBe('');
+    expect(result?.stdout).toBe(await readSnapshot(snapshot));
+  }
+
   test('root --help matches the stable snapshot', async () => {
-    const result = await runCli(['--help']);
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe('');
-    expect(result.stdout).toBe(await readSnapshot('root'));
+    await expectSnapshot('root:--help', 'root');
   });
 
   test.each(COMMAND_NAMES)('%s --help matches the stable snapshot', async (command) => {
-    const result = await runCli([command, '--help']);
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe('');
-    expect(result.stdout).toBe(await readSnapshot(command));
+    await expectSnapshot(`${command}:--help`, command);
   });
 
   test.each(COMMAND_NAMES)('%s -h matches the stable snapshot', async (command) => {
-    const result = await runCli([command, '-h']);
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe('');
-    expect(result.stdout).toBe(await readSnapshot(command));
+    await expectSnapshot(`${command}:-h`, command);
   });
 
   test.each(COMMAND_NAMES)('help %s matches the stable snapshot', async (command) => {
-    const result = await runCli(['help', command]);
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe('');
-    expect(result.stdout).toBe(await readSnapshot(command));
+    await expectSnapshot(`${command}:help-prefix`, command);
   });
 
   test.each(COMMAND_NAMES)('%s help matches the stable snapshot', async (command) => {
-    const result = await runCli([command, 'help']);
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe('');
-    expect(result.stdout).toBe(await readSnapshot(command));
+    await expectSnapshot(`${command}:help-suffix`, command);
   });
 });
