@@ -18,14 +18,6 @@ export function discoverRcPath(cwd: string = process.cwd()): string | null {
   return null;
 }
 
-export function discoverRc(cwd: string = process.cwd()): RcDiscovery {
-  return { path: discoverRcPath(cwd) };
-}
-
-export function loadRcDefaults(cwd: string = process.cwd()): RcObject | undefined {
-  return loadMergedRcDefaults(cwd, process.env);
-}
-
 export function loadMergedRcDefaults(
   cwd: string = process.cwd(),
   env: Record<string, string | undefined> = process.env,

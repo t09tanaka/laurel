@@ -26,13 +26,13 @@ export function absoluteContentUrl(contentUrl: string, config: PublicUrlConfig):
   });
 }
 
-export function absoluteUrlFromParts(route: string, parts: PublicUrlParts): string {
+function absoluteUrlFromParts(route: string, parts: PublicUrlParts): string {
   if (/^https?:\/\//i.test(route)) return route;
   const publicPath = withBasePath(parts.basePath, canonicalRouteUrl(route, parts.trailingSlash));
   return joinSiteUrl(parts.siteUrl, publicPath);
 }
 
-export function absoluteContentUrlFromParts(contentUrl: string, parts: PublicUrlParts): string {
+function absoluteContentUrlFromParts(contentUrl: string, parts: PublicUrlParts): string {
   if (/^https?:\/\//i.test(contentUrl)) {
     return canonicalSameOriginAbsoluteUrl(parts.siteUrl, contentUrl, parts.trailingSlash);
   }

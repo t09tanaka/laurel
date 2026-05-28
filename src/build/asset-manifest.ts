@@ -12,10 +12,6 @@ export interface AssetManifestEntry {
 
 export type AssetManifestJson = Record<string, AssetManifestEntry>;
 
-export function assetManifestRelPath(): string {
-  return `${ASSET_MANIFEST_DIR}/${ASSET_MANIFEST_FILENAME}`;
-}
-
 export function assetManifestAbsPath(outputDir: string): string {
   return join(outputDir, ASSET_MANIFEST_DIR, ASSET_MANIFEST_FILENAME);
 }
