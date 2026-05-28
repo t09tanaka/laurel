@@ -1631,12 +1631,26 @@ export async function handleDashboardRequest(
         stagedPath = resolve(ctx.cwd, '.nectar', `import-ghost-${Date.now()}-${safe}`);
         await mkdir(dirname(stagedPath), { recursive: true });
         await Bun.write(stagedPath, new Uint8Array(await file.arrayBuffer()));
+        const rawDownloadImages = form?.get('downloadImages');
+        const downloadImages =
+          typeof rawDownloadImages === 'string' ? rawDownloadImages === 'true' : undefined;
+        const rawMaxImageSize = form?.get('maxImageSizeBytes');
+        let maxImageSizeBytes: number | undefined;
+        if (typeof rawMaxImageSize === 'string' && rawMaxImageSize.trim().length > 0) {
+          const parsed = Number(rawMaxImageSize);
+          if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
+            return jsonResponse({ error: 'maxImageSizeBytes must be a non-negative integer' }, 400);
+          }
+          maxImageSizeBytes = parsed;
+        }
         payload = {
           file: stagedPath,
           dryRun: String(form?.get('dryRun') ?? 'true') !== 'false',
           onConflict:
             (form?.get('onConflict') as DashboardGhostImportPayload['onConflict']) ?? 'skip',
           outputDir: (form?.get('outputDir') as string | null) ?? undefined,
+          downloadImages,
+          maxImageSizeBytes,
         };
       } else {
         const json = await readJsonPayload<DashboardGhostImportPayload>(request, ctx.maxBodyBytes);

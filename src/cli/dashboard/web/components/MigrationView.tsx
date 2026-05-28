@@ -35,6 +35,9 @@ interface GhostImportPanelProps extends ImportPanelProps {
 function GhostImportPanel(props: GhostImportPanelProps): JSX.Element {
   const [file, setFile] = useState<File | null>(null);
   const [onConflict, setOnConflict] = useState<'skip' | 'rename' | 'overwrite'>('skip');
+  const [downloadImages, setDownloadImages] = useState(true);
+  const [maxImageSizeMb, setMaxImageSizeMb] = useState('10');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{
@@ -49,13 +52,30 @@ function GhostImportPanel(props: GhostImportPanelProps): JSX.Element {
       setResult({ error: 'Pick a Ghost export (.zip or .json) first.' });
       return;
     }
+    let maxImageSizeBytes: number | undefined;
+    if (downloadImages) {
+      const trimmed = maxImageSizeMb.trim();
+      if (trimmed.length > 0) {
+        const mb = Number.parseFloat(trimmed);
+        if (!Number.isFinite(mb) || mb < 0) {
+          setResult({ error: 'Max image size must be a non-negative number of MB.' });
+          return;
+        }
+        maxImageSizeBytes = Math.floor(mb * 1024 * 1024);
+      }
+    }
     if (!confirm('Import writes Markdown and assets into the configured content dir. Continue?')) {
       return;
     }
     setBusy(true);
     setNotice('Importing files…');
     try {
-      const { status, data } = await importGhostUpload({ file, onConflict });
+      const { status, data } = await importGhostUpload({
+        file,
+        onConflict,
+        downloadImages,
+        maxImageSizeBytes,
+      });
       if (status >= 400) {
         const error = (data as { error?: string }).error;
         setResult({ error: error ?? 'Import failed' });
@@ -108,6 +128,50 @@ function GhostImportPanel(props: GhostImportPanelProps): JSX.Element {
             <option value="overwrite">overwrite</option>
           </select>
         </label>
+        <label class="field wide codeInjectionGate">
+          <input
+            type="checkbox"
+            id="ghostImportDownloadImages"
+            checked={downloadImages}
+            disabled={busy}
+            onChange={(event) =>
+              setDownloadImages((event.currentTarget as HTMLInputElement).checked)
+            }
+          />
+          <span>Download referenced images</span>
+        </label>
+        <p class="meta wide codeInjectionGateNote">
+          Fetches remote images referenced by imported posts so the site is self-contained. Skips
+          any single image larger than the cap below (default 10 MB).
+        </p>
+        {downloadImages ? (
+          <>
+            <button
+              class="btn secondary btnCompact"
+              id="ghostImportAdvancedToggle"
+              type="button"
+              onClick={() => setShowAdvanced((prev) => !prev)}
+            >
+              {showAdvanced ? 'Hide advanced' : 'Advanced'}
+            </button>
+            {showAdvanced ? (
+              <label class="field">
+                <span>Max image size (MB)</span>
+                <input
+                  type="number"
+                  id="ghostImportMaxImageSize"
+                  min="0"
+                  step="1"
+                  value={maxImageSizeMb}
+                  disabled={busy}
+                  onInput={(event) =>
+                    setMaxImageSizeMb((event.currentTarget as HTMLInputElement).value)
+                  }
+                />
+              </label>
+            ) : null}
+          </>
+        ) : null}
       </div>
       <div class="editorActions">
         <button

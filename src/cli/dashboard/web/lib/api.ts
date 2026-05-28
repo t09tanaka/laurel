@@ -337,6 +337,8 @@ export async function importGhost(
 export interface GhostImportUploadArgs {
   file: File;
   onConflict: 'skip' | 'rename' | 'overwrite';
+  downloadImages?: boolean;
+  maxImageSizeBytes?: number;
 }
 
 export async function importGhostUpload(
@@ -346,6 +348,12 @@ export async function importGhostUpload(
   fd.append('file', args.file);
   fd.append('dryRun', 'false');
   fd.append('onConflict', args.onConflict);
+  if (args.downloadImages !== undefined) {
+    fd.append('downloadImages', String(args.downloadImages));
+  }
+  if (args.maxImageSizeBytes !== undefined) {
+    fd.append('maxImageSizeBytes', String(args.maxImageSizeBytes));
+  }
   const response = await fetch('/api/import/ghost', {
     method: 'POST',
     headers: { 'x-nectar-dashboard-token': dashboardToken },
