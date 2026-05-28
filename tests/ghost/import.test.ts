@@ -1617,10 +1617,7 @@ describe('importGhostExport — __GHOST_URL__ placeholder (#72)', () => {
     const postMd = await readFile(join(cwd, 'content/posts/media.md'), 'utf8');
     expect(postMd).not.toContain('__GHOST_URL__');
     expect(postMd).toContain('feature_image: "/content/images/2024/01/cover.jpg"');
-    expect(postMd).toContain('src="/content/images/2024/01/photo.jpg"');
-    expect(postMd).toContain(
-      'srcset="/content/images/size/w600/photo.jpg 600w, /content/images/photo.jpg 1200w"',
-    );
+    expect(postMd).toContain('![Photo](/content/images/2024/01/photo.jpg)');
     expect(postMd).toContain('src="/content/images/2024/01/plain.jpg"');
     expect(postMd).toContain(
       'srcset="/content/images/size/w600/plain.jpg 600w, /content/images/plain.jpg 1200w"',

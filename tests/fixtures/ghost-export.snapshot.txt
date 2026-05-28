@@ -187,7 +187,9 @@ visibility: "public"
 status: "published"
 ---
 
-{{< figure src="https://cdn.test/cover.jpg" alt="Cover image" width="1200" height="630" size="wide" caption="Sample cover caption." />}}
+![Cover image](https://cdn.test/cover.jpg "kg-width-wide")
+
+> Sample cover caption.
 
 === content/posts/card-markdown.md ===
 ---

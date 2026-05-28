@@ -93,7 +93,7 @@ describe('Ghost Turndown rules — blockquote and simple fallbacks', () => {
 });
 
 describe('Ghost Turndown rules — Koenig accessibility and nesting', () => {
-  test('renders imported figure shortcodes with aria-labelled captions', async () => {
+  test('renders imported image captions with aria labels', async () => {
     const html =
       '<figure class="kg-card kg-image-card"><img src="/content/images/a.jpg" alt="A"><figcaption>Caption text</figcaption></figure>';
     const md = td.turndown(html);
@@ -203,7 +203,7 @@ describe('Ghost Turndown rules — kg-header-card', () => {
 });
 
 describe('Ghost Turndown rules — kg-image-card', () => {
-  test('preserves caption, alt, dimensions, and width modifier', () => {
+  test('imports ordinary image cards as editor-friendly Markdown images', async () => {
     const html = `
       <figure class="kg-card kg-image-card kg-width-wide">
         <img src="/content/images/hero.jpg" alt="Hero shot" width="2000" height="1200" />
@@ -211,13 +211,39 @@ describe('Ghost Turndown rules — kg-image-card', () => {
       </figure>
     `;
     const md = td.turndown(html);
-    expect(md).toContain('{{< figure');
-    expect(md).toContain('src="/content/images/hero.jpg"');
-    expect(md).toContain('alt="Hero shot"');
-    expect(md).toContain('width="2000"');
-    expect(md).toContain('height="1200"');
-    expect(md).toContain('size="wide"');
-    expect(md).toContain('caption="Photo by Jane"');
+    expect(md).toContain('![Hero shot](/content/images/hero.jpg "kg-width-wide")');
+    expect(md).toContain('> Photo by Jane');
+    expect(md).not.toContain('{{< figure');
+
+    const { html: rendered } = await renderMarkdown(md);
+    expect(rendered).toContain('<figure class="kg-card kg-image-card kg-width-wide');
+    expect(rendered).toContain('<img class="kg-image"');
+    expect(rendered).toContain('src="/content/images/hero.jpg"');
+    expect(rendered).toContain('alt="Hero shot"');
+    expect(rendered).not.toContain('title="kg-width-wide"');
+    expect(rendered).toContain('<figcaption');
+    expect(rendered).toContain('Photo by Jane</figcaption>');
+  });
+
+  test('imports linked ordinary image cards as linked Markdown images', async () => {
+    const html = `
+      <figure class="kg-card kg-image-card kg-card-hascaption">
+        <a href="https://target.example/">
+          <img src="/content/images/hero.jpg" class="kg-image" alt="Hero" width="2000" height="1200" />
+        </a>
+        <figcaption>By <a href="https://author.example/">Jane</a></figcaption>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('[![Hero](/content/images/hero.jpg)](https://target.example/)');
+    expect(md).toContain('> By [Jane](https://author.example/)');
+    expect(md).not.toContain('{{< figure');
+
+    const { html: rendered } = await renderMarkdown(md);
+    expect(rendered).toContain('<figure class="kg-card kg-image-card kg-width-regular');
+    expect(rendered).toContain('<a href="https://target.example/"><img class="kg-image"');
+    expect(rendered).toContain('<figcaption');
+    expect(rendered).toContain('By <a href="https://author.example/">Jane</a></figcaption>');
   });
 
   test('preserves legacy image alignment modifiers', async () => {
@@ -240,26 +266,7 @@ describe('Ghost Turndown rules — kg-image-card', () => {
       </figure>
     `;
     const md = td.turndown(html);
-    expect(md).toContain('{{< figure');
-    expect(md).toContain('src="/content/images/hero.jpg"');
-    expect(md).not.toContain('caption=');
-  });
-
-  test('preserves wrapping anchor href as the image click target', () => {
-    const html = `
-      <figure class="kg-card kg-image-card kg-card-hascaption">
-        <a href="https://target.example/">
-          <img src="/content/images/hero.jpg" class="kg-image" alt="Hero" width="2000" height="1200" />
-        </a>
-        <figcaption>By <a href="https://author.example/">Jane</a></figcaption>
-      </figure>
-    `;
-    const md = td.turndown(html);
-    expect(md).toContain('{{< figure');
-    expect(md).toContain('href="https://target.example/"');
-    // The caption's inner anchor must not be mistaken for the wrap href.
-    expect(md).not.toContain('href="https://author.example/"');
-    expect(md).toContain('caption=');
+    expect(md.trim()).toBe('![Hero](/content/images/hero.jpg)');
   });
 
   test('omits href when img is not wrapped in an anchor', () => {
@@ -270,11 +277,11 @@ describe('Ghost Turndown rules — kg-image-card', () => {
       </figure>
     `;
     const md = td.turndown(html);
-    expect(md).toContain('{{< figure');
+    expect(md).toContain('![Plain](/content/images/plain.jpg)');
     expect(md).not.toContain('href=');
   });
 
-  test('preserves srcset and sizes from the inner img', () => {
+  test('drops generated srcset metadata from ordinary imported image cards', () => {
     const html = `
       <figure class="kg-card kg-image-card kg-width-full">
         <img
@@ -288,12 +295,9 @@ describe('Ghost Turndown rules — kg-image-card', () => {
       </figure>
     `;
     const md = td.turndown(html);
-    expect(md).toContain('{{< figure');
-    expect(md).toContain('size="full"');
-    expect(md).toContain(
-      'srcset="/content/images/size/w600/hero.jpg 600w, /content/images/size/w1000/hero.jpg 1000w, /content/images/hero.jpg 2000w"',
-    );
-    expect(md).toContain('sizes="(min-width: 1200px) 1000px, 100vw"');
+    expect(md).toContain('![Hero](/content/images/hero.jpg "kg-width-full")');
+    expect(md).not.toContain('srcset=');
+    expect(md).not.toContain('sizes=');
   });
 
   test('preserves picture sources for animated image migrations', () => {
@@ -315,6 +319,21 @@ describe('Ghost Turndown rules — kg-image-card', () => {
     expect(md).toContain('source2_srcset="https://media.giphy.com/media/abc/giphy.gif"');
     expect(md).toContain('source2_type="image/gif"');
     expect(md).toContain('size="wide"');
+  });
+
+  test('preserves potentially animated image formats as figure shortcodes', () => {
+    const html = `
+      <figure class="kg-card kg-image-card">
+        <img src="https://cdn.test/animated.webp" alt="Animated" width="640" height="360" />
+        <figcaption>Animated WebP</figcaption>
+      </figure>
+    `;
+    const md = td.turndown(html);
+    expect(md).toContain('{{< figure');
+    expect(md).toContain('src="https://cdn.test/animated.webp"');
+    expect(md).toContain('width="640"');
+    expect(md).toContain('height="360"');
+    expect(md).toContain('caption="Animated WebP"');
   });
 
   test('plain raw img preserves srcset and sizes via figure shortcode', () => {
@@ -1189,9 +1208,8 @@ describe('Ghost Turndown rules — kg-toggle-card', () => {
     expect(md).toContain('{{< toggle heading="Nested content" >}}');
     expect(md).toContain('*   First item');
     expect(md).toContain("```js\nconsole.log('nested')\n```");
-    expect(md).toContain(
-      '{{< figure src="https://example.com/toggle.png" alt="Toggle image" caption="Inside toggle" />}}',
-    );
+    expect(md).toContain('![Toggle image](https://example.com/toggle.png)');
+    expect(md).toContain('> Inside toggle');
     expect(md).toContain('{{< /toggle >}}');
   });
 });
@@ -1740,7 +1758,6 @@ describe('Ghost Turndown rules — markdown card (comment-fenced)', () => {
       '<!--kg-card-begin: markdown--><figure class="kg-card kg-image-card"><img src="/x.jpg" alt="x" /></figure><!--kg-card-end: markdown-->',
     );
     const md = td.turndown(html);
-    expect(md).toContain('{{< figure');
-    expect(md).toContain('src="/x.jpg"');
+    expect(md).toContain('![x](/x.jpg)');
   });
 });
