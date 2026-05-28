@@ -4,6 +4,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   realpath,
   rm,
   symlink,
@@ -749,6 +750,56 @@ describe('dashboard data', () => {
       expect(await readFile(join(dir, 'content/posts/dashboard-import.md'), 'utf8')).toContain(
         'Imported from the dashboard.',
       );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('multipart Ghost import threads downloadImages + maxImageSizeBytes into the run', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const exportDir = join(dir, 'tmp-ghost-export-multipart');
+      const zipPath = join(dir, 'dashboard-import-multipart.zip');
+      await makeGhostExportZip(zipPath, exportDir);
+      const zipBytes = await readFile(zipPath);
+
+      const form = new FormData();
+      form.append('file', new File([new Uint8Array(zipBytes)], 'ghost.zip'));
+      form.append('dryRun', 'false');
+      form.append('onConflict', 'overwrite');
+      form.append('downloadImages', 'true');
+      form.append('maxImageSizeBytes', String(2 * 1024 * 1024));
+
+      const applied = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/import/ghost', { method: 'POST', body: form }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(applied.status).toBe(200);
+      const appliedBody = (await applied.json()) as {
+        summary: { posts: number; imagesDownloaded: number; imagesFailed: number };
+      };
+      expect(appliedBody.summary.posts).toBe(1);
+      // Fixture post body has no external images, so download stays 0/0 but the
+      // multipart pipeline must accept the flags without 400ing.
+      expect(appliedBody.summary.imagesDownloaded).toBe(0);
+      expect(appliedBody.summary.imagesFailed).toBe(0);
+
+      const badForm = new FormData();
+      badForm.append('file', new File([new Uint8Array(zipBytes)], 'ghost.zip'));
+      badForm.append('dryRun', 'true');
+      badForm.append('onConflict', 'skip');
+      badForm.append('downloadImages', 'true');
+      badForm.append('maxImageSizeBytes', 'not-a-number');
+      const rejected = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/import/ghost', { method: 'POST', body: badForm }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(rejected.status).toBe(400);
+      const rejectedBody = (await rejected.json()) as { error?: string };
+      expect(rejectedBody.error).toMatch(/maxImageSizeBytes/);
+      // Bad-request must not leave a half-staged upload behind under .nectar/.
+      const stagedAfterReject = await readdir(join(dir, '.nectar')).catch(() => [] as string[]);
+      expect(stagedAfterReject.filter((name) => name.startsWith('import-ghost-'))).toEqual([]);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

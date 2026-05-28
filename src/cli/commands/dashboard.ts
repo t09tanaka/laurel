@@ -1627,6 +1627,21 @@ export async function handleDashboardRequest(
         if (file.size > MAX_BYTES) {
           return jsonResponse({ error: 'ghost export exceeds 200MB limit' }, 413);
         }
+        // Parse + validate scalar fields *before* staging the upload so a bad
+        // request doesn't leak a file under .nectar/ (the unlink() in finally
+        // below only runs after stagedPath is set inside the try-block).
+        const rawDownloadImages = form?.get('downloadImages');
+        const downloadImages =
+          typeof rawDownloadImages === 'string' ? rawDownloadImages === 'true' : undefined;
+        const rawMaxImageSize = form?.get('maxImageSizeBytes');
+        let maxImageSizeBytes: number | undefined;
+        if (typeof rawMaxImageSize === 'string' && rawMaxImageSize.trim().length > 0) {
+          const parsed = Number(rawMaxImageSize);
+          if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
+            return jsonResponse({ error: 'maxImageSizeBytes must be a non-negative integer' }, 400);
+          }
+          maxImageSizeBytes = parsed;
+        }
         const safe = (file.name || 'ghost-export').replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 80);
         stagedPath = resolve(ctx.cwd, '.nectar', `import-ghost-${Date.now()}-${safe}`);
         await mkdir(dirname(stagedPath), { recursive: true });
@@ -1637,6 +1652,8 @@ export async function handleDashboardRequest(
           onConflict:
             (form?.get('onConflict') as DashboardGhostImportPayload['onConflict']) ?? 'skip',
           outputDir: (form?.get('outputDir') as string | null) ?? undefined,
+          downloadImages,
+          maxImageSizeBytes,
         };
       } else {
         const json = await readJsonPayload<DashboardGhostImportPayload>(request, ctx.maxBodyBytes);
