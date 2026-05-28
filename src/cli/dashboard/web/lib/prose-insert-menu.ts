@@ -18,7 +18,7 @@
 // don't have to walk the DOM up looking for `.editorCanvas`.
 
 import type { Node as ProseNode, Schema } from 'prosemirror-model';
-import { Plugin } from 'prosemirror-state';
+import { Plugin, TextSelection } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import {
   type ComponentEntry,
@@ -73,6 +73,22 @@ function replaceEmptyParagraph(
   const paraEnd = target.paraStart + paraNode.nodeSize;
   const tr = view.state.tr.replaceWith(target.paraStart, paraEnd, insertion);
   view.dispatch(tr.scrollIntoView());
+}
+
+// Replace the empty paragraph with a callout whose body starts as an empty
+// paragraph, then drop the caret inside that body so the user types the note
+// straight away. createAndFill backfills the required `block+` content.
+function insertCallout(view: EditorView, schema: Schema, target: EmptyParagraphTarget): void {
+  const calloutType = nodeBy(schema, 'callout');
+  if (!calloutType) return;
+  const callout = calloutType.createAndFill();
+  if (!callout) return;
+  const paraNode = view.state.doc.nodeAt(target.paraStart);
+  if (!paraNode) return;
+  const paraEnd = target.paraStart + paraNode.nodeSize;
+  const tr = view.state.tr.replaceWith(target.paraStart, paraEnd, callout);
+  const inside = TextSelection.near(tr.doc.resolve(target.paraStart + 1), 1);
+  view.dispatch(tr.setSelection(inside).scrollIntoView());
 }
 
 // Inline image insertion — basic-schema image is inline, so we keep
@@ -216,6 +232,17 @@ const MENU_ITEMS: MenuItemSpec[] = [
         };
       },
     }),
+  },
+  {
+    key: 'callout',
+    label: 'Callout',
+    hint: 'Highlighted note with an emoji',
+    enabled: (schema) => Boolean(nodeBy(schema, 'callout')),
+    run(view, schema, target, _options, ui) {
+      insertCallout(view, schema, target);
+      ui.close();
+      view.focus();
+    },
   },
   {
     key: 'divider',
