@@ -258,14 +258,14 @@ export interface DashboardTaxonomySummary {
   materializePath: string;
 }
 
-// Per-component summary surfaced on the dashboard list. We don't expose
-// the raw CSS / HTML here — the row UI only needs the slug, the
-// description, and which payload fields are populated so it can render
-// status pips. The full payload is fetched lazily by the editor via
-// /api/content/components/<slug>.
+// Per-component summary surfaced on the dashboard list and the post/page
+// editor insert menu. The editor needs the payload to render `{slug}` as
+// a non-editable preview without fetching every component lazily.
 export interface DashboardComponentSummary {
   slug: string;
   description: string;
+  css: string;
+  html: string;
   hasCss: boolean;
   hasHtml: boolean;
   path: string;
@@ -3035,6 +3035,8 @@ async function componentSummary(
   return {
     slug: component.slug,
     description: component.description,
+    css: component.css,
+    html: component.html,
     hasCss: component.css.length > 0,
     hasHtml: component.html.length > 0,
     path: component.source.path,

@@ -98,9 +98,9 @@ function insertComponentParagraph(
   view: EditorView,
   schema: Schema,
   target: EmptyParagraphTarget,
-  slug: string,
+  component: ComponentEntry,
 ): void {
-  const inserted = buildComponentParagraph(schema, slug);
+  const inserted = buildComponentParagraph(schema, component.slug, component);
   if (!inserted) return;
   const tr = buildInsertComponentTransaction(view.state, target, inserted);
   if (!tr) return;
@@ -276,7 +276,7 @@ const MENU_ITEMS: MenuItemSpec[] = [
         label: entry.label,
         hint: entry.hint,
         run(view, schema, target) {
-          insertComponentParagraph(view, schema, target, entry.slug);
+          insertComponentParagraph(view, schema, target, entry);
         },
       }));
     },

@@ -41,8 +41,16 @@ import {
 import { bookmarkNodeSpec } from '../lib/prose-bookmark-schema.ts';
 import { BookmarkNodeView } from '../lib/prose-bookmark-view.ts';
 import { bubbleMenuPlugin } from '../lib/prose-bubble-menu.ts';
+import {
+  componentMarkdownItPlugin,
+  componentSerializerNode,
+  componentTokenHandler,
+} from '../lib/prose-component-markdown.ts';
+import { componentNodeSpec } from '../lib/prose-component-schema.ts';
+import { ComponentNodeView } from '../lib/prose-component-view.ts';
 import { ImageNodeView } from '../lib/prose-image-view.ts';
 import { buildInputRules } from '../lib/prose-input-rules.ts';
+import type { ComponentEntry } from '../lib/prose-insert-menu-logic.ts';
 import { insertMenuPlugin } from '../lib/prose-insert-menu.ts';
 
 // Wide schema: paragraph / blockquote / heading / horizontal_rule /
@@ -63,7 +71,10 @@ const fullNodes = withList.append(
   }),
 );
 
-const fullNodesWithBookmark = fullNodes.append({ bookmark: bookmarkNodeSpec });
+const fullNodesWithEditorAtoms = fullNodes.append({
+  bookmark: bookmarkNodeSpec,
+  component: componentNodeSpec,
+});
 
 const strikethroughMark: MarkSpec = {
   parseDOM: [{ tag: 's' }, { tag: 'strike' }, { tag: 'del' }],
@@ -74,7 +85,7 @@ const strikethroughMark: MarkSpec = {
 const extendedMarks = basicSchema.spec.marks.addToEnd('strikethrough', strikethroughMark);
 
 export const proseSchema = new Schema({
-  nodes: fullNodesWithBookmark,
+  nodes: fullNodesWithEditorAtoms,
   marks: extendedMarks,
 });
 
@@ -99,6 +110,7 @@ const parserTokens = {
   td: { block: 'table_cell' },
   s: { mark: 'strikethrough' },
   bookmark: bookmarkTokenHandler,
+  component: componentTokenHandler,
 };
 
 // prosemirror-markdown's `defaultMarkdownParser` is built on the
@@ -110,6 +122,14 @@ const markdownTokenizer = MarkdownIt('commonmark', { html: false })
   .use(bookmarkMarkdownItPlugin);
 
 export const markdownParser = new MarkdownParser(proseSchema, markdownTokenizer, parserTokens);
+
+export function createMarkdownParser(components: ComponentEntry[] = []): MarkdownParser {
+  const tokenizer = MarkdownIt('commonmark', { html: false })
+    .enable(['table'])
+    .use(bookmarkMarkdownItPlugin)
+    .use(componentMarkdownItPlugin(components));
+  return new MarkdownParser(proseSchema, tokenizer, parserTokens);
+}
 
 // Tables don't have a stock markdown serializer either. We walk rows
 // and cells, serialise each cell's inline children with the default
@@ -168,6 +188,7 @@ export const markdownSerializer = new MarkdownSerializer(
       /* handled by table */
     },
     bookmark: bookmarkSerializerNode,
+    component: componentSerializerNode,
   },
   {
     ...baseSerializer.marks,
@@ -194,7 +215,7 @@ interface ProseEditorProps {
   // "+ insert" menu's Components submenu. Optional so theme harnesses
   // and tests don't have to wire one — when absent or empty the
   // Components item is hidden from the popover.
-  getComponents?: () => { slug: string; description?: string }[];
+  getComponents?: () => ComponentEntry[];
 }
 
 function commandKeymap(): Record<string, Command> {
@@ -266,7 +287,8 @@ export function ProseEditor(props: ProseEditorProps): JSX.Element {
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    let doc = markdownParser.parse(props.initialMarkdown ?? '');
+    const components = getComponentsRef.current?.() ?? [];
+    let doc = createMarkdownParser(components).parse(props.initialMarkdown ?? '');
     if (!doc) {
       const filled = proseSchema.topNodeType.createAndFill();
       if (!filled) return;
@@ -301,6 +323,7 @@ export function ProseEditor(props: ProseEditorProps): JSX.Element {
       state,
       nodeViews: {
         image: (n, v, getPos) => new ImageNodeView(n, v, getPos),
+        component: (n, v, getPos) => new ComponentNodeView(n, v, getPos),
         bookmark: (n, v, getPos) =>
           new BookmarkNodeView(n, v, getPos, {
             onReplace(pos, node) {
