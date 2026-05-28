@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { dirname, extname, join, resolve, sep } from 'node:path';
 import { ensureDir } from '~/util/fs.ts';
@@ -11,6 +12,93 @@ import { logger } from '~/util/logger.ts';
 // streams that never end, etc.). Operators can raise or disable via
 // `maxImageSizeBytes` / `--max-image-size`.
 export const DEFAULT_MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
+
+// Rate-limit knobs for the sequential download loop.
+//
+// `PER_FETCH_SLEEP_MS` paces successive requests so we don't pound the
+// source Ghost CDN with hundreds of back-to-back fetches. At 100ms / image
+// a 200-image import only pays an extra 20s of wall-clock — invisible next
+// to the actual transfer time — and it stays a polite citizen.
+//
+// `YIELD_EVERY_N_FETCHES` periodically hands control back to the event
+// loop and nudges Bun's GC. Bun 1.3.14 has known stability issues when a
+// single async loop holds the runtime for minutes (the dashboard segfaults
+// after ~80–200s of continuous fetch+writeFile), and forcing a breather
+// every 25 images both flushes pending I/O callbacks and gives the
+// collector a chance to reclaim Response/ArrayBuffer churn.
+const PER_FETCH_SLEEP_MS = 100;
+const YIELD_EVERY_N_FETCHES = 25;
+
+declare const Bun: { gc?: (sync: boolean) => void } | undefined;
+
+function tryCancelUnreadBody(body: ReadableStream<Uint8Array> | null | undefined): void {
+  if (!body) return;
+  // Error paths (HTTP !ok, size cap hit before body consumption) need this
+  // to free the underlying native handle promptly. Once the stream reader has
+  // drained the body, avoid a second lifecycle operation on Bun's native body
+  // handle.
+  body.cancel().catch(() => {});
+}
+
+interface BodyReadResult {
+  bytes: Uint8Array;
+  drained: boolean;
+  tooLarge: number | null;
+}
+
+async function readResponseBodyBytes(
+  response: Response,
+  maxBytes: number,
+  label: string,
+): Promise<BodyReadResult> {
+  if (!response.body) {
+    return { bytes: new Uint8Array(), drained: true, tooLarge: null };
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (maxBytes > 0 && total > maxBytes) {
+        await reader.cancel(`Image ${label} exceeded max size ${maxBytes} bytes`).catch(() => {});
+        return { bytes: new Uint8Array(), drained: false, tooLarge: total };
+      }
+      chunks.push(value);
+    }
+    return { bytes: concatChunks(chunks, total), drained: true, tooLarge: null };
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function concatChunks(chunks: Uint8Array[], total: number): Uint8Array {
+  if (chunks.length === 0) return new Uint8Array();
+  if (chunks.length === 1) return chunks[0] ?? new Uint8Array();
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
+// One event per image the downloader processed. `status` distinguishes the
+// outcome so a UI can render counts of done / skipped / failed alongside the
+// current URL. Counters are cumulative across the lifetime of the downloader
+// instance, so a consumer can render them directly without bookkeeping.
+export interface GhostImageDownloadEvent {
+  url: string;
+  status: 'fetching' | 'done' | 'skipped' | 'failed';
+  downloaded: number;
+  skipped: number;
+  failed: number;
+}
 
 export interface GhostImageDownloaderOptions {
   // Project root. Downloaded files are written under <cwd>/content/images/.
@@ -27,6 +115,18 @@ export interface GhostImageDownloaderOptions {
   // server lies or omits the header), so a single oversize asset cannot
   // exhaust memory or disk.
   maxImageSizeBytes?: number;
+  // Origin of the source Ghost site (e.g. `https://oldblog.ghost.io`). When
+  // provided, the downloader expands site-relative paths like
+  // `/content/images/2025/06/foo.jpg` — which is what Ghost exports leave
+  // behind after `__GHOST_URL__` placeholder substitution — into absolute URLs
+  // it can actually fetch. Without it, only fully-qualified `http(s)://` URLs
+  // are downloaded; relative paths are silently skipped.
+  sourceUrl?: string;
+  // Per-image progress hook. Fires once with `status: 'fetching'` before each
+  // network call and again with the outcome (`done` / `skipped` / `failed`).
+  // Cache hits within the same import run are silent — the consumer already
+  // saw the original event for that URL on the first encounter.
+  onEvent?: (event: GhostImageDownloadEvent) => void;
 }
 
 interface CacheEntry {
@@ -49,9 +149,58 @@ const BOOKMARK_SHORTCODE_RE =
 const HEADER_SHORTCODE_RE = /\{%\s+header((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*%\}/g;
 const HEADER_HUGO_SHORTCODE_RE =
   /\{\{<\s+header((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
+// Image-bearing Koenig card shortcodes the turndown layer emits for
+// `<figure class="kg-image-card">` and `<div class="kg-gallery-card">`.
+// Without crawling these the body's referenced images never reach the
+// downloader, so the post ends up pointing at `/content/images/2026/...`
+// paths that have no corresponding file on disk.
+const IMAGE_SHORTCODE_RE =
+  /\{\{<\s+(?:figure|gallery-image)((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*\/>\}\}/g;
 const SHORTCODE_ATTR_RE = /([a-zA-Z][\w-]*)="((?:\\.|[^"\\])*)"/g;
 const BOOKMARK_IMAGE_ATTRS = new Set(['icon', 'thumbnail']);
 const HEADER_IMAGE_ATTRS = new Set(['background', 'background_image']);
+
+// `src` and `src*_src` attributes carry a single URL. `srcset` and
+// `src*_srcset` carry a comma-separated list of `<url> <descriptor>` pairs
+// (e.g. `foo.jpg 600w, bar.jpg 1000w`). Figure / gallery-image shortcodes
+// generate both kinds — `src` for the canonical image plus per-source
+// `source1_src` / `source1_srcset` / … for `<picture>` variants.
+function isImageShortcodeSrcAttr(name: string): boolean {
+  return name === 'src' || name.endsWith('_src');
+}
+function isImageShortcodeSrcsetAttr(name: string): boolean {
+  return name === 'srcset' || name.endsWith('_srcset');
+}
+function parseSrcsetUrls(srcset: string): string[] {
+  const urls: string[] = [];
+  for (const piece of srcset.split(',')) {
+    const trimmed = piece.trim();
+    if (trimmed.length === 0) continue;
+    const url = trimmed.split(/\s+/, 1)[0];
+    if (url) urls.push(url);
+  }
+  return urls;
+}
+function rewriteSrcset(srcset: string, replacements: Map<string, string>): string {
+  let changed = false;
+  const rewritten = srcset
+    .split(',')
+    .map((piece) => {
+      const leading = piece.match(/^\s*/)?.[0] ?? '';
+      const trimmed = piece.slice(leading.length);
+      const m = trimmed.match(/^(\S+)(\s.*)?$/);
+      if (!m) return piece;
+      const url = m[1];
+      const rest = m[2] ?? '';
+      if (!url) return piece;
+      const rep = replacements.get(url);
+      if (!rep) return piece;
+      changed = true;
+      return `${leading}${rep}${rest}`;
+    })
+    .join(',');
+  return changed ? rewritten : srcset;
+}
 
 const KNOWN_IMAGE_EXTS = new Set([
   '.jpg',
@@ -83,11 +232,22 @@ export class GhostImageDownloader {
   private readonly fetcher: typeof fetch;
   private readonly contentRoot: string;
   private readonly maxBytes: number;
+  // Base (`https://host[:port][/sub/path]`) of the source Ghost site, used
+  // to expand site-relative `/content/images/...` URLs into absolute URLs
+  // the fetcher can hit. The pathname is preserved so a Ghost instance
+  // mounted under a subpath (e.g. `https://example.com/ja/blog`) resolves
+  // images correctly. Undefined when no source URL was supplied; in that
+  // case site-relative paths are left untouched.
+  private readonly sourceBase: string | undefined;
+  private readonly onEvent: ((event: GhostImageDownloadEvent) => void) | undefined;
   // Per-URL cache. `null` means a prior attempt failed; future calls reuse
   // that verdict instead of re-fetching.
   private readonly cache = new Map<string, CacheEntry | null>();
   private _downloaded = 0;
   private _failed = 0;
+  private _skipped = 0;
+  private _fetchCount = 0;
+  private downloadQueue: Promise<void> = Promise.resolve();
 
   constructor(opts: GhostImageDownloaderOptions) {
     this.fetcher = opts.fetcher ?? globalThis.fetch.bind(globalThis);
@@ -96,6 +256,36 @@ export class GhostImageDownloader {
     // than silently rejecting every fetch.
     const raw = opts.maxImageSizeBytes ?? DEFAULT_MAX_IMAGE_SIZE_BYTES;
     this.maxBytes = raw > 0 ? raw : 0;
+    this.sourceBase = normalizeSourceBase(opts.sourceUrl);
+    this.onEvent = opts.onEvent;
+  }
+
+  private emit(url: string, status: GhostImageDownloadEvent['status']): void {
+    this.onEvent?.({
+      url,
+      status,
+      downloaded: this._downloaded,
+      skipped: this._skipped,
+      failed: this._failed,
+    });
+  }
+
+  // Called right before every real network fetch. Sleeps `PER_FETCH_SLEEP_MS`
+  // unconditionally (rate-limit) and, every `YIELD_EVERY_N_FETCHES` calls,
+  // additionally hands control back to the event loop and nudges GC. Both
+  // are workarounds for the Bun 1.3.14 SIGSEGV that fires after long
+  // continuous fetch+writeFile loops.
+  private async preFetchBreather(): Promise<void> {
+    this._fetchCount += 1;
+    await new Promise<void>((resolve) => setTimeout(resolve, PER_FETCH_SLEEP_MS));
+    if (this._fetchCount % YIELD_EVERY_N_FETCHES === 0) {
+      try {
+        Bun?.gc?.(false);
+      } catch {
+        // `Bun.gc` is best-effort; tolerate any environment without it.
+      }
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
   }
 
   get downloaded(): number {
@@ -106,6 +296,26 @@ export class GhostImageDownloader {
     return this._failed;
   }
 
+  get skipped(): number {
+    return this._skipped;
+  }
+
+  // Turn an image reference from the export into an absolute URL we can fetch.
+  // Returns:
+  //   - the input unchanged when it is already an `http(s)://...` URL
+  //   - `<sourceOrigin><url>` when the input is a `/content/...` (or other
+  //     leading-slash) site-relative path AND a source URL was supplied
+  //   - `null` otherwise — relative paths with no source URL, `data:` URIs,
+  //     `mailto:` etc. The caller treats `null` as "skip, leave the value
+  //     alone" so the downloader is safe to call against every image field.
+  private resolveFetchUrl(url: string): string | null {
+    if (typeof url !== 'string' || url.length === 0) return null;
+    if (isHttpUrl(url)) return url;
+    if (!this.sourceBase) return null;
+    if (!url.startsWith('/')) return null;
+    return `${this.sourceBase}${url}`;
+  }
+
   // Download a single image URL and return the rewritten site-relative URL,
   // or `null` if the input should be left alone (non-http(s), already
   // relative, or download failed).
@@ -113,20 +323,74 @@ export class GhostImageDownloader {
     url: string,
     opts?: { externalDir?: 'external' | 'bookmarks' },
   ): Promise<string | null> {
-    if (!isHttpUrl(url)) return null;
-    const cacheKey = opts?.externalDir ? `${opts.externalDir}\0${url}` : url;
+    return this.enqueueDownload(() => this.downloadOneLocked(url, opts));
+  }
+
+  private async enqueueDownload<T>(fn: () => Promise<T>): Promise<T> {
+    const previous = this.downloadQueue;
+    let release!: () => void;
+    this.downloadQueue = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    try {
+      return await fn();
+    } finally {
+      release();
+    }
+  }
+
+  private async downloadOneLocked(
+    url: string,
+    opts?: { externalDir?: 'external' | 'bookmarks' },
+  ): Promise<string | null> {
+    // `stripGhostUrlPlaceholder` runs over the export before the downloader
+    // sees a thing, so what arrives here for Ghost-hosted assets is a
+    // site-relative path like `/content/images/2025/06/foo.jpg`, not an
+    // absolute URL. When the caller supplied a source URL, expand it back to
+    // something fetchable; otherwise we cannot reach the bytes and the
+    // download silently no-ops.
+    const fetchUrl = this.resolveFetchUrl(url);
+    if (fetchUrl === null) return null;
+    const cacheKey = opts?.externalDir ? `${opts.externalDir}\0${fetchUrl}` : fetchUrl;
 
     const cached = this.cache.get(cacheKey);
     if (cached !== undefined) {
       return cached?.rewrittenUrl ?? null;
     }
 
+    // Fast path: when we can derive the destination file from the URL alone
+    // (Ghost-CDN paths and external URLs whose pathname already carries a
+    // known image extension), check whether the file is already on disk and
+    // skip the network round-trip entirely. This makes re-imports of an
+    // unchanged Ghost export effectively instant — most of the wall-clock
+    // cost of a fresh import is image fetching, not Markdown writing.
+    //
+    // We deliberately pass an empty contentType to `derivePaths`; if the
+    // URL has no recognisable extension the call returns `.bin` and we fall
+    // through to fetching, where the response's `Content-Type` is used.
+    const predicted = derivePaths(fetchUrl, '', opts);
+    if (!predicted.localPath.endsWith('.bin')) {
+      const absPath = join(this.contentRoot, stripContentPrefix(predicted.localPath));
+      if (existsSync(absPath)) {
+        this.cache.set(cacheKey, { rewrittenUrl: predicted.rewrittenUrl });
+        this._skipped += 1;
+        this.emit(fetchUrl, 'skipped');
+        return predicted.rewrittenUrl;
+      }
+    }
+
+    this.emit(fetchUrl, 'fetching');
+    await this.preFetchBreather();
+    let response: Response | undefined;
+    let bodyDrained = false;
     try {
-      const response = await this.fetcher(url);
+      response = await this.fetcher(fetchUrl);
       if (!response.ok) {
-        logger.warn(`Failed to download image ${url}: HTTP ${response.status}`);
+        logger.warn(`Failed to download image ${fetchUrl}: HTTP ${response.status}`);
         this.cache.set(cacheKey, null);
         this._failed += 1;
+        this.emit(fetchUrl, 'failed');
         return null;
       }
       // Trust-but-verify Content-Length: refuse upfront when the server
@@ -139,25 +403,29 @@ export class GhostImageDownloader {
           const advertised = Number.parseInt(cl, 10);
           if (Number.isFinite(advertised) && advertised > this.maxBytes) {
             logger.warn(
-              `Failed to download image ${url}: advertised size ${advertised} exceeds max ${this.maxBytes} bytes`,
+              `Failed to download image ${fetchUrl}: advertised size ${advertised} exceeds max ${this.maxBytes} bytes`,
             );
             this.cache.set(cacheKey, null);
             this._failed += 1;
+            this.emit(fetchUrl, 'failed');
             return null;
           }
         }
       }
       const contentType = response.headers.get('content-type') ?? '';
-      const buf = new Uint8Array(await response.arrayBuffer());
-      if (this.maxBytes > 0 && buf.byteLength > this.maxBytes) {
+      const read = await readResponseBodyBytes(response, this.maxBytes, fetchUrl);
+      bodyDrained = read.drained;
+      if (read.tooLarge !== null) {
         logger.warn(
-          `Failed to download image ${url}: payload ${buf.byteLength} exceeds max ${this.maxBytes} bytes`,
+          `Failed to download image ${fetchUrl}: payload ${read.tooLarge} exceeds max ${this.maxBytes} bytes`,
         );
         this.cache.set(cacheKey, null);
         this._failed += 1;
+        this.emit(fetchUrl, 'failed');
         return null;
       }
-      const { localPath, rewrittenUrl } = derivePaths(url, contentType, opts);
+      const buf = read.bytes;
+      const { localPath, rewrittenUrl } = derivePaths(fetchUrl, contentType, opts);
       const absPath = join(this.contentRoot, stripContentPrefix(localPath));
       // Defense in depth: pathname normalization in `URL` already strips
       // `..`, but assert we stay under the configured content output root.
@@ -167,14 +435,18 @@ export class GhostImageDownloader {
       const entry: CacheEntry = { rewrittenUrl };
       this.cache.set(cacheKey, entry);
       this._downloaded += 1;
+      this.emit(fetchUrl, 'done');
       return rewrittenUrl;
     } catch (err) {
       logger.warn(
-        `Failed to download image ${url}: ${err instanceof Error ? err.message : String(err)}`,
+        `Failed to download image ${fetchUrl}: ${err instanceof Error ? err.message : String(err)}`,
       );
       this.cache.set(cacheKey, null);
       this._failed += 1;
+      this.emit(fetchUrl, 'failed');
       return null;
+    } finally {
+      if (!bodyDrained) tryCancelUnreadBody(response?.body);
     }
   }
 
@@ -205,6 +477,28 @@ export class GhostImageDownloader {
       HEADER_IMAGE_ATTRS,
     )) {
       urls.add(url);
+    }
+    // Image-bearing Koenig card shortcodes (`{{< figure ... />}}`,
+    // `{{< gallery-image ... />}}`). Walk every `src*` and `srcset*` attr
+    // so the canonical image AND the per-`<source>` variants both get
+    // downloaded and rewritten — otherwise the post body would still
+    // point at `/content/images/...` paths the import never persisted.
+    for (const m of text.matchAll(IMAGE_SHORTCODE_RE)) {
+      const attrs = m[1];
+      if (!attrs) continue;
+      SHORTCODE_ATTR_RE.lastIndex = 0;
+      let attr = SHORTCODE_ATTR_RE.exec(attrs);
+      while (attr !== null) {
+        const name = attr[1];
+        const value = attr[2];
+        if (name && value) {
+          if (isImageShortcodeSrcAttr(name)) urls.add(value);
+          else if (isImageShortcodeSrcsetAttr(name)) {
+            for (const url of parseSrcsetUrls(value)) urls.add(url);
+          }
+        }
+        attr = SHORTCODE_ATTR_RE.exec(attrs);
+      }
     }
     const bookmarkUrls = collectBookmarkImageUrls(text);
     if (urls.size === 0 && bookmarkUrls.size === 0) return text;
@@ -255,6 +549,33 @@ export class GhostImageDownloader {
       .replace(HEADER_HUGO_SHORTCODE_RE, (full, attrs: string) =>
         rewriteShortcodeImageAttrs(full, attrs, replacements, HEADER_IMAGE_ATTRS),
       )
+      .replace(IMAGE_SHORTCODE_RE, (full, attrs: string) => {
+        if (!attrs) return full;
+        let changed = false;
+        const rewritten = attrs.replace(
+          /([a-zA-Z][\w-]*)="((?:\\.|[^"\\])*)"/g,
+          (match, name: string, value: string) => {
+            if (isImageShortcodeSrcAttr(name)) {
+              const rep = replacements.get(value);
+              if (rep) {
+                changed = true;
+                return `${name}="${rep}"`;
+              }
+              return match;
+            }
+            if (isImageShortcodeSrcsetAttr(name)) {
+              const next = rewriteSrcset(value, replacements);
+              if (next !== value) {
+                changed = true;
+                return `${name}="${next}"`;
+              }
+              return match;
+            }
+            return match;
+          },
+        );
+        return changed ? full.replace(attrs, rewritten) : full;
+      })
       .replace(BOOKMARK_SHORTCODE_RE, (full, attrs: string) =>
         rewriteShortcodeImageAttrs(full, attrs, bookmarkReplacements, BOOKMARK_IMAGE_ATTRS),
       );
@@ -280,6 +601,33 @@ function isHttpUrl(s: string): boolean {
   }
 }
 
+// Reduce a user-supplied source URL to a clean base
+// (`https://host[:port][/sub/path]`) so the downloader can safely
+// concatenate it with a leading-slash path. The pathname is preserved (with
+// any trailing slashes stripped) so a Ghost instance mounted under a
+// subpath — e.g. `https://example.com/ja/blog/` — resolves to
+// `https://example.com/ja/blog/content/images/...` instead of
+// `https://example.com/content/images/...`, which would 404 / 403.
+//
+// Returns undefined when the input is empty / invalid / non-http(s);
+// callers then behave as if no source URL was provided at all.
+function normalizeSourceBase(raw: string | undefined): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return undefined;
+  try {
+    const u = new URL(trimmed);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return undefined;
+    // Strip trailing slashes so concat with a leading-slash path never
+    // produces a `//content/...` double-slash that some CDNs normalise
+    // away and others 404.
+    const path = u.pathname.replace(/\/+$/, '');
+    return `${u.origin}${path}`;
+  } catch {
+    return undefined;
+  }
+}
+
 function derivePaths(
   url: string,
   contentType: string,
@@ -291,7 +639,17 @@ function derivePaths(
   // Ghost CDN style: keep the /content/(images|media)/<rest> layout so the
   // imported markdown already lines up with how the build pipeline resolves
   // `/content/images/...` URLs.
-  const ghostMatch = pathname.match(/^\/content\/(images|media)\/(.+)$/);
+  //
+  // The `/content/(images|media)/` segment is matched anywhere in the
+  // pathname (not anchored to `^`) so a Ghost instance mounted under a
+  // subpath — e.g. `https://example.com/ja/blog/content/images/...` —
+  // still resolves into `content/images/...` locally instead of falling
+  // through to the `external/<hash>` bucket. False-positive risk is
+  // negligible: the segment is specific enough that a non-Ghost URL
+  // happening to contain `/content/images/<file>` is rare, and the worst
+  // case is a single file written under the Ghost layout instead of
+  // external — still correctly stored, just in a different folder.
+  const ghostMatch = pathname.match(/\/content\/(images|media)\/(.+)$/);
   if (ghostMatch?.[1] && ghostMatch[2] && !ghostMatch[2].includes('..')) {
     const subdir = ghostMatch[1];
     const rest = ghostMatch[2];
@@ -337,7 +695,13 @@ function collectShortcodeImageUrls(
     while (attr !== null) {
       const name = attr[1];
       const value = attr[2];
-      if (name && value && imageAttrs.has(name) && isHttpUrl(value)) urls.add(value);
+      // `isHttpUrl` was the gate here; site-relative `/content/images/...`
+      // values silently dropped, so bookmark icon / thumbnail URLs that come
+      // out of `stripGhostUrlPlaceholder` as leading-slash paths were never
+      // downloaded. `resolveFetchUrl` already rejects anything it can't
+      // turn into an absolute URL, so widening to "any non-empty value" is
+      // safe — non-fetchable values just no-op at the next step.
+      if (name && value && imageAttrs.has(name)) urls.add(value);
       attr = SHORTCODE_ATTR_RE.exec(attrs);
     }
   }

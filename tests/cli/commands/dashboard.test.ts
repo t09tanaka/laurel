@@ -714,6 +714,79 @@ describe('dashboard data', () => {
     }
   });
 
+  test('multipart Ghost import passes downloadImages and maxImageSizeBytes through to the importer', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const exportDir = join(dir, 'tmp-ghost-export-multipart');
+      const zipPath = join(dir, 'dashboard-import-multipart.zip');
+      await makeGhostExportZip(zipPath, exportDir);
+
+      const fileBytes = await readFile(zipPath);
+      const form = new FormData();
+      form.append(
+        'file',
+        new File([new Uint8Array(fileBytes)], 'dashboard-import-multipart.zip', {
+          type: 'application/zip',
+        }),
+      );
+      form.append('dryRun', 'true');
+      form.append('onConflict', 'overwrite');
+      form.append('downloadImages', 'true');
+      form.append('maxImageSizeBytes', String(5 * 1024 * 1024));
+
+      const response = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/import/ghost', { method: 'POST', body: form }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+
+      // Multipart Ghost-import responses stream NDJSON events (one JSON
+      // object per line) so the dashboard overlay can render per-image
+      // progress. The terminal event carries the import summary.
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type') ?? '').toContain('application/x-ndjson');
+      const raw = await response.text();
+      const events = raw
+        .split('\n')
+        .filter((line) => line.trim().length > 0)
+        .map(
+          (line) =>
+            JSON.parse(line) as {
+              type: string;
+              summary?: { dryRun: boolean; posts: number; imagesDownloaded?: number };
+              message?: string;
+            },
+        );
+      const done = events.find((e) => e.type === 'done');
+      expect(done?.summary?.dryRun).toBe(true);
+      expect(done?.summary?.posts).toBe(1);
+
+      const formBad = new FormData();
+      formBad.append(
+        'file',
+        new File([new Uint8Array(fileBytes)], 'dashboard-import-multipart.zip', {
+          type: 'application/zip',
+        }),
+      );
+      formBad.append('dryRun', 'true');
+      formBad.append('onConflict', 'overwrite');
+      formBad.append('maxImageSizeBytes', 'not-a-number');
+      const badResponse = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/import/ghost', { method: 'POST', body: formBad }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(badResponse.status).toBe(400);
+      const badBody = (await badResponse.json()) as { error: string };
+      expect(badBody.error).toContain('maxImageSizeBytes');
+      // Validation must run before the upload is staged so a rejected
+      // request never leaks a copy of the export under .nectar/.
+      const stagedRoot = join(dir, '.nectar');
+      const stagedEntries = await readdir(stagedRoot).catch(() => [] as string[]);
+      expect(stagedEntries.some((name) => name.startsWith('import-ghost-'))).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('previews and applies a Ghost zip import through the dashboard API', async () => {
     const dir = await makeDashboardFixture();
     try {
@@ -775,14 +848,23 @@ describe('dashboard data', () => {
         { cwd: dir, changeBus: createChangeBus() },
       );
       expect(applied.status).toBe(200);
-      const appliedBody = (await applied.json()) as {
-        summary: { posts: number; imagesDownloaded: number; imagesFailed: number };
-      };
-      expect(appliedBody.summary.posts).toBe(1);
+      expect(applied.headers.get('content-type') ?? '').toContain('application/x-ndjson');
+      const events = (await applied.text())
+        .split('\n')
+        .filter((line) => line.trim().length > 0)
+        .map(
+          (line) =>
+            JSON.parse(line) as {
+              type: string;
+              summary?: { posts: number; imagesDownloaded: number; imagesFailed: number };
+            },
+        );
+      const done = events.find((event) => event.type === 'done');
+      expect(done?.summary?.posts).toBe(1);
       // Fixture post body has no external images, so download stays 0/0 but the
       // multipart pipeline must accept the flags without 400ing.
-      expect(appliedBody.summary.imagesDownloaded).toBe(0);
-      expect(appliedBody.summary.imagesFailed).toBe(0);
+      expect(done?.summary?.imagesDownloaded).toBe(0);
+      expect(done?.summary?.imagesFailed).toBe(0);
 
       const badForm = new FormData();
       badForm.append('file', new File([new Uint8Array(zipBytes)], 'ghost.zip'));

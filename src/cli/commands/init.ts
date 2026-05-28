@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import * as clack from '@clack/prompts';
 import { ensureDir } from '~/util/fs.ts';
-import { colorize, getColorEnabled } from '~/util/logger.ts';
+import { colorize, getColorEnabled, getOutputMode, logger } from '~/util/logger.ts';
 import { writeGeneratedTextFile } from '../line-endings.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { INIT_SPEC } from '../specs.ts';
@@ -171,6 +171,11 @@ interface NextStepsOptions {
 // terminal" detection elsewhere in the CLI, and a piped / NO_COLOR run
 // gets the plain-ASCII variant for free.
 function writeNextSteps(opts: NextStepsOptions): void {
+  if (getOutputMode() === 'json') {
+    writeNextStepsJson(opts);
+    return;
+  }
+
   const rich = getColorEnabled();
   const g = sectionGlyphs(rich);
   const dim = (s: string) => colorize(s, 'gray');
@@ -216,6 +221,32 @@ function writeNextSteps(opts: NextStepsOptions): void {
   out.push(`   ${ok(rich ? '✓' : 'OK')} Ready.`);
   out.push('');
   process.stdout.write(`${out.join('\n')}\n`);
+}
+
+function writeNextStepsJson(opts: NextStepsOptions): void {
+  logger.info(`Initialised Nectar project in ${opts.targetDir}`, {
+    event: 'init.complete',
+    targetDir: opts.targetDir,
+    theme: opts.theme,
+    skipped: opts.skipped,
+    merged: opts.merged,
+  });
+  logger.info('Vendor a Ghost theme', {
+    event: 'init.next_step',
+    step: 'theme',
+    command: `git clone https://github.com/TryGhost/${themeRepo(opts.theme)} themes/${opts.theme}`,
+  });
+  logger.info('Open the dashboard', {
+    event: 'init.next_step',
+    step: 'dashboard',
+    command: 'nectar dashboard',
+    url: 'http://localhost:4322/',
+  });
+  logger.info('Build the site', {
+    event: 'init.next_step',
+    step: 'build',
+    command: 'nectar build',
+  });
 }
 
 interface SectionGlyphs {

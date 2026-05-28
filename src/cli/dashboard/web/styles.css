@@ -2074,6 +2074,132 @@
     justify-content: center;
     padding: 24px;
   }
+  /* Full-screen overlay rendered during a Ghost import. Sits above the
+   * upload modal (`z-index: 200`) and the rest of the dashboard so the
+   * operator can't accidentally interact with stale state while the
+   * background stream is still settling. Card style mirrors the import
+   * modal — ink head, cream surface, italic-serif kicker — but stretches
+   * wider so the running URL fits without ellipsis-shortening too
+   * aggressively on common laptop widths. */
+  .ghostImportOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: rgba(20, 16, 12, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    animation: ghostImportOverlayFadeIn 160ms ease-out both;
+  }
+  @keyframes ghostImportOverlayFadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .ghostImportOverlayCard {
+    width: min(640px, 100%);
+    background: var(--surface-normal);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-elevation-4);
+    padding: 32px;
+    display: grid;
+    gap: 22px;
+    color: var(--text-primary);
+  }
+  .ghostImportOverlayHead {
+    display: grid;
+    gap: 4px;
+  }
+  .ghostImportOverlayKicker {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .ghostImportOverlayTitle {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+  }
+  .ghostImportOverlayStats {
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    padding: 14px 16px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+  }
+  .ghostImportOverlayStats > div {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .ghostImportOverlayStats dt {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .ghostImportOverlayStats dd {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 20px;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+  .ghostImportOverlayStats > div[data-tone="failed"] dd {
+    color: var(--danger);
+  }
+  .ghostImportOverlayPosts {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .ghostImportOverlayCurrent {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .ghostImportOverlayCurrentLabel {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .ghostImportOverlayCurrentUrl {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--text-primary);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-weak);
+    border-radius: 4px;
+    padding: 6px 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ghostImportOverlayActions {
+    display: flex;
+    justify-content: flex-end;
+  }
   .modalDialog {
     width: min(520px, 100%);
     position: relative;
@@ -2122,7 +2248,7 @@
     background: var(--surface-normal);
     color: var(--text-muted);
     cursor: pointer;
-    transition: border-color 0.12s ease, background 0.12s ease;
+    transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
   }
   .themeUploadDrop:hover {
     border-color: var(--text-primary);
@@ -2136,6 +2262,130 @@
     font-family: var(--font-serif);
     font-style: italic;
     font-size: 13px;
+  }
+  /* "Filled" state: the dropzone has a file. Switch from the dashed empty
+   * slot to a solid pinned-document card so empty vs ready reads at a
+   * glance — the user complaint was that the two states looked identical.
+   * Ink-coloured border + raised surface + a small document badge + a
+   * green confirmation tick lock the state in visually. */
+  .themeUploadDrop.filled {
+    border-style: solid;
+    border-color: var(--text-primary);
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    padding: 12px 14px;
+    min-height: 72px;
+    box-shadow: var(--shadow-elevation-1);
+  }
+  .themeUploadDrop.filled:hover {
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-elevation-2);
+  }
+  .themeUploadCard {
+    width: 100%;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    text-align: left;
+    animation: themeUploadCardEnter 200ms ease-out both;
+  }
+  @keyframes themeUploadCardEnter {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  /* CSS-drawn document badge: a small paper card with a folded top-right
+   * corner and a green ✓ confirmation dot. No SVG / no emoji so it stays
+   * crisp at any zoom and inherits the dashboard's ink palette. */
+  .themeUploadCardGlyph {
+    position: relative;
+    width: 32px;
+    height: 40px;
+    flex: 0 0 auto;
+    background: var(--surface-normal);
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+  }
+  .themeUploadCardGlyph::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    width: 10px;
+    height: 10px;
+    background: var(--border-strong);
+    clip-path: polygon(100% 0, 0 0, 100% 100%);
+  }
+  .themeUploadCardGlyph::after {
+    content: "✓";
+    position: absolute;
+    right: -6px;
+    bottom: -6px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--color-success, #117a47);
+    color: var(--text-invert, #fff);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+    box-shadow: 0 0 0 2px var(--surface-raised);
+  }
+  .themeUploadCardBody {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+  .themeUploadCardName {
+    font-family: var(--font-serif);
+    font-style: normal;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .themeUploadCardMeta {
+    font-family: var(--font-mono);
+    font-style: normal;
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .themeUploadCardClear {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    font-size: 18px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .themeUploadCardClear:hover {
+    background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    color: var(--text-primary);
+  }
+  .themeUploadCardClear:focus-visible {
+    outline: 2px solid var(--color-focus, var(--text-primary));
+    outline-offset: 2px;
   }
   /* Quiet text-only link / button used wherever a secondary action
    * should recede (Preview in list rows, Preview in editor header). */
@@ -3614,11 +3864,6 @@
   }
   .advancedPanel {
     max-width: none;
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius);
-    background: var(--surface-normal);
-    overflow: hidden;
-    box-shadow: var(--elevation-1);
   }
   .snippetBar {
     border: 1px solid var(--border-default);
@@ -3631,26 +3876,101 @@
     box-shadow: none;
   }
   .advancedPanel summary {
-    min-height: 46px;
     display: flex;
     align-items: center;
-    padding: 11px 13px;
+    gap: 8px;
+    padding: 8px 0;
     color: var(--text-secondary);
     font-weight: 700;
     cursor: pointer;
+    list-style: none;
+  }
+  .advancedPanel summary::-webkit-details-marker {
+    display: none;
+  }
+  /* CSS-drawn `+` / `−` toggle instead of the native disclosure triangle
+   * so the marker matches the dashboard's editorial tone — reads as
+   * "+ Advanced" when collapsed, "− Advanced" when open. */
+  .advancedPanel summary::before {
+    content: "+";
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    color: var(--text-muted, var(--text-secondary));
+    font-weight: 600;
+  }
+  .advancedPanel[open] summary::before {
+    content: "−";
   }
   .advancedPanel[open] {
-    padding-bottom: 12px;
-  }
-  .advancedPanel[open] summary {
-    border-bottom: 1px solid var(--border-default);
-    margin-bottom: 12px;
+    padding-bottom: 6px;
   }
   .advancedPanel .mediaGrid,
   .advancedPanel .editorActions,
   .advancedPanel .storageNotice,
   .advancedPanel .editorHistory {
-    margin: 0 12px;
+    margin: 0;
+  }
+  /* Visual suffix tag (e.g. "MB") pinned inside the right edge of a numeric
+   * input. The input reserves padding-right for the suffix so typed digits
+   * never overlap it; pointer-events:none keeps the suffix from stealing
+   * focus when the user clicks the input. */
+  .inputWithSuffix {
+    position: relative;
+    display: block;
+  }
+  .inputWithSuffix > input {
+    width: 100%;
+    padding-right: 44px;
+  }
+  /* Hide the native number-input spin buttons — they collide visually with
+   * `.inputSuffix` (the "MB" tag) and a fixed-unit input doesn't benefit
+   * from stepper arrows anyway; users type the number directly. */
+  .inputWithSuffix > input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .inputWithSuffix > input[type="number"]::-webkit-outer-spin-button,
+  .inputWithSuffix > input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+  }
+  /* Inline field-validation feedback. Replaces the helper text in the same
+   * slot so the layout doesn't shift as the user types; the offending
+   * input also picks up a red border via [aria-invalid="true"].
+   *
+   * The selectors below have to beat `.field span` (line ~4427) which
+   * paints every direct-descendant span muted-grey-italic — without the
+   * `.field span.fieldError` form the error message comes through as
+   * muted blue-grey instead of red. */
+  .fieldError,
+  .field span.fieldError,
+  label.field span.fieldError {
+    display: block;
+    color: var(--danger);
+    font-family: var(--font-sans);
+    font-style: normal;
+    font-weight: 600;
+    font-size: 12.5px;
+    line-height: 1.4;
+    margin-top: 4px;
+  }
+  input[aria-invalid="true"],
+  .inputWithSuffix > input[aria-invalid="true"] {
+    border-color: var(--danger);
+  }
+  .inputWithSuffix > .inputSuffix {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    color: var(--text-muted, var(--text-secondary));
+    font-size: 12.5px;
+    font-weight: 600;
+    pointer-events: none;
+    user-select: none;
   }
   .warningList,
   .storageNotice,

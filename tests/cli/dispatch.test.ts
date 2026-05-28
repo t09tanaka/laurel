@@ -327,7 +327,8 @@ describe('cli dispatch', () => {
       );
       expect(exitCode).toBe(0);
       expect(stderr).toBe('');
-      expect(stdout).toContain(`Initialised Nectar project in ${dir}`);
+      expect(stdout).toContain('Nectar project initialised');
+      expect(stdout).toContain(dir);
       expect(() => JSON.parse(stdout.trim().split('\n')[0] ?? '')).toThrow();
     } finally {
       await rm(dir, { recursive: true, force: true });
