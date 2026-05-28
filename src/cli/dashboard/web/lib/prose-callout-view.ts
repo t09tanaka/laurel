@@ -41,11 +41,18 @@ export class CalloutNodeView implements NodeView {
     this.getPos = getPos;
 
     const wrapper = document.createElement('div');
-    wrapper.className = `${THEME_SCOPE_CLASS} proseCallout`;
+    wrapper.className = 'proseCallout';
     this.dom = wrapper;
 
+    // Only the card sits inside the theme scope. The toolbar (appended to the
+    // wrapper, outside this element) must stay out of it, otherwise the theme's
+    // rescoped `button` / `*` resets clobber the colour swatches and controls.
+    const scope = document.createElement('div');
+    scope.className = THEME_SCOPE_CLASS;
+    wrapper.appendChild(scope);
+
     this.cardEl = document.createElement('div');
-    wrapper.appendChild(this.cardEl);
+    scope.appendChild(this.cardEl);
 
     this.emojiEl = document.createElement('div');
     this.emojiEl.className = 'kg-callout-emoji';
