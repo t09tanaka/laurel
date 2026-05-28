@@ -75,7 +75,7 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
     join(cwd, 'content', 'translations'),
     join(cwd, 'content', 'themes', config.theme.name, 'locales'),
   ]);
-  const assets = await loadThemeAssets(rootDir, { cacheDir: join(cwd, '.nectar-cache') });
+  const assets = await loadThemeAssets(rootDir, { cacheDir: join(cwd, '.nectar/cache') });
 
   return {
     name: config.theme.name,

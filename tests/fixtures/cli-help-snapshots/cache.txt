@@ -1,4 +1,4 @@
-Inspect or remove the local .nectar-cache directory
+Inspect or remove the local .nectar/cache directory
 
 Usage:
   nectar cache [--dry-run] [--json] <subcommand>

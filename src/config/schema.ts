@@ -1619,7 +1619,7 @@ export const configSchema = z
               ),
             cache_dir: z
               .string()
-              .default('.nectar-cache/images')
+              .default('.nectar/cache/images')
               .describe(
                 'Directory (relative to the project root) where transcoded variants are cached by content hash so unchanged sources skip re-encoding on the next build.',
               ),

@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
 const CACHE_SCHEMA_VERSION = 1;
-const DEFAULT_CACHE_ROOT = '.nectar-cache/cache';
+const DEFAULT_CACHE_ROOT = '.nectar/cache';
 
 export const EMBED_CACHE_NAMESPACE = 'embeds';
 

@@ -605,7 +605,7 @@ Per-format image transcoder. Generates WebP/AVIF variants of responsive widths a
 | `components.images.lqip_width` | `number` | no | `16` | Width in pixels used for generated LQIP placeholder JPEGs. |
 | `components.images.lqip_quality` | `number` | no | `40` | JPEG quality used for generated LQIP placeholder data URIs. |
 | `components.images.strip_metadata` | `boolean` | no | `true` | Strip EXIF and other embedded image metadata from copied content images and generated resize/transcode variants. Enabled by default to avoid publishing private camera/GPS metadata; set false only when preserving metadata is intentional. |
-| `components.images.cache_dir` | `string` | no | `".nectar-cache/images"` | Directory (relative to the project root) where transcoded variants are cached by content hash so unchanged sources skip re-encoding on the next build. |
+| `components.images.cache_dir` | `string` | no | `".nectar/cache/images"` | Directory (relative to the project root) where transcoded variants are cached by content hash so unchanged sources skip re-encoding on the next build. |
 
 ## `components.comments`
 

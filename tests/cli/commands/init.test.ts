@@ -69,6 +69,7 @@ describe('cli init', () => {
     const gitignore = await readFile(join(dir, '.gitignore'), 'utf8');
     expect(gitignore).toContain('node_modules/');
     expect(gitignore).toContain('dist/');
+    expect(gitignore).toContain('.nectar/');
 
     const readme = await readFile(join(dir, 'README.md'), 'utf8');
     expect(readme).toMatch(/^# [A-Z]/m);

@@ -827,7 +827,7 @@ describe('generateImageVariants metadata policy', () => {
     const assetsDir = 'content/images';
     await writeRealPng(join(cwd, assetsDir, 'article/hero.png'), 1200, 800);
     const outputDir = join(cwd, 'dist');
-    const cacheDir = join(cwd, '.nectar-cache/images');
+    const cacheDir = join(cwd, '.nectar/cache/images');
     const config = {
       content: { assets_dir: assetsDir },
       components: { images: { cache_dir: cacheDir, strip_metadata: true } },
@@ -1012,7 +1012,7 @@ describe('generateThemeImageSizeVariants', () => {
         xs: { width: 160 },
         m: { width: 600 },
       },
-      cacheDir: join(cwd, '.nectar-cache/images'),
+      cacheDir: join(cwd, '.nectar/cache/images'),
       formats: ['webp'],
     });
 
@@ -1048,7 +1048,7 @@ describe('generateThemeImageSizeVariants', () => {
       config,
       outputDir,
       themeImageSizes: { m: { width: 600 } },
-      cacheDir: join(cwd, '.nectar-cache/images'),
+      cacheDir: join(cwd, '.nectar/cache/images'),
       formats: ['webp'],
     });
 
@@ -1087,7 +1087,7 @@ describe('generateThemeImageSizeVariants', () => {
     const assetsDir = 'content/images';
     await writeRealPng(join(cwd, assetsDir, 'cover.png'), 1200, 800);
     const outputDir = join(cwd, 'dist');
-    const cacheDir = join(cwd, '.nectar-cache/images');
+    const cacheDir = join(cwd, '.nectar/cache/images');
     const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
     const themeImageSizes = { m: { width: 600 } };
 

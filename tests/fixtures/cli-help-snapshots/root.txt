@@ -17,8 +17,8 @@
      check             Validate config, theme, and content
      doctor            Run health checks on the project (bun, config, theme, content, network)
      diagnostics       Create support-safe diagnostics bundles
-     clean             Remove dist/ and .nectar-cache build artifacts
-     cache             Inspect or remove the local .nectar-cache directory
+     clean             Remove dist/ and .nectar/cache build artifacts
+     cache             Inspect or remove the local .nectar/cache directory
      completions       Print or install a shell completion script
      config            Inspect or update the loaded Nectar config
      schema            Print JSON Schema for Nectar config, frontmatter, or theme package.json

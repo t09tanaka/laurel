@@ -417,11 +417,11 @@ emission; each component either adds files to `dist/` or rewrites HTML.
 
 Build-time probes that may later touch the network should use
 `src/build/cache.ts` rather than inventing per-feature files. The shared JSON
-cache keeps cacheable probe results under `.nectar-cache/cache/<namespace>/`;
+cache keeps cacheable probe results under `.nectar/cache/<namespace>/`;
 bookmark and oEmbed metadata use the `embeds` namespace, so entries land at:
 
 ```
-.nectar-cache/cache/embeds/<sha256>.json
+.nectar/cache/embeds/<sha256>.json
 ```
 
 The `<sha256>` is derived from the namespace plus a stable key. URL keys are
