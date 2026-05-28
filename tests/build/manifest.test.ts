@@ -1,12 +1,14 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   MANIFEST_VERSION,
+  computeGeneratorSourceFingerprint,
   computeGlobalHash,
   computeManifestEntryIntegrity,
   computeRouteHash,
+  createGeneratorSourceFingerprintCache,
   loadManifest,
   manifestPath,
   reusePreviousRouteHash,
@@ -20,6 +22,47 @@ describe('build manifest serialization', () => {
   test('stableStringify sorts object keys recursively', () => {
     const out = stableStringify({ z: 1, a: { y: 2, b: 3 } });
     expect(out).toBe('{"a":{"b":3,"y":2},"z":1}');
+  });
+
+  test('computeGeneratorSourceFingerprint reuses cached hashes until source stats change', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'nectar-generator-fp-'));
+    try {
+      await mkdir(join(dir, 'build'), { recursive: true });
+      await mkdir(join(dir, 'content'), { recursive: true });
+      await writeFile(join(dir, 'build', 'a.ts'), 'export const a = 1;\n', 'utf8');
+      await writeFile(join(dir, 'content', 'b.ts'), 'export const b = 1;\n', 'utf8');
+      const cache = createGeneratorSourceFingerprintCache();
+
+      const first = await computeGeneratorSourceFingerprint(dir, cache);
+      const second = await computeGeneratorSourceFingerprint(dir, cache);
+      expect(second).toBe(first);
+      expect(cache.stats()).toEqual({ hits: 1, misses: 1, sets: 1 });
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      await writeFile(join(dir, 'content', 'b.ts'), 'export const b = 2;\n', 'utf8');
+      const edited = await computeGeneratorSourceFingerprint(dir, cache);
+      expect(edited).not.toBe(first);
+
+      await mkdir(join(dir, 'render'), { recursive: true });
+      await writeFile(join(dir, 'render', 'c.ts'), 'export const c = 1;\n', 'utf8');
+      const added = await computeGeneratorSourceFingerprint(dir, cache);
+      expect(added).not.toBe(edited);
+
+      await rm(join(dir, 'build', 'a.ts'));
+      const removed = await computeGeneratorSourceFingerprint(dir, cache);
+      expect(removed).not.toBe(added);
+      expect(cache.stats()).toEqual({ hits: 1, misses: 4, sets: 4 });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('computeGeneratorSourceFingerprint keeps source-unavailable fallback outside the cache', async () => {
+    const cache = createGeneratorSourceFingerprintCache();
+    const missing = join(tmpdir(), `nectar-missing-src-${Date.now()}`);
+
+    expect(await computeGeneratorSourceFingerprint(missing, cache)).toBe('source-unavailable');
+    expect(cache.stats()).toEqual({ hits: 0, misses: 0, sets: 0 });
   });
 
   test('stableStringify drops prev/next post references to avoid cycles', () => {

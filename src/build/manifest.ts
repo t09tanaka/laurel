@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph, ContentSourceFingerprint, SiteData } from '~/content/model.ts';
@@ -17,6 +17,48 @@ import { scanGlob } from '~/util/fs.ts';
 export const MANIFEST_VERSION = 3 as const;
 
 export const MANIFEST_FILENAME = '.nectar-manifest.json';
+
+export interface GeneratorSourceFingerprintCacheStats {
+  hits: number;
+  misses: number;
+  sets: number;
+}
+
+export interface GeneratorSourceFingerprintCache {
+  get(key: string): string | undefined;
+  set(key: string, value: string): void;
+  stats(): GeneratorSourceFingerprintCacheStats;
+}
+
+class InMemoryGeneratorSourceFingerprintCache implements GeneratorSourceFingerprintCache {
+  #entries = new Map<string, string>();
+  #stats: GeneratorSourceFingerprintCacheStats = { hits: 0, misses: 0, sets: 0 };
+
+  get(key: string): string | undefined {
+    const value = this.#entries.get(key);
+    if (value === undefined) {
+      this.#stats.misses += 1;
+      return undefined;
+    }
+    this.#stats.hits += 1;
+    return value;
+  }
+
+  set(key: string, value: string): void {
+    this.#entries.set(key, value);
+    this.#stats.sets += 1;
+  }
+
+  stats(): GeneratorSourceFingerprintCacheStats {
+    return { ...this.#stats };
+  }
+}
+
+export function createGeneratorSourceFingerprintCache(): GeneratorSourceFingerprintCache {
+  return new InMemoryGeneratorSourceFingerprintCache();
+}
+
+const defaultGeneratorSourceFingerprintCache = createGeneratorSourceFingerprintCache();
 
 export interface ManifestEntry {
   hash: string;
@@ -97,6 +139,7 @@ export function computeGlobalHash(opts: {
 
 export async function computeGeneratorSourceFingerprint(
   srcRoot = resolve(import.meta.dir, '..'),
+  cache: GeneratorSourceFingerprintCache = defaultGeneratorSourceFingerprintCache,
 ): Promise<string> {
   if (!existsSync(srcRoot)) return 'source-unavailable';
   const patterns = ['build/**/*.ts', 'content/**/*.ts', 'render/**/*.ts', 'theme/**/*.ts'];
@@ -108,6 +151,25 @@ export async function computeGeneratorSourceFingerprint(
     .flat()
     .sort();
   if (paths.length === 0) return 'source-unavailable';
+  const sourceStats = await Promise.all(
+    paths.map(async (rel) => {
+      const fileStat = await stat(join(srcRoot, rel));
+      return {
+        path: rel,
+        size: fileStat.size,
+        mtimeMs: Math.round(fileStat.mtimeMs * 1000) / 1000,
+      };
+    }),
+  );
+  const cacheKey = sha256(
+    stableStringify({
+      version: 1,
+      srcRoot: resolve(srcRoot),
+      files: sourceStats,
+    }),
+  );
+  const cached = cache.get(cacheKey);
+  if (cached !== undefined) return cached;
   const h = createHash('sha256');
   for (const rel of paths) {
     h.update(rel);
@@ -115,7 +177,9 @@ export async function computeGeneratorSourceFingerprint(
     h.update(await readFile(join(srcRoot, rel)));
     h.update('\0');
   }
-  return h.digest('hex');
+  const fingerprint = h.digest('hex');
+  cache.set(cacheKey, fingerprint);
+  return fingerprint;
 }
 
 // Per-route hash combines the global hash with the route's template and
