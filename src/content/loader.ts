@@ -86,6 +86,18 @@ interface MarkdownDirFiles {
   files: string[];
 }
 
+export interface RawContentCacheStats {
+  hits: number;
+  misses: number;
+  sets: number;
+}
+
+export interface RawContentCache {
+  get<T>(key: string): T | undefined;
+  set<T>(key: string, value: T): void;
+  stats(): RawContentCacheStats;
+}
+
 interface LocaleFields {
   locale: string;
   localeSource: 'frontmatter' | 'path' | 'site';
@@ -121,6 +133,45 @@ export interface LoadContentOptions {
   // Approved pages use the current Markdown only when its fingerprint still
   // matches the receipt; stale pages render the approved snapshot instead.
   pageApprovalGate?: boolean;
+  // Optional in-process cache for raw normalized Markdown entries. The loader
+  // clones cached entries before returning them so build-local mutations cannot
+  // leak back into subsequent builds.
+  rawContentCache?: RawContentCache;
+}
+
+class InMemoryRawContentCache implements RawContentCache {
+  #entries = new Map<string, unknown>();
+  #stats: RawContentCacheStats = { hits: 0, misses: 0, sets: 0 };
+
+  get<T>(key: string): T | undefined {
+    if (!this.#entries.has(key)) {
+      this.#stats.misses += 1;
+      return undefined;
+    }
+    this.#stats.hits += 1;
+    return cloneRawContent(this.#entries.get(key)) as T;
+  }
+
+  set<T>(key: string, value: T): void {
+    this.#entries.set(key, cloneRawContent(value));
+    this.#stats.sets += 1;
+  }
+
+  stats(): RawContentCacheStats {
+    return { ...this.#stats };
+  }
+}
+
+export function createRawContentCache(): RawContentCache {
+  return new InMemoryRawContentCache();
+}
+
+function cloneRawContent<T>(value: T): T {
+  return structuredClone(value);
+}
+
+function sha256(input: string): string {
+  return createHash('sha256').update(input).digest('hex');
 }
 
 // Build `tag.url` / `author.url` from the resolved taxonomies. Returns `''`
@@ -153,10 +204,14 @@ export async function loadContent({
   includeFuturePosts,
   markdownTransforms,
   pageApprovalGate,
+  rawContentCache,
 }: LoadContentOptions): Promise<ContentGraph> {
   resetAutoCreationWarnings();
   const site = buildSite(config);
   const taxonomies = resolveTaxonomies(routesYaml ?? emptyRoutesYaml());
+  const activeTransforms = markdownTransforms ?? [];
+  const activeRawContentCache =
+    activeTransforms.length === 0 && pageApprovalGate !== true ? rawContentCache : undefined;
 
   // Pre-count post/page files so the pool can skip spawning Bun Workers on
   // small sites where the spawn cost would exceed the parsing cost. Tags and
@@ -193,8 +248,9 @@ export async function loadContent({
       routesYaml: routesYaml ?? emptyRoutesYaml(),
       includeDrafts: includeDrafts === true,
       includeFuturePosts: includeFuture,
-      markdownTransforms: markdownTransforms ?? [],
+      markdownTransforms: activeTransforms,
       pageApprovalGate: pageApprovalGate === true,
+      rawContentCache: activeRawContentCache,
     });
   } finally {
     await pool.close();
@@ -214,6 +270,7 @@ async function loadContentWithPool({
   includeFuturePosts,
   markdownTransforms,
   pageApprovalGate,
+  rawContentCache,
 }: LoadContentOptions & {
   site: SiteData;
   pool: MarkdownPool;
@@ -225,16 +282,17 @@ async function loadContentWithPool({
   includeFuturePosts: boolean;
   markdownTransforms: readonly MarkdownTransformHook[];
   pageApprovalGate: boolean;
+  rawContentCache: RawContentCache | undefined;
 }): Promise<ContentGraph> {
   // Normalised `build.base_path` is set by the pipeline before `loadContent`
   // runs; defaulting here keeps unit tests that hand-roll a partial config
   // (and skip the pipeline) from blowing up with `undefined`.
   const basePath = config.build.base_path || '/';
   const [rawAuthors, rawTags, posts, pages, components] = await Promise.all([
-    loadAuthors(cwd, config),
-    loadTags(cwd, config),
-    loadPosts(cwd, config, pool, markdownTransforms, postFiles),
-    loadPages(cwd, config, pool, markdownTransforms, pageApprovalGate, pageFiles),
+    loadAuthors(cwd, config, rawContentCache),
+    loadTags(cwd, config, rawContentCache),
+    loadPosts(cwd, config, pool, markdownTransforms, postFiles, rawContentCache),
+    loadPages(cwd, config, pool, markdownTransforms, pageApprovalGate, pageFiles, rawContentCache),
     loadComponents(cwd, config),
   ]);
 
@@ -892,6 +950,7 @@ async function loadPosts(
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
   dirs: readonly MarkdownDirFiles[],
+  rawContentCache: RawContentCache | undefined,
 ): Promise<RawPost[]> {
   const posts = await loadMarkdownDirFiles(
     dirs,
@@ -910,6 +969,7 @@ async function loadPosts(
         source,
       ),
     config.content.max_markdown_bytes,
+    rawContentCacheContext('post', config, rawContentCache),
   );
   if (config.content.visibility_policy === 'skip') {
     return posts.filter((p) => p.visibility === 'public');
@@ -924,6 +984,7 @@ async function loadPages(
   transforms: readonly MarkdownTransformHook[],
   approvalGate: boolean,
   dirs: readonly MarkdownDirFiles[],
+  rawContentCache: RawContentCache | undefined,
 ): Promise<RawPage[]> {
   const approvalsEnabled = approvalGate && existsSync(approvalDir(cwd, 'pages'));
   return loadMarkdownDirFiles(
@@ -964,26 +1025,37 @@ async function loadPages(
       );
     },
     config.content.max_markdown_bytes,
+    rawContentCacheContext('page', config, rawContentCache),
   );
 }
 
-async function loadAuthors(cwd: string, config: NectarConfig): Promise<RawAuthor[]> {
+async function loadAuthors(
+  cwd: string,
+  config: NectarConfig,
+  rawContentCache: RawContentCache | undefined,
+): Promise<RawAuthor[]> {
   const dirs = await discoverContentDirs(cwd, config.content.authors_dir);
   return loadMarkdownDirs(
     dirs,
     async (file, raw, dir, _sourceStat, source) =>
       normalizeRawAuthor(file, raw, config, dir.locale, source),
     config.content.max_markdown_bytes,
+    rawContentCacheContext('author', config, rawContentCache),
   );
 }
 
-async function loadTags(cwd: string, config: NectarConfig): Promise<RawTag[]> {
+async function loadTags(
+  cwd: string,
+  config: NectarConfig,
+  rawContentCache: RawContentCache | undefined,
+): Promise<RawTag[]> {
   const dirs = await discoverContentDirs(cwd, config.content.tags_dir);
   return loadMarkdownDirs(
     dirs,
     async (file, raw, dir, _sourceStat, source) =>
       normalizeRawTag(file, raw, config, dir.locale, source),
     config.content.max_markdown_bytes,
+    rawContentCacheContext('tag', config, rawContentCache),
   );
 }
 
@@ -1068,9 +1140,10 @@ async function loadMarkdownDirs<T>(
     source: ContentSourceFingerprint,
   ) => Promise<T | undefined>,
   maxBytes: number,
+  cacheContext?: RawContentCacheContext | undefined,
 ): Promise<T[]> {
   const scanned = await scanMarkdownFilesInDirs(dirs);
-  return loadMarkdownDirFiles(scanned, normalize, maxBytes);
+  return loadMarkdownDirFiles(scanned, normalize, maxBytes, cacheContext);
 }
 
 async function loadMarkdownDirFiles<T>(
@@ -1083,6 +1156,7 @@ async function loadMarkdownDirFiles<T>(
     source: ContentSourceFingerprint,
   ) => Promise<T | undefined>,
   maxBytes: number,
+  cacheContext?: RawContentCacheContext | undefined,
 ): Promise<T[]> {
   const chunks = await Promise.all(
     dirs.map(({ dir, files }) =>
@@ -1091,10 +1165,35 @@ async function loadMarkdownDirFiles<T>(
         files,
         (file, raw, sourceStat, source) => normalize(file, raw, dir, sourceStat, source),
         maxBytes,
+        cacheContext,
       ),
     ),
   );
   return chunks.flat();
+}
+
+interface RawContentCacheContext {
+  cache: RawContentCache;
+  namespace: string;
+  loaderKey: string;
+}
+
+function rawContentCacheContext(
+  namespace: string,
+  config: NectarConfig,
+  cache: RawContentCache | undefined,
+): RawContentCacheContext | undefined {
+  if (!cache) return undefined;
+  return {
+    cache,
+    namespace,
+    loaderKey: sha256(
+      JSON.stringify({
+        version: 1,
+        config,
+      }),
+    ),
+  };
 }
 
 async function loadMarkdownFiles<T>(
@@ -1107,6 +1206,7 @@ async function loadMarkdownFiles<T>(
     source: ContentSourceFingerprint,
   ) => Promise<T | undefined>,
   maxBytes: number,
+  cacheContext?: RawContentCacheContext | undefined,
 ): Promise<T[]> {
   const results: T[] = [];
   for (let i = 0; i < files.length; i += MARKDOWN_LOAD_CONCURRENCY) {
@@ -1114,19 +1214,49 @@ async function loadMarkdownFiles<T>(
     const inputs = await Promise.all(
       chunk.map(async (file) => {
         const sourceStat = await enforceMarkdownSizeLimit(file, maxBytes);
+        const source = contentSourceFingerprint(file, dir, sourceStat);
+        const cacheKey = cacheContext
+          ? rawContentCacheKey({
+              context: cacheContext,
+              filePath: file,
+              rootDir: dir,
+              source,
+            })
+          : undefined;
+        if (cacheContext && cacheKey) {
+          const cached = cacheContext.cache.get<T>(cacheKey);
+          if (cached !== undefined) {
+            return {
+              file,
+              sourceStat,
+              source,
+              cacheKey,
+              cached,
+              raw: undefined,
+            };
+          }
+        }
         const raw = await readFile(file, 'utf8');
         return {
           file,
           raw,
           sourceStat,
-          source: contentSourceFingerprint(file, dir, sourceStat),
+          source,
+          cacheKey,
+          cached: undefined,
         };
       }),
     );
     const chunkResults = await Promise.all(
-      inputs.map(async ({ file, raw, sourceStat, source }) => {
+      inputs.map(async ({ file, raw, sourceStat, source, cacheKey, cached }) => {
+        if (cached !== undefined) return cached;
         try {
-          return await normalize(file, raw, sourceStat, source);
+          if (raw === undefined) return undefined;
+          const normalized = await normalize(file, raw, sourceStat, source);
+          if (normalized !== undefined && cacheContext && cacheKey) {
+            cacheContext.cache.set(cacheKey, normalized);
+          }
+          return normalized;
         } catch (err) {
           throw toNectarError(err, { file });
         }
@@ -1137,6 +1267,28 @@ async function loadMarkdownFiles<T>(
     }
   }
   return results;
+}
+
+function rawContentCacheKey({
+  context,
+  filePath,
+  rootDir,
+  source,
+}: {
+  context: RawContentCacheContext;
+  filePath: string;
+  rootDir: string;
+  source: ContentSourceFingerprint;
+}): string {
+  return sha256(
+    JSON.stringify({
+      namespace: context.namespace,
+      loaderKey: context.loaderKey,
+      filePath: resolve(filePath),
+      rootDir: resolve(rootDir),
+      source,
+    }),
+  );
 }
 
 // Stat each `.md` file before `readFile` and refuse to load anything larger
