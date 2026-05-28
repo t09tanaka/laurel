@@ -57,8 +57,7 @@ function memo(key: string, build: () => RegExp): RegExp {
 function replaceOnce(source: string, target: string, replacement: string, what: string): string {
   if (!source.includes(target)) {
     throw new Error(
-      `markdown-cjk-emphasis: could not find the ${what} in marked's emphasis regex. ` +
-        "marked's internals changed — update the CJK broadening in this file.",
+      `markdown-cjk-emphasis: could not find the ${what} in marked's emphasis regex. marked's internals changed — update the CJK broadening in this file.`,
     );
   }
   return source.replace(target, replacement);
