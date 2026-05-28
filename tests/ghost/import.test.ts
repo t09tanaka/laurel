@@ -3627,6 +3627,37 @@ describe('importGhostExport — posts_tags/posts_authors bucketing (#139)', () =
     const post = await readFile(join(cwd, 'content/posts/authored-without-join-row.md'), 'utf8');
     expect(post).toContain('authors: ["ann"]');
   });
+
+  test('accepts Ghost posts_authors author_id exports', async () => {
+    const ghostExport = {
+      db: [
+        {
+          data: {
+            posts: [
+              {
+                id: 'p1',
+                title: 'Authored with author id',
+                slug: 'authored-with-author-id',
+                html: '<p>body</p>',
+                status: 'published',
+                type: 'post',
+              },
+            ],
+            users: [{ id: 'u-a', slug: 'ann', name: 'Ann' }],
+            posts_authors: [{ post_id: 'p1', author_id: 'u-a', sort_order: 0 }],
+          },
+        },
+      ],
+    };
+
+    await writeFile(exportFile, JSON.stringify(ghostExport));
+    const summary = await importGhostExport({ cwd, file: exportFile, onConflict: 'overwrite' });
+    expect(summary.posts).toBe(1);
+    expect(summary.authors).toBe(1);
+
+    const post = await readFile(join(cwd, 'content/posts/authored-with-author-id.md'), 'utf8');
+    expect(post).toContain('authors: ["ann"]');
+  });
 });
 
 describe('importGhostExport — --dry-run (#502)', () => {
