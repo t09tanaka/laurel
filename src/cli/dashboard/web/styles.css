@@ -3802,6 +3802,198 @@
     font-size: 13px;
     line-height: 1.4;
   }
+
+  /* Callout card. The active theme's `.kg-callout-card-*` rules (served
+   * rescoped under `.proseBookmarkScope`) own the real paint; the :where()
+   * fallback below has zero specificity so any theme rule wins, but a
+   * callout still reads as a card on themes that ship no callout CSS. */
+  .proseCallout {
+    position: relative;
+    margin: 1.5em 0;
+  }
+  .proseCallout :where(.kg-callout-card) {
+    display: flex;
+    gap: 12px;
+    padding: 16px 20px;
+    border-radius: 6px;
+    background: var(--surface-subtle, rgba(0, 0, 0, 0.04));
+  }
+  .proseCallout :where(.kg-callout-emoji) {
+    flex: 0 0 auto;
+    font-size: 20px;
+    line-height: 1.5;
+  }
+  .proseCallout :where(.kg-callout-text) {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .proseCallout .kg-callout-emoji {
+    cursor: pointer;
+    user-select: none;
+  }
+  .proseCallout .kg-callout-text:focus {
+    outline: none;
+  }
+  .proseCallout--selected .kg-callout-card {
+    outline: 2px solid var(--text-primary, #1a1612);
+    outline-offset: 2px;
+  }
+  .proseCalloutToolbar {
+    position: absolute;
+    top: auto;
+    bottom: calc(100% + 4px);
+    right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    background: var(--surface-card, #fff);
+    border: 1px solid var(--border-default, rgba(0, 0, 0, 0.12));
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    z-index: 2;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.12s ease;
+  }
+  .proseCallout:hover .proseCalloutToolbar,
+  .proseCallout--selected .proseCalloutToolbar {
+    opacity: 1;
+    visibility: visible;
+  }
+  .proseCalloutToolBtn {
+    border: 0;
+    background: transparent;
+    color: var(--text-primary, #1a1612);
+    font: inherit;
+    font-size: 12px;
+    line-height: 1;
+    padding: 4px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .proseCalloutToolBtn:hover {
+    background: var(--surface-hover, rgba(0, 0, 0, 0.05));
+  }
+  .proseCalloutEmojiBtn {
+    font-size: 16px;
+  }
+  .proseCalloutRemove {
+    color: var(--text-danger, #b3261e);
+  }
+  .proseCalloutPalette {
+    display: flex;
+    gap: 6px;
+    padding: 0 8px;
+    border-left: 1px solid var(--border-default, rgba(0, 0, 0, 0.12));
+    border-right: 1px solid var(--border-default, rgba(0, 0, 0, 0.12));
+  }
+  .proseCalloutSwatch {
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 1px solid rgba(0, 0, 0, 0.18);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  .proseCalloutSwatch--active {
+    outline: 2px solid var(--text-primary, #1a1612);
+    outline-offset: 1px;
+  }
+  .proseCalloutSwatch--grey {
+    background: #e9e9e7;
+  }
+  .proseCalloutSwatch--white {
+    background: #ffffff;
+  }
+  .proseCalloutSwatch--blue {
+    background: #e7f0fe;
+  }
+  .proseCalloutSwatch--green {
+    background: #e3f7ea;
+  }
+  .proseCalloutSwatch--yellow {
+    background: #fbf3d6;
+  }
+  .proseCalloutSwatch--red {
+    background: #fce4e4;
+  }
+  .proseCalloutSwatch--pink {
+    background: #fce6f1;
+  }
+  .proseCalloutSwatch--purple {
+    background: #efe9fb;
+  }
+  .proseCalloutSwatch--accent {
+    background: var(--accent, var(--action, #1a1612));
+  }
+
+  /* Emoji picker popover. Mounted on <body> so it escapes editor overflow;
+   * fixed-positioned by the picker against the clicked icon. */
+  .proseEmojiPicker {
+    width: 280px;
+    max-height: 320px;
+    display: flex;
+    flex-direction: column;
+    padding: 8px;
+    background: var(--surface-card, #fff);
+    border: 1px solid var(--border-default, rgba(0, 0, 0, 0.14));
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+    z-index: 1000;
+  }
+  .proseEmojiPicker[hidden] {
+    display: none;
+  }
+  .proseEmojiSearch {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    margin-bottom: 6px;
+    font: inherit;
+    font-size: 13px;
+    border: 1px solid var(--border-default, rgba(0, 0, 0, 0.16));
+    border-radius: 6px;
+    background: var(--surface-subtle, rgba(0, 0, 0, 0.02));
+    color: var(--text-primary, #1a1612);
+  }
+  .proseEmojiSearch:focus-visible {
+    outline: none;
+    border-color: var(--text-primary, #1a1612);
+  }
+  .proseEmojiGrid {
+    overflow-y: auto;
+    flex: 1 1 auto;
+  }
+  .proseEmojiCategory {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted, #6b6258);
+    margin: 6px 2px 2px;
+  }
+  .proseEmojiRow {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+  }
+  .proseEmojiItem {
+    border: 0;
+    background: transparent;
+    font-size: 18px;
+    line-height: 1;
+    padding: 5px 0;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .proseEmojiItem:hover {
+    background: var(--surface-hover, rgba(0, 0, 0, 0.06));
+  }
+  .proseEmojiEmpty {
+    padding: 16px 8px;
+    text-align: center;
+    color: var(--text-muted, #6b6258);
+    font-size: 13px;
+  }
   .proseHost .ProseMirror s {
     text-decoration: line-through;
   }

@@ -43,6 +43,13 @@ import { bookmarkNodeSpec } from '../lib/prose-bookmark-schema.ts';
 import { BookmarkNodeView } from '../lib/prose-bookmark-view.ts';
 import { bubbleMenuPlugin } from '../lib/prose-bubble-menu.ts';
 import {
+  calloutMarkdownItPlugin,
+  calloutSerializerNode,
+  calloutTokenHandler,
+} from '../lib/prose-callout-markdown.ts';
+import { calloutNodeSpec } from '../lib/prose-callout-schema.ts';
+import { CalloutNodeView } from '../lib/prose-callout-view.ts';
+import {
   componentMarkdownItPlugin,
   componentSerializerNode,
   componentTokenHandler,
@@ -74,6 +81,7 @@ const fullNodes = withList.append(
 
 const fullNodesWithEditorAtoms = fullNodes.append({
   bookmark: bookmarkNodeSpec,
+  callout: calloutNodeSpec,
   component: componentNodeSpec,
 });
 
@@ -111,6 +119,7 @@ const parserTokens = {
   td: { block: 'table_cell' },
   s: { mark: 'strikethrough' },
   bookmark: bookmarkTokenHandler,
+  callout: calloutTokenHandler,
   component: componentTokenHandler,
 };
 
@@ -124,7 +133,8 @@ const parserTokens = {
 const markdownTokenizer = MarkdownIt('commonmark', { html: false })
   .enable(['table'])
   .use(markdownItCjkFriendly)
-  .use(bookmarkMarkdownItPlugin);
+  .use(bookmarkMarkdownItPlugin)
+  .use(calloutMarkdownItPlugin);
 
 export const markdownParser = new MarkdownParser(proseSchema, markdownTokenizer, parserTokens);
 
@@ -133,6 +143,7 @@ export function createMarkdownParser(components: ComponentEntry[] = []): Markdow
     .enable(['table'])
     .use(markdownItCjkFriendly)
     .use(bookmarkMarkdownItPlugin)
+    .use(calloutMarkdownItPlugin)
     .use(componentMarkdownItPlugin(components));
   return new MarkdownParser(proseSchema, tokenizer, parserTokens);
 }
@@ -194,6 +205,7 @@ export const markdownSerializer = new MarkdownSerializer(
       /* handled by table */
     },
     bookmark: bookmarkSerializerNode,
+    callout: calloutSerializerNode,
     component: componentSerializerNode,
   },
   {
@@ -329,6 +341,7 @@ export function ProseEditor(props: ProseEditorProps): JSX.Element {
       state,
       nodeViews: {
         image: (n, v, getPos) => new ImageNodeView(n, v, getPos),
+        callout: (n, v, getPos) => new CalloutNodeView(n, v, getPos),
         component: (n, v, getPos) => new ComponentNodeView(n, v, getPos),
         bookmark: (n, v, getPos) =>
           new BookmarkNodeView(n, v, getPos, {
