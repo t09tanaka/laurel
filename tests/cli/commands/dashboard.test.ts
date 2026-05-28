@@ -1559,6 +1559,32 @@ describe('dashboard data', () => {
     }
   });
 
+  test('round-trips the site-wide social share image (og_image)', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const before = await readDashboardSettings({ cwd: dir });
+      expect(before.site.ogImage).toBe('');
+
+      const ogImage = '/content/images/social-card.png';
+      const written = await writeDashboardSiteSettings({
+        cwd: dir,
+        expectedFingerprint: before.fingerprint,
+        updates: { og_image: ogImage },
+      });
+      expect(written.ok).toBe(true);
+
+      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      expect(raw).toContain(`og_image = "${ogImage}"`);
+      // Existing [site] keys must survive the targeted update.
+      expect(raw).toContain('title = "Dashboard Test"');
+
+      const after = await readDashboardSettings({ cwd: dir });
+      expect(after.site.ogImage).toBe(ogImage);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('rejects non-boolean allow_code_injection via the PATCH route', async () => {
     const dir = await makeDashboardFixture();
     try {

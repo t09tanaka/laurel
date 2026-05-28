@@ -3,6 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 import type { DashboardSettingsSubview } from '../../ui-state.ts';
 import { saveSiteSettings, saveThemeSettings, uploadTheme } from '../lib/api.ts';
 import type { DashboardState } from '../types.ts';
+import { FeatureImageField } from './FeatureImageField.tsx';
 
 const SOCIAL_FIELDS = [
   ['twitter', 'X / Twitter', 'https://x.com/yourhandle'],
@@ -40,16 +41,17 @@ interface SettingsViewProps {
  *
  * Settings is split into four narrow subviews so the IA matches the
  * category of what each panel saves:
- *   - Site         → SiteIdentityPanel + SocialLinksPanel (stacked)
+ *   - Site         → SiteIdentityPanel + SocialShareImagePanel +
+ *                    SocialLinksPanel (stacked)
  *   - Design       → ThemeSwitcherPanel (active theme + upload)
  *   - Integration  → CodeInjectionPanel (GA4, custom <meta>, widgets)
  *   - Migration    → handled by MigrationView upstream, not this component
  *
- * Inside the Site subview, identity (title/URL/accent/description) and
- * social account URLs are intentionally separate panels with separate
- * save buttons. They edit unrelated parts of `[site]` and grouping them
- * forced an editor adjusting one Twitter handle to scroll past every
- * identity field first.
+ * Inside the Site subview, identity (title/URL/accent/description), the
+ * default social share image, and social account URLs are intentionally
+ * separate panels with separate save buttons. They edit unrelated parts
+ * of `[site]` and grouping them forced an editor adjusting one Twitter
+ * handle to scroll past every identity field first.
  *
  * Code injection is an exception to the editorial-restraint default
  * because dropping a GA4 / analytics snippet is a routine operator
@@ -107,12 +109,14 @@ interface SitePanelsProps {
  * DashboardApp's siteSettingsDirty flag. */
 function SitePanels(props: SitePanelsProps): JSX.Element {
   const [identityDirty, setIdentityDirty] = useState(false);
+  const [shareImageDirty, setShareImageDirty] = useState(false);
   const [socialDirty, setSocialDirty] = useState(false);
 
-  function report(identity: boolean, social: boolean) {
+  function report(identity: boolean, shareImage: boolean, social: boolean) {
     setIdentityDirty(identity);
+    setShareImageDirty(shareImage);
     setSocialDirty(social);
-    props.onSiteDirtyChange(identity || social);
+    props.onSiteDirtyChange(identity || shareImage || social);
   }
 
   return (
@@ -122,14 +126,21 @@ function SitePanels(props: SitePanelsProps): JSX.Element {
         site={props.site}
         onSettingsSaved={props.onSettingsSaved}
         onConflict={props.onConflict}
-        onDirtyChange={(dirty) => report(dirty, socialDirty)}
+        onDirtyChange={(dirty) => report(dirty, shareImageDirty, socialDirty)}
+      />
+      <SocialShareImagePanel
+        state={props.state}
+        site={props.site}
+        onSettingsSaved={props.onSettingsSaved}
+        onConflict={props.onConflict}
+        onDirtyChange={(dirty) => report(identityDirty, dirty, socialDirty)}
       />
       <SocialLinksPanel
         state={props.state}
         site={props.site}
         onSettingsSaved={props.onSettingsSaved}
         onConflict={props.onConflict}
-        onDirtyChange={(dirty) => report(identityDirty, dirty)}
+        onDirtyChange={(dirty) => report(identityDirty, shareImageDirty, dirty)}
       />
     </>
   );
@@ -260,6 +271,106 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
             }}
             disabled={!siteSettingsDirty}
             title={siteSettingsDirty ? 'Save site identity to nectar.toml' : 'No changes to save'}
+          >
+            Save changes
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+interface SocialShareImageProps {
+  state: DashboardState;
+  site: DashboardState['site'];
+  onSettingsSaved: () => Promise<void> | void;
+  onConflict: (message: string) => void;
+  onDirtyChange: (dirty: boolean) => void;
+}
+
+/* Site-wide default social-share image. Writes `[site].og_image`, which
+ * {{ghost_head}} uses as the og:image / twitter:image fallback when a
+ * route carries no per-post feature/og/twitter image. One image is enough:
+ * X falls back to og:image when no twitter:image is set, so a single
+ * 1200x630 picture drives both the Facebook and X cards. The upload path
+ * stores a content-relative path; ghost_head absolutizes it against
+ * [site].url at render time, so social scrapers still get an absolute URL. */
+function SocialShareImagePanel(props: SocialShareImageProps): JSX.Element {
+  const { site } = props;
+  const settings = props.state.settings;
+  const [ogImage, setOgImage] = useState(site.ogImage);
+  const [notice, setNotice] = useState('');
+  const [dirty, setDirty] = useState(false);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: parent state callback is stable
+  useEffect(() => {
+    setOgImage(site.ogImage);
+    setDirty(false);
+    props.onDirtyChange(false);
+  }, [site.ogImage]);
+
+  function update(next: string) {
+    setOgImage(next);
+    setDirty(true);
+    props.onDirtyChange(true);
+  }
+
+  async function handleSave() {
+    const { status, data } = await saveSiteSettings({
+      fingerprint: settings.fingerprint,
+      updates: { og_image: ogImage },
+    });
+    if (status === 409) {
+      props.onConflict(
+        'nectar.toml changed on disk. Latest settings loaded; re-enter changes after review.',
+      );
+      await props.onSettingsSaved();
+      return;
+    }
+    if (status >= 400) {
+      setNotice(data.error ?? 'Could not save social share image');
+      return;
+    }
+    setDirty(false);
+    props.onDirtyChange(false);
+    setNotice('Saved to nectar.toml');
+    await props.onSettingsSaved();
+  }
+
+  return (
+    <section class="socialShareImagePanel" aria-label="Social share image">
+      <header class="settingsPanelHead">
+        <div>
+          <h3>Social share image</h3>
+          <p class="meta">
+            Default preview image for social shares (Open Graph / X card), used when a post or page
+            has no feature image of its own. One image covers both Facebook and X. Recommended size
+            1200×630. Saved to the <code>[site]</code> section of nectar.toml as{' '}
+            <code>og_image</code>.
+          </p>
+        </div>
+      </header>
+      <div class="settingsGrid">
+        <div class="field wide">
+          <FeatureImageField
+            value={ogImage}
+            onChange={(next) => update(next.value)}
+            onStatus={(message) => setNotice(message)}
+          />
+        </div>
+        <div class="field wide siteIdentityActions">
+          <output id="socialShareImageNotice" class="notice">
+            {notice}
+          </output>
+          <button
+            class="btn"
+            id="saveSocialShareImage"
+            type="button"
+            onClick={() => {
+              void handleSave();
+            }}
+            disabled={!dirty}
+            title={dirty ? 'Save social share image to nectar.toml' : 'No changes to save'}
           >
             Save changes
           </button>
