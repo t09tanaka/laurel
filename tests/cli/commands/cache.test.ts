@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const CLI_ENTRY = fileURLToPath(new URL('../../../src/cli/index.ts', import.meta.url));
@@ -48,7 +48,11 @@ describe('cli cache', () => {
     try {
       const { stdout, exitCode } = await runCli(['cache', 'clean', '--dry-run'], dir);
       expect(exitCode).toBe(0);
-      expect(stdout).toContain('Would remove .nectar/cache');
+      expect(stdout).toContain(`Would remove ${join('.nectar', 'cache')}`);
+      // Sanity: the path separator matches the running platform (forward slash
+      // on POSIX, backslash on Windows), exercising the same Node `relative()`
+      // output the CLI prints.
+      expect(join('.nectar', 'cache')).toContain(sep);
       const body = await readFile(join(dir, '.nectar/cache/images/a.json'), 'utf8');
       expect(body).toContain('"ok"');
     } finally {

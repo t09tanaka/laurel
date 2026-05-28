@@ -3,6 +3,8 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+const NECTAR_CACHE_REL = join('.nectar', 'cache');
 import { fileURLToPath } from 'node:url';
 
 const CLI_ENTRY = fileURLToPath(new URL('../../../src/cli/index.ts', import.meta.url));
@@ -56,7 +58,7 @@ describe('cli clean', () => {
         total_bytes: number;
       };
       expect(parsed.dry_run).toBe(true);
-      expect(parsed.removed.sort()).toEqual(['.nectar/cache', 'dist']);
+      expect(parsed.removed.sort()).toEqual([NECTAR_CACHE_REL, 'dist'].sort());
       expect(parsed.total_bytes).toBeGreaterThan(0);
       // dry-run must not actually delete
       expect(existsSync(join(dir, 'dist'))).toBe(true);
