@@ -20,6 +20,22 @@ interface IterationEntry {
   value: unknown;
 }
 
+interface GetQuery {
+  resource: string;
+  limit: number | 'all';
+  requestedPage: number;
+  order: string;
+  filter: string;
+  slugFilter: string | undefined;
+  include: readonly string[];
+  fields: readonly string[];
+}
+
+interface CachedGetResult {
+  results: unknown[];
+  pagination: GetPagination;
+}
+
 const warnedTiersGetHelpers = new WeakSet<NectarEngine>();
 
 export function registerBlockHelpers(engine: NectarEngine): void {
@@ -204,37 +220,48 @@ export function registerBlockHelpers(engine: NectarEngine): void {
     const fnAny = options.fn as unknown as { blockParams?: number };
     const blockParams = (fnAny?.blockParams ?? 0) > 0;
     if (resource === 'tiers' || resource === 'products') warnTiersGetHelper(engine);
-    const sorted = getSortedResource(engine, resource, order);
-    const slugFiltered = slugFilter
-      ? applyGetFilter(engine, resource, sorted, slugFilter, this, options.data?.route)
-      : sorted;
-    const filtered: readonly unknown[] = filter
-      ? applyGetFilter(engine, resource, slugFiltered, filter, this, options.data?.route)
-      : slugFiltered;
-    const total = filtered.length;
-    const pagination = computeGetPagination(total, requestedPage, limit);
-    const paged =
-      limit === 'all'
-        ? filtered
-        : filtered.slice((pagination.page - 1) * limit, pagination.page * limit);
-    if (paged.length === 0 && options.inverse) {
+    const prepared = getPreparedGetResult(
+      engine,
+      { resource, limit, requestedPage, order, filter, slugFilter, include, fields },
+      () => {
+        const sorted = getSortedResource(engine, resource, order);
+        const slugFiltered = slugFilter
+          ? applyGetFilter(engine, resource, sorted, slugFilter, this, options.data?.route)
+          : sorted;
+        const filtered: readonly unknown[] = filter
+          ? applyGetFilter(engine, resource, slugFiltered, filter, this, options.data?.route)
+          : slugFiltered;
+        const total = filtered.length;
+        const pagination = computeGetPagination(total, requestedPage, limit);
+        const paged =
+          limit === 'all'
+            ? filtered
+            : filtered.slice((pagination.page - 1) * limit, pagination.page * limit);
+        const cloned = cloneGetResults(paged);
+        const presented = presentGetResource(engine, resource, cloned);
+        const included = applyGetIncludes(engine, resource, presented, include);
+        const results = exposeGetResource(resource, applyGetFields(included, fields));
+        return { results, pagination };
+      },
+    );
+    if (prepared.results.length === 0 && options.inverse) {
       return options.inverse(this);
     }
-    const cloned = cloneGetResults(paged);
-    const presented = presentGetResource(engine, resource, cloned);
-    const included = applyGetIncludes(engine, resource, presented, include);
-    const results = exposeGetResource(resource, applyGetFields(included, fields));
     const data = engine.hb.createFrame((options.data as Record<string, unknown> | undefined) ?? {});
     data.resource = resource;
-    data.pagination = pagination;
+    data.pagination = prepared.pagination;
     if (blockParams) {
-      const paginationBlockParam = { resource, ...pagination, pagination };
+      const paginationBlockParam = {
+        resource,
+        ...prepared.pagination,
+        pagination: prepared.pagination,
+      };
       return options.fn(this, {
         data,
-        blockParams: [results, paginationBlockParam],
+        blockParams: [prepared.results, paginationBlockParam],
       });
     }
-    return options.fn(results, { data });
+    return options.fn(prepared.results, { data });
   });
 
   engine.hb.registerHelper('match', function matchHelper(this: unknown, ...args: unknown[]) {
@@ -294,6 +321,32 @@ function exposeGetResource(resource: string, results: unknown[]): unknown[] {
     writable: false,
   });
   return results;
+}
+
+function getPreparedGetResult(
+  engine: NectarEngine,
+  query: GetQuery,
+  build: () => CachedGetResult,
+): CachedGetResult {
+  if (!engine.getResultCache) {
+    engine.getResultCache = new Map<string, unknown>();
+  }
+  const cache = engine.getResultCache;
+  const key = JSON.stringify([
+    query.resource,
+    query.limit,
+    query.requestedPage,
+    query.order,
+    query.filter,
+    query.slugFilter ?? '',
+    query.include,
+    query.fields,
+  ]);
+  const cached = cache.get(key);
+  if (cached) return cached as CachedGetResult;
+  const result = build();
+  cache.set(key, result);
+  return result;
 }
 
 // Ghost's `{{#get}}` exposes a `pagination` object to the block so themes can

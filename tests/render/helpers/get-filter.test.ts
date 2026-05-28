@@ -186,6 +186,19 @@ describe('get helper filter via secondary indexes', () => {
     expect(engine.filterIndexCache?.get('posts')).toBe(built);
   });
 
+  test('caches prepared get helper results for repeated identical queries', () => {
+    const engine = buildEngine({ posts: samplePosts });
+    const tpl = engine.hb.compile(
+      [
+        `{{#get "posts" filter="tag:news" limit=1 include="tags,authors" as |items|}}{{#foreach items}}{{id}}{{/foreach}}{{/get}}`,
+        `{{#get "posts" filter="tag:news" limit=1 include="tags,authors" as |items|}}{{#foreach items}}{{id}}{{/foreach}}{{/get}}`,
+      ].join('|'),
+    );
+
+    expect(tpl({})).toBe('a|a');
+    expect(engine.getResultCache?.size).toBe(1);
+  });
+
   test('index lookup beats linear scan by orders of magnitude on large sets', () => {
     const N = 5_000;
     const posts = Array.from({ length: N }, (_, i) => ({

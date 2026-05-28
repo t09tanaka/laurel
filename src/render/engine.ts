@@ -80,6 +80,11 @@ export interface NectarEngine {
   // Built on first filtered `get` against the resource; without this, every
   // call scans the full list per indexable key.
   filterIndexCache?: Map<string, FilterIndex>;
+  // Engine-scoped cache for fully prepared `{{#get}}` query results. Themes
+  // often repeat the same related/featured/latest-post query on every route;
+  // caching after filtering, cloning, includes, and field projection avoids
+  // redoing that work N times during a full build.
+  getResultCache?: Map<string, unknown>;
   // Engine-scoped cache for the default `{{navigation}}` helper markup.
   // Navigation is site-level data, so the expensive escape/slug/href work can
   // be reused across route renders for equivalent output states.
@@ -163,6 +168,7 @@ export function createEngine(opts: {
     layouts,
     templateLayoutNames,
     sortedCache: new Map(),
+    getResultCache: new Map(),
     navigationHtmlCache: new Map(),
     render(route) {
       return renderRoute(engine, route);
