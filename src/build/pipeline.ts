@@ -1707,6 +1707,7 @@ async function runBuild({
         outputDir,
         keepRelPaths: plannedOutputPaths,
         preservePatterns,
+        previousOutputFiles: previousBuildManifest?.files,
       }),
     );
   }

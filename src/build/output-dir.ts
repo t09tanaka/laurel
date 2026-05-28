@@ -114,6 +114,7 @@ export interface CleanupStaleOutputOptions {
   outputDir: string;
   keepRelPaths: Iterable<string>;
   preservePatterns?: readonly string[] | undefined;
+  previousOutputFiles?: readonly { path: string }[] | undefined;
 }
 
 export interface CleanupStaleOutputResult {
@@ -130,6 +131,7 @@ export async function cleanupStaleOutput({
   outputDir,
   keepRelPaths,
   preservePatterns = [],
+  previousOutputFiles,
 }: CleanupStaleOutputOptions): Promise<CleanupStaleOutputResult> {
   await mkdir(outputDir, { recursive: true });
 
@@ -141,7 +143,12 @@ export async function cleanupStaleOutput({
 
   const preserve = normalizePreservePatterns(outputDir, preservePatterns);
   const removed: string[] = [];
-  const { files, dirs } = await listOutputTree(outputDir);
+  const manifestCandidates = previousOutputFiles
+    ?.map((file) => normalizeOutputRelPath(file.path))
+    .filter((rel): rel is string => rel !== undefined);
+  const { files, dirs } = manifestCandidates
+    ? manifestCleanupTree(manifestCandidates)
+    : await listOutputTree(outputDir);
   for (const rel of files) {
     if (isKept(rel, keep)) continue;
     if (isPreserved(rel, preserve)) continue;
@@ -158,6 +165,24 @@ export async function cleanupStaleOutput({
 
   removed.sort();
   return { removed };
+}
+
+function manifestCleanupTree(files: readonly string[]): { files: string[]; dirs: string[] } {
+  const uniqueFiles = new Set(files);
+  const dirs = new Set<string>();
+  for (const file of uniqueFiles) {
+    const parts = file.split('/');
+    parts.pop();
+    let cur = '';
+    for (const part of parts) {
+      cur = cur ? `${cur}/${part}` : part;
+      dirs.add(cur);
+    }
+  }
+  return {
+    files: [...uniqueFiles].sort(),
+    dirs: [...dirs].sort(),
+  };
 }
 
 function isKept(rel: string, keep: ReadonlySet<string>): boolean {
