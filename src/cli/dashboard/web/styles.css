@@ -4530,6 +4530,54 @@
   .featureImageZone.filled:hover {
     background: transparent;
   }
+  /* Compact favicon picker: small actual-size preview + file-picker button.
+     Favicons are tiny, so we avoid the wide dropzone and show the asset near
+     its real scale instead of upscaling it into a blurry preview. */
+  .faviconField {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .faviconPreview {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    border: 1px dashed var(--border-strong);
+    border-radius: 6px;
+    background: transparent;
+  }
+  /* Empty state keeps a small fixed placeholder; once filled the box shrinks
+     or grows to the favicon's own pixel size (capped) so a 16x16 renders as
+     16x16 instead of being upscaled to fill a fixed frame. */
+  .faviconPreview:not(.filled) {
+    width: 40px;
+    height: 40px;
+  }
+  .faviconPreview.filled {
+    border-style: solid;
+    border-color: var(--border-default);
+    padding: 4px;
+  }
+  .faviconPreviewImg {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 64px;
+    max-height: 64px;
+  }
+  .faviconRemove {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  .faviconRemove:hover {
+    color: var(--text-primary);
+  }
   .featureImageEmpty {
     font-family: var(--font-serif);
     font-size: 14px;
@@ -5095,6 +5143,10 @@
     font-size: 13px;
     min-height: 20px;
     overflow-wrap: anywhere;
+  }
+  /* Success/progress tone so a successful save isn't styled like an error. */
+  .notice.noticeOk {
+    color: var(--success);
   }
   .modal {
     position: fixed;

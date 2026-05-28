@@ -3,7 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 import type { DashboardSettingsSubview } from '../../ui-state.ts';
 import { saveSiteSettings, saveThemeSettings, uploadTheme } from '../lib/api.ts';
 import type { DashboardState } from '../types.ts';
-import { FeatureImageField } from './FeatureImageField.tsx';
+import { FaviconField } from './FaviconField.tsx';
 
 const SOCIAL_FIELDS = [
   ['twitter', 'X / Twitter', 'https://x.com/yourhandle'],
@@ -153,7 +153,13 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
   const [setUrl, setSetUrl] = useState(site.url);
   const [setIcon, setSetIcon] = useState(site.icon);
   const [siteNotice, setSiteNotice] = useState('');
+  const [siteNoticeTone, setSiteNoticeTone] = useState<'ok' | 'error'>('ok');
   const [siteSettingsDirty, setSiteSettingsDirty] = useState(false);
+
+  function notify(message: string, tone: 'ok' | 'error' = 'ok'): void {
+    setSiteNotice(message);
+    setSiteNoticeTone(tone);
+  }
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: parent state callbacks are stable
   useEffect(() => {
@@ -195,12 +201,12 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
       return;
     }
     if (status >= 400) {
-      setSiteNotice(data.error ?? 'Could not save settings');
+      notify(data.error ?? 'Could not save settings', 'error');
       return;
     }
     setSiteSettingsDirty(false);
     props.onDirtyChange(false);
-    setSiteNotice('Saved to nectar.toml');
+    notify('Saved to nectar.toml', 'ok');
     await props.onSettingsSaved();
   }
 
@@ -253,19 +259,18 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
         </label>
         <div class="field wide">
           <span>Favicon</span>
-          <FeatureImageField
-            label=""
+          <FaviconField
             value={setIcon}
             onChange={(next) => {
-              setSetIcon(next.value);
+              setSetIcon(next);
               setSiteSettingsDirty(true);
               props.onDirtyChange(true);
             }}
-            onStatus={(message) => setSiteNotice(message)}
+            onStatus={(message) => notify(message, /fail/i.test(message) ? 'error' : 'ok')}
           />
         </div>
         <div class="field wide siteIdentityActions">
-          <output id="settingsNotice" class="notice">
+          <output id="settingsNotice" class={`notice${siteNoticeTone === 'ok' ? ' noticeOk' : ''}`}>
             {siteNotice}
           </output>
           <button
