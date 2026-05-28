@@ -31,12 +31,12 @@ const YIELD_EVERY_N_FETCHES = 25;
 
 declare const Bun: { gc?: (sync: boolean) => void } | undefined;
 
-function tryReleaseBody(body: ReadableStream<Uint8Array> | null | undefined): void {
+function tryCancelUnreadBody(body: ReadableStream<Uint8Array> | null | undefined): void {
   if (!body) return;
-  // `arrayBuffer()` on the happy path has already drained the stream; the
-  // extra cancel is a no-op there. Error paths (HTTP !ok, size cap hit
-  // before body consumption) need it to free the underlying native handle
-  // promptly so the runtime doesn't accumulate unread bodies.
+  // Error paths (HTTP !ok, size cap hit before body consumption) need this
+  // to free the underlying native handle promptly. Once `arrayBuffer()` has
+  // drained the stream, avoid a second lifecycle operation on Bun's native
+  // body handle.
   body.cancel().catch(() => {});
 }
 
@@ -199,6 +199,7 @@ export class GhostImageDownloader {
   private _failed = 0;
   private _skipped = 0;
   private _fetchCount = 0;
+  private downloadQueue: Promise<void> = Promise.resolve();
 
   constructor(opts: GhostImageDownloaderOptions) {
     this.fetcher = opts.fetcher ?? globalThis.fetch.bind(globalThis);
@@ -274,6 +275,27 @@ export class GhostImageDownloader {
     url: string,
     opts?: { externalDir?: 'external' | 'bookmarks' },
   ): Promise<string | null> {
+    return this.enqueueDownload(() => this.downloadOneLocked(url, opts));
+  }
+
+  private async enqueueDownload<T>(fn: () => Promise<T>): Promise<T> {
+    const previous = this.downloadQueue;
+    let release!: () => void;
+    this.downloadQueue = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    try {
+      return await fn();
+    } finally {
+      release();
+    }
+  }
+
+  private async downloadOneLocked(
+    url: string,
+    opts?: { externalDir?: 'external' | 'bookmarks' },
+  ): Promise<string | null> {
     // `stripGhostUrlPlaceholder` runs over the export before the downloader
     // sees a thing, so what arrives here for Ghost-hosted assets is a
     // site-relative path like `/content/images/2025/06/foo.jpg`, not an
@@ -313,6 +335,7 @@ export class GhostImageDownloader {
     this.emit(fetchUrl, 'fetching');
     await this.preFetchBreather();
     let response: Response | undefined;
+    let bodyDrained = false;
     try {
       response = await this.fetcher(fetchUrl);
       if (!response.ok) {
@@ -343,6 +366,7 @@ export class GhostImageDownloader {
       }
       const contentType = response.headers.get('content-type') ?? '';
       const buf = new Uint8Array(await response.arrayBuffer());
+      bodyDrained = true;
       if (this.maxBytes > 0 && buf.byteLength > this.maxBytes) {
         logger.warn(
           `Failed to download image ${fetchUrl}: payload ${buf.byteLength} exceeds max ${this.maxBytes} bytes`,
@@ -373,12 +397,7 @@ export class GhostImageDownloader {
       this.emit(fetchUrl, 'failed');
       return null;
     } finally {
-      // Always release the body. Happy path already drained it via
-      // arrayBuffer (cancel becomes a no-op); error paths that returned
-      // before arrayBuffer rely on this to free the underlying native
-      // handle so Bun doesn't accumulate unread Response objects across a
-      // long import.
-      tryReleaseBody(response?.body);
+      if (!bodyDrained) tryCancelUnreadBody(response?.body);
     }
   }
 

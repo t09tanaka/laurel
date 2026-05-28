@@ -51,7 +51,7 @@ export function createGhostImportStreamResponse(opts: GhostImportStreamOptions):
   const { payload } = opts;
 
   const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
+    start(controller) {
       let closed = false;
       const enqueue = (event: GhostImportStreamEvent): void => {
         if (closed) return;
@@ -64,67 +64,69 @@ export function createGhostImportStreamResponse(opts: GhostImportStreamOptions):
 
       enqueue({ type: 'start', startedAt: new Date().toISOString() });
 
-      let settledOk = false;
-      try {
-        const file = typeof payload.file === 'string' ? payload.file.trim() : '';
-        if (!file) throw new Error('file is required');
-        const onConflict = payload.onConflict ?? 'skip';
-        if (!ON_CONFLICT_VALUES.includes(onConflict)) {
-          throw new Error(`invalid onConflict: ${String(payload.onConflict)}`);
-        }
-        const dryRun = payload.dryRun !== false;
-        const outputDir = cleanOptionalString(payload.outputDir);
-
-        const summary = await importGhostExport({
-          cwd: opts.cwd,
-          file,
-          onConflict,
-          dryRun,
-          outputDir,
-          assetsDir: cleanOptionalString(payload.assetsDir),
-          downloadImages: payload.downloadImages === true,
-          sourceUrl: cleanOptionalString(payload.sourceUrl),
-          keepCodeInjection: payload.keepCodeInjection === true,
-          keepHtml: payload.keepHtml === true,
-          maxFileSizeBytes: optionalNonNegativeInteger(
-            payload.maxFileSizeBytes,
-            'maxFileSizeBytes',
-          ),
-          maxPostHtmlSizeBytes: optionalNonNegativeInteger(
-            payload.maxPostHtmlSizeBytes,
-            'maxPostHtmlSizeBytes',
-          ),
-          maxImageSizeBytes: optionalNonNegativeInteger(
-            payload.maxImageSizeBytes,
-            'maxImageSizeBytes',
-          ),
-          onProgress: (event) => enqueue({ type: 'progress', event }),
-        });
-
-        enqueue({
-          type: 'done',
-          summary,
-          mode: dryRun ? 'dry-run' : 'apply',
-          target: outputDir ?? 'content/',
-        });
-        settledOk = true;
-      } catch (err) {
-        enqueue({
-          type: 'error',
-          message: err instanceof Error ? err.message : String(err),
-        });
-      } finally {
-        opts.onComplete?.({ ok: settledOk });
-        closed = true;
+      void (async () => {
+        let settledOk = false;
         try {
-          controller.close();
-        } catch {
-          // already closed
+          const file = typeof payload.file === 'string' ? payload.file.trim() : '';
+          if (!file) throw new Error('file is required');
+          const onConflict = payload.onConflict ?? 'skip';
+          if (!ON_CONFLICT_VALUES.includes(onConflict)) {
+            throw new Error(`invalid onConflict: ${String(payload.onConflict)}`);
+          }
+          const dryRun = payload.dryRun !== false;
+          const outputDir = cleanOptionalString(payload.outputDir);
+
+          const summary = await importGhostExport({
+            cwd: opts.cwd,
+            file,
+            onConflict,
+            dryRun,
+            outputDir,
+            assetsDir: cleanOptionalString(payload.assetsDir),
+            downloadImages: payload.downloadImages === true,
+            sourceUrl: cleanOptionalString(payload.sourceUrl),
+            keepCodeInjection: payload.keepCodeInjection === true,
+            keepHtml: payload.keepHtml === true,
+            maxFileSizeBytes: optionalNonNegativeInteger(
+              payload.maxFileSizeBytes,
+              'maxFileSizeBytes',
+            ),
+            maxPostHtmlSizeBytes: optionalNonNegativeInteger(
+              payload.maxPostHtmlSizeBytes,
+              'maxPostHtmlSizeBytes',
+            ),
+            maxImageSizeBytes: optionalNonNegativeInteger(
+              payload.maxImageSizeBytes,
+              'maxImageSizeBytes',
+            ),
+            onProgress: (event) => enqueue({ type: 'progress', event }),
+          });
+
+          enqueue({
+            type: 'done',
+            summary,
+            mode: dryRun ? 'dry-run' : 'apply',
+            target: outputDir ?? 'content/',
+          });
+          settledOk = true;
+        } catch (err) {
+          enqueue({
+            type: 'error',
+            message: err instanceof Error ? err.message : String(err),
+          });
+        } finally {
+          opts.onComplete?.({ ok: settledOk });
+          closed = true;
+          try {
+            controller.close();
+          } catch {
+            // already closed
+          }
+          if (opts.stagedPath) {
+            await unlink(opts.stagedPath).catch(() => {});
+          }
         }
-        if (opts.stagedPath) {
-          await unlink(opts.stagedPath).catch(() => {});
-        }
-      }
+      })();
     },
   });
 
