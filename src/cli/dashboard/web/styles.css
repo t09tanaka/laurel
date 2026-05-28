@@ -5167,7 +5167,7 @@
     padding: 7px 12px;
     border: 1px solid color-mix(in srgb, var(--caution) 45%, var(--border-default));
     border-radius: 6px;
-    background: var(--surface-primary);
+    background: #fff;
     color: var(--text-primary);
     font-size: 13px;
     font-weight: 700;
@@ -5179,7 +5179,7 @@
   }
   .themeMissingBannerButton:hover {
     border-color: color-mix(in srgb, var(--caution) 62%, var(--border-default));
-    background: color-mix(in srgb, var(--caution) 10%, var(--surface-primary));
+    background: color-mix(in srgb, var(--caution) 8%, #fff);
   }
   .themeMissingBannerButton:active {
     transform: translateY(1px);
