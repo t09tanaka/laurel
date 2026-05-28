@@ -1,6 +1,7 @@
 import type { JSX } from 'preact';
 import { useState } from 'preact/hooks';
 import { uploadImage } from '../lib/api.ts';
+import { useFileDropHover } from '../lib/use-file-drop-hover.ts';
 
 interface FeatureImageFieldProps {
   label?: string;
@@ -16,6 +17,7 @@ interface FeatureImageFieldProps {
 // drag-and-drop, hover/replace, and an inline Remove control.
 export function FeatureImageField(props: FeatureImageFieldProps): JSX.Element {
   const [busy, setBusy] = useState(false);
+  const { isDragging, dragHoverProps, clearDrag } = useFileDropHover();
 
   async function handleFile(file: File): Promise<void> {
     if (busy) return;
@@ -39,15 +41,13 @@ export function FeatureImageField(props: FeatureImageFieldProps): JSX.Element {
     <div class="featureImageField">
       {props.label ? <div class="featureImageFieldLabel">{props.label}</div> : null}
       <label
-        class={`featureImageZone${props.value ? ' filled' : ''}${busy ? ' busy' : ''}`}
+        class={`featureImageZone${props.value ? ' filled' : ''}${busy ? ' busy' : ''}${
+          isDragging ? ' isDragging' : ''
+        }`}
         aria-label="Image — click or drop to upload"
-        onDragOver={(event) => {
-          if (event.dataTransfer?.types?.includes('Files')) {
-            event.preventDefault();
-            event.dataTransfer.dropEffect = 'copy';
-          }
-        }}
+        {...dragHoverProps}
         onDrop={(event) => {
+          clearDrag();
           const file = Array.from(event.dataTransfer?.files ?? []).find((f) =>
             f.type.startsWith('image/'),
           );

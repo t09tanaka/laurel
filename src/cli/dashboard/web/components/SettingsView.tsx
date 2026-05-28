@@ -2,6 +2,7 @@ import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import type { DashboardSettingsSubview } from '../../ui-state.ts';
 import { saveSiteSettings, saveThemeSettings, uploadTheme } from '../lib/api.ts';
+import { useFileDropHover } from '../lib/use-file-drop-hover.ts';
 import type { DashboardState } from '../types.ts';
 import { FeatureImageField } from './FeatureImageField.tsx';
 
@@ -653,6 +654,7 @@ interface ThemeUploadModalProps {
 function ThemeUploadModal({ themeDir, onClose, onUploaded }: ThemeUploadModalProps): JSX.Element {
   const [status, setStatus] = useState<string>('');
   const [busy, setBusy] = useState(false);
+  const { isDragging, dragHoverProps, clearDrag } = useFileDropHover();
 
   // Esc closes; focus is delegated to the file input.
   useEffect(() => {
@@ -709,14 +711,10 @@ function ThemeUploadModal({ themeDir, onClose, onUploaded }: ThemeUploadModalPro
           selectable in the Theme list.
         </p>
         <label
-          class={`themeUploadDrop${busy ? ' busy' : ''}`}
-          onDragOver={(event) => {
-            if (event.dataTransfer?.types?.includes('Files')) {
-              event.preventDefault();
-              event.dataTransfer.dropEffect = 'copy';
-            }
-          }}
+          class={`themeUploadDrop${busy ? ' busy' : ''}${isDragging ? ' isDragging' : ''}`}
+          {...dragHoverProps}
           onDrop={(event) => {
+            clearDrag();
             const file = Array.from(event.dataTransfer?.files ?? []).find((f) =>
               /\.zip$/i.test(f.name),
             );

@@ -1,6 +1,7 @@
 import type { JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { type GhostImportStreamEvent, streamGhostImport } from '../lib/api.ts';
+import { useFileDropHover } from '../lib/use-file-drop-hover.ts';
 import { StatePanel } from './StatePanel.tsx';
 
 interface MigrationViewProps {
@@ -473,16 +474,15 @@ interface UploadDropzoneProps {
 
 function UploadDropzone(props: UploadDropzoneProps): JSX.Element {
   const filled = props.file !== null;
+  const { isDragging, dragHoverProps, clearDrag } = useFileDropHover();
   return (
     <label
-      class={`themeUploadDrop${props.disabled ? ' busy' : ''}${filled ? ' filled' : ''}`}
-      onDragOver={(event) => {
-        if (event.dataTransfer?.types?.includes('Files')) {
-          event.preventDefault();
-          event.dataTransfer.dropEffect = 'copy';
-        }
-      }}
+      class={`themeUploadDrop${props.disabled ? ' busy' : ''}${filled ? ' filled' : ''}${
+        isDragging ? ' isDragging' : ''
+      }`}
+      {...dragHoverProps}
       onDrop={(event) => {
+        clearDrag();
         const candidate = Array.from(event.dataTransfer?.files ?? []).find((f) =>
           props.match(f.name),
         );
