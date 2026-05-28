@@ -1981,12 +1981,17 @@ export async function handleDashboardRequest(
       } finally {
         await unlink(tmpZip).catch(() => {});
       }
+      // Activate the uploaded theme by writing [theme].name so that
+      // preview/build pick it up immediately, without forcing the
+      // operator to re-select it from the themes list.
+      const configFilePath = resolveConfigPath(ctx.cwd, ctx.configPath);
+      await writeThemeSettingsFile(configFilePath, { name: safeName });
       ctx.changeBus.broadcast({
         reason: 'theme-upload',
         kind: 'settings',
         changedPath: destDir,
       });
-      return jsonResponse({ ok: true, name: safeName, dir: destDir }, 201);
+      return jsonResponse({ ok: true, name: safeName, dir: destDir, active: true }, 201);
     }
     const approvalMatch = url.pathname.match(/^\/api\/approvals\/pages\/([^/]+)$/);
     if (request.method === 'POST' && approvalMatch) {

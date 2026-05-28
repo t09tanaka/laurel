@@ -159,7 +159,9 @@ export async function fetchOgp(url: string): Promise<OgpFetchResult> {
 export async function uploadTheme(
   file: File,
   name?: string,
-): Promise<{ ok: true; name: string; dir: string } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; name: string; dir: string; active: boolean } | { ok: false; error: string }
+> {
   const fd = new FormData();
   fd.append('file', file);
   if (name) fd.append('name', name);
@@ -175,7 +177,12 @@ export async function uploadTheme(
       error: typeof data.error === 'string' ? data.error : `theme upload failed (${res.status})`,
     };
   }
-  return { ok: true, name: String(data.name ?? ''), dir: String(data.dir ?? '') };
+  return {
+    ok: true,
+    name: String(data.name ?? ''),
+    dir: String(data.dir ?? ''),
+    active: data.active === true,
+  };
 }
 
 export interface FetchStateOptions {

@@ -1085,6 +1085,68 @@ describe('dashboard data', () => {
     }
   });
 
+  test('activates the uploaded theme by writing [theme].name', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await writeDashboardThemeFixture(dir, 'source');
+      const stagingDir = await mkdtemp(join(tmpdir(), 'nectar-theme-zip-'));
+      const themeStaging = join(stagingDir, 'newcomer');
+      await mkdir(themeStaging, { recursive: true });
+      await writeFile(join(themeStaging, 'index.hbs'), '<h1>Newcomer</h1>\n', 'utf8');
+      await writeFile(
+        join(themeStaging, 'post.hbs'),
+        '<!doctype html><html><head>{{ghost_head}}</head><body><main>{{content}}</main></body></html>',
+        'utf8',
+      );
+      await writeFile(
+        join(themeStaging, 'page.hbs'),
+        '<!doctype html><html><head>{{ghost_head}}</head><body><main>{{content}}</main></body></html>',
+        'utf8',
+      );
+      const zipPath = join(stagingDir, 'newcomer.zip');
+      const zipProc = Bun.spawn(['zip', '-rq', zipPath, 'newcomer'], {
+        cwd: stagingDir,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      await zipProc.exited;
+      if (zipProc.exitCode !== 0) {
+        throw new Error(
+          `failed to build test theme zip: ${await new Response(zipProc.stderr).text()}`,
+        );
+      }
+
+      const zipBytes = await Bun.file(zipPath).bytes();
+      const form = new FormData();
+      form.append('file', new File([zipBytes], 'newcomer.zip', { type: 'application/zip' }));
+      const changeBus = createChangeBus({ debounceMs: 1 });
+      const response = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/themes/upload', {
+          method: 'POST',
+          body: form,
+        }),
+        { cwd: dir, changeBus },
+      );
+
+      expect(response.status).toBe(201);
+      const body = (await response.json()) as Record<string, unknown>;
+      expect(body).toMatchObject({ ok: true, name: 'newcomer', active: true });
+
+      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      expect(raw).toContain('name = "newcomer"');
+
+      const settings = await readDashboardSettings({ cwd: dir });
+      expect(settings.theme.name).toBe('newcomer');
+      expect(settings.theme.available.find((theme) => theme.name === 'newcomer')).toMatchObject({
+        active: true,
+      });
+
+      await rm(stagingDir, { recursive: true, force: true });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('approves a saved page snapshot and marks later edits as stale', async () => {
     const dir = await makeDashboardFixture();
     try {
