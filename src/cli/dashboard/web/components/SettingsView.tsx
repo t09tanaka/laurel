@@ -4,6 +4,7 @@ import type { DashboardSettingsSubview } from '../../ui-state.ts';
 import { saveSiteSettings, saveThemeSettings, uploadTheme } from '../lib/api.ts';
 import { useFileDropHover } from '../lib/use-file-drop-hover.ts';
 import type { DashboardState } from '../types.ts';
+import { FaviconField } from './FaviconField.tsx';
 import { FeatureImageField } from './FeatureImageField.tsx';
 
 const SOCIAL_FIELDS = [
@@ -162,8 +163,15 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
   const [setAccent, setSetAccent] = useState(site.accentColor);
   const [setDescription, setSetDescription] = useState(site.description);
   const [setUrl, setSetUrl] = useState(site.url);
+  const [setIcon, setSetIcon] = useState(site.icon);
   const [siteNotice, setSiteNotice] = useState('');
+  const [siteNoticeTone, setSiteNoticeTone] = useState<'ok' | 'error'>('ok');
   const [siteSettingsDirty, setSiteSettingsDirty] = useState(false);
+
+  function notify(message: string, tone: 'ok' | 'error' = 'ok'): void {
+    setSiteNotice(message);
+    setSiteNoticeTone(tone);
+  }
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: parent state callbacks are stable
   useEffect(() => {
@@ -171,9 +179,10 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
     setSetAccent(site.accentColor);
     setSetDescription(site.description);
     setSetUrl(site.url);
+    setSetIcon(site.icon);
     setSiteSettingsDirty(false);
     props.onDirtyChange(false);
-  }, [site.title, site.description, site.url, site.accentColor]);
+  }, [site.title, site.description, site.url, site.accentColor, site.icon]);
 
   function markDirty<T>(setter: (value: T) => void): (event: Event) => void {
     return (event) => {
@@ -190,6 +199,7 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
       description: setDescription,
       url: setUrl,
       accent_color: setAccent,
+      icon: setIcon,
     };
     const { status, data } = await saveSiteSettings({
       fingerprint: settings.fingerprint,
@@ -203,12 +213,12 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
       return;
     }
     if (status >= 400) {
-      setSiteNotice(data.error ?? 'Could not save settings');
+      notify(data.error ?? 'Could not save settings', 'error');
       return;
     }
     setSiteSettingsDirty(false);
     props.onDirtyChange(false);
-    setSiteNotice('Saved to nectar.toml');
+    notify('Saved to nectar.toml', 'ok');
     await props.onSettingsSaved();
   }
 
@@ -259,8 +269,20 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
             onInput={markDirty(setSetUrl)}
           />
         </label>
+        <div class="field wide">
+          <span>Favicon</span>
+          <FaviconField
+            value={setIcon}
+            onChange={(next) => {
+              setSetIcon(next);
+              setSiteSettingsDirty(true);
+              props.onDirtyChange(true);
+            }}
+            onStatus={(message) => notify(message, /fail/i.test(message) ? 'error' : 'ok')}
+          />
+        </div>
         <div class="field wide siteIdentityActions">
-          <output id="settingsNotice" class="notice">
+          <output id="settingsNotice" class={`notice${siteNoticeTone === 'ok' ? ' noticeOk' : ''}`}>
             {siteNotice}
           </output>
           <button

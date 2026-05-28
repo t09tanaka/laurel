@@ -128,6 +128,7 @@ const SITE_SETTINGS_FIELDS = [
   'locale',
   'timezone',
   'accent_color',
+  'icon',
   'twitter',
   'facebook',
   'linkedin',
@@ -539,6 +540,10 @@ export interface DashboardState {
     description: string;
     url: string;
     accentColor: string;
+    // Raw `[site].icon` from nectar.toml so the dashboard favicon control can
+    // round-trip the configured path/URL. The build's favicon emission
+    // (src/build/favicons.ts) is the consumer; this just surfaces the source.
+    icon: string;
     social: DashboardSocialSettings;
     // Site-wide default Open Graph / social-share image written to
     // `[site].og_image`. Used by {{ghost_head}} as the og:image / twitter:image
@@ -641,6 +646,7 @@ export interface DashboardSettings {
     locale: string;
     timezone: string;
     accentColor: string;
+    icon: string;
     social: DashboardSocialSettings;
     ogImage: string;
     codeinjectionHead: string;
@@ -1129,6 +1135,8 @@ export async function loadDashboardState({
       description: graph.site.description,
       url: graph.site.url,
       accentColor: graph.site.accent_color,
+      // From `config.site` (not `graph.site`) to round-trip the on-disk value.
+      icon: typeof config.site.icon === 'string' ? config.site.icon : '',
       social: dashboardSocialSettings(config.site),
       ogImage: typeof config.site.og_image === 'string' ? config.site.og_image : '',
       // Read from `config.site` rather than `graph.site` so the dashboard can
@@ -1305,6 +1313,7 @@ export async function readDashboardSettings({
       locale: config.site.locale,
       timezone: config.site.timezone,
       accentColor: config.site.accent_color,
+      icon: typeof config.site.icon === 'string' ? config.site.icon : '',
       social: dashboardSocialSettings(config.site),
       ogImage: typeof config.site.og_image === 'string' ? config.site.og_image : '',
       codeinjectionHead:
@@ -1912,6 +1921,10 @@ export async function handleDashboardRequest(
         'image/webp',
         'image/svg+xml',
         'image/avif',
+        // .ico is accepted primarily so the Settings favicon control can
+        // upload a classic favicon; browsers report it as either of these.
+        'image/x-icon',
+        'image/vnd.microsoft.icon',
       ]);
       if (!ALLOWED.has(file.type)) {
         return jsonResponse({ error: `unsupported image type "${file.type || 'unknown'}"` }, 415);
@@ -1936,7 +1949,9 @@ export async function handleDashboardRequest(
           ? 'jpg'
           : file.type === 'image/svg+xml'
             ? 'svg'
-            : (file.type.split('/')[1] ?? 'bin');
+            : file.type === 'image/x-icon' || file.type === 'image/vnd.microsoft.icon'
+              ? 'ico'
+              : (file.type.split('/')[1] ?? 'bin');
       const filename = `${ts}-${safe}.${ext}`;
       const targetDir = resolve(ctx.cwd, 'content', 'images');
       await mkdir(targetDir, { recursive: true });
