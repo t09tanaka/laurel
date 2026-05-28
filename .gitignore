@@ -13,6 +13,7 @@ docs-site/dist/
 
 # Bun
 .bun/
+*.bun-build
 
 # Editor & OS
 .DS_Store
