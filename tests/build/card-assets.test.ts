@@ -89,6 +89,15 @@ describe('emitCardAssets', () => {
     expect(css).toMatch(/\.kg-button-card\.kg-align-center\{[^}]*justify-content:center/);
   });
 
+  test('bookmark icon resists broad theme figure image rules', () => {
+    const css = renderCardAssetsCss(true);
+
+    expect(css).toContain('.kg-bookmark-metadata .kg-bookmark-icon');
+    expect(css).toMatch(
+      /\.kg-bookmark-metadata \.kg-bookmark-icon\{[^}]*flex:0 0 20px[^}]*width:20px[^}]*height:20px[^}]*max-width:20px[^}]*object-fit:contain/,
+    );
+  });
+
   test('uses a stable exclude-specific cache key', () => {
     expect(cardAssetsVersion(true)).toBe('7');
     expect(cardAssetsVersion({ exclude: [] })).toBe('7');

@@ -14,7 +14,13 @@ import {
 } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import slugify from 'slugify';
-import { renderCardAssetsCss } from '~/build/card-assets.ts';
+import {
+  CARD_ASSETS_CSS_PATH,
+  CARD_ASSETS_JS_PATH,
+  isCardAssetsEnabled,
+  renderCardAssetsCss,
+  renderCardAssetsJs,
+} from '~/build/card-assets.ts';
 import { type ContentImageAssetPlan, planContentImageAssets } from '~/build/emit.ts';
 import { computeFavicons } from '~/build/favicons.ts';
 import {
@@ -3318,6 +3324,14 @@ async function serveDashboardPreviewAsset({
 }): Promise<Response | undefined> {
   const config = await loadConfig({ cwd, configPath });
   const normalized = stripPreviewBasePath(safeDecodeRoutePath(pathname), config);
+  if (normalized === `/${CARD_ASSETS_CSS_PATH}` || normalized === `/${CARD_ASSETS_JS_PATH}`) {
+    const theme = await loadTheme({ cwd, config });
+    if (!isCardAssetsEnabled(theme.pkg.card_assets)) return undefined;
+    if (normalized === `/${CARD_ASSETS_CSS_PATH}`) {
+      return cssResponse(renderCardAssetsCss(theme.pkg.card_assets));
+    }
+    return javascriptResponse(renderCardAssetsJs(theme.pkg.card_assets));
+  }
   if (normalized.startsWith('/assets/')) {
     const theme = await loadTheme({ cwd, config });
     const rel = normalized.slice(1);
@@ -5261,6 +5275,15 @@ function cssResponse(body: string): Response {
   return new Response(body, {
     headers: {
       'Content-Type': 'text/css; charset=utf-8',
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+function javascriptResponse(body: string): Response {
+  return new Response(body, {
+    headers: {
+      'Content-Type': 'application/javascript; charset=utf-8',
       'Cache-Control': 'no-store',
     },
   });
