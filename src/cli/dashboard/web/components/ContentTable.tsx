@@ -64,6 +64,11 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
       {list.items.length ? (
         <div class="tableWrap">
           <table class="table contentTable">
+            <colgroup>
+              <col class="titleCol" />
+              <col class="dateCol" />
+              <col class="actionsCol" />
+            </colgroup>
             <thead class="srOnly">
               <tr>
                 <th>Title</th>

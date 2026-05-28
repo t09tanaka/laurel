@@ -249,6 +249,36 @@
   }
 }
 
+@layer utilities {
+  @media (max-width: 720px) {
+    .table.contentTable {
+      display: grid;
+      width: 100%;
+      min-width: 0;
+    }
+    .contentTable tbody {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+    }
+    .contentTable tr {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      min-width: 0;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+    .contentTable td {
+      display: block;
+      min-width: 0;
+      width: auto;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+  }
+}
+
 @layer components {
   .srOnly {
     position: absolute;
@@ -1788,15 +1818,24 @@
     min-width: 640px;
     table-layout: fixed;
   }
+  .contentTable col.titleCol {
+    width: auto;
+  }
+  .contentTable col.dateCol {
+    width: 116px;
+  }
+  .contentTable col.actionsCol {
+    width: 168px;
+  }
   .contentTable th:nth-child(1) {
     width: auto;
   }
   .contentTable th.dateCol {
-    width: 132px;
+    width: 116px;
     text-align: right;
   }
   .contentTable th:nth-child(3) {
-    width: 184px;
+    width: 168px;
   }
   .table th,
   .table td {
@@ -1923,6 +1962,7 @@
     flex-wrap: wrap;
   }
   .titleText {
+    display: block;
     flex: 0 1 auto;
     min-width: 0;
     max-width: 100%;
@@ -1976,10 +2016,11 @@
     font-size: 12.5px;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
-    padding-right: 12px;
+    padding-right: 6px;
   }
   .actionsCell {
-    padding-right: 12px;
+    padding-left: 10px;
+    padding-right: 10px;
   }
   /* Row text actions — weight-differentiated text links instead of
    * button chips. Preview is the light/ghost variant; the row's primary
@@ -2015,9 +2056,9 @@
    * preview of the same gesture, both on hover-in and hover-out. */
   .rowActions {
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
     align-items: center;
-    gap: 20px;
+    gap: 16px;
     flex-wrap: nowrap;
     opacity: 0;
     transform: translateX(18px);
@@ -5731,8 +5772,23 @@
       overflow: visible;
     }
     .table {
+      display: block;
       min-width: 100%;
       table-layout: fixed;
+    }
+    .table.contentTable {
+      display: block;
+    }
+    .contentTable {
+      min-width: 100%;
+    }
+    .contentTable colgroup {
+      display: none;
+    }
+    .contentTable col.titleCol,
+    .contentTable col.dateCol,
+    .contentTable col.actionsCol {
+      width: auto;
     }
     .table thead {
       display: none;
@@ -5774,6 +5830,7 @@
     .titleText {
       white-space: normal;
       display: -webkit-box;
+      width: 100%;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
@@ -5782,6 +5839,9 @@
     }
     .titleLine {
       align-items: flex-start;
+    }
+    .titleLink {
+      width: 100%;
     }
     .dateCell {
       text-align: left;
