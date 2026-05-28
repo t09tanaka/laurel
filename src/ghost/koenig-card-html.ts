@@ -9,8 +9,10 @@ import renderHtml from 'dom-serializer';
 import type { ChildNode, Element } from 'domhandler';
 import { parseDocument } from 'htmlparser2';
 import { Marked } from 'marked';
+import { cjkFriendlyEmphasis } from '~/content/markdown-cjk-emphasis.ts';
 
 const markdownRenderer = new Marked({ gfm: true, breaks: false });
+markdownRenderer.use(cjkFriendlyEmphasis());
 
 export function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

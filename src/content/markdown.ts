@@ -10,9 +10,11 @@ import { stripGhostUrlPlaceholder } from '~/ghost/url-placeholder.ts';
 import { NectarError, suggestClosest } from '~/util/errors.ts';
 import { promoteImagesToFigures } from './figure-images.ts';
 import { GALLERY_IMAGE_SIZES } from './gallery-images.ts';
+import { cjkFriendlyEmphasis } from './markdown-cjk-emphasis.ts';
 
 const marked = new Marked({ gfm: true, breaks: false });
 marked.use(gfmHeadingId());
+marked.use(cjkFriendlyEmphasis());
 
 export interface RenderedMarkdown {
   html: string;

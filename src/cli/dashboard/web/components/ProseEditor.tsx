@@ -1,4 +1,5 @@
 import MarkdownIt from 'markdown-it';
+import markdownItCjkFriendly from 'markdown-it-cjk-friendly';
 import type { JSX, Ref } from 'preact';
 import { useEffect, useImperativeHandle, useRef } from 'preact/hooks';
 import {
@@ -116,9 +117,13 @@ const parserTokens = {
 // prosemirror-markdown's `defaultMarkdownParser` is built on the
 // `commonmark` preset, which leaves the GFM `table` rule turned OFF.
 // Run our own MarkdownIt instance with `table` re-enabled so the
-// tokens above actually fire.
+// tokens above actually fire. `markdown-it-cjk-friendly` relaxes the
+// CommonMark emphasis flanking rules so `**強調**` stays bold when it
+// abuts CJK punctuation (e.g. `（主回線）**が`); without it the editor
+// would parse such runs as literal text and re-escape them on save.
 const markdownTokenizer = MarkdownIt('commonmark', { html: false })
   .enable(['table'])
+  .use(markdownItCjkFriendly)
   .use(bookmarkMarkdownItPlugin);
 
 export const markdownParser = new MarkdownParser(proseSchema, markdownTokenizer, parserTokens);
@@ -126,6 +131,7 @@ export const markdownParser = new MarkdownParser(proseSchema, markdownTokenizer,
 export function createMarkdownParser(components: ComponentEntry[] = []): MarkdownParser {
   const tokenizer = MarkdownIt('commonmark', { html: false })
     .enable(['table'])
+    .use(markdownItCjkFriendly)
     .use(bookmarkMarkdownItPlugin)
     .use(componentMarkdownItPlugin(components));
   return new MarkdownParser(proseSchema, tokenizer, parserTokens);
