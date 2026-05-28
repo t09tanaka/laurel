@@ -112,6 +112,8 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
   const [file, setFile] = useState<File | null>(null);
   const [onConflict, setOnConflict] = useState<'skip' | 'rename' | 'overwrite'>('skip');
   const [sourceUrl, setSourceUrl] = useState('');
+  const [sourceUrlTouched, setSourceUrlTouched] = useState(false);
+  const [sourceUrlSubmitted, setSourceUrlSubmitted] = useState(false);
   const [maxImageSizeMb, setMaxImageSizeMb] = useState('10');
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState('');
@@ -141,6 +143,7 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
     }
     return `Invalid source URL: "${trimmed}". Expected an absolute URL like https://oldblog.com.`;
   })();
+  const visibleSourceUrlError = sourceUrlTouched || sourceUrlSubmitted ? sourceUrlError : '';
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -159,6 +162,7 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
       setLocalError('Pick a Ghost export (.zip or .json) first.');
       return;
     }
+    setSourceUrlSubmitted(true);
     let maxImageSizeBytes: number | undefined;
     const trimmedSize = maxImageSizeMb.trim();
     if (trimmedSize.length > 0) {
@@ -326,13 +330,14 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
             value={sourceUrl}
             required
             disabled={busy}
-            aria-invalid={sourceUrlError ? 'true' : 'false'}
-            aria-describedby={sourceUrlError ? 'ghostImportSourceUrlError' : undefined}
+            aria-invalid={visibleSourceUrlError ? 'true' : 'false'}
+            aria-describedby={visibleSourceUrlError ? 'ghostImportSourceUrlError' : undefined}
             onInput={(event) => setSourceUrl((event.currentTarget as HTMLInputElement).value)}
+            onBlur={() => setSourceUrlTouched(true)}
           />
-          {sourceUrlError ? (
+          {visibleSourceUrlError ? (
             <span id="ghostImportSourceUrlError" class="fieldError" role="alert">
-              {sourceUrlError}
+              {visibleSourceUrlError}
             </span>
           ) : (
             <span class="meta">
@@ -384,7 +389,7 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
             class="btn"
             id="applyGhostImport"
             type="button"
-            disabled={busy || !file || !!sourceUrlError || !!maxImageSizeError}
+            disabled={busy || !file || !!maxImageSizeError}
             onClick={() => {
               void run();
             }}
