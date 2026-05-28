@@ -58,11 +58,13 @@ describe('GhostImageDownloader', () => {
         }),
         { headers: { 'content-type': 'image/jpeg' } },
       );
-      response.arrayBuffer = async () => {
-        throw new Error('arrayBuffer should not be used');
-      };
+      Object.defineProperty(response, 'arrayBuffer', {
+        value: async () => {
+          throw new Error('arrayBuffer should not be used');
+        },
+      });
       return response;
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
 
     try {
       const downloader = new GhostImageDownloader({ cwd, fetcher });

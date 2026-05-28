@@ -298,7 +298,14 @@ export async function saveSiteSettings(args: {
     headers: writeHeaders(),
     body: JSON.stringify(args),
   });
-  return { status: response.status, data: await response.json() };
+  return {
+    status: response.status,
+    data: (await response.json()) as {
+      ok?: boolean;
+      fingerprint?: ContentFingerprint;
+      error?: string;
+    },
+  };
 }
 
 export async function saveThemeSettings(args: {
@@ -313,7 +320,14 @@ export async function saveThemeSettings(args: {
     headers: writeHeaders(),
     body: JSON.stringify(args),
   });
-  return { status: response.status, data: await response.json() };
+  return {
+    status: response.status,
+    data: (await response.json()) as {
+      ok?: boolean;
+      fingerprint?: ContentFingerprint;
+      error?: string;
+    },
+  };
 }
 
 export interface GhostImportPayload {
@@ -384,10 +398,10 @@ export async function streamGhostImport(
   fd.append('file', args.file);
   fd.append('dryRun', 'false');
   fd.append('onConflict', args.onConflict);
-  // Always download referenced images — there is no UI toggle. Opting out
-  // produces broken local references and is never what an operator wants.
-  fd.append('downloadImages', 'true');
-  if (args.sourceUrl) fd.append('sourceUrl', args.sourceUrl);
+  if (args.sourceUrl) {
+    fd.append('sourceUrl', args.sourceUrl);
+    fd.append('downloadImages', 'true');
+  }
   if (args.maxImageSizeBytes !== undefined) {
     fd.append('maxImageSizeBytes', String(args.maxImageSizeBytes));
   }

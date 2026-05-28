@@ -167,18 +167,20 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
       maxImageSizeBytes = parsed * 1024 * 1024;
     }
     const trimmedSource = sourceUrl.trim();
-    if (trimmedSource.length > 0) {
-      try {
-        const parsed = new URL(trimmedSource);
-        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-          throw new Error('non-http(s)');
-        }
-      } catch {
-        setLocalError(
-          `Invalid source URL: "${trimmedSource}". Expected an absolute URL like https://oldblog.com.`,
-        );
-        return;
+    if (trimmedSource.length === 0) {
+      setLocalError('Enter the public URL of the source Ghost site.');
+      return;
+    }
+    try {
+      const parsed = new URL(trimmedSource);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new Error('non-http(s)');
       }
+    } catch {
+      setLocalError(
+        `Invalid source URL: "${trimmedSource}". Expected an absolute URL like https://oldblog.com.`,
+      );
+      return;
     }
     setLocalError('');
     setBusy(true);
@@ -323,6 +325,7 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
             type="url"
             placeholder="https://oldblog.com"
             value={sourceUrl}
+            required
             disabled={busy}
             onInput={(event) => setSourceUrl((event.currentTarget as HTMLInputElement).value)}
           />
@@ -330,7 +333,7 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
             Public URL of the source Ghost site. Required to fetch images — Ghost exports store
             image URLs as <code>__GHOST_URL__/content/images/...</code>, and the downloader needs a
             real base to resolve them. Include the subpath if the blog is mounted under one (e.g.{' '}
-            <code>https://example.com/ja/blog</code>). Leave blank to skip image downloads.
+            <code>https://example.com/ja/blog</code>).
           </span>
         </label>
         <details class="advancedPanel" data-field="ghost-image-advanced">
