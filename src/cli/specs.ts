@@ -812,7 +812,7 @@ export const DIAGNOSTICS_SPEC: CommandSpec = {
 
 export const CLEAN_SPEC: CommandSpec = {
   name: 'clean',
-  summary: 'Remove dist/ and .nectar-cache build artifacts',
+  summary: 'Remove dist/ and .nectar/cache build artifacts',
   options: {
     config: {
       type: 'string',
@@ -852,7 +852,7 @@ export const CLEAN_SPEC: CommandSpec = {
 
 export const CACHE_SPEC: CommandSpec = {
   name: 'cache',
-  summary: 'Inspect or remove the local .nectar-cache directory',
+  summary: 'Inspect or remove the local .nectar/cache directory',
   options: {
     'dry-run': {
       type: 'boolean',

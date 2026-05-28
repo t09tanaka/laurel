@@ -61,7 +61,7 @@ export async function runClean(args: string[]): Promise<number> {
   }
 
   const distAbs = resolve(cwd, outputDir);
-  const cacheAbs = resolve(cwd, '.nectar-cache');
+  const cacheAbs = resolve(cwd, '.nectar/cache');
   const candidates = [distAbs, cacheAbs];
 
   // Refuse to touch anything outside cwd. resolve() collapses `..` so a
@@ -108,7 +108,7 @@ export async function runClean(args: string[]): Promise<number> {
     if (asJson) {
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     } else {
-      logger.info('Nothing to clean (dist/ and .nectar-cache do not exist).');
+      logger.info('Nothing to clean (dist/ and .nectar/cache do not exist).');
     }
     return 0;
   }

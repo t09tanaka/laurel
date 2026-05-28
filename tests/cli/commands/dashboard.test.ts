@@ -828,6 +828,65 @@ describe('dashboard data', () => {
     }
   });
 
+  test('multipart Ghost import threads downloadImages + maxImageSizeBytes into the run', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const exportDir = join(dir, 'tmp-ghost-export-multipart');
+      const zipPath = join(dir, 'dashboard-import-multipart.zip');
+      await makeGhostExportZip(zipPath, exportDir);
+      const zipBytes = await readFile(zipPath);
+
+      const form = new FormData();
+      form.append('file', new File([new Uint8Array(zipBytes)], 'ghost.zip'));
+      form.append('dryRun', 'false');
+      form.append('onConflict', 'overwrite');
+      form.append('downloadImages', 'true');
+      form.append('maxImageSizeBytes', String(2 * 1024 * 1024));
+
+      const applied = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/import/ghost', { method: 'POST', body: form }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(applied.status).toBe(200);
+      expect(applied.headers.get('content-type') ?? '').toContain('application/x-ndjson');
+      const events = (await applied.text())
+        .split('\n')
+        .filter((line) => line.trim().length > 0)
+        .map(
+          (line) =>
+            JSON.parse(line) as {
+              type: string;
+              summary?: { posts: number; imagesDownloaded: number; imagesFailed: number };
+            },
+        );
+      const done = events.find((event) => event.type === 'done');
+      expect(done?.summary?.posts).toBe(1);
+      // Fixture post body has no external images, so download stays 0/0 but the
+      // multipart pipeline must accept the flags without 400ing.
+      expect(done?.summary?.imagesDownloaded).toBe(0);
+      expect(done?.summary?.imagesFailed).toBe(0);
+
+      const badForm = new FormData();
+      badForm.append('file', new File([new Uint8Array(zipBytes)], 'ghost.zip'));
+      badForm.append('dryRun', 'true');
+      badForm.append('onConflict', 'skip');
+      badForm.append('downloadImages', 'true');
+      badForm.append('maxImageSizeBytes', 'not-a-number');
+      const rejected = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/import/ghost', { method: 'POST', body: badForm }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(rejected.status).toBe(400);
+      const rejectedBody = (await rejected.json()) as { error?: string };
+      expect(rejectedBody.error).toMatch(/maxImageSizeBytes/);
+      // Bad-request must not leave a half-staged upload behind under .nectar/.
+      const stagedAfterReject = await readdir(join(dir, '.nectar')).catch(() => [] as string[]);
+      expect(stagedAfterReject.filter((name) => name.startsWith('import-ghost-'))).toEqual([]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('exports and imports page collaboration bundles through the dashboard API', async () => {
     const dir = await makeDashboardFixture();
     try {
@@ -1103,6 +1162,68 @@ describe('dashboard data', () => {
         kind: 'settings',
         changedPath: 'nectar.toml',
       });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('activates the uploaded theme by writing [theme].name', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await writeDashboardThemeFixture(dir, 'source');
+      const stagingDir = await mkdtemp(join(tmpdir(), 'nectar-theme-zip-'));
+      const themeStaging = join(stagingDir, 'newcomer');
+      await mkdir(themeStaging, { recursive: true });
+      await writeFile(join(themeStaging, 'index.hbs'), '<h1>Newcomer</h1>\n', 'utf8');
+      await writeFile(
+        join(themeStaging, 'post.hbs'),
+        '<!doctype html><html><head>{{ghost_head}}</head><body><main>{{content}}</main></body></html>',
+        'utf8',
+      );
+      await writeFile(
+        join(themeStaging, 'page.hbs'),
+        '<!doctype html><html><head>{{ghost_head}}</head><body><main>{{content}}</main></body></html>',
+        'utf8',
+      );
+      const zipPath = join(stagingDir, 'newcomer.zip');
+      const zipProc = Bun.spawn(['zip', '-rq', zipPath, 'newcomer'], {
+        cwd: stagingDir,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      await zipProc.exited;
+      if (zipProc.exitCode !== 0) {
+        throw new Error(
+          `failed to build test theme zip: ${await new Response(zipProc.stderr).text()}`,
+        );
+      }
+
+      const zipBytes = await Bun.file(zipPath).bytes();
+      const form = new FormData();
+      form.append('file', new File([zipBytes], 'newcomer.zip', { type: 'application/zip' }));
+      const changeBus = createChangeBus({ debounceMs: 1 });
+      const response = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/themes/upload', {
+          method: 'POST',
+          body: form,
+        }),
+        { cwd: dir, changeBus },
+      );
+
+      expect(response.status).toBe(201);
+      const body = (await response.json()) as Record<string, unknown>;
+      expect(body).toMatchObject({ ok: true, name: 'newcomer', active: true });
+
+      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      expect(raw).toContain('name = "newcomer"');
+
+      const settings = await readDashboardSettings({ cwd: dir });
+      expect(settings.theme.name).toBe('newcomer');
+      expect(settings.theme.available.find((theme) => theme.name === 'newcomer')).toMatchObject({
+        active: true,
+      });
+
+      await rm(stagingDir, { recursive: true, force: true });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

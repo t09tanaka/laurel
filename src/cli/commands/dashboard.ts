@@ -1628,20 +1628,24 @@ export async function handleDashboardRequest(
         if (file.size > MAX_BYTES) {
           return jsonResponse({ error: 'ghost export exceeds 200MB limit' }, 413);
         }
-        // Validate cheap form fields before touching disk so a bad request
-        // never leaves a staged copy of the upload behind.
+        // Parse + validate scalar fields *before* staging the upload so a bad
+        // request doesn't leak a file under .nectar/ (the unlink() in finally
+        // below only runs after stagedPath is set inside the try-block).
         const rawDownloadImages = form?.get('downloadImages');
         const downloadImages =
-          typeof rawDownloadImages === 'string' ? rawDownloadImages !== 'false' : undefined;
-        const rawMaxImageSizeBytes = form?.get('maxImageSizeBytes');
+          typeof rawDownloadImages === 'string'
+            ? rawDownloadImages === 'true'
+              ? true
+              : rawDownloadImages === 'false'
+                ? false
+                : undefined
+            : undefined;
+        const rawMaxImageSize = form?.get('maxImageSizeBytes');
         let maxImageSizeBytes: number | undefined;
-        if (typeof rawMaxImageSizeBytes === 'string' && rawMaxImageSizeBytes.length > 0) {
-          const parsed = Number(rawMaxImageSizeBytes);
+        if (typeof rawMaxImageSize === 'string' && rawMaxImageSize.trim().length > 0) {
+          const parsed = Number(rawMaxImageSize);
           if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
-            return jsonResponse(
-              { error: `invalid maxImageSizeBytes: ${rawMaxImageSizeBytes}` },
-              400,
-            );
+            return jsonResponse({ error: 'maxImageSizeBytes must be a non-negative integer' }, 400);
           }
           maxImageSizeBytes = parsed;
         }
@@ -2002,12 +2006,17 @@ export async function handleDashboardRequest(
       } finally {
         await unlink(tmpZip).catch(() => {});
       }
+      // Activate the uploaded theme by writing [theme].name so that
+      // preview/build pick it up immediately, without forcing the
+      // operator to re-select it from the themes list.
+      const configFilePath = resolveConfigPath(ctx.cwd, ctx.configPath);
+      await writeThemeSettingsFile(configFilePath, { name: safeName });
       ctx.changeBus.broadcast({
         reason: 'theme-upload',
         kind: 'settings',
         changedPath: destDir,
       });
-      return jsonResponse({ ok: true, name: safeName, dir: destDir }, 201);
+      return jsonResponse({ ok: true, name: safeName, dir: destDir, active: true }, 201);
     }
     const approvalMatch = url.pathname.match(/^\/api\/approvals\/pages\/([^/]+)$/);
     if (request.method === 'POST' && approvalMatch) {
@@ -3862,7 +3871,7 @@ async function buildDashboardOperations({
   const [doctor, cache, redirects, routes, assets, trash, contentTemplates, internalLinks] =
     await Promise.all([
       runChecks({ cwd, configPath, skipNetwork: true }),
-      readCacheStats(resolve(cwd, '.nectar-cache')),
+      readCacheStats(resolve(cwd, '.nectar/cache')),
       readRedirectInventory(cwd),
       readRoutesInventory(cwd),
       readAssetInventory(cwd, config, [...posts, ...pages]),

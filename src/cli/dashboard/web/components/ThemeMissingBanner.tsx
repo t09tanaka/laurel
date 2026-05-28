@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { ThemeStatus } from '../types.ts';
 
 interface ThemeMissingBannerProps {
@@ -15,13 +15,46 @@ interface ThemeMissingBannerProps {
 // Persistence intentionally lives in component state, not
 // session/localStorage — reloading the page is the recovery path when the
 // operator vendors the theme.
+//
+// Side effect: publishes the rendered banner height as `--banner-height` on
+// the document root so the sticky sidebar can shrink to `calc(100vh -
+// var(--banner-height))` and keep its footer (Settings link) visible. The
+// banner wraps on narrow widths so the height is observed live rather than
+// hard-coded. Cleaned up to `0px` when the banner unmounts (dismissed or
+// theme resolved) so the sidebar returns to full viewport height.
 export function ThemeMissingBanner({ status }: ThemeMissingBannerProps): JSX.Element | null {
   const [dismissed, setDismissed] = useState(false);
-  if (!status?.missing) return null;
-  if (dismissed) return null;
+  const bannerRef = useRef<HTMLDivElement | null>(null);
+  const visible = Boolean(status?.missing) && !dismissed;
+  useEffect(() => {
+    if (!visible) return;
+    const node = bannerRef.current;
+    if (!node) return;
+    const root = document.documentElement;
+    const publish = (height: number): void => {
+      root.style.setProperty('--banner-height', `${height}px`);
+    };
+    publish(node.getBoundingClientRect().height);
+    if (typeof ResizeObserver === 'undefined') {
+      return () => {
+        root.style.setProperty('--banner-height', '0px');
+      };
+    }
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      publish(entry.contentRect.height);
+    });
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      root.style.setProperty('--banner-height', '0px');
+    };
+  }, [visible]);
+  if (!visible || !status) return null;
   const message = status.message ?? `Theme not found at ${status.expectedPath}.`;
   return (
-    <div class="themeMissingBanner" role="alert" aria-live="polite">
+    <div class="themeMissingBanner" role="alert" aria-live="polite" ref={bannerRef}>
       <span class="themeMissingBannerIcon" aria-hidden="true">
         ⚠
       </span>

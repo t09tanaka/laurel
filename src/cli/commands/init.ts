@@ -396,17 +396,7 @@ function renderConfig(a: InitAnswers): string {
 function renderGitignore(): string {
   // `.nectar/` covers the per-project cache (`.nectar/cache/`) plus any
   // future sibling state Nectar might write under the same namespace.
-  // `.theme-cache/` stays listed for backwards compatibility with the
-  // legacy cache location (#575 tracks unifying these).
-  return [
-    'node_modules/',
-    'dist/',
-    '.worktrees/',
-    '.nectar/',
-    '.theme-cache/',
-    '.DS_Store',
-    '',
-  ].join('\n');
+  return ['node_modules/', 'dist/', '.worktrees/', '.nectar/', '.DS_Store', ''].join('\n');
 }
 
 function renderReadme(a: InitAnswers): string {

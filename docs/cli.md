@@ -182,8 +182,8 @@ when prompts are enabled.
 | [`nectar check`](#nectar-check) | Validate config, theme, and content |
 | [`nectar doctor`](#nectar-doctor) | Run health checks on the project (bun, config, theme, content, network) |
 | [`nectar diagnostics`](#nectar-diagnostics) | Create support-safe diagnostics bundles |
-| [`nectar clean`](#nectar-clean) | Remove dist/ and .nectar-cache build artifacts |
-| [`nectar cache`](#nectar-cache) | Inspect or remove the local .nectar-cache directory |
+| [`nectar clean`](#nectar-clean) | Remove dist/ and .nectar/cache build artifacts |
+| [`nectar cache`](#nectar-cache) | Inspect or remove the local .nectar/cache directory |
 | [`nectar completions`](#nectar-completions) | Print or install a shell completion script |
 | [`nectar config`](#nectar-config) | Inspect or update the loaded Nectar config |
 | [`nectar schema`](#nectar-schema) | Print JSON Schema for Nectar config, frontmatter, or theme package.json |
@@ -614,7 +614,7 @@ nectar diagnostics bundle --log-lines 50 --json
 
 ### `nectar clean`
 
-Remove dist/ and .nectar-cache build artifacts
+Remove dist/ and .nectar/cache build artifacts
 
 Usage:
 
@@ -643,7 +643,7 @@ nectar clean --keep dist/.well-known --yes   # preserve specific paths
 
 ### `nectar cache`
 
-Inspect or remove the local .nectar-cache directory
+Inspect or remove the local .nectar/cache directory
 
 Usage:
 

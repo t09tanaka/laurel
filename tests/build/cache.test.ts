@@ -30,14 +30,14 @@ function isEmbedMetadata(value: unknown): value is { title: string } {
 }
 
 describe('build JSON cache', () => {
-  test('stores embed metadata under .nectar-cache/cache/embeds/<sha>.json', async () => {
+  test('stores embed metadata under .nectar/cache/embeds/<sha>.json', async () => {
     const cwd = await tempCwd();
     const cache = createEmbedMetadataCache({ cwd, now: fixedNow('2026-05-21T00:00:00.000Z') });
     const url = new URL('https://example.com/posts/a?utm=source');
 
     const hit = await cache.write(url, { title: 'Example' }, { ttlMs: 86_400_000 });
 
-    expect(hit.path).toStartWith(join(cwd, '.nectar-cache/cache/embeds/'));
+    expect(hit.path).toStartWith(join(cwd, '.nectar/cache/embeds/'));
     expect(hit.path).toEndWith('.json');
     expect(hit.path).not.toContain('example.com');
     expect(hit.cacheKey).toMatch(/^[a-f0-9]{64}$/);

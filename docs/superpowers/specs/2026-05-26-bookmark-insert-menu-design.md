@@ -32,7 +32,7 @@ unchanged.
 ## Non-goals
 
 - oEmbed (Twitter / YouTube / Spotify cards) — already covered by `{{< embed >}}`, not in scope here.
-- Persistent OGP cache (`.nectar-cache/ogp/`) — future work.
+- Persistent OGP cache (`.nectar/cache/ogp/`) — future work.
 - Self-hosting fetched thumbnails into `content/images/` — future work; we keep external URLs.
 - A standalone "card link copy" route.
 - Retry UI on fetch failure beyond the existing "Replace" affordance.

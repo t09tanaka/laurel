@@ -13,6 +13,7 @@ docs-site/dist/
 
 # Bun
 .bun/
+*.bun-build
 
 # Editor & OS
 .DS_Store
@@ -40,8 +41,8 @@ coverage/
 .claude/worktrees/
 
 # Nectar build caches (image transcoder, etc.)
+.nectar/
 .nectar-cache/
-.nectar/cache/
 .claude/scheduled_tasks.lock
 
 # Theme fixture cache (external themes cloned by theme-fixture-smoke workflow)
