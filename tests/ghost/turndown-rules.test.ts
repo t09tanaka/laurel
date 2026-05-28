@@ -1761,3 +1761,78 @@ describe('Ghost Turndown rules — markdown card (comment-fenced)', () => {
     expect(md).toContain('![x](/x.jpg)');
   });
 });
+
+describe('Ghost Turndown rules — table', () => {
+  test('converts a thead/tbody table to a GFM pipe table', () => {
+    const html =
+      '<table><thead><tr><th><strong>項目</strong></th><th>SMS</th><th>＋メッセージ</th></tr></thead>' +
+      '<tbody><tr><td><strong>海外で使えるか</strong></td><td>多くの場合使える</td><td>条件による</td></tr>' +
+      '<tr><td>料金</td><td>受信は無料</td><td>データ通信</td></tr></tbody></table>';
+    const md = td.turndown(html).trim();
+    expect(md).toBe(
+      [
+        '| **項目** | SMS | ＋メッセージ |',
+        '| --- | --- | --- |',
+        '| **海外で使えるか** | 多くの場合使える | 条件による |',
+        '| 料金 | 受信は無料 | データ通信 |',
+      ].join('\n'),
+    );
+  });
+
+  test('uses the first all-<th> row as the header when there is no <thead>', () => {
+    const html = '<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>';
+    const md = td.turndown(html).trim();
+    expect(md).toBe(['| A | B |', '| --- | --- |', '| 1 | 2 |'].join('\n'));
+  });
+
+  test('renders empty cells as a single space and escapes pipes', () => {
+    const html =
+      '<table><thead><tr><th>h1</th><th>h2</th></tr></thead><tbody><tr><td></td><td>a | b</td></tr></tbody></table>';
+    const md = td.turndown(html).trim();
+    expect(md).toBe(['| h1 | h2 |', '| --- | --- |', '|   | a \\| b |'].join('\n'));
+  });
+
+  test('keeps inline marks and links inside cells', () => {
+    const html =
+      '<table><thead><tr><th>name</th><th>link</th></tr></thead><tbody><tr><td><em>x</em></td><td><a href="https://e.com">y</a></td></tr></tbody></table>';
+    const md = td.turndown(html).trim();
+    expect(md).toContain('| [y](https://e.com) |');
+    expect(md).toContain('_x_');
+  });
+
+  test('keeps a colspan table as raw HTML instead of corrupting the grid', () => {
+    const html =
+      '<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td colspan="2">merged</td></tr></tbody></table>';
+    const md = td.turndown(html);
+    expect(md).toContain('<table>');
+    expect(md).toContain('colspan="2"');
+    expect(md).not.toContain('| --- | --- |');
+  });
+
+  test('keeps a table with block-level cell content as raw HTML', () => {
+    const html =
+      '<table><thead><tr><th>h</th></tr></thead><tbody><tr><td><ul><li>one</li><li>two</li></ul></td></tr></tbody></table>';
+    const md = td.turndown(html);
+    expect(md).toContain('<table>');
+    expect(md).toContain('<li>one</li>');
+  });
+
+  test('leaves a table inside a kg-html-card as raw HTML', () => {
+    const html =
+      '<div class="kg-card kg-html-card"><table><tbody><tr><td>One-off</td></tr></tbody></table></div>';
+    const md = td.turndown(html);
+    expect(md).toContain('<div class="kg-card kg-html-card">');
+    expect(md).toContain('<td>One-off</td>');
+    expect(md).not.toContain('| --- |');
+  });
+
+  test('round-trips a GFM table through renderMarkdown into an HTML table', async () => {
+    const html =
+      '<table><thead><tr><th>項目</th><th>値</th></tr></thead><tbody><tr><td>SMS受信</td><td>無料</td></tr></tbody></table>';
+    const md = td.turndown(html);
+    const rendered = await renderMarkdown(md);
+    expect(rendered.html).toContain('<table>');
+    expect(rendered.html).toContain('<th>項目</th>');
+    expect(rendered.html).toContain('<td>SMS受信</td>');
+  });
+});
