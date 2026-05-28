@@ -74,14 +74,19 @@ export function ThemeMissingBanner({ status }: ThemeMissingBannerProps): JSX.Ele
           </a>
         </p>
       </div>
-      <button
-        type="button"
-        class="themeMissingBannerDismiss"
-        aria-label="Dismiss theme missing alert"
-        onClick={() => setDismissed(true)}
-      >
-        ×
-      </button>
+      <div class="themeMissingBannerActions">
+        <a class="themeMissingBannerButton" href="/settings/design">
+          Open Design tab
+        </a>
+        <button
+          type="button"
+          class="themeMissingBannerDismiss"
+          aria-label="Dismiss theme missing alert"
+          onClick={() => setDismissed(true)}
+        >
+          ×
+        </button>
+      </div>
     </div>
   );
 }
