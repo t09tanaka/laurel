@@ -64,6 +64,10 @@ export function ThemeMissingBanner({ status }: ThemeMissingBannerProps): JSX.Ele
           Download a Ghost-compatible theme into{' '}
           <code class="themeMissingBannerPath">{status.expectedPath}</code> to preview or build the
           site.{' '}
+          <a class="themeMissingBannerLink" href="/settings/design">
+            Open Design tab
+          </a>
+          {' · '}
           <a
             class="themeMissingBannerLink"
             href="https://ghost.org/themes/"
