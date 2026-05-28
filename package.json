@@ -115,6 +115,7 @@
     "htmlparser2": "10.1.0",
     "js-yaml": "^4.1.1",
     "markdown-it": "^14.1.2",
+    "markdown-it-cjk-friendly": "^2.0.2",
     "marked": "14.1.4",
     "marked-gfm-heading-id": "^4.1.1",
     "postcss": "^8.5.15",
