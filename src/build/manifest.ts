@@ -356,14 +356,6 @@ export function collectRouteContentInputs(
   });
 }
 
-export function computeRouteContentFingerprint(
-  route: RouteContext,
-  content: ContentGraph,
-  index?: RouteContentInputIndex,
-): string {
-  return computeRouteContentInputsFingerprint(collectRouteContentInputs(route, content, index));
-}
-
 export function computeRouteContentInputsFingerprint(inputs: readonly RouteContentInput[]): string {
   return sha256(stableStringify(inputs));
 }

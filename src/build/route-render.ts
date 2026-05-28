@@ -1,13 +1,11 @@
 import { resolve } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
-import { SUBSCRIBE_NOOP_BUILD_WARNING } from '~/members/noop.ts';
 import type { BuildContext, Plugin } from '~/plugin/types.ts';
 import type { NectarEngine } from '~/render/engine.ts';
 import type { RouteContext } from '~/render/types.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { NectarError, isNectarError } from '~/util/errors.ts';
-import { logger } from '~/util/logger.ts';
 import { injectSkipLink } from './a11y.ts';
 import { rewriteBasePathUrls } from './base-path-urls.ts';
 import { rewriteContentImageUrls } from './content-image-urls.ts';
@@ -29,7 +27,7 @@ import {
   injectSearchShimScript,
   searchEngineUsesNectarGhostSearchShim,
 } from './search.ts';
-import { containsSubscribeFormMarkup, transformSubscribeForms } from './subscribe-forms.ts';
+import { transformSubscribeForms } from './subscribe-forms.ts';
 
 export interface RouteRenderOptions {
   cwd: string;
@@ -133,24 +131,6 @@ export async function renderRouteHtml(opts: RouteRenderOptions): Promise<string>
   } catch (err) {
     throw wrapRenderError(err, route.url, route.template);
   }
-}
-
-export function createSubscribeNoopWarner(
-  config: NectarConfig,
-  content: ContentGraph,
-): (html: string) => void {
-  let warned = false;
-  return (html: string): void => {
-    if (
-      !warned &&
-      !content.site.members_invite_only &&
-      config.components.subscribe.provider === 'none' &&
-      containsSubscribeFormMarkup(html)
-    ) {
-      warned = true;
-      logger.warn(SUBSCRIBE_NOOP_BUILD_WARNING);
-    }
-  };
 }
 
 function wrapRenderError(err: unknown, url: string, template: string): NectarError {

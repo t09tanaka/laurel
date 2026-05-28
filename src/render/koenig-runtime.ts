@@ -64,13 +64,6 @@ export function getKoenigRuntimeCardTypes(
   return new Set();
 }
 
-export function shouldInjectKoenigRuntime(
-  cardAssets: ThemeCardAssets,
-  cardTypes: Set<KoenigRuntimeCardType>,
-): boolean {
-  return enabledKoenigRuntimeCardTypes(cardAssets, cardTypes).length > 0;
-}
-
 export function enabledKoenigRuntimeCardTypes(
   cardAssets: ThemeCardAssets,
   cardTypes: Set<KoenigRuntimeCardType>,
