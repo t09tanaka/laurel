@@ -210,8 +210,7 @@ export async function loadContent({
   const site = buildSite(config);
   const taxonomies = resolveTaxonomies(routesYaml ?? emptyRoutesYaml());
   const activeTransforms = markdownTransforms ?? [];
-  const activeRawContentCache =
-    activeTransforms.length === 0 && pageApprovalGate !== true ? rawContentCache : undefined;
+  const activeRawContentCache = activeTransforms.length === 0 ? rawContentCache : undefined;
 
   // Pre-count post/page files so the pool can skip spawning Bun Workers on
   // small sites where the spawn cost would exceed the parsing cost. Tags and
@@ -1025,7 +1024,7 @@ async function loadPages(
       );
     },
     config.content.max_markdown_bytes,
-    rawContentCacheContext('page', config, rawContentCache),
+    approvalsEnabled ? undefined : rawContentCacheContext('page', config, rawContentCache),
   );
 }
 
