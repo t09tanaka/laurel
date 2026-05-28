@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { existsSync } from 'node:fs';
 import {
   access,
   mkdir,
@@ -17,6 +18,7 @@ import {
   applyDashboardBulkAction,
   createChangeBus,
   createDashboardTaxonomyFile,
+  filterUnavailablePreviewPictureSources,
   handleDashboardRequest,
   listDashboardContentTemplates,
   listDashboardInternalLinks,
@@ -32,6 +34,10 @@ import {
   writeDashboardSiteSettings,
   writeDashboardThemeSettings,
 } from '~/cli/commands/dashboard.ts';
+import {
+  dashboardPreviewImageOutputDir,
+  generateDashboardImageVariantsNow,
+} from '~/cli/dashboard/image-variant-queue.ts';
 import { createDashboardUiState, reduceDashboardUiState } from '~/cli/dashboard/ui-state.ts';
 import { loadConfig } from '~/config/loader.ts';
 
@@ -1861,6 +1867,96 @@ describe('dashboard data', () => {
         { cwd: dir, changeBus: createChangeBus() },
       );
       expect(traversal.status).toBe(404);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('filters preview picture sources whose generated files do not exist', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const cacheRoot = dashboardPreviewImageOutputDir(dir);
+      await mkdir(join(cacheRoot, 'content/images/size/w600'), { recursive: true });
+      await writeFile(
+        join(cacheRoot, 'content/images/size/w600/existing.jpg.webp'),
+        'webp',
+        'utf8',
+      );
+      const html = [
+        '<picture>',
+        '<source type="image/webp" srcset="/content/images/size/w600/missing.jpg.webp 600w" sizes="100vw">',
+        '<img src="/content/images/missing.jpg" alt="">',
+        '</picture>',
+        '<picture>',
+        '<source type="image/webp" srcset="/content/images/size/w600/existing.jpg.webp 600w" sizes="100vw">',
+        '<img src="/content/images/existing.jpg" alt="">',
+        '</picture>',
+      ].join('');
+
+      const filtered = await filterUnavailablePreviewPictureSources(html, { cwd: dir, config });
+
+      expect(filtered).not.toContain('missing.jpg.webp');
+      expect(filtered).toContain('existing.jpg.webp');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('serves generated preview image variants from cache before falling back to originals', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await mkdir(join(dir, 'content/images'), { recursive: true });
+      await writeFile(join(dir, 'content/images/photo.jpg'), 'original', 'utf8');
+      const cacheRoot = dashboardPreviewImageOutputDir(dir);
+      await mkdir(join(cacheRoot, 'content/images/size/w600'), { recursive: true });
+      await writeFile(join(cacheRoot, 'content/images/size/w600/photo.jpg.webp'), 'webp', 'utf8');
+
+      const generated = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/content/images/size/w600/photo.jpg.webp'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(generated.status).toBe(200);
+      expect(await generated.text()).toBe('webp');
+
+      const fallback = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/content/images/size/w1000/photo.jpg'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(fallback.status).toBe(200);
+      expect(await fallback.text()).toBe('original');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('generates dashboard preview image variants into cache without modifying content images', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await writeDashboardThemeFixture(dir, 'source');
+      await mkdir(join(dir, 'content/images'), { recursive: true });
+      const sharp = (await import('sharp')).default;
+      await sharp({
+        create: {
+          width: 1200,
+          height: 800,
+          channels: 3,
+          background: '#336699',
+        },
+      })
+        .jpeg()
+        .toFile(join(dir, 'content/images/photo.jpg'));
+
+      const generated = await generateDashboardImageVariantsNow({
+        cwd: dir,
+        reason: 'test',
+      });
+      const cacheRoot = dashboardPreviewImageOutputDir(dir);
+
+      expect(generated).toBeGreaterThan(0);
+      expect(existsSync(join(cacheRoot, 'content/images/size/w600/photo.jpg'))).toBe(true);
+      expect(existsSync(join(cacheRoot, 'content/images/size/w600/photo.jpg.webp'))).toBe(true);
+      expect(existsSync(join(dir, 'content/images/size/w600/photo.jpg'))).toBe(false);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
