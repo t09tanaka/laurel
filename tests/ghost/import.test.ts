@@ -681,6 +681,82 @@ describe('importGhostExport — --keep-html (#808)', () => {
   });
 });
 
+describe('importGhostExport — reusable Ghost HTML cards', () => {
+  let cwd: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-components-')));
+    exportFile = join(cwd, 'export.json');
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  test('extracts repeated Ghost HTML cards into a reusable component', async () => {
+    const bannerHtml =
+      '<div class="kg-card kg-html-card"><figure><a href="https://esimdb.com/ja" target="_blank"><img src="https://esimdb.com/images/esimdb-banner-ja-v3.jpg" alt="eSIMDB banner" /></a><figcaption style="text-align:center;font-size:0.8em">eSIMDB</figcaption></figure></div>';
+    await writeFile(
+      exportFile,
+      makeExport([
+        {
+          slug: 'first',
+          title: 'First',
+          html: `<p>Before</p>${bannerHtml}<p>After</p>`,
+        },
+        {
+          slug: 'second',
+          title: 'Second',
+          html: `<p>Intro</p>${bannerHtml}`,
+        },
+      ]),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+
+    const first = await readFile(join(cwd, 'content/posts/first.md'), 'utf8');
+    const second = await readFile(join(cwd, 'content/posts/second.md'), 'utf8');
+    const shortcode = first.match(/\{(ghost-html-card-[a-f0-9]+)\}/)?.[1];
+    expect(shortcode).toBeDefined();
+    expect(first).toContain(`{${shortcode}}`);
+    expect(second).toContain(`{${shortcode}}`);
+    expect(first).not.toContain('<div class="kg-card kg-html-card">');
+    expect(second).not.toContain('<div class="kg-card kg-html-card">');
+
+    const componentPath = join(cwd, `content/components/${shortcode}.md`);
+    const component = await readFile(componentPath, 'utf8');
+    expect(component).toContain(`slug: "${shortcode}"`);
+    expect(component).toContain('```html');
+    expect(component).toContain('<div class="kg-card kg-html-card">');
+    expect(component).toContain('https://esimdb.com/images/esimdb-banner-ja-v3.jpg');
+    expect(summary.plannedPaths).toContain(componentPath);
+    expect(summary.plannedPaths.filter((p) => p === componentPath)).toHaveLength(1);
+  });
+
+  test('leaves one-off Ghost HTML cards inline to avoid component clutter', async () => {
+    const uniqueHtml =
+      '<div class="kg-card kg-html-card"><table><tbody><tr><td>One-off</td></tr></tbody></table></div>';
+    await writeFile(
+      exportFile,
+      makeExport([
+        {
+          slug: 'unique',
+          title: 'Unique',
+          html: `<p>Before</p>${uniqueHtml}`,
+        },
+      ]),
+    );
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
+
+    const post = await readFile(join(cwd, 'content/posts/unique.md'), 'utf8');
+    expect(post).toContain('<div class="kg-card kg-html-card">');
+    expect(post).not.toContain('{ghost-html-card-');
+    expect(summary.plannedPaths.some((p) => p.includes('/components/'))).toBe(false);
+  });
+});
+
 describe('importGhostExport — slug sanitization (#160)', () => {
   let cwd: string;
   let outside: string;

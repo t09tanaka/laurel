@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import { access, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, resolve, sep } from 'node:path';
@@ -814,6 +815,7 @@ async function importFromResolvedInput(
       ),
     ),
   );
+  const reusableHtmlCardHashes = findReusableHtmlCardHashes(renderedPosts);
 
   let postCount = 0;
   let pageCount = 0;
@@ -829,10 +831,11 @@ async function importFromResolvedInput(
   const writeQueue: Array<Promise<void>> = [];
   const plannedPaths: string[] = [];
   const claimedPostPageSlugs = new Map<string, PostPageSlugClaim>();
+  const writtenHtmlCardComponents = new Set<string>();
   let htmlPreserved = 0;
   for (const r of renderedPosts) {
     if (!r) continue;
-    const resolved = await resolvePostPageSlugClaim(
+    let resolved = await resolvePostPageSlugClaim(
       r,
       onConflict,
       counters,
@@ -840,6 +843,24 @@ async function importFromResolvedInput(
       writtenThisRun,
     );
     if (!resolved) continue;
+    const componentized = componentizeReusableHtmlCards(resolved.contents, reusableHtmlCardHashes);
+    if (componentized.components.length > 0) {
+      const componentsDir = join(outputRoot, 'components');
+      for (const component of componentized.components) {
+        const componentDest = join(componentsDir, `${component.slug}.md`);
+        assertWithin(componentsDir, componentDest);
+        if (writtenHtmlCardComponents.has(componentDest) || (await pathExists(componentDest))) {
+          continue;
+        }
+        writtenHtmlCardComponents.add(componentDest);
+        if (!dryRun) await ensureDirOnce(componentsDir);
+        if (!dryRun) {
+          writeQueue.push(writeLimit(() => writeFile(componentDest, component.contents, 'utf8')));
+        }
+        plannedPaths.push(componentDest);
+      }
+      resolved = { ...resolved, contents: componentized.contents };
+    }
     recordSlugChange(resolved.isPage ? 'page' : 'post', resolved.originalSlug, resolved.slug);
     if (!dryRun) await ensureDirOnce(dirname(resolved.dest));
     const written = await dispatchWrite(
@@ -1773,6 +1794,156 @@ async function nextAvailablePostPageSlug(
 
 function replaceImportedSlug(contents: string, slug: string): string {
   return contents.replace(/^slug: .+$/m, `slug: ${JSON.stringify(slug)}`);
+}
+
+interface ImportedHtmlCardCandidate {
+  start: number;
+  end: number;
+  html: string;
+  hash: string;
+}
+
+interface ImportedHtmlCardComponent {
+  slug: string;
+  contents: string;
+}
+
+function findReusableHtmlCardHashes(
+  records: ReadonlyArray<RenderedPostRecord | undefined>,
+): Set<string> {
+  const counts = new Map<string, number>();
+  for (const record of records) {
+    if (!record) continue;
+    for (const candidate of collectStandaloneHtmlCards(importedMarkdownBody(record.contents))) {
+      counts.set(candidate.hash, (counts.get(candidate.hash) ?? 0) + 1);
+    }
+  }
+  return new Set([...counts].filter(([, count]) => count > 1).map(([hash]) => hash));
+}
+
+function componentizeReusableHtmlCards(
+  contents: string,
+  reusableHashes: ReadonlySet<string>,
+): { contents: string; components: ImportedHtmlCardComponent[] } {
+  if (reusableHashes.size === 0) return { contents, components: [] };
+  const split = splitImportedMarkdown(contents);
+  const candidates = collectStandaloneHtmlCards(split.body).filter((candidate) =>
+    reusableHashes.has(candidate.hash),
+  );
+  if (candidates.length === 0) return { contents, components: [] };
+
+  const componentsBySlug = new Map<string, ImportedHtmlCardComponent>();
+  let body = split.body;
+  for (const candidate of [...candidates].sort((a, b) => b.start - a.start)) {
+    const slug = importedHtmlCardComponentSlug(candidate.hash);
+    componentsBySlug.set(slug, {
+      slug,
+      contents: renderImportedHtmlCardComponent(slug, candidate.html),
+    });
+    body = replaceHtmlCardCandidate(body, candidate, `{${slug}}`);
+  }
+  return {
+    contents: `${split.prefix}${body}`,
+    components: [...componentsBySlug.values()],
+  };
+}
+
+function collectStandaloneHtmlCards(markdown: string): ImportedHtmlCardCandidate[] {
+  if (!markdown.includes('kg-html-card')) return [];
+  const doc = parseDocument(markdown, {
+    decodeEntities: false,
+    lowerCaseAttributeNames: false,
+    withEndIndices: true,
+    withStartIndices: true,
+  });
+  const candidates: ImportedHtmlCardCandidate[] = [];
+  const visit = (nodes: readonly ChildNode[]): void => {
+    for (const node of nodes) {
+      if (!isElement(node)) continue;
+      if (node.name.toLowerCase() === 'div' && elementHasClass(node, 'kg-html-card')) {
+        const start = node.startIndex;
+        const end = node.endIndex;
+        if (
+          start !== null &&
+          end !== null &&
+          start >= 0 &&
+          end >= start &&
+          hasMarkdownBlockBoundary(markdown, start, end)
+        ) {
+          const html = markdown.slice(start, end + 1).trim();
+          candidates.push({ start, end, html, hash: hashImportedHtmlCard(html) });
+        }
+        continue;
+      }
+      visit(node.children);
+    }
+  };
+  visit(doc.children as ChildNode[]);
+  return candidates;
+}
+
+function elementHasClass(node: Element, className: string): boolean {
+  return (node.attribs.class ?? '').split(/\s+/).includes(className);
+}
+
+function hasMarkdownBlockBoundary(markdown: string, start: number, end: number): boolean {
+  const before = markdown.slice(0, start);
+  const after = markdown.slice(end + 1);
+  const previousWhitespace = before.match(/\s*$/)?.[0] ?? '';
+  const nextWhitespace = after.match(/^\s*/)?.[0] ?? '';
+  return (
+    (before.length === previousWhitespace.length || previousWhitespace.includes('\n')) &&
+    (after.length === nextWhitespace.length || nextWhitespace.includes('\n'))
+  );
+}
+
+function replaceHtmlCardCandidate(
+  markdown: string,
+  candidate: ImportedHtmlCardCandidate,
+  shortcode: string,
+): string {
+  const before = markdown.slice(0, candidate.start).replace(/[ \t]*$/, '');
+  const after = markdown.slice(candidate.end + 1).replace(/^[ \t]*/, '');
+  return `${before}\n\n${shortcode}\n\n${after}`;
+}
+
+function splitImportedMarkdown(contents: string): { prefix: string; body: string } {
+  const match = contents.match(/^---\n[\s\S]*?\n---\n\n?/);
+  if (!match) return { prefix: '', body: contents };
+  return { prefix: match[0], body: contents.slice(match[0].length) };
+}
+
+function importedMarkdownBody(contents: string): string {
+  return splitImportedMarkdown(contents).body;
+}
+
+function importedHtmlCardComponentSlug(hash: string): string {
+  return `ghost-html-card-${hash.slice(0, 12)}`;
+}
+
+function hashImportedHtmlCard(html: string): string {
+  return createHash('sha256').update(html.trim()).digest('hex');
+}
+
+function renderImportedHtmlCardComponent(slug: string, html: string): string {
+  const fence = codeFenceFor(html);
+  return [
+    '---',
+    `slug: ${JSON.stringify(slug)}`,
+    'description: "Imported Ghost HTML card"',
+    '---',
+    '',
+    `${fence}html`,
+    html.trim(),
+    fence,
+    '',
+  ].join('\n');
+}
+
+function codeFenceFor(value: string): string {
+  let longest = 0;
+  for (const match of value.matchAll(/`+/g)) longest = Math.max(longest, match[0].length);
+  return '`'.repeat(Math.max(3, longest + 1));
 }
 
 // Render a single Ghost post into a (dest, frontmatter+body) pair, or
