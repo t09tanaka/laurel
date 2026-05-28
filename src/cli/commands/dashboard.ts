@@ -138,6 +138,7 @@ const SITE_SETTINGS_FIELDS = [
   'youtube',
   'instagram',
   'github',
+  'og_image',
   'codeinjection_head',
   'codeinjection_foot',
 ];
@@ -539,6 +540,10 @@ export interface DashboardState {
     url: string;
     accentColor: string;
     social: DashboardSocialSettings;
+    // Site-wide default Open Graph / social-share image written to
+    // `[site].og_image`. Used by {{ghost_head}} as the og:image / twitter:image
+    // fallback when a route has no per-post feature/og/twitter image.
+    ogImage: string;
     // Mirrors Ghost's site-wide "Code injection" head/foot fields so the
     // dashboard's Code Injection panel can hydrate from the same `[site]`
     // table it writes back to. Reflects the raw config value regardless of
@@ -637,6 +642,7 @@ export interface DashboardSettings {
     timezone: string;
     accentColor: string;
     social: DashboardSocialSettings;
+    ogImage: string;
     codeinjectionHead: string;
     codeinjectionFoot: string;
     allowCodeInjection: boolean;
@@ -1124,6 +1130,7 @@ export async function loadDashboardState({
       url: graph.site.url,
       accentColor: graph.site.accent_color,
       social: dashboardSocialSettings(config.site),
+      ogImage: typeof config.site.og_image === 'string' ? config.site.og_image : '',
       // Read from `config.site` rather than `graph.site` so the dashboard can
       // still edit the values when the operator hasn't flipped
       // `build.allow_code_injection` on yet — `graph.site.codeinjection_*` is
@@ -1299,6 +1306,7 @@ export async function readDashboardSettings({
       timezone: config.site.timezone,
       accentColor: config.site.accent_color,
       social: dashboardSocialSettings(config.site),
+      ogImage: typeof config.site.og_image === 'string' ? config.site.og_image : '',
       codeinjectionHead:
         typeof config.site.codeinjection_head === 'string' ? config.site.codeinjection_head : '',
       codeinjectionFoot:
