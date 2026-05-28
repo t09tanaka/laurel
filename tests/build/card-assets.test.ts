@@ -89,6 +89,13 @@ describe('emitCardAssets', () => {
     expect(css).toMatch(/\.kg-button-card\.kg-align-center\{[^}]*justify-content:center/);
   });
 
+  test('bookmark thumbnail uses a bounded side column', () => {
+    const css = renderCardAssetsCss(true);
+
+    expect(css).toMatch(/\.kg-bookmark-thumbnail\{[^}]*flex:0 0 33%/);
+    expect(css).not.toContain('kg-bookmark-thumbnail{position:relative;flex-grow:1');
+  });
+
   test('uses a stable exclude-specific cache key', () => {
     expect(cardAssetsVersion(true)).toBe('7');
     expect(cardAssetsVersion({ exclude: [] })).toBe('7');
