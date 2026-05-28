@@ -4083,6 +4083,15 @@
     margin-bottom: 32px;
     min-width: 0;
     border-bottom: 1px solid var(--border-weak);
+    /* Keep the header above the fixed metadata aside (z-index: 5) and paint
+     * the same surface as the body so the aside can never bleed over or peek
+     * out beneath the header. background-attachment: fixed anchors the wash to
+     * the viewport so this slice lines up exactly with the body's gradient. */
+    position: relative;
+    z-index: 6;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.18 0 0 0 0 0.16 0 0 0 0 0.13 0 0 0 0.05 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"),
+      linear-gradient(180deg, #f7f4ee 0, #ffffff 38%, var(--background-secondary));
+    background-attachment: fixed;
   }
   /* Quiet "← Posts" breadcrumb — replaces the prior Close button. Reads
    * as a return path, not a destructive control. */
