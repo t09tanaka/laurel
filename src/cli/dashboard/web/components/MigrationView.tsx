@@ -130,6 +130,17 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
     }
     return '';
   })();
+  const sourceUrlError = (() => {
+    const trimmed = sourceUrl.trim();
+    if (trimmed === '') return 'Enter the public URL of the source Ghost site.';
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return '';
+    } catch {
+      // handled by the shared message below
+    }
+    return `Invalid source URL: "${trimmed}". Expected an absolute URL like https://oldblog.com.`;
+  })();
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -167,19 +178,7 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
       maxImageSizeBytes = parsed * 1024 * 1024;
     }
     const trimmedSource = sourceUrl.trim();
-    if (trimmedSource.length === 0) {
-      setLocalError('Enter the public URL of the source Ghost site.');
-      return;
-    }
-    try {
-      const parsed = new URL(trimmedSource);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        throw new Error('non-http(s)');
-      }
-    } catch {
-      setLocalError(
-        `Invalid source URL: "${trimmedSource}". Expected an absolute URL like https://oldblog.com.`,
-      );
+    if (sourceUrlError) {
       return;
     }
     setLocalError('');
@@ -319,7 +318,7 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
           </label>
         </div>
         <label class="field wide">
-          <span>Source URL</span>
+          <span>Source URL *</span>
           <input
             id="ghostImportSourceUrl"
             type="url"
@@ -327,14 +326,22 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
             value={sourceUrl}
             required
             disabled={busy}
+            aria-invalid={sourceUrlError ? 'true' : 'false'}
+            aria-describedby={sourceUrlError ? 'ghostImportSourceUrlError' : undefined}
             onInput={(event) => setSourceUrl((event.currentTarget as HTMLInputElement).value)}
           />
-          <span class="meta">
-            Public URL of the source Ghost site. Required to fetch images — Ghost exports store
-            image URLs as <code>__GHOST_URL__/content/images/...</code>, and the downloader needs a
-            real base to resolve them. Include the subpath if the blog is mounted under one (e.g.{' '}
-            <code>https://example.com/ja/blog</code>).
-          </span>
+          {sourceUrlError ? (
+            <span id="ghostImportSourceUrlError" class="fieldError" role="alert">
+              {sourceUrlError}
+            </span>
+          ) : (
+            <span class="meta">
+              Public URL of the source Ghost site. Ghost exports store image URLs as{' '}
+              <code>__GHOST_URL__/content/images/...</code>, and the downloader needs a real base to
+              resolve them. Include the subpath if the blog is mounted under one (e.g.{' '}
+              <code>https://example.com/ja/blog</code>).
+            </span>
+          )}
         </label>
         <details class="advancedPanel" data-field="ghost-image-advanced">
           <summary>Advanced</summary>
@@ -377,7 +384,7 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
             class="btn"
             id="applyGhostImport"
             type="button"
-            disabled={busy || !file || !!maxImageSizeError}
+            disabled={busy || !file || !!sourceUrlError || !!maxImageSizeError}
             onClick={() => {
               void run();
             }}
