@@ -4,6 +4,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   realpath,
   rm,
   symlink,
@@ -796,6 +797,9 @@ describe('dashboard data', () => {
       expect(rejected.status).toBe(400);
       const rejectedBody = (await rejected.json()) as { error?: string };
       expect(rejectedBody.error).toMatch(/maxImageSizeBytes/);
+      // Bad-request must not leave a half-staged upload behind under .nectar/.
+      const stagedAfterReject = await readdir(join(dir, '.nectar')).catch(() => [] as string[]);
+      expect(stagedAfterReject.filter((name) => name.startsWith('import-ghost-'))).toEqual([]);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
