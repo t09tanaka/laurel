@@ -64,10 +64,6 @@ export function ThemeMissingBanner({ status }: ThemeMissingBannerProps): JSX.Ele
           Download a Ghost-compatible theme into{' '}
           <code class="themeMissingBannerPath">{status.expectedPath}</code> to preview or build the
           site.{' '}
-          <a class="themeMissingBannerLink" href="/settings/design">
-            Open Design tab
-          </a>
-          {' · '}
           <a
             class="themeMissingBannerLink"
             href="https://ghost.org/themes/"
@@ -78,14 +74,19 @@ export function ThemeMissingBanner({ status }: ThemeMissingBannerProps): JSX.Ele
           </a>
         </p>
       </div>
-      <button
-        type="button"
-        class="themeMissingBannerDismiss"
-        aria-label="Dismiss theme missing alert"
-        onClick={() => setDismissed(true)}
-      >
-        ×
-      </button>
+      <div class="themeMissingBannerActions">
+        <a class="themeMissingBannerButton" href="/settings/design">
+          Open Design tab
+        </a>
+        <button
+          type="button"
+          class="themeMissingBannerDismiss"
+          aria-label="Dismiss theme missing alert"
+          onClick={() => setDismissed(true)}
+        >
+          ×
+        </button>
+      </div>
     </div>
   );
 }

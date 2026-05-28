@@ -5104,7 +5104,7 @@
     display: grid;
     grid-template-columns: auto 1fr auto;
     gap: 12px;
-    align-items: start;
+    align-items: center;
     margin: 0;
     padding: 12px 22px;
     border: 0;
@@ -5153,6 +5153,41 @@
   .themeMissingBannerLink:hover {
     text-decoration-thickness: 2px;
   }
+  .themeMissingBannerActions {
+    display: inline-flex;
+    align-items: center;
+    justify-self: end;
+    gap: 8px;
+  }
+  .themeMissingBannerButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    padding: 7px 12px;
+    border: 1px solid color-mix(in srgb, var(--caution) 45%, var(--border-default));
+    border-radius: 6px;
+    background: var(--surface-primary);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    text-decoration: none;
+    white-space: nowrap;
+    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+    transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+  }
+  .themeMissingBannerButton:hover {
+    border-color: color-mix(in srgb, var(--caution) 62%, var(--border-default));
+    background: color-mix(in srgb, var(--caution) 10%, var(--surface-primary));
+  }
+  .themeMissingBannerButton:active {
+    transform: translateY(1px);
+  }
+  .themeMissingBannerButton:focus-visible {
+    outline: 2px solid var(--caution);
+    outline-offset: 2px;
+  }
   .themeMissingBannerDismiss {
     appearance: none;
     border: none;
@@ -5171,6 +5206,16 @@
   .themeMissingBannerDismiss:focus-visible {
     outline: 2px solid var(--caution);
     outline-offset: 2px;
+  }
+  @media (max-width: 720px) {
+    .themeMissingBanner {
+      grid-template-columns: auto 1fr;
+      align-items: start;
+    }
+    .themeMissingBannerActions {
+      grid-column: 2;
+      justify-self: start;
+    }
   }
   .themeEmpty {
     display: grid;
