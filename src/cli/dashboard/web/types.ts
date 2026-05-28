@@ -56,6 +56,8 @@ export interface TaxonomySummary {
 export interface ComponentSummary {
   slug: string;
   description: string;
+  css: string;
+  html: string;
   hasCss: boolean;
   hasHtml: boolean;
   path: string;

@@ -4,6 +4,7 @@ import { schema as basicSchema } from 'prosemirror-schema-basic';
 import { addListNodes } from 'prosemirror-schema-list';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { tableNodes } from 'prosemirror-tables';
+import { componentNodeSpec } from '../../../src/cli/dashboard/web/lib/prose-component-schema.ts';
 import {
   COMPONENT_SLUG_PATTERN,
   altFromFilenameDefault,
@@ -23,6 +24,10 @@ const fullNodes = withList.append(
   tableNodes({ tableGroup: 'block', cellContent: 'inline*', cellAttributes: {} }),
 );
 const proseSchema = new Schema({ nodes: fullNodes, marks: basicSchema.spec.marks });
+const proseSchemaWithComponent = new Schema({
+  nodes: fullNodes.append({ component: componentNodeSpec }),
+  marks: basicSchema.spec.marks,
+});
 
 function makeStateFromText(text: string): EditorState {
   const doc = proseSchema.node('doc', null, [
@@ -91,7 +96,7 @@ describe('prose-insert-menu — altFromFilenameDefault', () => {
 });
 
 describe('prose-insert-menu — buildComponentParagraph', () => {
-  test('produces a paragraph whose text content is the literal {slug}', () => {
+  test('produces a paragraph whose text content is the literal {slug} without a component node', () => {
     const para = buildComponentParagraph(proseSchema, 'callout');
     expect(para).not.toBeNull();
     if (!para) return;
@@ -110,6 +115,20 @@ describe('prose-insert-menu — buildComponentParagraph', () => {
       },
     });
     expect(buildComponentParagraph(bare, 'callout')).toBeNull();
+  });
+
+  test('produces a component atom when the schema supports previews', () => {
+    const node = buildComponentParagraph(proseSchemaWithComponent, 'callout', {
+      slug: 'callout',
+      description: 'Inline notice',
+      html: '<div class="callout">Hi</div>',
+      css: '.callout{}',
+    });
+    expect(node).not.toBeNull();
+    if (!node) return;
+    expect(node.type.name).toBe('component');
+    expect(node.attrs.slug).toBe('callout');
+    expect(node.attrs.html).toContain('Hi');
   });
 });
 
@@ -138,8 +157,18 @@ describe('prose-insert-menu — buildComponentSubmenuEntries', () => {
       slug: 'callout',
       label: '{callout}',
       hint: 'Inline notice block',
+      description: 'Inline notice block',
+      css: undefined,
+      html: undefined,
     });
-    expect(entries[1]).toEqual({ slug: 'hero', label: '{hero}', hint: '' });
+    expect(entries[1]).toEqual({
+      slug: 'hero',
+      label: '{hero}',
+      hint: '',
+      description: undefined,
+      css: undefined,
+      html: undefined,
+    });
   });
 
   test('drops slugs that fail the loader pattern', () => {
@@ -203,6 +232,29 @@ describe('prose-insert-menu — buildInsertComponentTransaction', () => {
     // textBetween across the doc strips paragraph markers; for a
     // single paragraph it equals the paragraph's textContent.
     expect(tr.doc.textBetween(0, tr.doc.content.size)).toBe('{callout}');
+  });
+
+  test('can replace an empty paragraph with a component atom', () => {
+    const doc = proseSchemaWithComponent.node('doc', null, [
+      proseSchemaWithComponent.node('paragraph', null, []),
+    ]);
+    const base = EditorState.create({ schema: proseSchemaWithComponent, doc });
+    const state = base.apply(base.tr.setSelection(TextSelection.create(base.doc, 1)));
+    const target = findEmptyParagraph(state);
+    expect(target).not.toBeNull();
+    if (!target) return;
+    const inserted = buildComponentParagraph(proseSchemaWithComponent, 'callout', {
+      slug: 'callout',
+      html: '<div>Hi</div>',
+    });
+    expect(inserted).not.toBeNull();
+    if (!inserted) return;
+    const tr = buildInsertComponentTransaction(state, target, inserted);
+    expect(tr).not.toBeNull();
+    if (!tr) return;
+    expect(tr.doc.firstChild?.type.name).toBe('component');
+    expect(tr.selection.empty).toBe(false);
+    expect(tr.selection.from).toBe(0);
   });
 });
 
