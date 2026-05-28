@@ -8,6 +8,7 @@ extend-exclude = [
   "bun.lock",
   "*.lock",
   "CHANGELOG.md",
+  "src/cli/dashboard/bundled-assets.ts",
   "tests/fixtures/**",
   ".github/workflows/release.yml",
 ]

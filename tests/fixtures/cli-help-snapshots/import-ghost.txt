@@ -13,7 +13,7 @@ Options:
   --on-conflict <skip|overwrite|rename>  How to handle existing files when slugs collide: skip (default), overwrite, or rename
   --assets <dir>      Path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/
   -o, --output <dir>  Write imported Markdown, assets, and redirect review files under this directory instead of the project content/ and migration/ directories
-  --download-images   Download remote image URLs (Unsplash, Ghost CDN, …) into content/images/ and rewrite references to local paths
+  --download-images   Download Ghost content image/media URLs into content/images/ and rewrite references to local paths; third-party service URLs stay external
   --max-image-size <size>  Per-image size cap (e.g. 10MB, 1GB, or raw bytes) when --download-images is set; over-cap images are warned and left as remote URLs. Defaults to 10MB. Use 0 to disable.
   --source-url <url>  Absolute URL of the source Ghost site (e.g. https://oldblog.com); rewrites in-body links that point at this host to site-relative paths
   --dry-run           Parse the export and print a summary of what would land (posts, drafts, empty bodies, conflicts, assets) without writing files or downloading images

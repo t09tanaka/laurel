@@ -519,7 +519,7 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
     'download-images': {
       type: 'boolean',
       description:
-        'Download remote image URLs (Unsplash, Ghost CDN, …) into content/images/ and rewrite references to local paths',
+        'Download Ghost content image/media URLs into content/images/ and rewrite references to local paths; third-party service URLs stay external',
     },
     'max-image-size': {
       type: 'string',
@@ -1331,7 +1331,7 @@ export const MIGRATE_SPEC: CommandSpec = {
     'download-images': {
       type: 'boolean',
       description:
-        'ghost only: download remote image URLs into content/images/ and rewrite references to local paths',
+        'ghost only: download Ghost content image/media URLs into content/images/ and rewrite references to local paths; third-party service URLs stay external',
     },
     'max-image-size': {
       type: 'string',

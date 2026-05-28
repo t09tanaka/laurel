@@ -1102,7 +1102,7 @@ Options:
 | `--on-conflict <skip\|overwrite\|rename>` | string | `NECTAR_MIGRATE_ON_CONFLICT` | How to handle existing files when slugs collide: skip (default), overwrite, or rename (ghost/wordpress only) |
 | `--dry-run` | boolean | `NECTAR_MIGRATE_DRY_RUN` | Parse the source and print a summary of what would land without writing files (ghost/wordpress only; hugo/jekyll/eleventy print a copy plan) |
 | `--assets <dir>` | string | `NECTAR_MIGRATE_ASSETS` | ghost only: path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/ |
-| `--download-images` | boolean | `NECTAR_MIGRATE_DOWNLOAD_IMAGES` | ghost only: download remote image URLs into content/images/ and rewrite references to local paths |
+| `--download-images` | boolean | `NECTAR_MIGRATE_DOWNLOAD_IMAGES` | ghost only: download Ghost content image/media URLs into content/images/ and rewrite references to local paths; third-party service URLs stay external |
 | `--max-image-size <size>` | string | `NECTAR_MIGRATE_MAX_IMAGE_SIZE` | ghost only: per-image size cap when --download-images is set (e.g. 10MB; default 10MB; 0 disables) |
 | `--source-url <url>` | string | `NECTAR_MIGRATE_SOURCE_URL` | ghost only: absolute URL of the source Ghost site; rewrites in-body links pointing at this host to site-relative paths |
 | `--max-size <size>` | string | `NECTAR_MIGRATE_MAX_SIZE` | ghost only: max JSON export size before refusing to parse (e.g. 256MB; default 256MB; 0 disables) |
@@ -1349,7 +1349,7 @@ Options:
 | `--on-conflict <skip\|overwrite\|rename>` | string | `NECTAR_IMPORT_GHOST_ON_CONFLICT` | How to handle existing files when slugs collide: skip (default), overwrite, or rename |
 | `--assets <dir>` | string | `NECTAR_IMPORT_GHOST_ASSETS` | Path to a Ghost content/ dir holding images/, files/, media/ subdirs; copied into the project's content/ |
 | `-o, --output <dir>` | string | `NECTAR_IMPORT_GHOST_OUTPUT` | Write imported Markdown, assets, and redirect review files under this directory instead of the project content/ and migration/ directories |
-| `--download-images` | boolean | `NECTAR_IMPORT_GHOST_DOWNLOAD_IMAGES` | Download remote image URLs (Unsplash, Ghost CDN, …) into content/images/ and rewrite references to local paths |
+| `--download-images` | boolean | `NECTAR_IMPORT_GHOST_DOWNLOAD_IMAGES` | Download Ghost content image/media URLs into content/images/ and rewrite references to local paths; third-party service URLs stay external |
 | `--max-image-size <size>` | string | `NECTAR_IMPORT_GHOST_MAX_IMAGE_SIZE` | Per-image size cap (e.g. 10MB, 1GB, or raw bytes) when --download-images is set; over-cap images are warned and left as remote URLs. Defaults to 10MB. Use 0 to disable. |
 | `--source-url <url>` | string | `NECTAR_IMPORT_GHOST_SOURCE_URL` | Absolute URL of the source Ghost site (e.g. https://oldblog.com); rewrites in-body links that point at this host to site-relative paths |
 | `--dry-run` | boolean | `NECTAR_IMPORT_GHOST_DRY_RUN` | Parse the export and print a summary of what would land (posts, drafts, empty bodies, conflicts, assets) without writing files or downloading images |

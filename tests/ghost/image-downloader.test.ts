@@ -5,6 +5,27 @@ import { join } from 'node:path';
 import { GhostImageDownloader } from '~/ghost/image-downloader.ts';
 
 describe('GhostImageDownloader', () => {
+  test('leaves third-party service image URLs untouched without fetching them', async () => {
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-image-dl-third-party-')));
+    const url = 'https://images.unsplash.com/photo-12345?w=1200';
+    const fetcher = (async (): Promise<Response> => {
+      throw new Error('third-party service images should not be fetched');
+    }) as unknown as typeof fetch;
+
+    try {
+      const downloader = new GhostImageDownloader({ cwd, fetcher });
+
+      const rewritten = await downloader.downloadOne(url);
+
+      expect(rewritten).toBeNull();
+      expect(downloader.downloaded).toBe(0);
+      expect(downloader.failed).toBe(0);
+      expect(downloader.skipped).toBe(1);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   test('serializes concurrent image downloads through one shared downloader', async () => {
     const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-image-dl-serial-')));
     const urls = [
