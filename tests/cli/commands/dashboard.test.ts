@@ -2349,3 +2349,97 @@ describe('GET /api/dashboard/bootstrap', () => {
     }
   });
 });
+
+describe('dashboard favicon (site.icon)', () => {
+  test('writes site.icon to the [site] section and reads it back', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const before = await readDashboardSettings({ cwd: dir });
+      expect(before.site.icon).toBe('');
+
+      const written = await writeDashboardSiteSettings({
+        cwd: dir,
+        expectedFingerprint: before.fingerprint,
+        updates: { icon: '/content/images/favicon.png' },
+      });
+      expect(written.ok).toBe(true);
+
+      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      expect(raw).toContain('icon = "/content/images/favicon.png"');
+      // Existing [site] keys untouched.
+      expect(raw).toContain('title = "Dashboard Test"');
+
+      const after = await readDashboardSettings({ cwd: dir });
+      expect(after.site.icon).toBe('/content/images/favicon.png');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('clears site.icon by writing an empty string', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const seeded = await writeDashboardSiteSettings({
+        cwd: dir,
+        expectedFingerprint: (await readDashboardSettings({ cwd: dir })).fingerprint,
+        updates: { icon: '/content/images/favicon.png' },
+      });
+      expect(seeded.ok).toBe(true);
+
+      const before = await readDashboardSettings({ cwd: dir });
+      const cleared = await writeDashboardSiteSettings({
+        cwd: dir,
+        expectedFingerprint: before.fingerprint,
+        updates: { icon: '' },
+      });
+      expect(cleared.ok).toBe(true);
+
+      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      expect(raw).toContain('icon = ""');
+
+      const after = await readDashboardSettings({ cwd: dir });
+      expect(after.site.icon).toBe('');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('loadDashboardState surfaces the configured site.icon', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await writeDashboardSiteSettings({
+        cwd: dir,
+        expectedFingerprint: (await readDashboardSettings({ cwd: dir })).fingerprint,
+        updates: { icon: '/content/images/favicon.svg' },
+      });
+      const state = await loadDashboardState({ cwd: dir });
+      expect(state.site.icon).toBe('/content/images/favicon.svg');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('POST /api/images accepts an .ico favicon and stores it with a .ico extension', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const form = new FormData();
+      // Minimal ICO header bytes; content is irrelevant to the upload path.
+      form.append(
+        'file',
+        new File([new Uint8Array([0, 0, 1, 0, 1, 0])], 'favicon.ico', { type: 'image/x-icon' }),
+      );
+      const changeBus = createChangeBus({ debounceMs: 1 });
+      const response = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/images', { method: 'POST', body: form }),
+        { cwd: dir, changeBus },
+      );
+      expect(response.status).toBe(201);
+      const body = (await response.json()) as { path: string; name: string };
+      expect(body.name).toMatch(/\.ico$/);
+      expect(body.path).toMatch(/^\/content\/images\/.*\.ico$/);
+      expect(existsSync(join(dir, body.path.replace(/^\//, '')))).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

@@ -144,6 +144,7 @@ export interface DashboardState {
     description: string;
     url: string;
     accentColor: string;
+    icon: string;
     social: {
       twitter: string;
       facebook: string;
