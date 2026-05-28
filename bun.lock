@@ -72,6 +72,7 @@
   },
   "overrides": {
     "proxy-agent": "6.4.0",
+    "tmp": "^0.2.6",
   },
   "packages": {
     "@appthreat/atom": ["@appthreat/atom@2.5.2", "", { "dependencies": { "@appthreat/atom-common": "^1.1.0" }, "bin": { "atom": "index.js" } }, "sha512-VF17Jdh/SDAM3ddDChCC3jW5M09ViK51agO3d92fAJaJwcAZjzPmp5W5q61tuAfBYcBhw19LBSnazh/NxZyj9Q=="],
@@ -1348,7 +1349,7 @@
 
     "tldts-icann": ["tldts-icann@7.0.30", "", { "dependencies": { "tldts-core": "^7.0.30" } }, "sha512-o+sKcCCZQOh78GHfpmlcKoef0c+UVfltkqmgKmUHWiMiUhSfer8k5mEkQL2RBqwuC90fluI7ZN50H7+I2bJ1jw=="],
 
-    "tmp": ["tmp@0.2.5", "", {}, "sha512-voyz6MApa1rQGUxT3E+BK7/ROe8itEx7vD8/HEvt4xwXucvQ5G5oeEiHkmHZJuBO21RpOf+YYm9MOivj709jow=="],
+    "tmp": ["tmp@0.2.7", "", {}, "sha512-e0votIpp4Uo2AJYSzVHV6xCcawuiez3DzqDAbrTc3YxBkplN6e+dM13ZeIcZnDg/QpSuU2zfZ3rzwY8ukEnaXw=="],
 
     "toidentifier": ["toidentifier@1.0.1", "", {}, "sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA=="],
 
