@@ -63,8 +63,11 @@ export function promoteImagesToFigures(
     const caption = extractFollowingCaption(tail);
 
     const hasCaptionClass = caption ? ' kg-card-hascaption' : '';
-    const figcaption = caption ? `<figcaption>${caption.text}</figcaption>` : '';
-    result += `<figure class="kg-card kg-image-card kg-width-${width}${hasCaptionClass}">${inner}${figcaption}</figure>`;
+    const figureAttrs = caption ? captionFigureAttrs(caption.text) : '';
+    const figcaption = caption
+      ? `<figcaption id="${escapeHtmlAttr(captionId(caption.text))}">${caption.text}</figcaption>`
+      : '';
+    result += `<figure class="kg-card kg-image-card kg-width-${width}${hasCaptionClass}"${figureAttrs}>${inner}${figcaption}</figure>`;
     promotedImageCount += 1;
 
     cursor = match.index + full.length + (caption?.consumed ?? 0);
@@ -83,6 +86,12 @@ function extractFollowingCaption(tail: string): { text: string; consumed: number
 }
 
 function consumeImageWidthHint(imgTag: string): { imgTag: string; width: string } {
+  const titleMatch = imgTag.match(/\stitle\s*=\s*("([^"]*)"|'([^']*)')/i);
+  if (titleMatch) {
+    const parsed = parseImageTitleWidth(titleMatch[2] ?? titleMatch[3] ?? '');
+    if (parsed) return { imgTag: imgTag.replace(titleMatch[0], ''), width: parsed.width };
+  }
+
   const altMatch = imgTag.match(/\salt\s*=\s*("([^"]*)"|'([^']*)')/i);
   if (!altMatch) return { imgTag, width: 'regular' };
 
@@ -111,6 +120,36 @@ function parseImageAltWidth(value: string): { alt: string; width: string } | nul
     alt: value.slice(0, divider).trimEnd(),
     width: candidate,
   };
+}
+
+function parseImageTitleWidth(value: string): { width: string } | null {
+  const width = value.trim().replace(/^kg-width-/, '');
+  return KOENIG_IMAGE_WIDTHS.has(width) ? { width } : null;
+}
+
+function captionId(caption: string): string {
+  return `kg-card-caption-${hashLabel(caption)}`;
+}
+
+function captionFigureAttrs(caption: string): string {
+  return ` role="group" aria-labelledby="${escapeHtmlAttr(captionId(caption))}"`;
+}
+
+function hashLabel(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function escapeHtmlAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function addKgImageClass(imgTag: string): string {

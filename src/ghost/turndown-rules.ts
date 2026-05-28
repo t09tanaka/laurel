@@ -330,6 +330,58 @@ function escapeHtmlAttr(v: string): string {
     .replace(/>/g, '&gt;');
 }
 
+function escapeMarkdownImageLabel(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/]/g, '\\]');
+}
+
+function markdownDestination(value: string): string {
+  if (!/[\s()<>]/.test(value)) return value;
+  return `<${value.replace(/\\/g, '\\\\').replace(/>/g, '\\>')}>`;
+}
+
+function markdownTitle(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function markdownImage(src: string, alt: string, width: string): string {
+  const title = width && width !== 'regular' ? ` "kg-width-${markdownTitle(width)}"` : '';
+  return `![${escapeMarkdownImageLabel(alt)}](${markdownDestination(src)}${title})`;
+}
+
+function markdownLinkedImage(image: string, href: string): string {
+  return href ? `[${image}](${markdownDestination(href)})` : image;
+}
+
+function markdownBlockquote(value: string): string {
+  return value
+    .split(/\r?\n/)
+    .map((line) => `> ${line}`)
+    .join('\n');
+}
+
+function inlineMarkdownFromHtml(turndown: TurndownService, rawHtml: string): string {
+  return turndown
+    .turndown(rawHtml)
+    .trim()
+    .replace(/\n{2,}/g, '\n')
+    .replace(/\n/g, ' ');
+}
+
+function hasPictureSources(attrs: Record<string, string>): boolean {
+  return Object.entries(attrs).some(
+    ([key, value]) => key.startsWith('source') && value.trim() !== '',
+  );
+}
+
+function isPotentiallyAnimatedImageSrc(src: string): boolean {
+  try {
+    const url = new URL(src, 'https://nectar.invalid');
+    return /\.(?:gif|webp)$/i.test(url.pathname);
+  } catch {
+    return /\.(?:gif|webp)$/i.test(src.split(/[?#]/, 1)[0] ?? '');
+  }
+}
+
 function formatAttrs(attrs: Record<string, string>): string {
   const pairs = Object.entries(attrs)
     .filter(([, v]) => v !== '')
@@ -875,18 +927,35 @@ export function registerGhostCardRules(turndown: TurndownService): void {
     replacement: (_content, node) => {
       const img = node.querySelector('img');
       if (!img) return '';
+      const pictureAttrs = pictureSourceAttrs(node);
+      const src = attr(img, 'src');
+      const align = classByPrefix(node, 'kg-align-');
+      const width = classByPrefix(node, 'kg-width-');
+      const captionHtml = html(node.querySelector('figcaption'));
+      if (
+        src &&
+        !align &&
+        !hasPictureSources(pictureAttrs) &&
+        !node.querySelector('picture') &&
+        !isPotentiallyAnimatedImageSrc(src)
+      ) {
+        const image = markdownImage(src, attr(img, 'alt'), width);
+        const linked = markdownLinkedImage(image, imageWrapAnchorHref(node));
+        const caption = captionHtml ? inlineMarkdownFromHtml(turndown, captionHtml) : '';
+        return wrap(caption ? `${linked}\n\n${markdownBlockquote(caption)}` : linked);
+      }
       return wrap(
         shortcode('figure', {
-          src: attr(img, 'src'),
+          src,
           alt: attr(img, 'alt'),
           width: attr(img, 'width'),
           height: attr(img, 'height'),
           srcset: attr(img, 'srcset'),
           sizes: attr(img, 'sizes'),
-          ...pictureSourceAttrs(node),
+          ...pictureAttrs,
           href: imageWrapAnchorHref(node),
-          size: classByPrefix(node, 'kg-width-'),
-          align: classByPrefix(node, 'kg-align-'),
+          size: width,
+          align,
           caption: text(node.querySelector('figcaption')),
         }),
       );

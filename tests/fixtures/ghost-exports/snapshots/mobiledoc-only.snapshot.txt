@@ -35,7 +35,7 @@ status: "published"
 
 This post comes from a Ghost 1.x mobiledoc export with **bold** and _italic_ runs.
 
-{{< figure src="/content/images/legacy.jpg" alt="Legacy cover" />}}
+![Legacy cover](/content/images/legacy.jpg)
 
 *   alpha
 *   beta
