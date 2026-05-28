@@ -26,6 +26,7 @@ function hasClass(node: FilterNode, className: string): boolean {
 interface DomNode {
   readonly nodeName: string;
   readonly innerHTML: string;
+  readonly outerHTML?: string;
   readonly textContent: string | null;
   readonly attributes?: ArrayLike<{ readonly name: string; readonly value: string }>;
   readonly childNodes?: ArrayLike<unknown>;
@@ -365,6 +366,102 @@ function inlineMarkdownFromHtml(turndown: TurndownService, rawHtml: string): str
     .trim()
     .replace(/\n{2,}/g, '\n')
     .replace(/\n/g, ' ');
+}
+
+function tableRowCells(row: DomNode): DomNode[] {
+  return Array.from((row.childNodes ?? []) as ArrayLike<DomNode>).filter(
+    (child) => child.nodeName === 'TH' || child.nodeName === 'TD',
+  );
+}
+
+function cellSpansMultipleCells(cell: DomNode): boolean {
+  return (
+    Number.parseInt(attr(cell, 'colspan') || '1', 10) > 1 ||
+    Number.parseInt(attr(cell, 'rowspan') || '1', 10) > 1
+  );
+}
+
+// A GFM pipe-table cell can only hold inline content. Block-level descendants
+// (lists, nested tables, multiple paragraphs, headings, …) cannot survive being
+// flattened onto one line, so the caller keeps such tables as raw HTML instead
+// of silently corrupting the grid.
+function cellHasBlockContent(cell: DomNode): boolean {
+  if (
+    cell.querySelector('ul, ol, blockquote, pre, table, figure, hr, h1, h2, h3, h4, h5, h6, div')
+  ) {
+    return true;
+  }
+  return Array.from(cell.querySelectorAll('p') as ArrayLike<DomNode>).length > 1;
+}
+
+// Mirror of the dashboard editor's `serializeCell` (ProseEditor.tsx): flatten a
+// cell's inline content onto one line, escape pipes, and render an empty cell as
+// a single space so imported tables and editor-inserted tables share one format.
+function serializeTableCell(turndown: TurndownService, cell: DomNode): string {
+  const inner = inlineMarkdownFromHtml(turndown, cell.innerHTML).replace(/\|/g, '\\|');
+  return inner.length === 0 ? ' ' : inner;
+}
+
+function tableHtml(node: DomNode): string {
+  const outer = node.outerHTML;
+  return typeof outer === 'string' && outer.trim() ? outer : `<table>${node.innerHTML}</table>`;
+}
+
+// Convert a plain <table> to a GFM pipe table matching the dashboard editor's
+// markdown serializer. Returns null when the table can't be represented as GFM
+// (merged cells, nested tables, block-level cell content, a multi-row or missing
+// header, or a body row wider than the header), signalling the caller to keep
+// the original HTML so no data is lost.
+function tableToGfmMarkdown(turndown: TurndownService, table: DomNode): string | null {
+  if (table.querySelector('table')) return null;
+
+  const allRows = Array.from(table.querySelectorAll('tr') as ArrayLike<DomNode>);
+  if (allRows.length === 0) return null;
+
+  const thead = table.querySelector('thead');
+  let headerRow: DomNode | null;
+  let bodyRows: DomNode[];
+  if (thead) {
+    const headRows = Array.from(thead.querySelectorAll('tr') as ArrayLike<DomNode>);
+    if (headRows.length !== 1) return null;
+    headerRow = headRows[0] ?? null;
+    bodyRows = allRows.filter((row) => row !== headerRow);
+  } else {
+    const first = allRows[0] ?? null;
+    const firstCells = first ? tableRowCells(first) : [];
+    if (!first || firstCells.length === 0 || !firstCells.every((c) => c.nodeName === 'TH')) {
+      return null;
+    }
+    headerRow = first;
+    bodyRows = allRows.slice(1);
+  }
+  if (!headerRow) return null;
+
+  const headerCells = tableRowCells(headerRow);
+  const columnCount = headerCells.length;
+  if (columnCount === 0) return null;
+
+  for (const cell of Array.from(table.querySelectorAll('th, td') as ArrayLike<DomNode>)) {
+    if (cellSpansMultipleCells(cell) || cellHasBlockContent(cell)) return null;
+  }
+  for (const row of bodyRows) {
+    if (tableRowCells(row).length > columnCount) return null;
+  }
+
+  const formatRow = (cells: string[]): string => {
+    const padded = [...cells];
+    while (padded.length < columnCount) padded.push(' ');
+    return `| ${padded.join(' | ')} |`;
+  };
+
+  const lines = [
+    formatRow(headerCells.map((cell) => serializeTableCell(turndown, cell))),
+    `| ${Array.from({ length: columnCount }, () => '---').join(' | ')} |`,
+  ];
+  for (const row of bodyRows) {
+    lines.push(formatRow(tableRowCells(row).map((cell) => serializeTableCell(turndown, cell))));
+  }
+  return lines.join('\n');
 }
 
 function hasPictureSources(attrs: Record<string, string>): boolean {
@@ -1381,6 +1478,27 @@ export function registerGhostCardRules(turndown: TurndownService): void {
   // the user's markdown to HTML before export, so the default `<div>`
   // walk-through behaviour converts the children back to markdown — and any
   // nested kg-* card rules inside still fire.
+
+  // Table. Turndown has no built-in table handling, so a plain <table> in a
+  // Ghost post body — e.g. a Koenig markdown card authored with a GFM table,
+  // which Ghost's lexical export renders to a bare <table> with no
+  // <!--kg-card-begin: markdown--> fence for the importer's raw-markdown
+  // preservation to latch onto — gets flattened into one bold paragraph per
+  // cell. Re-emit it as the same GFM pipe table the dashboard editor's
+  // insert-table produces (src/cli/dashboard/web/components/ProseEditor.tsx),
+  // which Nectar's `marked` renderer (gfm: true) renders and the editor
+  // round-trips. Tables GFM can't express (merged cells, nested tables,
+  // block-level cell content) stay as sanitised raw HTML so the grid survives.
+  turndown.addRule('gfm-table', {
+    filter: 'table',
+    replacement: (_content, node) => {
+      const table = node as unknown as DomNode;
+      const gfm = tableToGfmMarkdown(turndown, table);
+      if (gfm !== null) return wrap(gfm);
+      const raw = sanitizeImportedHtmlCard(tableHtml(table));
+      return raw ? wrap(raw) : '';
+    },
+  });
 
   // Inline semantic tags markdown has no syntax for. Keeping them as HTML is
   // strictly better than silently flattening to plain text.
