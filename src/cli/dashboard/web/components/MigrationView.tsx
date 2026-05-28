@@ -1,10 +1,7 @@
 import type { JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import {
-  type GhostImportStreamEvent,
-  importPageBundleUpload,
-  streamGhostImport,
-} from '../lib/api.ts';
+import { type GhostImportStreamEvent, streamGhostImport } from '../lib/api.ts';
+import { useFileDropHover } from '../lib/use-file-drop-hover.ts';
 import { StatePanel } from './StatePanel.tsx';
 
 interface MigrationViewProps {
@@ -16,13 +13,12 @@ export function MigrationView(props: MigrationViewProps): JSX.Element {
   return (
     <div class="migrationPage">
       {/* Section h2 dropped — the page-level viewTitle already says
-       * "Migration". The two import cards below name themselves. */}
+       * "Migration". The import card below names itself. */}
       <div class="migrationGrid">
         <GhostImportPanel
           onApplied={props.onSettingsSaved}
           onImportSuccess={props.onGhostImportSuccess}
         />
-        <PageBundleImportPanel onApplied={props.onSettingsSaved} />
       </div>
     </div>
   );
@@ -478,16 +474,15 @@ interface UploadDropzoneProps {
 
 function UploadDropzone(props: UploadDropzoneProps): JSX.Element {
   const filled = props.file !== null;
+  const { isDragging, dragHoverProps, clearDrag } = useFileDropHover();
   return (
     <label
-      class={`themeUploadDrop${props.disabled ? ' busy' : ''}${filled ? ' filled' : ''}`}
-      onDragOver={(event) => {
-        if (event.dataTransfer?.types?.includes('Files')) {
-          event.preventDefault();
-          event.dataTransfer.dropEffect = 'copy';
-        }
-      }}
+      class={`themeUploadDrop${props.disabled ? ' busy' : ''}${filled ? ' filled' : ''}${
+        isDragging ? ' isDragging' : ''
+      }`}
+      {...dragHoverProps}
       onDrop={(event) => {
+        clearDrag();
         const candidate = Array.from(event.dataTransfer?.files ?? []).find((f) =>
           props.match(f.name),
         );
@@ -548,166 +543,6 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function PageBundleImportPanel(props: ImportPanelProps): JSX.Element {
-  const [file, setFile] = useState<File | null>(null);
-  const [onConflict, setOnConflict] = useState<'skip' | 'rename' | 'overwrite'>('skip');
-  const [notice, setNotice] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{
-    error?: string;
-    result?: {
-      written?: boolean;
-      pagePath?: string;
-      skipped?: boolean;
-      renamed?: boolean;
-      assetPaths?: string[];
-    };
-    dryRun?: boolean;
-  } | null>(null);
-
-  async function run(dryRun: boolean) {
-    if (!file) {
-      setResult({ error: 'Pick a page bundle (.json or .zip) first.' });
-      return;
-    }
-    if (
-      !dryRun &&
-      onConflict === 'overwrite' &&
-      !confirm('Overwrite an existing page if the bundle slug already exists?')
-    ) {
-      return;
-    }
-    if (
-      !dryRun &&
-      !confirm('Import writes one Page and bundled assets into this project. Continue?')
-    ) {
-      return;
-    }
-    setBusy(true);
-    setNotice(dryRun ? 'Previewing page import…' : 'Importing page…');
-    try {
-      const { status, data } = await importPageBundleUpload({
-        file,
-        dryRun,
-        onConflict,
-      });
-      if (status >= 400) {
-        const error = (data as { error?: string }).error;
-        setResult({ error: error ?? 'Page import failed' });
-        return;
-      }
-      setResult(data as typeof result);
-      if (!dryRun) await props.onApplied();
-    } catch (err) {
-      setResult({ error: err instanceof Error ? err.message : String(err) });
-    } finally {
-      setBusy(false);
-      setNotice('');
-    }
-  }
-
-  return (
-    <article class="settingsCard migrationCard field wide" data-migration="page-bundle">
-      <header class="migrationCardHead">
-        <div>
-          <h3>Page bundle import</h3>
-          <p class="meta">
-            Drop one saved Page collaboration bundle (.json or .zip). Preview never writes files.
-          </p>
-        </div>
-      </header>
-      <UploadDropzone
-        accept=".json,.zip,application/json,application/zip"
-        file={file}
-        disabled={busy}
-        hint="Click or drop a page bundle (.json / .zip)"
-        onPick={setFile}
-        onClear={() => setFile(null)}
-        match={(name) => /\.(json|zip)$/i.test(name)}
-      />
-      <div class="fields">
-        <label class="field">
-          <span>Conflict policy</span>
-          <select
-            id="pageBundleImportConflict"
-            value={onConflict}
-            onChange={(event) =>
-              setOnConflict(
-                (event.currentTarget as HTMLSelectElement).value as 'skip' | 'rename' | 'overwrite',
-              )
-            }
-          >
-            <option value="skip">skip</option>
-            <option value="rename">rename</option>
-            <option value="overwrite">overwrite</option>
-          </select>
-        </label>
-      </div>
-      <div class="editorActions">
-        <button
-          class="btn secondary"
-          id="previewPageBundleImport"
-          type="button"
-          disabled={busy || !file}
-          onClick={() => {
-            void run(true);
-          }}
-        >
-          Preview import
-        </button>
-        <button
-          class="btn"
-          id="applyPageBundleImport"
-          type="button"
-          disabled={busy || !file}
-          onClick={() => {
-            void run(false);
-          }}
-        >
-          Import page
-        </button>
-      </div>
-      <output class="notice" id="pageBundleImportNotice">
-        {notice}
-      </output>
-      <div id="pageBundleImportResult">
-        {result?.error ? (
-          <StatePanel kind="error" message={result.error} />
-        ) : result?.result ? (
-          <table class="table">
-            <tbody>
-              <tr>
-                <th>mode</th>
-                <td>{result.dryRun ? 'dry-run' : 'apply'}</td>
-              </tr>
-              <tr>
-                <th>page path</th>
-                <td>{result.result.pagePath ?? ''}</td>
-              </tr>
-              <tr>
-                <th>written</th>
-                <td>{result.result.written ? 'yes' : 'no'}</td>
-              </tr>
-              <tr>
-                <th>skipped</th>
-                <td>{result.result.skipped ? 'yes' : 'no'}</td>
-              </tr>
-              <tr>
-                <th>renamed</th>
-                <td>{result.result.renamed ? 'yes' : 'no'}</td>
-              </tr>
-              <tr>
-                <th>assets</th>
-                <td>{(result.result.assetPaths ?? []).length}</td>
-              </tr>
-            </tbody>
-          </table>
-        ) : null}
-      </div>
-    </article>
-  );
 }
 
 function GhostImportResultTable({

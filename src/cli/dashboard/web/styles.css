@@ -2291,7 +2291,10 @@
     cursor: pointer;
     transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
   }
-  .themeUploadDrop:hover {
+  /* A dragged-over file gets the same affordance as mouse hover. Native
+   * file-drag doesn't fire :hover reliably, so .isDragging mirrors it. */
+  .themeUploadDrop:hover,
+  .themeUploadDrop.isDragging {
     border-color: var(--text-primary);
     background: var(--surface-raised);
   }
@@ -2318,7 +2321,8 @@
     min-height: 72px;
     box-shadow: var(--shadow-elevation-1);
   }
-  .themeUploadDrop.filled:hover {
+  .themeUploadDrop.filled:hover,
+  .themeUploadDrop.filled.isDragging {
     background: var(--surface-raised);
     box-shadow: var(--shadow-elevation-2);
   }
@@ -4516,7 +4520,10 @@
     transition: border-color 0.12s ease, background-color 0.12s ease, color 0.12s ease;
     position: relative;
   }
-  .featureImageZone:hover {
+  /* A dragged-over file gets the same affordance as mouse hover. Native
+   * file-drag doesn't fire :hover reliably, so .isDragging mirrors it. */
+  .featureImageZone:hover,
+  .featureImageZone.isDragging {
     border-color: var(--text-primary);
     color: var(--text-primary);
     background: var(--surface-raised);
@@ -4527,7 +4534,8 @@
     min-height: 0;
     background: transparent;
   }
-  .featureImageZone.filled:hover {
+  .featureImageZone.filled:hover,
+  .featureImageZone.filled.isDragging {
     background: transparent;
   }
   /* Compact favicon picker: small actual-size preview + file-picker button.
@@ -4613,7 +4621,8 @@
     transition: opacity 0.12s ease;
     pointer-events: none;
   }
-  .featureImageZone.filled:hover .featureImageHint {
+  .featureImageZone.filled:hover .featureImageHint,
+  .featureImageZone.filled.isDragging .featureImageHint {
     opacity: 1;
   }
   .featureImageRemove {
@@ -4630,7 +4639,8 @@
     opacity: 0;
     transition: opacity 0.12s ease, background-color 0.12s ease;
   }
-  .featureImageZone.filled:hover .featureImageRemove {
+  .featureImageZone.filled:hover .featureImageRemove,
+  .featureImageZone.filled.isDragging .featureImageRemove {
     opacity: 1;
   }
   .featureImageRemove:hover {

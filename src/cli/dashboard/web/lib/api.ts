@@ -509,27 +509,6 @@ export async function importPageBundle(
   return { status: response.status, data: await response.json() };
 }
 
-export interface PageBundleImportUploadArgs {
-  file: File;
-  dryRun: boolean;
-  onConflict: 'skip' | 'rename' | 'overwrite';
-}
-
-export async function importPageBundleUpload(
-  args: PageBundleImportUploadArgs,
-): Promise<{ status: number; data: unknown }> {
-  const fd = new FormData();
-  fd.append('file', args.file);
-  fd.append('dryRun', String(args.dryRun));
-  fd.append('onConflict', args.onConflict);
-  const response = await fetch('/api/page-bundles/import', {
-    method: 'POST',
-    headers: { 'x-nectar-dashboard-token': dashboardToken },
-    body: fd,
-  });
-  return { status: response.status, data: await response.json() };
-}
-
 export interface BuildSummarySnapshot {
   outputDir: string;
   routeCount: number;

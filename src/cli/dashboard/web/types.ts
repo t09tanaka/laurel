@@ -157,6 +157,7 @@ export interface DashboardState {
       instagram: string;
       github: string;
     };
+    ogImage: string;
     codeinjectionHead: string;
     codeinjectionFoot: string;
     allowCodeInjection: boolean;
