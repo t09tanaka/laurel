@@ -3595,6 +3595,38 @@ describe('importGhostExport — posts_tags/posts_authors bucketing (#139)', () =
     expect(p2).toContain('tags: ["beta"]');
     expect(p2).toContain('authors: ["ann"]');
   });
+
+  test('falls back to Ghost post created_by when posts_authors is missing', async () => {
+    const ghostExport = {
+      db: [
+        {
+          data: {
+            posts: [
+              {
+                id: 'p1',
+                title: 'Authored without join row',
+                slug: 'authored-without-join-row',
+                html: '<p>body</p>',
+                status: 'published',
+                type: 'post',
+                created_by: 'u-a',
+              },
+            ],
+            users: [{ id: 'u-a', slug: 'ann', name: 'Ann' }],
+            posts_authors: [],
+          },
+        },
+      ],
+    };
+
+    await writeFile(exportFile, JSON.stringify(ghostExport));
+    const summary = await importGhostExport({ cwd, file: exportFile, onConflict: 'overwrite' });
+    expect(summary.posts).toBe(1);
+    expect(summary.authors).toBe(1);
+
+    const post = await readFile(join(cwd, 'content/posts/authored-without-join-row.md'), 'utf8');
+    expect(post).toContain('authors: ["ann"]');
+  });
 });
 
 describe('importGhostExport — --dry-run (#502)', () => {

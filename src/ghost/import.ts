@@ -95,6 +95,9 @@ interface GhostPost {
   uuid?: string;
   title: string;
   slug: string;
+  created_by?: string | null;
+  published_by?: string | null;
+  updated_by?: string | null;
   html?: string | null;
   mobiledoc?: string | null;
   lexical?: string | null;
@@ -728,14 +731,30 @@ async function importFromResolvedInput(
       })
       .filter((slug): slug is string => slug.length > 0);
 
-  const authorSlugsForPost = (postId: string): string[] =>
-    (postsAuthorsByPost.get(postId) ?? [])
+  const userSlugForId = (userId: string | null | undefined): string => {
+    if (!userId) return '';
+    const user = userById.get(userId);
+    if (!user) return '';
+    return safeSlug(user.slug) || safeSlug(user.name);
+  };
+
+  const authorSlugsForPost = (post: GhostPost): string[] => {
+    const joined = (postsAuthorsByPost.get(post.id) ?? [])
       .map((r) => {
         const u = userById.get(r.user_id);
         if (!u) return '';
         return safeSlug(u.slug) || safeSlug(u.name);
       })
       .filter((slug): slug is string => slug.length > 0);
+    if (joined.length > 0) return joined;
+    return uniqueStrings(
+      [
+        userSlugForId(post.published_by),
+        userSlugForId(post.created_by),
+        userSlugForId(post.updated_by),
+      ].filter((slug) => slug.length > 0),
+    );
+  };
 
   const tierSlugsForPost = (postId: string): string[] =>
     (postsTiersByPost.get(postId) ?? [])
@@ -1689,7 +1708,7 @@ interface RenderPostContext {
   downloader: GhostImageDownloader | undefined;
   urlRewriter: GhostUrlRewriter | undefined;
   tagSlugsForPost: (postId: string) => string[];
-  authorSlugsForPost: (postId: string) => string[];
+  authorSlugsForPost: (post: GhostPost) => string[];
   tierSlugsForPost: (postId: string) => string[];
   metaForPost: (postId: string) => GhostPostMeta | undefined;
   turndown: ReturnType<typeof createGhostTurndown>;
@@ -1848,7 +1867,7 @@ async function renderPostRecord(
   const tiers = isPage
     ? undefined
     : uniqueStrings([...ctx.tierSlugsForPost(post.id), ...tierSlugsFromPost(post.tiers)]);
-  const authorSlugs = ctx.authorSlugsForPost(post.id);
+  const authorSlugs = ctx.authorSlugsForPost(post);
   const postMeta = ctx.metaForPost(post.id);
   const emailOnlyRaw = post.email_only ?? postMeta?.email_only;
   const sendEmailRaw = post.send_email_when_published ?? postMeta?.send_email_when_published;
