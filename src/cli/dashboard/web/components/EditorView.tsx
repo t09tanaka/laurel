@@ -10,6 +10,7 @@ import {
   buildFrontmatter as buildFrontmatterFor,
   snapshotFromItem as snapshotFromItemFor,
 } from '../lib/editor-snapshot.ts';
+import { computeWarnings } from '../lib/editor-warnings.ts';
 import {
   appendRevision,
   clearDraftsForPath,
@@ -782,12 +783,4 @@ export function EditorView(props: EditorViewProps): JSX.Element {
       </div>
     </section>
   );
-}
-
-function computeWarnings(body: string): string[] {
-  const warnings: string[] = [];
-  if (/!\[\s*\]\(/.test(body)) warnings.push('Markdown image has empty alt text.');
-  if (/<img\b(?![^>]*\salt=)[^>]*>/i.test(body))
-    warnings.push('HTML image is missing an alt attribute.');
-  return warnings;
 }
