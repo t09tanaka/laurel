@@ -81,6 +81,11 @@ interface ContentDir {
   localized: boolean;
 }
 
+interface MarkdownDirFiles {
+  dir: ContentDir;
+  files: string[];
+}
+
 interface LocaleFields {
   locale: string;
   localeSource: 'frontmatter' | 'path' | 'site';
@@ -160,10 +165,12 @@ export async function loadContent({
     discoverContentDirs(cwd, config.content.posts_dir),
     discoverContentDirs(cwd, config.content.pages_dir),
   ]);
-  const [postCount, pageCount] = await Promise.all([
-    countMarkdownFilesInDirs(postDirs),
-    countMarkdownFilesInDirs(pageDirs),
+  const [postFiles, pageFiles] = await Promise.all([
+    scanMarkdownFilesInDirs(postDirs),
+    scanMarkdownFilesInDirs(pageDirs),
   ]);
+  const postCount = countScannedMarkdownFiles(postFiles);
+  const pageCount = countScannedMarkdownFiles(pageFiles);
   // Paywalled posts render twice (full + truncated for feed), so each post
   // contributes a worst-case 2 jobs. Estimating at 2x ensures borderline sites
   // (e.g. 30 posts but all members-only) still benefit from workers.
@@ -180,6 +187,8 @@ export async function loadContent({
       config,
       site,
       pool,
+      postFiles,
+      pageFiles,
       taxonomies,
       routesYaml: routesYaml ?? emptyRoutesYaml(),
       includeDrafts: includeDrafts === true,
@@ -197,6 +206,8 @@ async function loadContentWithPool({
   config,
   site,
   pool,
+  postFiles,
+  pageFiles,
   taxonomies,
   routesYaml,
   includeDrafts,
@@ -206,6 +217,8 @@ async function loadContentWithPool({
 }: LoadContentOptions & {
   site: SiteData;
   pool: MarkdownPool;
+  postFiles: readonly MarkdownDirFiles[];
+  pageFiles: readonly MarkdownDirFiles[];
   taxonomies: ResolvedTaxonomies;
   routesYaml: RoutesYaml;
   includeDrafts: boolean;
@@ -220,8 +233,8 @@ async function loadContentWithPool({
   const [rawAuthors, rawTags, posts, pages, components] = await Promise.all([
     loadAuthors(cwd, config),
     loadTags(cwd, config),
-    loadPosts(cwd, config, pool, markdownTransforms),
-    loadPages(cwd, config, pool, markdownTransforms, pageApprovalGate),
+    loadPosts(cwd, config, pool, markdownTransforms, postFiles),
+    loadPages(cwd, config, pool, markdownTransforms, pageApprovalGate, pageFiles),
     loadComponents(cwd, config),
   ]);
 
@@ -878,9 +891,9 @@ async function loadPosts(
   config: NectarConfig,
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
+  dirs: readonly MarkdownDirFiles[],
 ): Promise<RawPost[]> {
-  const dirs = await discoverContentDirs(cwd, config.content.posts_dir);
-  const posts = await loadMarkdownDirs(
+  const posts = await loadMarkdownDirFiles(
     dirs,
     async (file, raw, dir, sourceStat, source) =>
       normalizePost(
@@ -910,10 +923,10 @@ async function loadPages(
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
   approvalGate: boolean,
+  dirs: readonly MarkdownDirFiles[],
 ): Promise<RawPage[]> {
-  const dirs = await discoverContentDirs(cwd, config.content.pages_dir);
   const approvalsEnabled = approvalGate && existsSync(approvalDir(cwd, 'pages'));
-  return loadMarkdownDirs(
+  return loadMarkdownDirFiles(
     dirs,
     async (file, raw, dir, sourceStat, source) => {
       let rawForBuild = raw;
@@ -984,11 +997,9 @@ async function loadTags(cwd: string, config: NectarConfig): Promise<RawTag[]> {
 const MARKDOWN_LOAD_CONCURRENCY = 32;
 
 // Walks a directory tree for `*.md` files without reading or parsing them.
-// Used by `loadContent` to estimate the markdown rendering workload up front so
-// the pool can pick between worker and in-process modes. The extra scan is
-// cheap compared to a full read+normalize and keeps the pool from spawning
-// workers for sites that wouldn't amortise the spawn cost.
-async function countMarkdownFiles(dir: string): Promise<number> {
+// `loadContent` uses the result both to estimate worker-pool size and to feed
+// the actual post/page loader, avoiding a second glob over large content trees.
+async function scanMarkdownFiles(dir: string): Promise<string[]> {
   let rels: string[];
   try {
     rels = await scanGlob('**/*.md', { cwd: dir });
@@ -998,19 +1009,30 @@ async function countMarkdownFiles(dir: string): Promise<number> {
         `loadContent: failed to scan markdown directory ${dir}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
-    return 0;
+    return [];
   }
-  let count = 0;
+  const files: string[] = [];
   for (const rel of rels) {
-    if (pathContainsSymlink(dir, rel)) continue;
-    count += 1;
+    if (pathContainsSymlink(dir, rel)) {
+      logger.warn(`Skipping symlinked content path: ${join(dir, rel)}`);
+      continue;
+    }
+    files.push(join(dir, rel));
   }
-  return count;
+  return files;
 }
 
-async function countMarkdownFilesInDirs(dirs: readonly ContentDir[]): Promise<number> {
-  const counts = await Promise.all(dirs.map((dir) => countMarkdownFiles(dir.dir)));
-  return counts.reduce((sum, count) => sum + count, 0);
+async function scanMarkdownFilesInDirs(dirs: readonly ContentDir[]): Promise<MarkdownDirFiles[]> {
+  return Promise.all(
+    dirs.map(async (dir) => ({
+      dir,
+      files: await scanMarkdownFiles(dir.dir),
+    })),
+  );
+}
+
+function countScannedMarkdownFiles(dirs: readonly MarkdownDirFiles[]): number {
+  return dirs.reduce((sum, dir) => sum + dir.files.length, 0);
 }
 
 async function discoverContentDirs(cwd: string, configuredDir: string): Promise<ContentDir[]> {
@@ -1047,10 +1069,26 @@ async function loadMarkdownDirs<T>(
   ) => Promise<T | undefined>,
   maxBytes: number,
 ): Promise<T[]> {
+  const scanned = await scanMarkdownFilesInDirs(dirs);
+  return loadMarkdownDirFiles(scanned, normalize, maxBytes);
+}
+
+async function loadMarkdownDirFiles<T>(
+  dirs: readonly MarkdownDirFiles[],
+  normalize: (
+    filePath: string,
+    raw: string,
+    dir: ContentDir,
+    sourceStat: Stats,
+    source: ContentSourceFingerprint,
+  ) => Promise<T | undefined>,
+  maxBytes: number,
+): Promise<T[]> {
   const chunks = await Promise.all(
-    dirs.map((dir) =>
-      loadMarkdownDir(
+    dirs.map(({ dir, files }) =>
+      loadMarkdownFiles(
         dir.dir,
+        files,
         (file, raw, sourceStat, source) => normalize(file, raw, dir, sourceStat, source),
         maxBytes,
       ),
@@ -1059,8 +1097,9 @@ async function loadMarkdownDirs<T>(
   return chunks.flat();
 }
 
-async function loadMarkdownDir<T>(
+async function loadMarkdownFiles<T>(
   dir: string,
+  files: readonly string[],
   normalize: (
     filePath: string,
     raw: string,
@@ -1069,26 +1108,6 @@ async function loadMarkdownDir<T>(
   ) => Promise<T | undefined>,
   maxBytes: number,
 ): Promise<T[]> {
-  let rels: string[];
-  try {
-    rels = await scanGlob('**/*.md', { cwd: dir });
-  } catch (err) {
-    if (!isFsErrnoCode(err, 'ENOENT')) {
-      logger.warn(
-        `loadContent: failed to scan markdown directory ${dir}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-    return [];
-  }
-  const files: string[] = [];
-  for (const rel of rels) {
-    if (pathContainsSymlink(dir, rel)) {
-      logger.warn(`Skipping symlinked content path: ${join(dir, rel)}`);
-      continue;
-    }
-    files.push(join(dir, rel));
-  }
-
   const results: T[] = [];
   for (let i = 0; i < files.length; i += MARKDOWN_LOAD_CONCURRENCY) {
     const chunk = files.slice(i, i + MARKDOWN_LOAD_CONCURRENCY);

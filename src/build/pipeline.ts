@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readdir, stat } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
 import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -29,10 +29,12 @@ import { emitAzureStaticWebAppConfig } from './azure.ts';
 import { normalizeBasePath } from './base-path.ts';
 import { normalizeBaseUrl } from './base-url.ts';
 import {
+  type BuildManifestJson,
   type BuildManifestRoute,
   buildManifestRelPath,
   changedPathsRelPath,
   emitBuildManifest,
+  legacyBuildManifestRelPath,
   loadBuildManifest,
 } from './build-manifest.ts';
 import { emitCaddyfile } from './caddy.ts';
@@ -100,10 +102,12 @@ import {
   collectRouteContentInputs,
   computeGeneratorSourceFingerprint,
   computeGlobalHash,
-  computeRouteContentFingerprint,
+  computeManifestEntryIntegrity,
+  computeRouteContentInputsFingerprint,
   computeRouteHash,
   computeThemeFingerprint,
   loadManifest,
+  reusePreviousRouteHash,
   saveManifest,
 } from './manifest.ts';
 import { emitMeilisearchRecords } from './meilisearch.ts';
@@ -848,7 +852,10 @@ async function runBuild({
   if (!dryRun) {
     earlyThemeAssetCopy = startSettledBuildTask(() =>
       timed(profiler, 'copy_assets', () =>
-        copyAssets(theme, outputDir, { cache: themeAssetCopyCache }),
+        copyAssets(theme, outputDir, {
+          cache: themeAssetCopyCache,
+          previousOutputFiles: previousBuildManifest?.files,
+        }),
       ),
     );
     if (config.build.copy_content_assets) {
@@ -886,6 +893,10 @@ async function runBuild({
   const earlyHintHrefs = earlyHintsEnabled
     ? buildKnownEarlyHintHrefs(theme, config.build.base_path)
     : new Set<string>();
+  const reusedHtmlBodyNeeded =
+    earlyHintsEnabled ||
+    (typeof config.deploy.headers.security.content_security_policy === 'string' &&
+      config.deploy.headers.security.content_security_policy.length > 0);
   const routeEarlyHints: RouteEarlyHints[] = [];
 
   // Render fans out under a concurrency cap so a 1000-post site overlaps the
@@ -906,21 +917,33 @@ async function runBuild({
     bytes: number;
     reused: boolean;
     earlyHints: RouteEarlyHints | null;
+    contentInputs: ReturnType<typeof collectRouteContentInputs>;
   };
   let completedRoutes = 0;
   const renderedImageDimensionCache = new Map();
   const renderedImageLqipCache = new Map<string, string | null>();
   const renderOneRoute = (route: RouteContext): Promise<RenderResult> =>
     renderLimit(async (): Promise<RenderResult> => {
-      const contentFingerprint = computeRouteContentFingerprint(route, content);
-      const routeHash = computeRouteHash({
-        globalHash,
-        route,
-        theme,
-        contentFingerprint,
-        themeFingerprint,
-      });
+      const contentInputs = collectRouteContentInputs(route, content);
+      const contentFingerprint = computeRouteContentInputsFingerprint(contentInputs);
       const previous = previousRoutes[route.url];
+      const routeHash =
+        reusePreviousRouteHash({
+          previous,
+          previousGlobalHash: previousManifest?.globalHash,
+          currentGlobalHash: globalHash,
+          route,
+          contentFingerprint,
+          themeFingerprint,
+          pluginsEnabled: pluginSet.plugins.length > 0,
+        }) ??
+        computeRouteHash({
+          globalHash,
+          route,
+          theme,
+          contentFingerprint,
+          themeFingerprint,
+        });
       const reusableEntry =
         previous &&
         previous.hash === routeHash &&
@@ -939,9 +962,9 @@ async function runBuild({
             template: route.template,
             kind: route.kind,
           });
-          const html = await previousFile.text();
-          if (isHtmlRoute(route)) warnSubscribeNoopIfNeeded(html);
-          const bytes = Buffer.byteLength(html, 'utf8');
+          const html = reusedHtmlBodyNeeded ? await previousFile.text() : '';
+          if (html && isHtmlRoute(route)) warnSubscribeNoopIfNeeded(html);
+          const bytes = html ? Buffer.byteLength(html, 'utf8') : previousFile.size;
           stop?.({ bytes, reused: true });
           completedRoutes += 1;
           notifyProgress(progress, {
@@ -960,7 +983,7 @@ async function runBuild({
             bytes,
             reused: true,
             earlyHints:
-              earlyHintsEnabled && isHtmlRoute(route)
+              html && earlyHintsEnabled && isHtmlRoute(route)
                 ? collectRouteEarlyHints({
                     routeUrl: route.url,
                     outputPath: route.outputPath,
@@ -969,6 +992,7 @@ async function runBuild({
                     maxLinks: config.deploy.early_hints.max_links,
                   })
                 : null,
+            contentInputs,
           };
         }
       }
@@ -1024,6 +1048,7 @@ async function runBuild({
                   maxLinks: config.deploy.early_hints.max_links,
                 })
               : null,
+          contentInputs,
         };
       } catch (err) {
         stop?.();
@@ -1056,12 +1081,18 @@ async function runBuild({
         if (result === undefined || route === undefined) {
           throw new Error('render batch entry missing');
         }
-        const contentInputs = collectRouteContentInputs(route, content);
-        nextRoutes[result.url] = {
+        const nextRouteEntry = {
           hash: result.routeHash,
           outputPath: result.outputPath,
           contentFingerprint: result.contentFingerprint,
           themeFingerprint,
+          kind: route.kind,
+          template: route.template,
+          lastmod: route.lastmod ?? null,
+        };
+        nextRoutes[result.url] = {
+          ...nextRouteEntry,
+          integrity: computeManifestEntryIntegrity(nextRouteEntry),
         };
         buildManifestRoutes.push({
           url: result.url,
@@ -1069,7 +1100,7 @@ async function runBuild({
           route_fingerprint: result.routeHash,
           content_fingerprint: result.contentFingerprint,
           theme_fingerprint: themeFingerprint,
-          content_inputs: contentInputs,
+          content_inputs: result.contentInputs,
           reused: result.reused,
         });
         htmlOutputs.push(result.htmlOutput);
@@ -1226,7 +1257,10 @@ async function runBuild({
               earlyThemeAssetCopy ??
                 startSettledBuildTask(() =>
                   timed(profiler, 'copy_assets', () =>
-                    copyAssets(theme, outputDir, { cache: themeAssetCopyCache }),
+                    copyAssets(theme, outputDir, {
+                      cache: themeAssetCopyCache,
+                      previousOutputFiles: previousBuildManifest?.files,
+                    }),
                   ),
                 ),
             );
@@ -1701,7 +1735,7 @@ async function runBuild({
   // artifact in the tree — including incremental cache, preserved user files,
   // and platform descriptors. Excludes itself and its derived changed-paths
   // companion to avoid self-referential hashes.
-  await timed(profiler, 'build_manifest', () =>
+  const emittedBuildManifest = await timed(profiler, 'build_manifest', () =>
     emitBuildManifest({
       outputDir,
       config,
@@ -1734,7 +1768,9 @@ async function runBuild({
     outputDir: finalOutputDir,
     command: config.hooks.post_build,
   });
-  const outputBytes = await timed(profiler, 'output_size', () => dirSize(finalOutputDir));
+  const outputBytes = await timed(profiler, 'output_size', () =>
+    outputSizeFromBuildManifest(finalOutputDir, emittedBuildManifest),
+  );
 
   return {
     outputDir: finalOutputDir,
@@ -1755,17 +1791,18 @@ async function runBuild({
 
 type KeepOutput = (path: string) => void;
 
-async function dirSize(path: string): Promise<number> {
-  let total = 0;
-  const entries = await readdir(path, { withFileTypes: true });
-  for (const entry of entries) {
-    const child = join(path, entry.name);
-    if (entry.isDirectory()) {
-      total += await dirSize(child);
-      continue;
+async function outputSizeFromBuildManifest(
+  outputDir: string,
+  manifest: BuildManifestJson,
+): Promise<number> {
+  let total = manifest.files.reduce((sum, file) => sum + file.size, 0);
+  for (const rel of [buildManifestRelPath(), legacyBuildManifestRelPath(), changedPathsRelPath()]) {
+    try {
+      const file = await stat(join(outputDir, rel));
+      if (file.isFile()) total += file.size;
+    } catch (err) {
+      if (!isFsErrnoCode(err, 'ENOENT')) throw err;
     }
-    if (!entry.isFile()) continue;
-    total += (await stat(child)).size;
   }
   return total;
 }
@@ -1778,6 +1815,10 @@ function normalizeOutputRelPath(path: string): string | undefined {
     return undefined;
   }
   return normalized;
+}
+
+function isFsErrnoCode(err: unknown, code: string): boolean {
+  return err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === code;
 }
 
 function markPlannedSitemapOutputs(opts: {

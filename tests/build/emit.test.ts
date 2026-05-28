@@ -1,7 +1,17 @@
 import { describe, expect, spyOn, test } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import * as fsPromises from 'node:fs/promises';
-import { mkdir, mkdtemp, readFile, stat, symlink, utimes, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  stat,
+  symlink,
+  utimes,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import {
@@ -47,6 +57,10 @@ function makeThemeBundle(assets: Map<string, ThemeAsset>): ThemeBundle {
     locales: {},
     assets,
   };
+}
+
+function sha256Short(input: string): string {
+  return createHash('sha256').update(input).digest('hex').slice(0, 16);
 }
 
 function jpegWithExif(payload = 'SECRET_GPS'): Buffer {
@@ -326,6 +340,94 @@ describe('copyAssets', () => {
     const count = await copyAssets(makeThemeBundle(assets), outputDir);
     expect(count).toBe(1);
     expect(await readFile(join(outputDir, 'assets/fonts/Inter.woff2'), 'utf8')).toBe('FONTBYTES');
+  });
+
+  test('skips recopying an unchanged fingerprinted asset already in the output dir', async () => {
+    const srcDir = await mkdtemp(join(tmpdir(), 'nectar-assets-skip-src-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-assets-skip-out-'));
+    const srcCss = join(srcDir, 'screen.css');
+    const source = 'body{color:red}';
+    const hash = sha256Short(source);
+    await writeFile(srcCss, source);
+
+    const asset = makeThemeAsset({
+      sourcePath: srcCss,
+      logicalPath: 'assets/built/screen.css',
+      fingerprintedPath: `assets/built/screen.${hash}.css`,
+      hash,
+      size: source.length,
+    });
+    const dest = join(outputDir, `assets/built/screen.${hash}.css`);
+
+    expect(await copyAssets(makeThemeBundle(new Map([['screen', asset]])), outputDir)).toBe(1);
+    const firstMtime = (await stat(dest)).mtimeMs;
+    await writeFile(srcCss, source);
+    expect(await copyAssets(makeThemeBundle(new Map([['screen', asset]])), outputDir)).toBe(1);
+    expect((await stat(dest)).mtimeMs).toBe(firstMtime);
+    expect(await readFile(dest, 'utf8')).toBe(source);
+  });
+
+  test('recopies a fingerprinted asset when an existing output has the same size but different bytes', async () => {
+    const srcDir = await mkdtemp(join(tmpdir(), 'nectar-assets-corrupt-src-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-assets-corrupt-out-'));
+    const srcCss = join(srcDir, 'screen.css');
+    const source = 'body{color:red}';
+    const hash = sha256Short(source);
+    await writeFile(srcCss, source);
+
+    const asset = makeThemeAsset({
+      sourcePath: srcCss,
+      logicalPath: 'assets/built/screen.css',
+      fingerprintedPath: `assets/built/screen.${hash}.css`,
+      hash,
+      size: source.length,
+    });
+    const dest = join(outputDir, `assets/built/screen.${hash}.css`);
+    await mkdir(dirname(dest), { recursive: true });
+    await writeFile(dest, 'body{color:tan}');
+
+    expect(await copyAssets(makeThemeBundle(new Map([['screen', asset]])), outputDir)).toBe(1);
+    expect(await readFile(dest, 'utf8')).toBe(source);
+  });
+
+  test('uses a verified manifest entry to skip hashing an unchanged fingerprinted output', async () => {
+    const srcDir = await mkdtemp(join(tmpdir(), 'nectar-assets-manifest-src-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-assets-manifest-out-'));
+    const srcCss = join(srcDir, 'screen.css');
+    const source = 'body{color:red}';
+    const hash = sha256Short(source);
+    await writeFile(srcCss, source);
+
+    const asset = makeThemeAsset({
+      sourcePath: srcCss,
+      logicalPath: 'assets/built/screen.css',
+      fingerprintedPath: `assets/built/screen.${hash}.css`,
+      hash,
+      size: source.length,
+    });
+    const dest = join(outputDir, `assets/built/screen.${hash}.css`);
+    await mkdir(dirname(dest), { recursive: true });
+    await writeFile(dest, source);
+    const destStat = await stat(dest);
+    await chmod(dest, 0o000);
+
+    try {
+      expect(
+        await copyAssets(makeThemeBundle(new Map([['screen', asset]])), outputDir, {
+          previousOutputFiles: [
+            {
+              path: asset.fingerprintedPath,
+              size: source.length,
+              hash: createHash('sha256').update(source).digest('hex'),
+              mtime_ms: destStat.mtimeMs,
+            },
+          ],
+        }),
+      ).toBe(1);
+    } finally {
+      await chmod(dest, 0o600);
+    }
+    expect(await readFile(dest, 'utf8')).toBe(source);
   });
 
   test('deduplicates theme asset copies across calls when a shared cache is provided (#1743)', async () => {

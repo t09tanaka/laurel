@@ -31,6 +31,35 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
     });
   }
 
+  const [{ templates, emailTemplates, partials }, pkg, locales, assets] = await Promise.all([
+    loadThemeTemplates(rootDir),
+    loadThemePackage(rootDir),
+    loadLocales(rootDir, [
+      join(cwd, 'content', 'translations'),
+      join(cwd, 'content', 'themes', config.theme.name, 'locales'),
+    ]),
+    loadThemeAssets(rootDir, { cacheDir: join(cwd, '.nectar/cache') }),
+  ]);
+  warnIfMembersRequiredWithoutPortal(pkg, config);
+  warnIfGhostEngineUnsupported(pkg);
+
+  return {
+    name: config.theme.name,
+    rootDir,
+    templates,
+    emailTemplates,
+    partials,
+    pkg,
+    locales,
+    assets,
+  };
+}
+
+async function loadThemeTemplates(rootDir: string): Promise<{
+  templates: Record<string, string>;
+  emailTemplates: Record<string, string>;
+  partials: Record<string, string>;
+}> {
   const templates: Record<string, string> = {};
   const emailTemplates: Record<string, string> = {};
   const partials: Record<string, string> = {};
@@ -68,25 +97,7 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
     }
   }
 
-  const pkg = await loadThemePackage(rootDir);
-  warnIfMembersRequiredWithoutPortal(pkg, config);
-  warnIfGhostEngineUnsupported(pkg);
-  const locales = await loadLocales(rootDir, [
-    join(cwd, 'content', 'translations'),
-    join(cwd, 'content', 'themes', config.theme.name, 'locales'),
-  ]);
-  const assets = await loadThemeAssets(rootDir, { cacheDir: join(cwd, '.nectar/cache') });
-
-  return {
-    name: config.theme.name,
-    rootDir,
-    templates,
-    emailTemplates,
-    partials,
-    pkg,
-    locales,
-    assets,
-  };
+  return { templates, emailTemplates, partials };
 }
 
 function isEmailTemplateName(name: string): boolean {

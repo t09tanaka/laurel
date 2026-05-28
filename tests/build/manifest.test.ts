@@ -5,9 +5,11 @@ import { join } from 'node:path';
 import {
   MANIFEST_VERSION,
   computeGlobalHash,
+  computeManifestEntryIntegrity,
   computeRouteHash,
   loadManifest,
   manifestPath,
+  reusePreviousRouteHash,
   saveManifest,
   stableStringify,
 } from '~/build/manifest.ts';
@@ -126,5 +128,78 @@ describe('build manifest serialization', () => {
     const after = computeGlobalHash({ config, site, theme, generatorFingerprint: 'helpers-v2' });
 
     expect(after).not.toBe(before);
+  });
+
+  test('reusePreviousRouteHash only trusts fully verified non-plugin manifest entries', () => {
+    const route: RouteContext = {
+      kind: 'post',
+      url: '/hello/',
+      outputPath: 'hello/index.html',
+      template: 'post',
+      lastmod: '2026-01-01T00:00:00.000Z',
+      data: {},
+      meta: { title: 'Hello', description: '', canonical: '', image: undefined },
+    };
+    const previousWithoutIntegrity = {
+      hash: 'previous-route-hash',
+      outputPath: 'hello/index.html',
+      contentFingerprint: 'content-v1',
+      themeFingerprint: 'theme-v1',
+      kind: 'post',
+      template: 'post',
+      lastmod: '2026-01-01T00:00:00.000Z',
+    } as const;
+    const previous = {
+      ...previousWithoutIntegrity,
+      integrity: computeManifestEntryIntegrity(previousWithoutIntegrity),
+    };
+
+    expect(
+      reusePreviousRouteHash({
+        previous,
+        previousGlobalHash: 'global-v1',
+        currentGlobalHash: 'global-v1',
+        route,
+        contentFingerprint: 'content-v1',
+        themeFingerprint: 'theme-v1',
+        pluginsEnabled: false,
+      }),
+    ).toBe('previous-route-hash');
+
+    expect(
+      reusePreviousRouteHash({
+        previous: { ...previous, template: undefined },
+        previousGlobalHash: 'global-v1',
+        currentGlobalHash: 'global-v1',
+        route,
+        contentFingerprint: 'content-v1',
+        themeFingerprint: 'theme-v1',
+        pluginsEnabled: false,
+      }),
+    ).toBeUndefined();
+
+    expect(
+      reusePreviousRouteHash({
+        previous,
+        previousGlobalHash: 'global-v1',
+        currentGlobalHash: 'global-v1',
+        route,
+        contentFingerprint: 'content-v1',
+        themeFingerprint: 'theme-v1',
+        pluginsEnabled: true,
+      }),
+    ).toBeUndefined();
+
+    expect(
+      reusePreviousRouteHash({
+        previous: { ...previous, hash: 'tampered-hash' },
+        previousGlobalHash: 'global-v1',
+        currentGlobalHash: 'global-v1',
+        route,
+        contentFingerprint: 'content-v1',
+        themeFingerprint: 'theme-v1',
+        pluginsEnabled: false,
+      }),
+    ).toBeUndefined();
   });
 });

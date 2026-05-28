@@ -23,6 +23,10 @@ export interface ManifestEntry {
   outputPath: string;
   contentFingerprint?: string;
   themeFingerprint?: string;
+  kind?: RouteContext['kind'];
+  template?: string;
+  lastmod?: string | null;
+  integrity?: string;
 }
 
 export interface FeedManifestEntry {
@@ -148,6 +152,53 @@ export function computeRouteHash(opts: {
   return sha256(stableStringify(payload));
 }
 
+export function reusePreviousRouteHash(opts: {
+  previous: ManifestEntry | undefined;
+  previousGlobalHash: string | undefined;
+  currentGlobalHash: string;
+  route: RouteContext;
+  contentFingerprint: string;
+  themeFingerprint: string;
+  pluginsEnabled: boolean;
+}): string | undefined {
+  const {
+    previous,
+    previousGlobalHash,
+    currentGlobalHash,
+    route,
+    contentFingerprint,
+    themeFingerprint,
+    pluginsEnabled,
+  } = opts;
+  if (!previous) return undefined;
+  if (pluginsEnabled) return undefined;
+  if (previousGlobalHash !== currentGlobalHash) return undefined;
+  if (previous.integrity !== computeManifestEntryIntegrity(previous)) return undefined;
+  if (previous.outputPath !== route.outputPath) return undefined;
+  if (previous.contentFingerprint !== contentFingerprint) return undefined;
+  if (previous.themeFingerprint !== themeFingerprint) return undefined;
+  if (previous.kind === undefined || previous.kind !== route.kind) return undefined;
+  if (previous.template === undefined || previous.template !== route.template) return undefined;
+  if ((previous.lastmod ?? null) !== (route.lastmod ?? null)) return undefined;
+  return previous.hash;
+}
+
+export function computeManifestEntryIntegrity(
+  entry: Omit<ManifestEntry, 'integrity'> | ManifestEntry,
+): string {
+  return sha256(
+    stableStringify({
+      hash: entry.hash,
+      outputPath: entry.outputPath,
+      contentFingerprint: entry.contentFingerprint,
+      themeFingerprint: entry.themeFingerprint,
+      kind: entry.kind,
+      template: entry.template,
+      lastmod: entry.lastmod ?? null,
+    }),
+  );
+}
+
 export function computeThemeFingerprint(theme: ThemeBundle): string {
   const assets = [...theme.assets.values()]
     .map((asset) => ({
@@ -221,7 +272,11 @@ export function collectRouteContentInputs(
 }
 
 export function computeRouteContentFingerprint(route: RouteContext, content: ContentGraph): string {
-  return sha256(stableStringify(collectRouteContentInputs(route, content)));
+  return computeRouteContentInputsFingerprint(collectRouteContentInputs(route, content));
+}
+
+export function computeRouteContentInputsFingerprint(inputs: readonly RouteContentInput[]): string {
+  return sha256(stableStringify(inputs));
 }
 
 function sha256(input: string): string {
