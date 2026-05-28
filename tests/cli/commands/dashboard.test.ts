@@ -1822,8 +1822,33 @@ describe('dashboard data', () => {
     const dir = await makeDashboardFixture();
     try {
       await writeDashboardThemeFixture(dir, 'source');
+      await writeFile(
+        join(dir, 'themes/source/package.json'),
+        JSON.stringify({ name: 'source', version: '1.0.0', config: { card_assets: true } }),
+        'utf8',
+      );
       await mkdir(join(dir, 'content/images'), { recursive: true });
       await writeFile(join(dir, 'content/images/cover.jpg'), 'image-bytes', 'utf8');
+      await writeFile(
+        join(dir, 'content/posts/new.md'),
+        [
+          '---',
+          'title: New Post',
+          'date: 2026-01-03T00:00:00Z',
+          'created_at: 2026-01-03T00:00:00Z',
+          'authors:',
+          '  - missing-author',
+          'tags:',
+          '  - missing-tag',
+          '---',
+          '',
+          'New body',
+          '',
+          '{{< bookmark url="https://example.com/" title="Example card" />}}',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
       await mkdir(join(dir, 'dist/new'), { recursive: true });
       await writeFile(join(dir, 'dist/new/index.html'), '<!doctype html><p>Stale dist</p>', 'utf8');
       await writeFile(join(dir, 'dist/secret.html'), '<!doctype html><p>Secret</p>', 'utf8');
@@ -1846,6 +1871,7 @@ describe('dashboard data', () => {
       const html = await ok.text();
       expect(html).toContain('<h1>New Post</h1>');
       expect(html).toContain('<p>New body</p>');
+      expect(html).toContain('/assets/ghost-card-assets.css?v=7');
       expect(html).not.toContain('Stale dist');
 
       const contentAsset = await handleDashboardRequest(
@@ -1861,6 +1887,22 @@ describe('dashboard data', () => {
       );
       expect(themeAsset.status).toBe(200);
       expect(await themeAsset.text()).toContain('color: black');
+
+      const cardCss = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/assets/ghost-card-assets.css?v=7'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(cardCss.status).toBe(200);
+      expect(cardCss.headers.get('content-type')).toContain('text/css');
+      expect(await cardCss.text()).toContain('.kg-bookmark-card');
+
+      const cardJs = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/assets/ghost-card-assets.js?v=7'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(cardJs.status).toBe(200);
+      expect(cardJs.headers.get('content-type')).toContain('application/javascript');
+      expect(await cardJs.text()).toContain('kg-toggle-card');
 
       const traversal = await handleDashboardRequest(
         new Request('http://127.0.0.1:4322/preview/content?route=%2F..%2Fsecret'),
