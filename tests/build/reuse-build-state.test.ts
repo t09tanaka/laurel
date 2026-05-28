@@ -93,6 +93,7 @@ describe('build() reuse + captureReusable', () => {
       expect(summary.reusable).toBeDefined();
       expect(summary.reusable?.config.site.title).toBe('Reuse Test');
       expect(summary.reusable?.theme.name).toBe('source');
+      expect(summary.reusable?.rawContentCache.stats().sets).toBeGreaterThan(0);
       // Reusable should be undefined by default — the one-shot CLI path does
       // not need to retain the bundle.
       const summary2 = await build({ cwd });
@@ -121,6 +122,69 @@ describe('build() reuse + captureReusable', () => {
       for (const [name, html] of Object.entries(baseline)) {
         expect(reusedHtml[name]).toBe(html);
       }
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('reuses raw content state across repeated builds while honoring changed files', async () => {
+    const cwd = await makeMinimalSite();
+    try {
+      const first = await build({ cwd, captureReusable: true });
+      if (first.reusable === undefined) throw new Error('expected reusable from first build');
+      const firstCache = first.reusable.rawContentCache;
+      const firstStats = firstCache.stats();
+      expect(firstStats.sets).toBeGreaterThan(0);
+
+      await writeFile(
+        join(cwd, 'content/posts/hello.md'),
+        `---
+title: "Hello Edited"
+date: 2026-01-01T00:00:00Z
+---
+
+Hello body, edited through reusable content cache
+`,
+        'utf8',
+      );
+
+      const second = await build({
+        cwd,
+        captureReusable: true,
+        reuse: first.reusable,
+      });
+      if (second.reusable === undefined) throw new Error('expected reusable from second build');
+
+      expect(second.reusable.rawContentCache).toBe(firstCache);
+      expect(second.reusable.rawContentCache.stats().hits).toBeGreaterThan(firstStats.hits);
+      expect(second.reusable.rawContentCache.stats().misses).toBeGreaterThan(firstStats.misses);
+
+      const helloHtml = await readFile(join(second.outputDir, 'hello/index.html'), 'utf8');
+      const worldHtml = await readFile(join(second.outputDir, 'world/index.html'), 'utf8');
+      expect(helloHtml).toContain('Hello Edited');
+      expect(helloHtml).toContain('Hello body, edited through reusable content cache');
+      expect(worldHtml).toContain('World body');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('reused raw content state follows deleted markdown files and stale cleanup', async () => {
+    const cwd = await makeMinimalSite();
+    try {
+      const first = await build({ cwd, captureReusable: true });
+      if (first.reusable === undefined) throw new Error('expected reusable from first build');
+      expect(await Bun.file(join(first.outputDir, 'world/index.html')).exists()).toBe(true);
+
+      await rm(join(cwd, 'content/posts/world.md'));
+      const second = await build({
+        cwd,
+        captureReusable: true,
+        reuse: first.reusable,
+      });
+
+      expect(await Bun.file(join(second.outputDir, 'world/index.html')).exists()).toBe(false);
+      expect(await Bun.file(join(second.outputDir, 'hello/index.html')).exists()).toBe(true);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }

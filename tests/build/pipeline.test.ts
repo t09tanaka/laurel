@@ -2410,7 +2410,7 @@ describe('build pipeline --no-atomic escape hatch (#247)', () => {
     expect(existsSync(join(summary.outputDir, 'index.html'))).toBe(true);
   });
 
-  test('default build removes stale files without clearing the whole output dir first', async () => {
+  test('default build removes manifest-tracked stale files without clearing output dir', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     const distDir = resolve(cwd, 'dist');
     await mkdir(join(cwd, 'content/images'), { recursive: true });
@@ -2423,7 +2423,7 @@ describe('build pipeline --no-atomic escape hatch (#247)', () => {
     const summary = await build({ cwd });
     const hashedNew = await findHashedImageOutputPath(summary.outputDir, 'new.png');
 
-    expect(existsSync(join(summary.outputDir, 'manual-stale.txt'))).toBe(false);
+    expect(existsSync(join(summary.outputDir, 'manual-stale.txt'))).toBe(true);
     expect(existsSync(join(summary.outputDir, 'content/images/old.png'))).toBe(false);
     expect(readFileSync(hashedNew, 'utf8')).toBe('NEW');
     expect(existsSync(join(summary.outputDir, 'index.html'))).toBe(true);

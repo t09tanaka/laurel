@@ -120,6 +120,46 @@ describe('cleanupStaleOutput', () => {
     expect(readFileSync(join(target, '.well-known/security.txt'), 'utf8')).toBe('Contact: x');
   });
 
+  test('uses previous manifest candidates without deleting user-managed files', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'nectar-stale-manifest-'));
+    await writeFile(join(target, 'index.html'), '<new/>', 'utf8');
+    await mkdir(join(target, 'old-post'), { recursive: true });
+    await writeFile(join(target, 'old-post/index.html'), '<old/>', 'utf8');
+    await writeFile(join(target, 'notes.txt'), 'user managed', 'utf8');
+
+    const result = await cleanupStaleOutput({
+      outputDir: target,
+      keepRelPaths: ['index.html'],
+      previousOutputFiles: [{ path: 'index.html' }, { path: 'old-post/index.html' }],
+    });
+
+    expect(result.removed).toEqual(['old-post/index.html']);
+    expect(readFileSync(join(target, 'notes.txt'), 'utf8')).toBe('user managed');
+    expect(existsSync(join(target, 'old-post'))).toBe(false);
+  });
+
+  test('applies preserve patterns to previous manifest cleanup candidates', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'nectar-stale-manifest-preserve-'));
+    await writeFile(join(target, 'index.html'), '<new/>', 'utf8');
+    await writeFile(join(target, 'CNAME'), 'blog.example.com', 'utf8');
+    await mkdir(join(target, 'old-post'), { recursive: true });
+    await writeFile(join(target, 'old-post/index.html'), '<old/>', 'utf8');
+
+    const result = await cleanupStaleOutput({
+      outputDir: target,
+      keepRelPaths: ['index.html'],
+      preservePatterns: ['CNAME'],
+      previousOutputFiles: [
+        { path: 'index.html' },
+        { path: 'CNAME' },
+        { path: 'old-post/index.html' },
+      ],
+    });
+
+    expect(result.removed).toEqual(['old-post/index.html']);
+    expect(readFileSync(join(target, 'CNAME'), 'utf8')).toBe('blog.example.com');
+  });
+
   test('unlinks stale symlinks without following their targets', async () => {
     const target = await mkdtemp(join(tmpdir(), 'nectar-stale-symlink-'));
     const outside = await mkdtemp(join(tmpdir(), 'nectar-stale-outside-'));

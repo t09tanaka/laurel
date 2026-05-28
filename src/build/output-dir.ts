@@ -114,6 +114,7 @@ export interface CleanupStaleOutputOptions {
   outputDir: string;
   keepRelPaths: Iterable<string>;
   preservePatterns?: readonly string[] | undefined;
+  previousOutputFiles?: readonly { path: string }[] | undefined;
 }
 
 export interface CleanupStaleOutputResult {
@@ -130,6 +131,7 @@ export async function cleanupStaleOutput({
   outputDir,
   keepRelPaths,
   preservePatterns = [],
+  previousOutputFiles,
 }: CleanupStaleOutputOptions): Promise<CleanupStaleOutputResult> {
   await mkdir(outputDir, { recursive: true });
 
@@ -141,7 +143,12 @@ export async function cleanupStaleOutput({
 
   const preserve = normalizePreservePatterns(outputDir, preservePatterns);
   const removed: string[] = [];
-  const files = await listOutputEntries(outputDir);
+  const manifestCandidates = previousOutputFiles
+    ?.map((file) => normalizeOutputRelPath(file.path))
+    .filter((rel): rel is string => rel !== undefined);
+  const { files, dirs } = manifestCandidates
+    ? manifestCleanupTree(manifestCandidates)
+    : await listOutputTree(outputDir);
   for (const rel of files) {
     if (isKept(rel, keep)) continue;
     if (isPreserved(rel, preserve)) continue;
@@ -150,7 +157,6 @@ export async function cleanupStaleOutput({
   }
 
   const keepPrefixes = buildDirectoryPrefixes([...keep, ...preserve]);
-  const dirs = await listOutputDirs(outputDir);
   dirs.sort((a, b) => b.length - a.length);
   for (const rel of dirs) {
     if (keepPrefixes.has(rel)) continue;
@@ -161,11 +167,26 @@ export async function cleanupStaleOutput({
   return { removed };
 }
 
-function isKept(rel: string, keep: ReadonlySet<string>): boolean {
-  for (const path of keep) {
-    if (rel === path || rel.startsWith(`${path}/`)) return true;
+function manifestCleanupTree(files: readonly string[]): { files: string[]; dirs: string[] } {
+  const uniqueFiles = new Set(files);
+  const dirs = new Set<string>();
+  for (const file of uniqueFiles) {
+    const parts = file.split('/');
+    parts.pop();
+    let cur = '';
+    for (const part of parts) {
+      cur = cur ? `${cur}/${part}` : part;
+      dirs.add(cur);
+    }
   }
-  return false;
+  return {
+    files: [...uniqueFiles].sort(),
+    dirs: [...dirs].sort(),
+  };
+}
+
+function isKept(rel: string, keep: ReadonlySet<string>): boolean {
+  return matchesPathOrAncestor(rel, keep);
 }
 
 function normalizePreservePatterns(outputDir: string, patterns: readonly string[]): Set<string> {
@@ -191,10 +212,18 @@ function normalizePreservePatterns(outputDir: string, patterns: readonly string[
 }
 
 function isPreserved(rel: string, preserve: ReadonlySet<string>): boolean {
-  for (const pattern of preserve) {
-    if (rel === pattern || rel.startsWith(`${pattern}/`)) return true;
+  return matchesPathOrAncestor(rel, preserve);
+}
+
+function matchesPathOrAncestor(rel: string, paths: ReadonlySet<string>): boolean {
+  if (paths.has(rel)) return true;
+  let cur = rel;
+  while (true) {
+    const index = cur.lastIndexOf('/');
+    if (index < 0) return false;
+    cur = cur.slice(0, index);
+    if (paths.has(cur)) return true;
   }
-  return false;
 }
 
 function buildDirectoryPrefixes(paths: Iterable<string>): Set<string> {
@@ -211,25 +240,20 @@ function buildDirectoryPrefixes(paths: Iterable<string>): Set<string> {
   return prefixes;
 }
 
-async function listOutputEntries(outputDir: string): Promise<string[]> {
-  const out: string[] = [];
-  await walkOutput(outputDir, '', out, undefined);
-  out.sort();
-  return out;
-}
-
-async function listOutputDirs(outputDir: string): Promise<string[]> {
+async function listOutputTree(outputDir: string): Promise<{ files: string[]; dirs: string[] }> {
+  const files: string[] = [];
   const dirs: string[] = [];
-  await walkOutput(outputDir, '', undefined, dirs);
+  await walkOutput(outputDir, '', files, dirs);
+  files.sort();
   dirs.sort();
-  return dirs;
+  return { files, dirs };
 }
 
 async function walkOutput(
   root: string,
   relDir: string,
-  files: string[] | undefined,
-  dirs: string[] | undefined,
+  files: string[],
+  dirs: string[],
 ): Promise<void> {
   let entries: Dirent[];
   try {
@@ -241,10 +265,10 @@ async function walkOutput(
   for (const entry of entries) {
     const rel = relDir ? `${relDir}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
-      dirs?.push(rel);
+      dirs.push(rel);
       await walkOutput(root, rel, files, dirs);
     } else {
-      files?.push(rel);
+      files.push(rel);
     }
   }
 }

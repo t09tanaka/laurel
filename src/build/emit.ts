@@ -4,6 +4,7 @@ import { constants, createWriteStream } from 'node:fs';
 import {
   copyFile,
   link,
+  lstat,
   readFile,
   rename,
   stat,
@@ -20,6 +21,7 @@ import { NectarError } from '~/util/errors.ts';
 import { ensureDir, pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { sanitizeImageAssetBytes } from '~/util/image-sanitization.ts';
 import { logger } from '~/util/logger.ts';
+import type { BuildManifestFile } from './build-manifest.ts';
 
 // Raster formats the size cap applies to. SVG is intrinsically scalable so a
 // large byte count there is unusual and the cap would just confuse users;
@@ -280,6 +282,7 @@ export function createThemeAssetCopyCache(): ThemeAssetCopyCache {
 
 export interface CopyAssetsOptions {
   cache?: ThemeAssetCopyCache | undefined;
+  previousOutputFiles?: readonly BuildManifestFile[] | undefined;
 }
 
 function stripLeadingBom(value: string): string {
@@ -297,7 +300,14 @@ export async function copyAssets(
 ): Promise<number> {
   const seen = new Set<string>();
   const cache = options?.cache ?? createThemeAssetCopyCache();
-  const unique: { asset: ThemeAsset; dest: string }[] = [];
+  const previousOutputFiles = options?.previousOutputFiles
+    ? new Map(options.previousOutputFiles.map((file) => [file.path, file]))
+    : undefined;
+  const unique: {
+    asset: ThemeAsset;
+    dest: string;
+    previousOutputFile: BuildManifestFile | undefined;
+  }[] = [];
   for (const asset of theme.assets.values()) {
     const dest = join(outputDir, asset.fingerprintedPath);
     const destinationKey = resolve(dest);
@@ -305,14 +315,22 @@ export async function copyAssets(
     const key = `${asset.sourcePath}|${asset.fingerprintedPath}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    unique.push({ asset, dest });
+    unique.push({
+      asset,
+      dest,
+      previousOutputFile: previousOutputFiles?.get(asset.fingerprintedPath),
+    });
   }
   if (unique.length === 0) return 0;
 
   await ensureDirs(unique.map(({ dest }) => dirname(dest)));
 
   const limit = pLimit(EMIT_CONCURRENCY);
-  await Promise.all(unique.map(({ asset, dest }) => limit(() => emitAsset(asset, dest, cache))));
+  await Promise.all(
+    unique.map(({ asset, dest, previousOutputFile }) =>
+      limit(() => emitAsset(asset, dest, cache, previousOutputFile)),
+    ),
+  );
   return unique.length;
 }
 
@@ -320,9 +338,20 @@ async function emitAsset(
   asset: ThemeAsset,
   dest: string,
   cache: ThemeAssetCopyCache,
+  previousOutputFile: BuildManifestFile | undefined,
 ): Promise<void> {
   const destinationKey = resolve(dest);
   const contentKey = `${asset.hash}|${asset.size}`;
+  if (
+    asset.fingerprintedPath !== asset.logicalPath &&
+    (await existingFileMatches(dest, asset, previousOutputFile))
+  ) {
+    cache.emittedDestinations.add(destinationKey);
+    if (!cache.emittedByContent.has(contentKey)) {
+      cache.emittedByContent.set(contentKey, destinationKey);
+    }
+    return;
+  }
   const existing = cache.emittedByContent.get(contentKey);
   if (existing && existing !== destinationKey) {
     try {
@@ -337,6 +366,49 @@ async function emitAsset(
   cache.emittedDestinations.add(destinationKey);
   if (!cache.emittedByContent.has(contentKey)) {
     cache.emittedByContent.set(contentKey, destinationKey);
+  }
+}
+
+async function existingFileMatches(
+  dest: string,
+  asset: ThemeAsset,
+  previousOutputFile: BuildManifestFile | undefined,
+): Promise<boolean> {
+  if (previousOutputFile && (await verifiedOutputFileMatches(dest, asset, previousOutputFile))) {
+    return true;
+  }
+  try {
+    const existing = await lstat(dest);
+    if (!existing.isFile() || existing.size !== asset.size) return false;
+    const hash = createHash('sha256')
+      .update(await readFile(dest))
+      .digest('hex');
+    return hash.startsWith(asset.hash);
+  } catch (err) {
+    if (isFsErrnoCode(err, 'ENOENT')) return false;
+    throw err;
+  }
+}
+
+async function verifiedOutputFileMatches(
+  dest: string,
+  asset: ThemeAsset,
+  previousOutputFile: BuildManifestFile,
+): Promise<boolean> {
+  if (previousOutputFile.path !== asset.fingerprintedPath) return false;
+  if (previousOutputFile.size !== asset.size) return false;
+  if (!previousOutputFile.hash.startsWith(asset.hash)) return false;
+  if (typeof previousOutputFile.mtime_ms !== 'number') return false;
+  try {
+    const existing = await lstat(dest);
+    return (
+      existing.isFile() &&
+      existing.size === previousOutputFile.size &&
+      existing.mtimeMs === previousOutputFile.mtime_ms
+    );
+  } catch (err) {
+    if (isFsErrnoCode(err, 'ENOENT')) return false;
+    throw err;
   }
 }
 

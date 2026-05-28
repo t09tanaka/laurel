@@ -271,8 +271,9 @@ export async function runDev(args: string[]): Promise<number> {
     pendingCategories = new Set();
     const decision = decideDevReuse(windowCategories);
     const reuseArg =
-      reusable !== undefined && (decision.reuseConfig || decision.reuseTheme)
+      reusable !== undefined
         ? {
+            rawContentCache: reusable.rawContentCache,
             ...(decision.reuseConfig ? { config: reusable.config } : {}),
             ...(decision.reuseTheme ? { theme: reusable.theme } : {}),
           }
@@ -470,11 +471,14 @@ function waitForShutdownSignal(): Promise<'SIGINT' | 'SIGTERM'> {
   });
 }
 
-function describeReuse(reuse: { config?: unknown; theme?: unknown } | undefined): string {
+function describeReuse(
+  reuse: { config?: unknown; theme?: unknown; rawContentCache?: unknown } | undefined,
+): string {
   if (!reuse) return 'fresh load';
   const parts: string[] = [];
   if (reuse.config !== undefined) parts.push('config');
   if (reuse.theme !== undefined) parts.push('theme');
+  if (reuse.rawContentCache !== undefined) parts.push('content');
   if (parts.length === 0) return 'fresh load';
   return `reused ${parts.join('+')}`;
 }

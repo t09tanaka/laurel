@@ -1,12 +1,17 @@
 import { existsSync } from 'node:fs';
-import { readdir, stat } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
 import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isNonProductionBuild } from '~/config/deploy-environment.ts';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
-import { type MarkdownTransformHook, loadContent } from '~/content/loader.ts';
+import {
+  type MarkdownTransformHook,
+  type RawContentCache,
+  createRawContentCache,
+  loadContent,
+} from '~/content/loader.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import { SUBSCRIBE_NOOP_BUILD_WARNING } from '~/members/noop.ts';
 import { validatePortalConfig } from '~/members/portal-validation.ts';
@@ -29,10 +34,12 @@ import { emitAzureStaticWebAppConfig } from './azure.ts';
 import { normalizeBasePath } from './base-path.ts';
 import { normalizeBaseUrl } from './base-url.ts';
 import {
+  type BuildManifestJson,
   type BuildManifestRoute,
   buildManifestRelPath,
   changedPathsRelPath,
   emitBuildManifest,
+  legacyBuildManifestRelPath,
   loadBuildManifest,
 } from './build-manifest.ts';
 import { emitCaddyfile } from './caddy.ts';
@@ -100,10 +107,13 @@ import {
   collectRouteContentInputs,
   computeGeneratorSourceFingerprint,
   computeGlobalHash,
-  computeRouteContentFingerprint,
+  computeManifestEntryIntegrity,
+  computeRouteContentInputsFingerprint,
   computeRouteHash,
   computeThemeFingerprint,
+  createRouteContentInputIndex,
   loadManifest,
+  reusePreviousRouteHash,
   saveManifest,
 } from './manifest.ts';
 import { emitMeilisearchRecords } from './meilisearch.ts';
@@ -149,15 +159,15 @@ import {
 import { emitTierWelcomePages } from './tier-welcome-pages.ts';
 import { GENERATED_WEB_MANIFEST_PATH, emitWebManifest } from './web-manifest.ts';
 
-// Hot path for `nectar dev`: lets the dev server hand a previously-loaded
-// config and/or theme back to a fresh build() call so we skip the (relatively
-// slow) `loadConfig` + `loadTheme`/`compileTemplates` work when the watcher
-// is sure those inputs have not changed. Content is intentionally not on this
-// surface yet: the content graph is mutated in place by image/srcset injectors
-// after loadContent, so safe reuse needs a follow-up audit.
+// Hot path for `nectar dev`: lets the dev server hand previously-loaded state
+// back to a fresh build() call. Config/theme reuse skips their load steps when
+// the watcher knows those inputs have not changed; rawContentCache is a
+// mutation-safe cache of normalized Markdown entries that loadContent clones
+// into a fresh build-local content graph before image/srcset injectors run.
 export interface ReusableBuildState {
   config?: NectarConfig | undefined;
   theme?: ThemeBundle | undefined;
+  rawContentCache?: RawContentCache | undefined;
 }
 
 export interface BuildOptions {
@@ -205,11 +215,11 @@ export interface BuildOptions {
   // best-effort telemetry: progress UI must never be able to fail a build.
   progress?: BuildProgressReporter | undefined;
   // When set, the build skips re-loading the corresponding inputs and uses the
-  // provided objects instead. Used by `nectar dev` to keep config / theme in
-  // memory across rebuilds: a .hbs save reloads only the theme, a .md save
-  // reloads only the content graph, and only a `nectar.toml` change invalidates
-  // everything. Reused config is still subject to CLI overrides
-  // (basePath / baseUrl / copyContentAssets) applied below in build().
+  // provided objects or caches instead. Used by `nectar dev` to keep config /
+  // theme in memory across rebuilds and to reuse unchanged raw content entries
+  // while reconstructing a fresh content graph on every build. Reused config is
+  // still subject to CLI overrides (basePath / baseUrl / copyContentAssets)
+  // applied below in build().
   reuse?: ReusableBuildState | undefined;
   // When true, the returned BuildSummary includes the `reusable` field with the
   // loaded config + theme so the caller can hand them back on the next build.
@@ -292,11 +302,12 @@ export interface BuildSummary {
   slowestRoutes?: BuildStatsRoute[];
   helperHotspots?: BuildStatsHelperHotspot[];
   // Populated only when `captureReusable: true` was passed in BuildOptions.
-  // Lets `nectar dev` re-feed the same config/theme back on the next rebuild,
-  // skipping their load step.
+  // Lets `nectar dev` re-feed the same config/theme/content cache back on the
+  // next rebuild, skipping safe load work while preserving fresh graph objects.
   reusable?: {
     config: NectarConfig;
     theme: ThemeBundle;
+    rawContentCache: RawContentCache;
   };
 }
 
@@ -467,6 +478,8 @@ export async function build({
   if (baseUrlOverride !== undefined) {
     config.site.url = normalizeBaseUrl(baseUrlOverride);
   }
+  const rawContentCache =
+    reuse?.rawContentCache ?? (captureReusable === true ? createRawContentCache() : undefined);
 
   // Read the previous manifest from the live output dir BEFORE staging so the
   // incremental decision and any reused-HTML reads see the last successful
@@ -514,6 +527,7 @@ export async function build({
     emitContentApi,
     progress,
     reuseTheme: reuse?.theme,
+    rawContentCache,
     captureReusable: captureReusable === true,
   });
 }
@@ -535,6 +549,7 @@ async function runBuild({
   emitContentApi,
   progress,
   reuseTheme,
+  rawContentCache,
   captureReusable,
 }: {
   cwd: string;
@@ -545,6 +560,7 @@ async function runBuild({
   previousManifest: BuildManifest | undefined;
   previousBuildManifest: Awaited<ReturnType<typeof loadBuildManifest>>;
   reuseTheme?: ThemeBundle | undefined;
+  rawContentCache?: RawContentCache | undefined;
   captureReusable?: boolean | undefined;
   noAtomic: boolean;
   concurrency: number | undefined;
@@ -626,6 +642,7 @@ async function runBuild({
           includeDrafts,
           markdownTransforms,
           pageApprovalGate: true,
+          rawContentCache,
         });
         return Promise.all([contentPromise, themePromise]);
       });
@@ -848,7 +865,10 @@ async function runBuild({
   if (!dryRun) {
     earlyThemeAssetCopy = startSettledBuildTask(() =>
       timed(profiler, 'copy_assets', () =>
-        copyAssets(theme, outputDir, { cache: themeAssetCopyCache }),
+        copyAssets(theme, outputDir, {
+          cache: themeAssetCopyCache,
+          previousOutputFiles: previousBuildManifest?.files,
+        }),
       ),
     );
     if (config.build.copy_content_assets) {
@@ -886,6 +906,10 @@ async function runBuild({
   const earlyHintHrefs = earlyHintsEnabled
     ? buildKnownEarlyHintHrefs(theme, config.build.base_path)
     : new Set<string>();
+  const reusedHtmlBodyNeeded =
+    earlyHintsEnabled ||
+    (typeof config.deploy.headers.security.content_security_policy === 'string' &&
+      config.deploy.headers.security.content_security_policy.length > 0);
   const routeEarlyHints: RouteEarlyHints[] = [];
 
   // Render fans out under a concurrency cap so a 1000-post site overlaps the
@@ -906,21 +930,34 @@ async function runBuild({
     bytes: number;
     reused: boolean;
     earlyHints: RouteEarlyHints | null;
+    contentInputs: ReturnType<typeof collectRouteContentInputs>;
   };
   let completedRoutes = 0;
   const renderedImageDimensionCache = new Map();
   const renderedImageLqipCache = new Map<string, string | null>();
+  const routeContentInputIndex = createRouteContentInputIndex(content);
   const renderOneRoute = (route: RouteContext): Promise<RenderResult> =>
     renderLimit(async (): Promise<RenderResult> => {
-      const contentFingerprint = computeRouteContentFingerprint(route, content);
-      const routeHash = computeRouteHash({
-        globalHash,
-        route,
-        theme,
-        contentFingerprint,
-        themeFingerprint,
-      });
+      const contentInputs = collectRouteContentInputs(route, content, routeContentInputIndex);
+      const contentFingerprint = computeRouteContentInputsFingerprint(contentInputs);
       const previous = previousRoutes[route.url];
+      const routeHash =
+        reusePreviousRouteHash({
+          previous,
+          previousGlobalHash: previousManifest?.globalHash,
+          currentGlobalHash: globalHash,
+          route,
+          contentFingerprint,
+          themeFingerprint,
+          pluginsEnabled: pluginSet.plugins.length > 0,
+        }) ??
+        computeRouteHash({
+          globalHash,
+          route,
+          theme,
+          contentFingerprint,
+          themeFingerprint,
+        });
       const reusableEntry =
         previous &&
         previous.hash === routeHash &&
@@ -939,9 +976,9 @@ async function runBuild({
             template: route.template,
             kind: route.kind,
           });
-          const html = await previousFile.text();
-          if (isHtmlRoute(route)) warnSubscribeNoopIfNeeded(html);
-          const bytes = Buffer.byteLength(html, 'utf8');
+          const html = reusedHtmlBodyNeeded ? await previousFile.text() : '';
+          if (html && isHtmlRoute(route)) warnSubscribeNoopIfNeeded(html);
+          const bytes = html ? Buffer.byteLength(html, 'utf8') : previousFile.size;
           stop?.({ bytes, reused: true });
           completedRoutes += 1;
           notifyProgress(progress, {
@@ -960,7 +997,7 @@ async function runBuild({
             bytes,
             reused: true,
             earlyHints:
-              earlyHintsEnabled && isHtmlRoute(route)
+              html && earlyHintsEnabled && isHtmlRoute(route)
                 ? collectRouteEarlyHints({
                     routeUrl: route.url,
                     outputPath: route.outputPath,
@@ -969,6 +1006,7 @@ async function runBuild({
                     maxLinks: config.deploy.early_hints.max_links,
                   })
                 : null,
+            contentInputs,
           };
         }
       }
@@ -1024,6 +1062,7 @@ async function runBuild({
                   maxLinks: config.deploy.early_hints.max_links,
                 })
               : null,
+          contentInputs,
         };
       } catch (err) {
         stop?.();
@@ -1056,12 +1095,18 @@ async function runBuild({
         if (result === undefined || route === undefined) {
           throw new Error('render batch entry missing');
         }
-        const contentInputs = collectRouteContentInputs(route, content);
-        nextRoutes[result.url] = {
+        const nextRouteEntry = {
           hash: result.routeHash,
           outputPath: result.outputPath,
           contentFingerprint: result.contentFingerprint,
           themeFingerprint,
+          kind: route.kind,
+          template: route.template,
+          lastmod: route.lastmod ?? null,
+        };
+        nextRoutes[result.url] = {
+          ...nextRouteEntry,
+          integrity: computeManifestEntryIntegrity(nextRouteEntry),
         };
         buildManifestRoutes.push({
           url: result.url,
@@ -1069,7 +1114,7 @@ async function runBuild({
           route_fingerprint: result.routeHash,
           content_fingerprint: result.contentFingerprint,
           theme_fingerprint: themeFingerprint,
-          content_inputs: contentInputs,
+          content_inputs: result.contentInputs,
           reused: result.reused,
         });
         htmlOutputs.push(result.htmlOutput);
@@ -1179,7 +1224,9 @@ async function runBuild({
       ...(helperHotspots && helperHotspots.length > 0
         ? { helperHotspots: [...helperHotspots] }
         : {}),
-      ...(captureReusable === true ? { reusable: { config, theme } } : {}),
+      ...(captureReusable === true && rawContentCache
+        ? { reusable: { config, theme, rawContentCache } }
+        : {}),
     };
   }
 
@@ -1226,7 +1273,10 @@ async function runBuild({
               earlyThemeAssetCopy ??
                 startSettledBuildTask(() =>
                   timed(profiler, 'copy_assets', () =>
-                    copyAssets(theme, outputDir, { cache: themeAssetCopyCache }),
+                    copyAssets(theme, outputDir, {
+                      cache: themeAssetCopyCache,
+                      previousOutputFiles: previousBuildManifest?.files,
+                    }),
                   ),
                 ),
             );
@@ -1659,6 +1709,7 @@ async function runBuild({
         outputDir,
         keepRelPaths: plannedOutputPaths,
         preservePatterns,
+        previousOutputFiles: previousBuildManifest?.files,
       }),
     );
   }
@@ -1701,7 +1752,7 @@ async function runBuild({
   // artifact in the tree — including incremental cache, preserved user files,
   // and platform descriptors. Excludes itself and its derived changed-paths
   // companion to avoid self-referential hashes.
-  await timed(profiler, 'build_manifest', () =>
+  const emittedBuildManifest = await timed(profiler, 'build_manifest', () =>
     emitBuildManifest({
       outputDir,
       config,
@@ -1734,7 +1785,9 @@ async function runBuild({
     outputDir: finalOutputDir,
     command: config.hooks.post_build,
   });
-  const outputBytes = await timed(profiler, 'output_size', () => dirSize(finalOutputDir));
+  const outputBytes = await timed(profiler, 'output_size', () =>
+    outputSizeFromBuildManifest(finalOutputDir, emittedBuildManifest),
+  );
 
   return {
     outputDir: finalOutputDir,
@@ -1749,23 +1802,26 @@ async function runBuild({
     renderedCount,
     skippedCount,
     dryRun: false,
-    ...(captureReusable === true ? { reusable: { config, theme } } : {}),
+    ...(captureReusable === true && rawContentCache
+      ? { reusable: { config, theme, rawContentCache } }
+      : {}),
   };
 }
 
 type KeepOutput = (path: string) => void;
 
-async function dirSize(path: string): Promise<number> {
-  let total = 0;
-  const entries = await readdir(path, { withFileTypes: true });
-  for (const entry of entries) {
-    const child = join(path, entry.name);
-    if (entry.isDirectory()) {
-      total += await dirSize(child);
-      continue;
+async function outputSizeFromBuildManifest(
+  outputDir: string,
+  manifest: BuildManifestJson,
+): Promise<number> {
+  let total = manifest.files.reduce((sum, file) => sum + file.size, 0);
+  for (const rel of [buildManifestRelPath(), legacyBuildManifestRelPath(), changedPathsRelPath()]) {
+    try {
+      const file = await stat(join(outputDir, rel));
+      if (file.isFile()) total += file.size;
+    } catch (err) {
+      if (!isFsErrnoCode(err, 'ENOENT')) throw err;
     }
-    if (!entry.isFile()) continue;
-    total += (await stat(child)).size;
   }
   return total;
 }
@@ -1778,6 +1834,10 @@ function normalizeOutputRelPath(path: string): string | undefined {
     return undefined;
   }
   return normalized;
+}
+
+function isFsErrnoCode(err: unknown, code: string): boolean {
+  return err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === code;
 }
 
 function markPlannedSitemapOutputs(opts: {

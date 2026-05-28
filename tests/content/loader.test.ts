@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { emptyRoutesYaml } from '~/build/routes-yaml.ts';
 import { configSchema } from '~/config/schema.ts';
-import { MISSING_FRONTMATTER_DATE_FALLBACK, loadContent } from '~/content/loader.ts';
+import {
+  MISSING_FRONTMATTER_DATE_FALLBACK,
+  createRawContentCache,
+  loadContent,
+} from '~/content/loader.ts';
 import { NectarError } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
 
@@ -129,6 +133,100 @@ describe('loadContent', () => {
     );
     expect(graph.pages[0]?.post_class.split(' ')).toEqual(
       expect.arrayContaining(['post', 'page', 'access', 'no-image']),
+    );
+  });
+
+  test('reuses unchanged raw content entries without leaking mutated graph objects', async () => {
+    const cwd = await fixture();
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const rawContentCache = createRawContentCache();
+
+    const first = await loadContent({ cwd, config, rawContentCache });
+    expect(rawContentCache.stats()).toEqual({
+      hits: 0,
+      misses: 5,
+      sets: 5,
+    });
+
+    const hello = first.posts.find((post) => post.slug === 'hello');
+    if (!hello) throw new Error('expected hello post');
+    hello.title = 'Mutated title';
+    hello.tags.length = 0;
+
+    const second = await loadContent({ cwd, config, rawContentCache });
+    expect(rawContentCache.stats()).toEqual({
+      hits: 5,
+      misses: 5,
+      sets: 5,
+    });
+    expect(second.posts.find((post) => post.slug === 'hello')?.title).toBe('Hello world');
+    expect(second.posts.find((post) => post.slug === 'hello')?.tags.map((tag) => tag.slug)).toEqual(
+      ['news'],
+    );
+  });
+
+  test('invalidates a raw content cache entry when the source file fingerprint changes', async () => {
+    const cwd = await fixture();
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const rawContentCache = createRawContentCache();
+
+    await loadContent({ cwd, config, rawContentCache });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello edited"
+date: 2026-01-01T00:00:00Z
+tags: [news]
+authors: [casper]
+featured: true
+---
+
+# Hello
+
+Welcome to edited Nectar.
+`,
+      'utf8',
+    );
+
+    const edited = await loadContent({ cwd, config, rawContentCache });
+
+    expect(rawContentCache.stats()).toEqual({
+      hits: 4,
+      misses: 6,
+      sets: 6,
+    });
+    expect(edited.posts.find((post) => post.slug === 'hello')?.title).toBe('Hello edited');
+    expect(edited.posts.find((post) => post.slug === 'hello')?.html).toContain(
+      'Welcome to edited Nectar.',
+    );
+  });
+
+  test('does not reuse raw content entries when markdown transforms are active', async () => {
+    const cwd = await fixture();
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const rawContentCache = createRawContentCache();
+
+    await loadContent({
+      cwd,
+      config,
+      rawContentCache,
+      markdownTransforms: [(body) => body.replace('Welcome to Nectar.', 'Transformed once.')],
+    });
+    const second = await loadContent({
+      cwd,
+      config,
+      rawContentCache,
+      markdownTransforms: [(body) => body.replace('Welcome to Nectar.', 'Transformed twice.')],
+    });
+
+    expect(rawContentCache.stats()).toEqual({
+      hits: 0,
+      misses: 0,
+      sets: 0,
+    });
+    expect(second.posts.find((post) => post.slug === 'hello')?.html).toContain(
+      'Transformed twice.',
     );
   });
 

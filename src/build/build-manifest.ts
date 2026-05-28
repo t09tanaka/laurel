@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { stat } from 'node:fs/promises';
 import { dirname, join, sep } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ThemeBundle, ThemeCustomSettingDefinition } from '~/theme/types.ts';
@@ -39,6 +40,7 @@ export interface BuildManifestFile {
   path: string;
   size: number;
   hash: string;
+  mtime_ms?: number;
 }
 
 export interface BuildManifestJson {
@@ -220,11 +222,17 @@ async function collectOutputFiles(
     relPaths.map((rel) =>
       limit(async (): Promise<BuildManifestFile> => {
         const abs = join(outputDir, rel);
-        const buf = Buffer.from(await Bun.file(abs).arrayBuffer());
+        const [buf, fileStat] = await Promise.all([
+          Bun.file(abs)
+            .arrayBuffer()
+            .then((bytes) => Buffer.from(bytes)),
+          stat(abs),
+        ]);
         return {
           path: rel,
           size: buf.byteLength,
           hash: sha256Buf(buf),
+          mtime_ms: fileStat.mtimeMs,
         };
       }),
     ),

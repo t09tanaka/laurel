@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph, ContentSourceFingerprint, SiteData } from '~/content/model.ts';
@@ -18,11 +18,57 @@ export const MANIFEST_VERSION = 3 as const;
 
 export const MANIFEST_FILENAME = '.nectar-manifest.json';
 
+export interface GeneratorSourceFingerprintCacheStats {
+  hits: number;
+  misses: number;
+  sets: number;
+}
+
+export interface GeneratorSourceFingerprintCache {
+  get(key: string): string | undefined;
+  set(key: string, value: string): void;
+  stats(): GeneratorSourceFingerprintCacheStats;
+}
+
+class InMemoryGeneratorSourceFingerprintCache implements GeneratorSourceFingerprintCache {
+  #entries = new Map<string, string>();
+  #stats: GeneratorSourceFingerprintCacheStats = { hits: 0, misses: 0, sets: 0 };
+
+  get(key: string): string | undefined {
+    const value = this.#entries.get(key);
+    if (value === undefined) {
+      this.#stats.misses += 1;
+      return undefined;
+    }
+    this.#stats.hits += 1;
+    return value;
+  }
+
+  set(key: string, value: string): void {
+    this.#entries.set(key, value);
+    this.#stats.sets += 1;
+  }
+
+  stats(): GeneratorSourceFingerprintCacheStats {
+    return { ...this.#stats };
+  }
+}
+
+export function createGeneratorSourceFingerprintCache(): GeneratorSourceFingerprintCache {
+  return new InMemoryGeneratorSourceFingerprintCache();
+}
+
+const defaultGeneratorSourceFingerprintCache = createGeneratorSourceFingerprintCache();
+
 export interface ManifestEntry {
   hash: string;
   outputPath: string;
   contentFingerprint?: string;
   themeFingerprint?: string;
+  kind?: RouteContext['kind'];
+  template?: string;
+  lastmod?: string | null;
+  integrity?: string;
 }
 
 export interface FeedManifestEntry {
@@ -93,6 +139,7 @@ export function computeGlobalHash(opts: {
 
 export async function computeGeneratorSourceFingerprint(
   srcRoot = resolve(import.meta.dir, '..'),
+  cache: GeneratorSourceFingerprintCache = defaultGeneratorSourceFingerprintCache,
 ): Promise<string> {
   if (!existsSync(srcRoot)) return 'source-unavailable';
   const patterns = ['build/**/*.ts', 'content/**/*.ts', 'render/**/*.ts', 'theme/**/*.ts'];
@@ -104,6 +151,25 @@ export async function computeGeneratorSourceFingerprint(
     .flat()
     .sort();
   if (paths.length === 0) return 'source-unavailable';
+  const sourceStats = await Promise.all(
+    paths.map(async (rel) => {
+      const fileStat = await stat(join(srcRoot, rel));
+      return {
+        path: rel,
+        size: fileStat.size,
+        mtimeMs: Math.round(fileStat.mtimeMs * 1000) / 1000,
+      };
+    }),
+  );
+  const cacheKey = sha256(
+    stableStringify({
+      version: 1,
+      srcRoot: resolve(srcRoot),
+      files: sourceStats,
+    }),
+  );
+  const cached = cache.get(cacheKey);
+  if (cached !== undefined) return cached;
   const h = createHash('sha256');
   for (const rel of paths) {
     h.update(rel);
@@ -111,7 +177,9 @@ export async function computeGeneratorSourceFingerprint(
     h.update(await readFile(join(srcRoot, rel)));
     h.update('\0');
   }
-  return h.digest('hex');
+  const fingerprint = h.digest('hex');
+  cache.set(cacheKey, fingerprint);
+  return fingerprint;
 }
 
 // Per-route hash combines the global hash with the route's template and
@@ -148,6 +216,53 @@ export function computeRouteHash(opts: {
   return sha256(stableStringify(payload));
 }
 
+export function reusePreviousRouteHash(opts: {
+  previous: ManifestEntry | undefined;
+  previousGlobalHash: string | undefined;
+  currentGlobalHash: string;
+  route: RouteContext;
+  contentFingerprint: string;
+  themeFingerprint: string;
+  pluginsEnabled: boolean;
+}): string | undefined {
+  const {
+    previous,
+    previousGlobalHash,
+    currentGlobalHash,
+    route,
+    contentFingerprint,
+    themeFingerprint,
+    pluginsEnabled,
+  } = opts;
+  if (!previous) return undefined;
+  if (pluginsEnabled) return undefined;
+  if (previousGlobalHash !== currentGlobalHash) return undefined;
+  if (previous.integrity !== computeManifestEntryIntegrity(previous)) return undefined;
+  if (previous.outputPath !== route.outputPath) return undefined;
+  if (previous.contentFingerprint !== contentFingerprint) return undefined;
+  if (previous.themeFingerprint !== themeFingerprint) return undefined;
+  if (previous.kind === undefined || previous.kind !== route.kind) return undefined;
+  if (previous.template === undefined || previous.template !== route.template) return undefined;
+  if ((previous.lastmod ?? null) !== (route.lastmod ?? null)) return undefined;
+  return previous.hash;
+}
+
+export function computeManifestEntryIntegrity(
+  entry: Omit<ManifestEntry, 'integrity'> | ManifestEntry,
+): string {
+  return sha256(
+    stableStringify({
+      hash: entry.hash,
+      outputPath: entry.outputPath,
+      contentFingerprint: entry.contentFingerprint,
+      themeFingerprint: entry.themeFingerprint,
+      kind: entry.kind,
+      template: entry.template,
+      lastmod: entry.lastmod ?? null,
+    }),
+  );
+}
+
 export function computeThemeFingerprint(theme: ThemeBundle): string {
   const assets = [...theme.assets.values()]
     .map((asset) => ({
@@ -179,38 +294,59 @@ export interface RouteContentInput {
   size: number;
 }
 
+export interface RouteContentInputIndex {
+  posts: ReadonlyMap<string, RouteContentInput>;
+  pages: ReadonlyMap<string, RouteContentInput>;
+  tags: ReadonlyMap<string, RouteContentInput>;
+  authors: ReadonlyMap<string, RouteContentInput>;
+}
+
+export function createRouteContentInputIndex(content: ContentGraph): RouteContentInputIndex {
+  return {
+    posts: buildContentInputMap('post', content.sources?.posts),
+    pages: buildContentInputMap('page', content.sources?.pages),
+    tags: buildContentInputMap('tag', content.sources?.tags),
+    authors: buildContentInputMap('author', content.sources?.authors),
+  };
+}
+
+function buildContentInputMap(
+  kind: RouteContentInput['kind'],
+  sources: ReadonlyMap<string, ContentSourceFingerprint> | undefined,
+): ReadonlyMap<string, RouteContentInput> {
+  const out = new Map<string, RouteContentInput>();
+  if (!sources) return out;
+  for (const [id, source] of sources) {
+    out.set(id, { kind, id, ...source });
+  }
+  return out;
+}
+
 export function collectRouteContentInputs(
   route: RouteContext,
   content: ContentGraph,
+  index?: RouteContentInputIndex,
 ): RouteContentInput[] {
   const inputs = new Map<string, RouteContentInput>();
-  const add = (
-    kind: RouteContentInput['kind'],
-    id: string | undefined,
-    source: ContentSourceFingerprint | undefined,
-  ) => {
-    if (!id || !source) return;
-    inputs.set(`${kind}:${id}`, { kind, id, ...source });
+  const sourceIndex = index ?? {
+    posts: buildContentInputMap('post', content.sources?.posts),
+    pages: buildContentInputMap('page', content.sources?.pages),
+    tags: buildContentInputMap('tag', content.sources?.tags),
+    authors: buildContentInputMap('author', content.sources?.authors),
+  };
+  const add = (kind: RouteContentInput['kind'], id: string | undefined) => {
+    if (!id) return;
+    const input = sourceIndex[`${kind}s`].get(id);
+    if (!input) return;
+    inputs.set(`${kind}:${id}`, input);
   };
 
-  add(
-    'post',
-    route.data.post?.id,
-    route.data.post && content.sources?.posts.get(route.data.post.id),
-  );
-  add(
-    'page',
-    route.data.page?.id,
-    route.data.page && content.sources?.pages.get(route.data.page.id),
-  );
-  add('tag', route.data.tag?.id, route.data.tag && content.sources?.tags.get(route.data.tag.id));
-  add(
-    'author',
-    route.data.author?.id,
-    route.data.author && content.sources?.authors.get(route.data.author.id),
-  );
+  add('post', route.data.post?.id);
+  add('page', route.data.page?.id);
+  add('tag', route.data.tag?.id);
+  add('author', route.data.author?.id);
   for (const post of route.data.posts ?? []) {
-    add('post', post.id, content.sources?.posts.get(post.id));
+    add('post', post.id);
   }
 
   return [...inputs.values()].sort((a, b) => {
@@ -220,8 +356,16 @@ export function collectRouteContentInputs(
   });
 }
 
-export function computeRouteContentFingerprint(route: RouteContext, content: ContentGraph): string {
-  return sha256(stableStringify(collectRouteContentInputs(route, content)));
+export function computeRouteContentFingerprint(
+  route: RouteContext,
+  content: ContentGraph,
+  index?: RouteContentInputIndex,
+): string {
+  return computeRouteContentInputsFingerprint(collectRouteContentInputs(route, content, index));
+}
+
+export function computeRouteContentInputsFingerprint(inputs: readonly RouteContentInput[]): string {
+  return sha256(stableStringify(inputs));
 }
 
 function sha256(input: string): string {
