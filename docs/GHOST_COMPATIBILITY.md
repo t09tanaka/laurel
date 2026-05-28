@@ -95,7 +95,7 @@ build emits usable reader-facing HTML without a Ghost server.
 
 | Card | Migrates | Renders | Notes |
 |------|----------|---------|-------|
-| Image | Yes | Yes | Preserves `kg-image-card`, image link, caption, width/height, responsive `<picture><source>` metadata, animated WebP/APNG/GIF image URLs, and width modifier classes where exported. |
+| Image | Yes | Yes | Imports ordinary static image cards as editable Markdown images, preserving image links, captions, and Ghost width modifiers. The Markdown renderer promotes those images back to `kg-image-card` figures. Image cards that need richer metadata, such as responsive `<picture><source>` input or animated media that must not be rewritten, remain `{{< figure />}}` shortcodes. |
 | Gallery | Yes | Yes | Preserves the `kg-gallery-container` / row / image shape, intrinsic image dimensions, and width modifier classes; Nectar does not inject Ghost's legacy gallery bootstrap script. |
 | Bookmark | Yes | Yes | Converts to a `{{< bookmark />}}` shortcode and renders the static `kg-bookmark-card` scaffold with best-effort metadata. |
 | Embed | Yes | Partial | Converts to `{{< embed />}}` and preserves width modifier classes. YouTube, Vimeo, and Spotify render static iframes; other known providers keep the source URL and render a bookmark-style fallback link unless a site deliberately loads provider scripts. |
@@ -497,6 +497,20 @@ templates to add `gh-content` / `gh-canvas`.
 | `{{< video />}}` | `<figure class="kg-card kg-video-card kg-width-*">` with `.kg-video-container`, `<video>`, optional `<track>`, caption, and sanitized `--aspect-ratio`. |
 | `{{< product />}}` | `<div class="kg-card kg-product-card kg-width-*">` with image, image `srcset`/`sizes`, title, description, optional rating, and CTA scaffold. |
 | `{% header %}` | `<div class="kg-card kg-header-card ...">` with optional `kg-style-*`, `kg-size-*`, background image metadata, heading/subheading, and CTA anchor including `data-portal` when imported. |
+
+Imported ordinary Ghost image cards usually do not stay as `{{< figure />}}`
+shortcodes in Markdown. Nectar stores them as standard Markdown images so the
+dashboard editor can treat them as normal image nodes:
+
+- `![Alt](/content/images/photo.jpg)`
+- `[![Alt](/content/images/photo.jpg)](https://example.com/)` for linked images
+- a following blockquote, such as `> Caption`, for the image caption
+- a Markdown title of `kg-width-wide` or `kg-width-full` for Ghost width classes
+
+At render time, top-level Markdown image paragraphs are promoted back into
+`<figure class="kg-card kg-image-card kg-width-*">` output. This keeps the file
+source Markdown-first while preserving the Ghost theme DOM contract in preview
+and build output.
 
 Captioned figure-based cards render `role="group"` and an
 `aria-labelledby` reference to their `<figcaption id="kg-card-caption-*">`.
