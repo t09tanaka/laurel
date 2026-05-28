@@ -4,7 +4,12 @@
 // safely include this module via tests.
 
 import type { NodeType, Node as ProseNode, Schema } from 'prosemirror-model';
-import { type EditorState, TextSelection, type Transaction } from 'prosemirror-state';
+import {
+  type EditorState,
+  NodeSelection,
+  TextSelection,
+  type Transaction,
+} from 'prosemirror-state';
 
 export interface EmptyParagraphTarget {
   paraStart: number;
@@ -17,6 +22,8 @@ export interface EmptyParagraphTarget {
 export interface ComponentEntry {
   slug: string;
   description?: string;
+  css?: string;
+  html?: string;
 }
 
 // Slug pattern mirrored from src/content/components.ts so a defensive
@@ -25,13 +32,24 @@ export interface ComponentEntry {
 // hidden from the submenu rather than letting users insert dead text.
 export const COMPONENT_SLUG_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
 
-// Build a paragraph containing the literal `{slug}` text — the same
-// shape the markdown parser would produce from a hand-typed
-// `{callout}` line. By inserting at the paragraph level (rather than
-// as an inline span at the caret), the round-trip
-// markdown → ProseMirror → markdown stays stable and the shortcode
-// expander on the build side sees a clean line to act on.
-export function buildComponentParagraph(schema: Schema, slug: string): ProseNode | null {
+// Build the block used for a component insertion. Modern editor schemas
+// expose a dedicated atom node so `{slug}` renders as a non-editable
+// preview; older / test schemas fall back to a paragraph containing
+// the literal shortcode text.
+export function buildComponentParagraph(
+  schema: Schema,
+  slug: string,
+  entry?: ComponentEntry,
+): ProseNode | null {
+  const component = nodeBy(schema, 'component');
+  if (component) {
+    return component.create({
+      slug,
+      description: entry?.description?.trim() ?? '',
+      css: entry?.css ?? '',
+      html: entry?.html ?? '',
+    });
+  }
   const para = nodeBy(schema, 'paragraph');
   if (!para) return null;
   return para.create(null, schema.text(`{${slug}}`));
@@ -41,6 +59,9 @@ export interface ComponentSubmenuEntry {
   slug: string;
   label: string;
   hint: string;
+  description?: string;
+  css?: string;
+  html?: string;
 }
 
 // Filter / dedup the raw component list into the entries the popover
@@ -60,6 +81,9 @@ export function buildComponentSubmenuEntries(list: ComponentEntry[]): ComponentS
       slug: c.slug,
       label: `{${c.slug}}`,
       hint: c.description?.trim() ?? '',
+      description: c.description,
+      css: c.css,
+      html: c.html,
     });
   }
   return entries;
@@ -78,11 +102,15 @@ export function buildInsertComponentTransaction(
   if (!paraNode) return null;
   const paraEnd = target.paraStart + paraNode.nodeSize;
   let tr = state.tr.replaceWith(target.paraStart, paraEnd, inserted);
-  // Caret = paragraph open token (1) + text length. The inserted
-  // paragraph wraps a single text node, so text length === nodeSize - 2
-  // (open + close tokens).
-  const caret = target.paraStart + 1 + (inserted.nodeSize - 2);
-  tr = tr.setSelection(TextSelection.create(tr.doc, caret));
+  if (inserted.isTextblock) {
+    // Caret = paragraph open token (1) + text length. The inserted
+    // paragraph wraps a single text node, so text length === nodeSize - 2
+    // (open + close tokens).
+    const caret = target.paraStart + 1 + (inserted.nodeSize - 2);
+    tr = tr.setSelection(TextSelection.create(tr.doc, caret));
+  } else {
+    tr = tr.setSelection(NodeSelection.create(tr.doc, target.paraStart));
+  }
   return tr;
 }
 
