@@ -8,6 +8,7 @@ import { useConfirmHost } from './components/ConfirmDialog.tsx';
 import { ContentTable } from './components/ContentTable.tsx';
 import { CreateView } from './components/CreateView.tsx';
 import { EditorView } from './components/EditorView.tsx';
+import { ImportModal } from './components/ImportModal.tsx';
 import { MigrationView } from './components/MigrationView.tsx';
 import { PageHeader } from './components/PageHeader.tsx';
 import { SettingsSubnav } from './components/SettingsSubnav.tsx';
@@ -88,6 +89,7 @@ export function DashboardApp(): JSX.Element {
   const [editorDirty, setEditorDirty] = useState(false);
   const [siteSettingsDirty, setSiteSettingsDirty] = useState(false);
   const [cmdkOpen, setCmdkOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [themeSettingsDirty, setThemeSettingsDirty] = useState(false);
   const [codeInjectionSettingsDirty, setCodeInjectionSettingsDirty] = useState(false);
   const [buildPhase, setBuildPhase] = useState<BuildPhase>('idle');
@@ -504,6 +506,9 @@ export function DashboardApp(): JSX.Element {
   // button would dump the user into a post-create flow that has nothing
   // to do with the settings panel they're looking at.
   const showNewButton = !createMode && !editor && !inSettings;
+  // Zip import is entry-only — it lands posts/pages, so offer it alongside
+  // New in the posts/pages list views.
+  const showImportButton = showNewButton && (ui.view === 'posts' || ui.view === 'pages');
   // Filter input only makes sense when there's actually a list to filter.
   // Editors, the create form, settings, and migration have no view-scoped
   // search target, so hide the input there.
@@ -669,8 +674,10 @@ export function DashboardApp(): JSX.Element {
                 query={ui.query}
                 showNew={showNewButton}
                 showFilter={showFilterInput}
+                showImport={showImportButton}
                 onSearch={handleSearch}
                 onNew={handleNew}
+                onImport={() => setImportOpen(true)}
               />
             }
           />
@@ -731,9 +738,6 @@ export function DashboardApp(): JSX.Element {
                 onOpen={(slug) => {
                   void openEditor(ui.view as 'posts' | 'pages', slug);
                 }}
-                onRefresh={() => void load({ force: true })}
-                toast={toastHost.api}
-                confirm={confirmHost.api}
               />
             ) : ui.view === 'authors' || ui.view === 'tags' ? (
               <TaxonomyView
@@ -814,6 +818,13 @@ export function DashboardApp(): JSX.Element {
         ) : null}
       </main>
       <CommandPalette open={cmdkOpen} items={commandItems} onClose={() => setCmdkOpen(false)} />
+      {importOpen ? (
+        <ImportModal
+          onClose={() => setImportOpen(false)}
+          onImported={() => void load({ force: true })}
+          toast={toastHost.api}
+        />
+      ) : null}
       {confirmHost.node}
       {toastHost.node}
     </div>

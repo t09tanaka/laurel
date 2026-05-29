@@ -5,8 +5,10 @@ interface ToolbarProps {
   query: string;
   showNew: boolean;
   showFilter: boolean;
+  showImport: boolean;
   onSearch: (value: string) => void;
   onNew: () => void;
+  onImport: () => void;
 }
 
 export function Toolbar(props: ToolbarProps): JSX.Element {
@@ -55,6 +57,11 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
             />
           </div>
         </>
+      ) : null}
+      {props.showImport ? (
+        <button class="btn secondary" id="importBundle" type="button" onClick={props.onImport}>
+          Import
+        </button>
       ) : null}
       <button
         class={`btn${props.showNew ? '' : ' hidden'}`}

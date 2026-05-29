@@ -1,6 +1,5 @@
 import type { JSX } from 'preact';
-import { useRef, useState } from 'preact/hooks';
-import { bundleExportUrl, importBundle, markBundleNeedsReview } from '../lib/api.ts';
+import { useRef } from 'preact/hooks';
 import { formatDate } from '../lib/format.ts';
 import { pathForEditor } from '../lib/routes.ts';
 import type {
@@ -9,9 +8,7 @@ import type {
   DashboardList,
   DashboardStatusCounts,
 } from '../types.ts';
-import type { ConfirmApi } from './ConfirmDialog.tsx';
 import { StatePanel } from './StatePanel.tsx';
-import type { ToastApi } from './Toast.tsx';
 
 interface ContentTableProps {
   kind: DashboardContentView;
@@ -23,9 +20,6 @@ interface ContentTableProps {
   onPrev: () => void;
   onNext: () => void;
   onOpen: (slug: string) => void;
-  onRefresh: () => void;
-  toast: ToastApi;
-  confirm: ConfirmApi;
 }
 
 // `list.total` reflects items after status + search filtering. To tell
@@ -52,43 +46,6 @@ const STATUS_TABS: ReadonlyArray<{
 export function ContentTable(props: ContentTableProps): JSX.Element {
   const { kind, list } = props;
   const isPages = kind === 'pages';
-  const entryKind = kind === 'pages' ? 'page' : 'post';
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [importing, setImporting] = useState(false);
-
-  async function handleImport(file: File): Promise<void> {
-    setImporting(true);
-    try {
-      // Dry-run with skip to probe for slug collision.
-      const probe = await importBundle(file, { dryRun: true, onConflict: 'skip' });
-      if (probe.skipped) {
-        // Slug already exists — ask for confirmation before overwriting.
-        const ok = await props.confirm.ask({
-          title: 'Entry already exists',
-          body: `A ${entryKind} with slug "${probe.slug}" already exists. Overwrite it and mark it for review?`,
-          confirmLabel: 'Overwrite',
-          cancelLabel: 'Cancel',
-          intent: 'danger',
-        });
-        if (!ok) return;
-        await importBundle(file, { dryRun: false, onConflict: 'overwrite' });
-      } else {
-        // No collision — proceed with skip policy (equivalent for new entries).
-        await importBundle(file, { dryRun: false, onConflict: 'skip' });
-      }
-      props.onRefresh();
-      props.toast.push({ intent: 'success', message: `Imported ${probe.slug}` });
-    } catch (err) {
-      props.toast.push({
-        intent: 'error',
-        title: 'Import failed',
-        message: err instanceof Error ? err.message : String(err),
-      });
-    } finally {
-      setImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }
 
   return (
     <div>
@@ -105,26 +62,6 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
             counts={list.statusCounts}
             onChange={props.onStatusFilterChange}
           />
-          <button
-            type="button"
-            class="btn secondary btnCompact"
-            disabled={importing}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {importing ? 'Importing…' : 'Import zip'}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".zip"
-            class="srOnly"
-            aria-hidden="true"
-            tabIndex={-1}
-            onChange={(event) => {
-              const file = (event.target as HTMLInputElement).files?.[0];
-              if (file) void handleImport(file);
-            }}
-          />
         </div>
       </div>
       {list.items.length ? (
@@ -132,14 +69,12 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
           <table class="table contentTable">
             <colgroup>
               <col class="titleCol" />
-              <col class="statusCol" />
               <col class="dateCol" />
               <col class="actionsCol" />
             </colgroup>
             <thead class="srOnly">
               <tr>
                 <th>Title</th>
-                <th>Status</th>
                 <th class="dateCol">Updated</th>
                 <th>Actions</th>
               </tr>
@@ -150,11 +85,8 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
                   key={item.slug}
                   item={item}
                   kind={kind}
-                  entryKind={entryKind}
                   isPages={isPages}
                   onOpen={() => props.onOpen(item.slug)}
-                  onRefresh={props.onRefresh}
-                  toast={props.toast}
                 />
               ))}
             </tbody>
@@ -288,56 +220,25 @@ function StatusTabs({ value, counts, onChange }: StatusTabsProps): JSX.Element {
 interface ContentRowProps {
   item: ContentSummary;
   kind: DashboardContentView;
-  entryKind: 'post' | 'page';
   isPages: boolean;
   onOpen: () => void;
-  onRefresh: () => void;
-  toast: ToastApi;
 }
 
-function ContentRow({
-  item,
-  kind,
-  entryKind,
-  isPages,
-  onOpen,
-  onRefresh,
-  toast,
-}: ContentRowProps): JSX.Element {
+function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Element {
   const status = item.status ?? 'published';
   const title = item.title?.trim() ? item.title : '(untitled)';
   const editorHref = pathForEditor(kind, item.slug);
-  const [exporting, setExporting] = useState(false);
   // Clicking anywhere on the row that's not an existing anchor /
   // button opens the editor — the title link and Detail link still
-  // behave as before, and the Preview link / Export action stop
-  // here so they don't get swallowed. Modifier keys are left alone so
-  // the user can still cmd-click a title to open in a new tab.
+  // behave as before, and the Preview link stops here so it doesn't
+  // get swallowed. Modifier keys are left alone so the user can still
+  // cmd-click a title to open in a new tab.
   const onRowClick = (event: MouseEvent) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     if ((event.target as HTMLElement | null)?.closest('a, button')) return;
     event.preventDefault();
     onOpen();
   };
-
-  async function handleExport(event: MouseEvent): Promise<void> {
-    event.stopPropagation();
-    setExporting(true);
-    try {
-      await markBundleNeedsReview(entryKind, item.slug);
-      window.location.href = bundleExportUrl(entryKind, item.slug);
-      onRefresh();
-      toast.push({ intent: 'success', message: `Exported ${item.slug}` });
-    } catch (err) {
-      toast.push({
-        intent: 'error',
-        title: 'Export failed',
-        message: err instanceof Error ? err.message : String(err),
-      });
-    } finally {
-      setExporting(false);
-    }
-  }
 
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: row click is a pointer-only affordance; keyboard users navigate through the inner title and Detail anchors which retain link semantics
@@ -356,6 +257,7 @@ function ContentRow({
           >
             <span class="titleText">{title}</span>
           </a>
+          {status === 'needs-review' ? <span class="reviewPill">Needs review</span> : null}
           {isPages && item.approval?.status !== 'approved' ? (
             <ApprovalPill approval={item.approval} compact />
           ) : null}
@@ -365,11 +267,6 @@ function ContentRow({
             {item.slug}
           </span>
         </div>
-      </td>
-      <td class="statusCell">
-        <span class="statusBadge" data-status={status}>
-          {status}
-        </span>
       </td>
       <td class="dateCell">{formatDate(item.createdAt)}</td>
       <td class="actionsCell">
@@ -391,14 +288,6 @@ function ContentRow({
           >
             Detail
           </a>
-          <button
-            type="button"
-            class="textLink"
-            disabled={exporting}
-            onClick={(event) => void handleExport(event)}
-          >
-            {exporting ? 'Exporting…' : 'Export'}
-          </button>
         </div>
       </td>
     </tr>
