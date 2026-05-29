@@ -59,7 +59,7 @@ export const BUILD_SPEC: CommandSpec = {
     'include-drafts': {
       type: 'boolean',
       description:
-        'Include posts and pages with `status: draft` in the build. Default is to exclude them so a forgotten WIP cannot accidentally ship. Emits a "Building with drafts" warning so the looser policy is visible in CI logs. NECTAR_DRAFTS=1 is honoured as a shorter env-var alias alongside the standard NECTAR_BUILD_INCLUDE_DRAFTS',
+        'Include posts and pages whose status is not published or scheduled (`status: draft`, `needs-review`, or `approved`) in the build. Default is to exclude them so a forgotten WIP or in-review entry cannot accidentally ship. Emits a "Building with drafts" warning so the looser policy is visible in CI logs. NECTAR_DRAFTS=1 is honoured as a shorter env-var alias alongside the standard NECTAR_BUILD_INCLUDE_DRAFTS',
     },
     force: {
       type: 'boolean',
@@ -471,7 +471,7 @@ export const CHECK_SPEC: CommandSpec = {
     'check-frontmatter': {
       type: 'boolean',
       description:
-        'Walk content/posts/**/*.md and content/pages/**/*.md and validate each frontmatter block against the schema (required title, date format, status one of published/draft/scheduled, …). Off by default because it re-reads every file; pair with --strict in CI to fail on warnings',
+        'Walk content/posts/**/*.md and content/pages/**/*.md and validate each frontmatter block against the schema (required title, date format, status one of published/draft/scheduled/needs-review/approved, …). Off by default because it re-reads every file; pair with --strict in CI to fail on warnings',
     },
     'check-templates': {
       type: 'boolean',

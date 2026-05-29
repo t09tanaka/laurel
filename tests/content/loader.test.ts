@@ -2575,6 +2575,52 @@ Approved but not yet published.
     const graph = await loadContent({ cwd, config });
     expect(graph.pages).toHaveLength(0);
   });
+
+  test('includeDrafts surfaces needs-review and approved posts', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'nectar-review-opt-in-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    await writeFile(
+      join(cwd, 'content/posts/in-review.md'),
+      `---
+title: In Review
+status: needs-review
+date: 2026-01-01T00:00:00Z
+---
+
+Pending editorial review.
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/approved.md'),
+      `---
+title: Approved
+status: approved
+date: 2026-01-02T00:00:00Z
+---
+
+Approved but not yet published.
+`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/live.md'),
+      `---
+title: Live
+status: published
+date: 2026-01-03T00:00:00Z
+---
+
+Public.
+`,
+      'utf8',
+    );
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config, includeDrafts: true });
+    expect(graph.posts.map((p) => p.slug).sort()).toEqual(['approved', 'in-review', 'live']);
+    expect(graph.posts.find((p) => p.slug === 'in-review')?.status).toBe('needs-review');
+    expect(graph.posts.find((p) => p.slug === 'approved')?.status).toBe('approved');
+  });
 });
 
 describe('loadContent parallel markdown loading is deterministic', () => {

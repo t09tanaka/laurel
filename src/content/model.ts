@@ -192,7 +192,7 @@ export interface Post {
   // still typed distinctly so themes that branch on `post.visibility` get the
   // exact upstream value instead of a coerced one. See #325.
   visibility: 'public' | 'members' | 'paid' | 'tiers' | 'filter';
-  status: 'published' | 'draft' | 'scheduled';
+  status: 'published' | 'draft' | 'scheduled' | 'needs-review' | 'approved';
   tiers: Tier[];
   // Ghost's `email_only` flag — posts authored to ship via newsletter only
   // and not appear on the web. Default `false`. Routes are skipped by the
@@ -304,7 +304,7 @@ export interface Page {
   reading_time: number;
   word_count: number;
   visibility: 'public';
-  status: 'published' | 'draft';
+  status: 'published' | 'draft' | 'needs-review' | 'approved';
   tags: Tag[];
   primary_tag: Tag | undefined;
   authors: Author[];
