@@ -136,6 +136,10 @@ export async function exportEntryBundle({
     pages: absolutise(cwd, config.content.pages_dir),
   });
   if (!resolved) throw new Error(`${kind} not found: ${slug}`);
+  // resolveContentSlugPath already confirmed the file exists, so a sync
+  // containment check suffices here (no need for an async existence-aware
+  // guard like page-bundle's isInsideExistingRoot). Keep the containment
+  // check itself so a resolver fallback can never escape the content root.
   if (!isInsidePath(resolve(root), resolve(resolved.path))) {
     throw new Error(`${kind} is outside its configured directory: ${slug}`);
   }

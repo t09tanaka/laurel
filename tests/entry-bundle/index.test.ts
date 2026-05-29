@@ -73,6 +73,7 @@ describe('parseEntryBundleZip', () => {
     expect(parsed.frontmatter.status).toBe('draft');
     expect(parsed.assets).toHaveLength(1);
     expect(parsed.assets[0]?.path).toBe('assets/images/a.png');
+    expect(parsed.assets[0]?.bytes).toEqual(new Uint8Array([1, 2, 3]));
   });
 
   test('throws when manifest is missing', () => {
@@ -110,6 +111,38 @@ describe('exportEntryBundle', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  test('records missing referenced assets in omittedAssets and omits them from the zip', async () => {
+    const dir = await makeFixture();
+    try {
+      await writeFile(
+        join(dir, 'content/posts/withimg.md'),
+        [
+          '---',
+          'title: With Image',
+          'slug: withimg',
+          'feature_image: /content/images/missing.png',
+          '---',
+          '',
+          'Body.',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+      const config = await loadConfig({ cwd: dir });
+      const { zip, omittedAssets } = await exportEntryBundle({
+        cwd: dir,
+        config,
+        kind: 'post',
+        slug: 'withimg',
+      });
+      expect(omittedAssets).toContain('missing.png');
+      const paths = readZipArchive(zip).map((e) => e.path);
+      expect(paths.some((p) => p.includes('missing.png'))).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('importEntryBundle', () => {
@@ -143,6 +176,66 @@ describe('importEntryBundle', () => {
       expect(result.written).toBe(false);
       const after = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
       expect(after).toBe(before);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('renames to a new slug on collision', async () => {
+    const dir = await makeFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const { zip } = await exportEntryBundle({ cwd: dir, config, kind: 'post', slug: 'hello' });
+      const result = await importEntryBundle({ cwd: dir, config, zip, onConflict: 'rename' });
+      expect(result.renamed).toBe(true);
+      expect(result.written).toBe(true);
+      expect(result.slug).toBe('hello-2');
+      const renamed = await readFile(join(dir, 'content/posts/hello-2.md'), 'utf8');
+      expect(renamed).toMatch(/status:\s*needs-review/);
+      // The original is left untouched.
+      const original = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
+      expect(original).toMatch(/status:\s*draft/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('skips when a post already exists and onConflict is skip', async () => {
+    const dir = await makeFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const { zip } = await exportEntryBundle({ cwd: dir, config, kind: 'post', slug: 'hello' });
+      const result = await importEntryBundle({ cwd: dir, config, zip, onConflict: 'skip' });
+      expect(result.written).toBe(false);
+      expect(result.skipped).toBe(true);
+      const original = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
+      expect(original).toMatch(/status:\s*draft/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('routes a page bundle through pages_dir on export and import', async () => {
+    const dir = await makeFixture();
+    try {
+      await mkdir(join(dir, 'content/pages'), { recursive: true });
+      await writeFile(
+        join(dir, 'content/pages/about.md'),
+        ['---', 'title: About', 'slug: about', 'status: draft', '---', '', 'About body.', ''].join(
+          '\n',
+        ),
+        'utf8',
+      );
+      const config = await loadConfig({ cwd: dir });
+      const { zip } = await exportEntryBundle({ cwd: dir, config, kind: 'page', slug: 'about' });
+      const parsed = parseEntryBundleZip(zip);
+      expect(parsed.kind).toBe('page');
+
+      const result = await importEntryBundle({ cwd: dir, config, zip, onConflict: 'overwrite' });
+      expect(result.kind).toBe('page');
+      expect(result.written).toBe(true);
+      const landed = await readFile(join(dir, 'content/pages/about.md'), 'utf8');
+      expect(landed).toMatch(/status:\s*needs-review/);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
