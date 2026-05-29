@@ -913,7 +913,7 @@ describe('dashboard data', () => {
         'utf8',
       );
 
-      // Export via the zip bundle endpoint
+      // GET /api/bundles/export is now a pure read — it must NOT mutate the source file
       const exported = await handleDashboardRequest(
         new Request('http://127.0.0.1:4322/api/bundles/export?kind=page&slug=about'),
         { cwd: dir, changeBus: createChangeBus() },
@@ -923,9 +923,56 @@ describe('dashboard data', () => {
       const zipBytes = new Uint8Array(await exported.arrayBuffer());
       expect(zipBytes.length).toBeGreaterThan(0);
 
-      // markEntryNeedsReview side effect
+      // Source file must NOT have been mutated by the GET export
       const srcAfterExport = await readFile(join(dir, 'content/pages/about.md'), 'utf8');
-      expect(srcAfterExport).toContain('needs-review');
+      expect(srcAfterExport).not.toContain('needs-review');
+
+      // POST /api/bundles/mark-needs-review flips source status
+      const markRes = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/bundles/mark-needs-review', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ kind: 'page', slug: 'about' }),
+        }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(markRes.status).toBe(200);
+      expect(await markRes.json()).toMatchObject({ ok: true });
+      const srcAfterMark = await readFile(join(dir, 'content/pages/about.md'), 'utf8');
+      expect(srcAfterMark).toContain('needs-review');
+
+      // 400 for bad kind
+      const markBadKind = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/bundles/mark-needs-review', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ kind: 'author', slug: 'about' }),
+        }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(markBadKind.status).toBe(400);
+
+      // 400 for missing slug
+      const markNoSlug = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/bundles/mark-needs-review', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ kind: 'page' }),
+        }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(markNoSlug.status).toBe(400);
+
+      // 400 for invalid slug
+      const markBadSlug = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/bundles/mark-needs-review', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ kind: 'page', slug: '../etc/passwd' }),
+        }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(markBadSlug.status).toBe(400);
 
       // Dry-run import (rename conflict policy) → written:false, file not created
       const dryRunForm = new FormData();
@@ -1001,7 +1048,7 @@ describe('dashboard data', () => {
         'utf8',
       );
 
-      // GET /api/bundles/export?kind=post&slug=old → 200, application/zip, non-empty body
+      // GET /api/bundles/export is now a pure read — source must not be mutated
       const exported = await handleDashboardRequest(
         new Request('http://127.0.0.1:4322/api/bundles/export?kind=post&slug=old'),
         { cwd: dir, changeBus: createChangeBus() },
@@ -1011,9 +1058,23 @@ describe('dashboard data', () => {
       const zipBytes = new Uint8Array(await exported.arrayBuffer());
       expect(zipBytes.length).toBeGreaterThan(0);
 
-      // markEntryNeedsReview side effect: source file should now have status: needs-review
+      // GET alone must NOT mutate source
       const srcAfterExport = await readFile(join(dir, 'content/posts/old.md'), 'utf8');
-      expect(srcAfterExport).toContain('needs-review');
+      expect(srcAfterExport).not.toContain('needs-review');
+
+      // POST /api/bundles/mark-needs-review flips source status to needs-review
+      const markRes = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/bundles/mark-needs-review', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ kind: 'post', slug: 'old' }),
+        }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(markRes.status).toBe(200);
+      expect(await markRes.json()).toMatchObject({ ok: true });
+      const srcAfterMark = await readFile(join(dir, 'content/posts/old.md'), 'utf8');
+      expect(srcAfterMark).toContain('needs-review');
 
       // POST /api/bundles/import with multipart zip → written:true, disk entry has needs-review
       const form = new FormData();
@@ -1037,14 +1098,14 @@ describe('dashboard data', () => {
       const importedSrc = await readFile(join(dir, importedBody.entryPath), 'utf8');
       expect(importedSrc).toContain('needs-review');
 
-      // 400 for missing kind
+      // 400 for missing kind on GET export
       const bad = await handleDashboardRequest(
         new Request('http://127.0.0.1:4322/api/bundles/export?slug=old'),
         { cwd: dir, changeBus: createChangeBus() },
       );
       expect(bad.status).toBe(400);
 
-      // 400 for invalid kind
+      // 400 for invalid kind on GET export
       const badKind = await handleDashboardRequest(
         new Request('http://127.0.0.1:4322/api/bundles/export?kind=author&slug=old'),
         { cwd: dir, changeBus: createChangeBus() },

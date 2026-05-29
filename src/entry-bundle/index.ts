@@ -108,6 +108,9 @@ function parseManifest(input: unknown): EntryBundleManifest {
   if (typeof input.slug !== 'string' || typeof input.path !== 'string') {
     throw new Error('Invalid bundle manifest: slug and path must be strings');
   }
+  // site and generated_at are provenance fields for the zip copy only; they are
+  // intentionally not surfaced on ParsedEntryBundle so the round-trip looks
+  // lossy by design, not by accident.
   return { schema: input.schema, kind: input.kind, slug: input.slug, path: input.path };
 }
 
@@ -261,11 +264,15 @@ export async function markEntryNeedsReview({
   kind: EntryKind;
   slug: string;
 }): Promise<void> {
+  const root = rootForKind(cwd, config, kind);
   const resolved = await resolveContentSlugPath(slug, [kind === 'post' ? 'posts' : 'pages'], {
     posts: absolutise(cwd, config.content.posts_dir),
     pages: absolutise(cwd, config.content.pages_dir),
   });
   if (!resolved) throw new Error(`${kind} not found: ${slug}`);
+  if (!isInsidePath(resolve(root), resolve(resolved.path))) {
+    throw new Error(`${kind} is outside its configured directory: ${slug}`);
+  }
   const raw = await readFile(resolved.path, 'utf8');
   const parsed = parseFrontmatter(raw, { filePath: resolved.path });
   const frontmatter = { ...parsed.data, status: 'needs-review' };

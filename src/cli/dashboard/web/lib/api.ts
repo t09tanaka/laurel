@@ -588,6 +588,19 @@ export function bundleExportUrl(kind: 'post' | 'page', slug: string): string {
   return `/api/bundles/export?kind=${encodeURIComponent(kind)}&slug=${encodeURIComponent(slug)}`;
 }
 
+export async function markBundleNeedsReview(kind: 'post' | 'page', slug: string): Promise<void> {
+  const res = await fetch('/api/bundles/mark-needs-review', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-nectar-dashboard-token': dashboardToken },
+    body: JSON.stringify({ kind, slug }),
+  });
+  if (!res.ok)
+    throw new Error(
+      ((await res.json().catch(() => ({}))) as { error?: string }).error ??
+        `Failed (${res.status})`,
+    );
+}
+
 export interface ImportBundleResult {
   written: boolean;
   skipped: boolean;

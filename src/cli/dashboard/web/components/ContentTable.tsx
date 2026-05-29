@@ -1,6 +1,6 @@
 import type { JSX } from 'preact';
 import { useRef, useState } from 'preact/hooks';
-import { bundleExportUrl, importBundle } from '../lib/api.ts';
+import { bundleExportUrl, importBundle, markBundleNeedsReview } from '../lib/api.ts';
 import { formatDate } from '../lib/format.ts';
 import { pathForEditor } from '../lib/routes.ts';
 import type {
@@ -153,6 +153,8 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
                   entryKind={entryKind}
                   isPages={isPages}
                   onOpen={() => props.onOpen(item.slug)}
+                  onRefresh={props.onRefresh}
+                  toast={props.toast}
                 />
               ))}
             </tbody>
@@ -289,12 +291,23 @@ interface ContentRowProps {
   entryKind: 'post' | 'page';
   isPages: boolean;
   onOpen: () => void;
+  onRefresh: () => void;
+  toast: ToastApi;
 }
 
-function ContentRow({ item, kind, entryKind, isPages, onOpen }: ContentRowProps): JSX.Element {
+function ContentRow({
+  item,
+  kind,
+  entryKind,
+  isPages,
+  onOpen,
+  onRefresh,
+  toast,
+}: ContentRowProps): JSX.Element {
   const status = item.status ?? 'published';
   const title = item.title?.trim() ? item.title : '(untitled)';
   const editorHref = pathForEditor(kind, item.slug);
+  const [exporting, setExporting] = useState(false);
   // Clicking anywhere on the row that's not an existing anchor /
   // button opens the editor — the title link and Detail link still
   // behave as before, and the Preview link / Export action stop
@@ -306,6 +319,26 @@ function ContentRow({ item, kind, entryKind, isPages, onOpen }: ContentRowProps)
     event.preventDefault();
     onOpen();
   };
+
+  async function handleExport(event: MouseEvent): Promise<void> {
+    event.stopPropagation();
+    setExporting(true);
+    try {
+      await markBundleNeedsReview(entryKind, item.slug);
+      window.location.href = bundleExportUrl(entryKind, item.slug);
+      onRefresh();
+      toast.push({ intent: 'success', message: `Exported ${item.slug}` });
+    } catch (err) {
+      toast.push({
+        intent: 'error',
+        title: 'Export failed',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: row click is a pointer-only affordance; keyboard users navigate through the inner title and Detail anchors which retain link semantics
     <tr class="contentRow" data-row-slug={item.slug} data-status={status} onClick={onRowClick}>
@@ -358,16 +391,14 @@ function ContentRow({ item, kind, entryKind, isPages, onOpen }: ContentRowProps)
           >
             Detail
           </a>
-          <a
+          <button
+            type="button"
             class="textLink"
-            href={bundleExportUrl(entryKind, item.slug)}
-            download
-            onClick={(event) => {
-              event.stopPropagation();
-            }}
+            disabled={exporting}
+            onClick={(event) => void handleExport(event)}
           >
-            Export
-          </a>
+            {exporting ? 'Exporting…' : 'Export'}
+          </button>
         </div>
       </td>
     </tr>
