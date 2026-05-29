@@ -6,7 +6,7 @@ import { ensureDir } from '~/util/fs.ts';
 import { directionForLocale } from '~/util/locale.ts';
 import { absoluteUrlWithBasePath, withBasePath } from '~/util/url.ts';
 
-export interface EmitTierWelcomePagesOptions {
+interface EmitTierWelcomePagesOptions {
   config: NectarConfig;
   outputDir: string;
   tiers: readonly Tier[];

@@ -106,7 +106,7 @@ export async function uploadImage(
   };
 }
 
-export interface OgpResultMeta {
+interface OgpResultMeta {
   url: string;
   title: string;
   description: string;
@@ -116,7 +116,7 @@ export interface OgpResultMeta {
   publisher: string;
 }
 
-export type OgpFetchResult =
+type OgpFetchResult =
   | { ok: true; meta: OgpResultMeta }
   | {
       ok: false;
@@ -185,7 +185,7 @@ export async function uploadTheme(
   };
 }
 
-export interface FetchStateOptions {
+interface FetchStateOptions {
   postsPage: number;
   pagesPage: number;
   perPage?: number;
@@ -215,7 +215,7 @@ export async function fetchContent(
   return (await response.json()) as DashboardContentItem;
 }
 
-export type SaveContentResult =
+type SaveContentResult =
   | { ok: true; fingerprint: ContentFingerprint; changedPath: string }
   | {
       ok: false;
@@ -268,7 +268,7 @@ export async function materializeTaxonomy(
   return { status: response.status, data: await response.json() };
 }
 
-export interface CreateItemPayload {
+interface CreateItemPayload {
   kind: DashboardEditorKind;
   title: string;
 }
@@ -337,7 +337,7 @@ export async function saveThemeSettings(args: {
   };
 }
 
-export interface GhostImportPayload {
+interface GhostImportPayload {
   file: string;
   dryRun: boolean;
   onConflict: 'skip' | 'rename' | 'overwrite';
@@ -357,7 +357,7 @@ export async function importGhost(
   return { status: response.status, data: await response.json() };
 }
 
-export interface GhostImportUploadArgs {
+interface GhostImportUploadArgs {
   file: File;
   onConflict: 'skip' | 'rename' | 'overwrite';
   // Origin of the source Ghost site (e.g. `https://oldblog.com`). Required if
@@ -492,7 +492,7 @@ export async function streamGhostImport(
   }
 }
 
-export interface PageBundleImportPayload {
+interface PageBundleImportPayload {
   file: string;
   dryRun: boolean;
   onConflict: 'skip' | 'rename' | 'overwrite';
@@ -520,7 +520,7 @@ export interface BuildSummarySnapshot {
   durationMs: number;
 }
 
-export type BuildStreamEvent =
+type BuildStreamEvent =
   | { type: 'start'; startedAt: string }
   | {
       type: 'progress';

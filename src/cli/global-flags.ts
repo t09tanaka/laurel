@@ -12,7 +12,7 @@ export interface GlobalFlags {
   locale: string | undefined;
 }
 
-export interface ExtractResult {
+interface ExtractResult {
   flags: GlobalFlags;
   rest: string[];
 }

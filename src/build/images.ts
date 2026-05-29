@@ -9,7 +9,7 @@ import { scanGlob } from '~/util/fs.ts';
 import { type ImageDimensions, readImageDimensions } from '~/util/image-size.ts';
 import { logger } from '~/util/logger.ts';
 
-export interface InjectImageDimensionsOptions {
+interface InjectImageDimensionsOptions {
   // Absolute filesystem path that the assets URL marker maps to. Images
   // resolved outside this root (path traversal, foreign hosts) are skipped.
   assetsRoot: string;
@@ -58,7 +58,7 @@ export function injectImageLoadingHints(html: string): string {
   });
 }
 
-export interface InjectIntoContentOptions {
+interface InjectIntoContentOptions {
   content: ContentGraph;
   cwd: string;
   config: NectarConfig;
@@ -204,7 +204,7 @@ function isFormatVariantSource(rel: string): boolean {
   return FORMAT_SOURCE_EXTS.has(extname(rel).toLowerCase());
 }
 
-export interface PlanImageVariantsOptions {
+interface PlanImageVariantsOptions {
   cwd: string;
   config: NectarConfig;
   widths?: readonly number[];
@@ -243,7 +243,7 @@ export async function planImageVariants(opts: PlanImageVariantsOptions): Promise
   return plan;
 }
 
-export interface GenerateImageVariantsOptions {
+interface GenerateImageVariantsOptions {
   cwd: string;
   config: NectarConfig;
   outputDir: string;
@@ -324,7 +324,7 @@ export async function generateImageVariants(opts: GenerateImageVariantsOptions):
   return count;
 }
 
-export interface InjectImageSrcsetOptions {
+interface InjectImageSrcsetOptions {
   plan: ImageVariantPlan;
   marker?: string;
   sizesAttr?: string;
@@ -398,7 +398,7 @@ function appendImgAttrs(attrsRaw: string, attrs: string, selfClose: string): str
   return `<img${attrsRaw}${spacer}${attrs}${selfClose}>`;
 }
 
-export interface InjectImageSrcsetIntoContentOptions {
+interface InjectImageSrcsetIntoContentOptions {
   content: ContentGraph;
   plan: ImageVariantPlan;
   sizesAttr?: string;
@@ -419,7 +419,7 @@ export function injectImageSrcsetIntoContent(opts: InjectImageSrcsetIntoContentO
   }
 }
 
-export interface InjectImageLqipOptions {
+interface InjectImageLqipOptions {
   assetsRoot: string;
   marker?: string;
   cache?: Map<string, string | null>;
@@ -566,7 +566,7 @@ export function collapseDegenerateSrcset(html: string): string {
   });
 }
 
-export interface CollapseDegenerateSrcsetIntoContentOptions {
+interface CollapseDegenerateSrcsetIntoContentOptions {
   content: ContentGraph;
 }
 
@@ -613,7 +613,7 @@ function stripAttr(attrsRaw: string, name: string): string {
 
 export type ImageFormat = 'webp' | 'avif';
 
-export interface GenerateImageFormatVariantsOptions {
+interface GenerateImageFormatVariantsOptions {
   cwd: string;
   config: NectarConfig;
   outputDir: string;
@@ -720,7 +720,7 @@ export async function generateImageFormatVariants(
   return count;
 }
 
-export interface InjectImagePictureSourcesOptions {
+interface InjectImagePictureSourcesOptions {
   plan: ImageVariantPlan;
   formats: readonly ImageFormat[];
   marker?: string;
@@ -795,7 +795,7 @@ export function injectImagePictureSources(
   return result;
 }
 
-export interface InjectImagePictureSourcesIntoContentOptions {
+interface InjectImagePictureSourcesIntoContentOptions {
   content: ContentGraph;
   plan: ImageVariantPlan;
   formats: readonly ImageFormat[];
@@ -834,7 +834,7 @@ export function buildThemeImageSizeSegment(size: ThemeImageSize): string {
   return s;
 }
 
-export interface GenerateThemeImageSizeVariantsOptions {
+interface GenerateThemeImageSizeVariantsOptions {
   cwd: string;
   config: NectarConfig;
   outputDir: string;

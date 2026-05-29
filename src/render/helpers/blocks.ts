@@ -353,7 +353,7 @@ function getPreparedGetResult(
 // page through API results. `prev`/`next` are page numbers (or null) because
 // `{{#get}}` queries are not tied to a route, so URL synthesis is the theme's
 // job. `limit: 'all'` collapses to a single page covering every match.
-export interface GetPagination {
+interface GetPagination {
   page: number;
   limit: number | 'all';
   pages: number;

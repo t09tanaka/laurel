@@ -1,15 +1,15 @@
 import { Parser } from 'htmlparser2';
 
-export type ImageAltLintIssue = 'missing-alt' | 'empty-alt';
+type ImageAltLintIssue = 'missing-alt' | 'empty-alt';
 
-export interface ImageAltLintWarning {
+interface ImageAltLintWarning {
   issue: ImageAltLintIssue;
   outputPath: string;
   routeUrl: string;
   src?: string | undefined;
 }
 
-export interface ImageAltLintOptions {
+interface ImageAltLintOptions {
   outputPath: string;
   routeUrl: string;
 }

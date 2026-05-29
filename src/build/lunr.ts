@@ -6,7 +6,7 @@ import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 import { truncateExcerpt } from './search.ts';
 
-export interface LunrDoc {
+interface LunrDoc {
   id: string;
   url: string;
   title: string;
@@ -16,7 +16,7 @@ export interface LunrDoc {
   authors?: string[];
 }
 
-export interface LunrBundle {
+interface LunrBundle {
   index: unknown;
   docs: LunrDoc[];
   meta: {

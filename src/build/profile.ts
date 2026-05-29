@@ -68,7 +68,7 @@ export interface Profiler {
   dispose?: () => void;
 }
 
-export interface ProfilerOptions {
+interface ProfilerOptions {
   readRssBytes?: () => number;
   sampleIntervalMs?: number | false;
 }

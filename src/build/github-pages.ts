@@ -3,7 +3,7 @@ import { dirname, join, posix } from 'node:path';
 import { ensureDir } from '~/util/fs.ts';
 import { type RedirectRule, collapseRedirects } from './redirects.ts';
 
-export interface EmitGithubPagesRedirectsOptions {
+interface EmitGithubPagesRedirectsOptions {
   outputDir: string;
   enabled: boolean;
   basePath: string;

@@ -62,7 +62,7 @@ export const LIVERELOAD_INLINE_SCRIPT = `<script>(function(){if(window.__nectarL
 // page is interactive anyway.
 export const LIVERELOAD_EXTERNAL_TAG = `<script src="${LIVERELOAD_SCRIPT_PATH}" defer></script>`;
 
-export type LiveReloadMode = 'inline' | 'external';
+type LiveReloadMode = 'inline' | 'external';
 
 // Inject the WebSocket client into an HTML document. Choice of variant:
 //   - 'inline'   → `nectar serve` legacy: keeps the client one-shot with no
@@ -85,7 +85,7 @@ export function injectLiveReload(html: string, mode: LiveReloadMode = 'inline'):
 // per-file invalidation, error overlays) additive — the client falls back to
 // `location.reload()` for any message type it doesn't recognize, so old tabs
 // don't break when the server learns new tricks.
-export interface ReloadMessage {
+interface ReloadMessage {
   type: 'reload' | 'css';
 }
 

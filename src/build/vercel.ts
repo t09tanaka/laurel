@@ -37,7 +37,7 @@ interface VercelRedirectRule {
 
 export type BuildTrailingSlash = 'always' | 'never' | 'preserve';
 
-export interface VercelConfig {
+interface VercelConfig {
   cleanUrls?: boolean;
   trailingSlash?: boolean;
   headers?: VercelHeaderRule[];

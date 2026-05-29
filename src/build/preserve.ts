@@ -25,13 +25,13 @@ export async function loadPreservePatterns(cwd: string): Promise<string[]> {
     .filter((line) => line.length > 0 && !line.startsWith('#'));
 }
 
-export interface PreserveUserFilesOptions {
+interface PreserveUserFilesOptions {
   cwd: string;
   finalOutputDir: string;
   stagingDir: string;
 }
 
-export interface PreserveResult {
+interface PreserveResult {
   copied: number;
   skipped: number;
 }

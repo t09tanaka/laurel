@@ -3,7 +3,7 @@
 // lean while covering the icons callouts actually use. Each entry is
 // `[emoji, keywords]`; keywords drive the search box and are space-separated.
 
-export interface EmojiCategory {
+interface EmojiCategory {
   name: string;
   emojis: readonly (readonly [string, string])[];
 }

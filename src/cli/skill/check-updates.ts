@@ -12,7 +12,7 @@ import type { AgentFormat, BundledSkill, SkillInstallReceipt } from './types.ts'
 // network) and tolerates a missing/corrupt receipt by treating the skill as
 // "needs reinstall" -- the worst case is a noisy notice, never a crash.
 
-export interface SkillUpdateStatus {
+interface SkillUpdateStatus {
   slug: string;
   format: AgentFormat;
   installedVersion: number | null;

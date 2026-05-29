@@ -2,25 +2,25 @@ import type { BuildProgressEvent, BuildProgressReporter } from '~/build/pipeline
 import { type LogOutputMode, getOutputMode } from '~/util/logger.ts';
 import { logger } from '~/util/logger.ts';
 
-export type CliProgressMode = 'interactive' | 'plain';
+type CliProgressMode = 'interactive' | 'plain';
 
 interface ProgressWritable {
   write(chunk: string): unknown;
 }
 
-export interface BuildProgressDisplay {
+interface BuildProgressDisplay {
   onProgress: BuildProgressReporter;
   finish: () => void;
 }
 
-export interface BuildProgressDisplayOptions {
+interface BuildProgressDisplayOptions {
   mode?: CliProgressMode | undefined;
   enabled?: boolean | undefined;
   stream?: ProgressWritable | undefined;
   now?: (() => number) | undefined;
 }
 
-export interface ProgressDetectionInput {
+interface ProgressDetectionInput {
   env?: Record<string, string | undefined>;
   stdout?: { isTTY?: boolean | undefined };
   stderr?: { isTTY?: boolean | undefined };

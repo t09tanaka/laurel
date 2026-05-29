@@ -41,14 +41,14 @@ export interface RenderMarkdownOptions {
   prioritizeFirstImage?: boolean;
 }
 
-export interface KoenigShortcodeDiagnostic {
+interface KoenigShortcodeDiagnostic {
   shortcode: string;
   expectedClose: string;
   line: number;
   col?: number;
 }
 
-export interface KoenigShortcodeValidationDiagnostic {
+interface KoenigShortcodeValidationDiagnostic {
   shortcode: string;
   line: number;
   col: number;

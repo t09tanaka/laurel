@@ -5,13 +5,13 @@ import type { NectarConfig } from '~/config/schema.ts';
 import { scanGlob } from '~/util/fs.ts';
 import { parseFrontmatter } from './frontmatter.ts';
 
-export interface FormatContentOptions {
+interface FormatContentOptions {
   cwd: string;
   config: NectarConfig;
   check?: boolean;
 }
 
-export interface FormatContentResult {
+interface FormatContentResult {
   checked: boolean;
   changed: string[];
   scanned: number;

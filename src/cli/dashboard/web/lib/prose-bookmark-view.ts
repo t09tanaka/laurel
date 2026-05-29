@@ -11,7 +11,7 @@
 import type { Node as ProseNode } from 'prosemirror-model';
 import type { EditorView, NodeView } from 'prosemirror-view';
 
-export interface BookmarkNodeViewOptions {
+interface BookmarkNodeViewOptions {
   // Called when the user clicks "Replace". The runtime should open the
   // insert-menu URL input view anchored to this node; we keep the
   // coupling shallow by exposing a single callback.

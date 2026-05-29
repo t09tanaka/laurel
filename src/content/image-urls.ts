@@ -3,7 +3,7 @@ import renderHtml from 'dom-serializer';
 import type { ChildNode, Element } from 'domhandler';
 import { parseDocument } from 'htmlparser2';
 
-export interface RewriteRelativeImageUrlsOptions {
+interface RewriteRelativeImageUrlsOptions {
   cwd: string;
   sourcePath: string;
   assetsDir: string;

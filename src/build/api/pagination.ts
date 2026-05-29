@@ -19,7 +19,7 @@
 // single page; in that mode `pages` collapses to `1` and `next` / `prev` are
 // always `null` regardless of `total`.
 
-export interface PaginationInput {
+interface PaginationInput {
   // 1-based page number. Defaults to 1.
   page?: number;
   // Page size. Either a positive integer or the literal `'all'` to disable
@@ -30,7 +30,7 @@ export interface PaginationInput {
   total: number;
 }
 
-export interface PaginationMeta {
+interface PaginationMeta {
   page: number;
   limit: number | 'all';
   pages: number;

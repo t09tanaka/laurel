@@ -7,13 +7,13 @@ export interface CleanupContext {
   exitCode?: number;
 }
 
-export type CleanupCallback = (context: CleanupContext) => void | Promise<void>;
+type CleanupCallback = (context: CleanupContext) => void | Promise<void>;
 
-export interface CleanupRegistrationOptions {
+interface CleanupRegistrationOptions {
   name?: string;
 }
 
-export interface CleanupRunOptions {
+interface CleanupRunOptions {
   trigger?: CleanupTrigger;
   signal?: CleanupSignal;
   exitCode?: number;
@@ -26,7 +26,7 @@ export interface CleanupProcess {
   exitCode?: number;
 }
 
-export interface ProcessCleanupHookOptions {
+interface ProcessCleanupHookOptions {
   process?: CleanupProcess;
   signals?: readonly CleanupSignal[];
   includeExit?: boolean;
@@ -34,7 +34,7 @@ export interface ProcessCleanupHookOptions {
   onError?: (error: unknown, context: CleanupContext) => void;
 }
 
-export interface WaitForSignalOptions {
+interface WaitForSignalOptions {
   process?: CleanupProcess;
   signals?: readonly CleanupSignal[];
   runCleanup?: boolean;

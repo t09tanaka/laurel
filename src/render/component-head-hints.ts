@@ -8,7 +8,7 @@ export interface HeadHint {
   crossorigin?: true;
 }
 
-export interface ComponentHeadHintsContext {
+interface ComponentHeadHintsContext {
   readonly config: NectarConfig;
   readonly page?: { comments?: unknown };
 }

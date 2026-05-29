@@ -4,7 +4,7 @@ const LAYOUT_DIRECTIVE = /^\s*\{\{!<\s*([^}\s]+)\s*\}\}\s*/;
 const HANDLEBARS_BLOCK_COMMENT_OPEN = '{{!--';
 const HANDLEBARS_BLOCK_COMMENT_CLOSE = '--}}';
 
-export interface LayoutSplit {
+interface LayoutSplit {
   layout: string | undefined;
   body: string;
 }

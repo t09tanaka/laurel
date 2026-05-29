@@ -89,7 +89,7 @@ export function createHeadFor(
 
 export type SurfaceState = 'loading' | 'error' | 'conflict' | 'empty';
 
-export interface SurfaceCopy {
+interface SurfaceCopy {
   title: string;
   message: string;
   actionLabel?: string;

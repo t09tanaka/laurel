@@ -5,7 +5,7 @@ import { brotliCompressSync, gzipSync } from 'node:zlib';
 import { Parser } from 'htmlparser2';
 import { routePathForDistFile } from '~/build/lighthouse-quality.ts';
 
-export interface PageWeightBudgets {
+interface PageWeightBudgets {
   htmlBytes: number;
   htmlGzipBytes: number;
   htmlBrotliBytes: number;
@@ -35,16 +35,16 @@ export const DEFAULT_PAGE_WEIGHT_BUDGETS: PageWeightBudgets = {
   maxExternalFonts: 0,
 };
 
-export type PageAssetKind = 'css' | 'js' | 'image' | 'font' | 'other';
+type PageAssetKind = 'css' | 'js' | 'image' | 'font' | 'other';
 
-export interface PageWeightAsset {
+interface PageWeightAsset {
   path: string;
   filePath: string;
   kind: PageAssetKind;
   bytes: number;
 }
 
-export interface PageWeightSummary {
+interface PageWeightSummary {
   route: string;
   htmlFile: string;
   htmlBytes: number;
@@ -60,7 +60,7 @@ export interface PageWeightSummary {
   externalFonts: string[];
 }
 
-export interface SummarizePageWeightOptions {
+interface SummarizePageWeightOptions {
   distRoot: string;
   htmlFile: string;
 }

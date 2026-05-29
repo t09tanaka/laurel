@@ -23,7 +23,7 @@ interface ParsedSourceMap {
   lines: MappingSegment[][];
 }
 
-export interface SourcePosition {
+interface SourcePosition {
   file: string;
   line: number;
   column: number;

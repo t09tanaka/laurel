@@ -81,13 +81,13 @@ export interface DashboardList<T> {
   statusCounts?: DashboardStatusCounts;
 }
 
-export interface SettingsCardValue {
+interface SettingsCardValue {
   label: string;
   value: string;
   status?: string;
 }
 
-export type SettingsCardCategory =
+type SettingsCardCategory =
   | 'general'
   | 'content'
   | 'theme'
@@ -96,9 +96,9 @@ export type SettingsCardCategory =
   | 'operations'
   | 'advanced';
 
-export type SettingsCardSourceKind = 'config' | 'theme' | 'content' | 'runtime' | 'cli' | 'docs';
+type SettingsCardSourceKind = 'config' | 'theme' | 'content' | 'runtime' | 'cli' | 'docs';
 
-export type SettingsCardMode =
+type SettingsCardMode =
   | 'editable'
   | 'read-only'
   | 'cli-action'

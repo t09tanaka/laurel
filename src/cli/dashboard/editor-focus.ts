@@ -16,7 +16,7 @@ export const DEFAULT_EDITOR_FOCUS_STATE: EditorFocusState = {
   saveState: 'idle',
 };
 
-export type EditorFocusAction =
+type EditorFocusAction =
   | { type: 'focus/toggle' }
   | { type: 'focus/set'; value: boolean }
   | { type: 'metadata/toggle' }

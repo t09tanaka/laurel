@@ -2,7 +2,7 @@
 // parallel. Used by the build emit phase so per-file fs writes (writeHtml,
 // copyAssets, copyContentAssets) can fan out concurrently without exhausting
 // the file-descriptor table on large sites.
-export type LimitedRunner = <T>(fn: () => Promise<T>) => Promise<T>;
+type LimitedRunner = <T>(fn: () => Promise<T>) => Promise<T>;
 
 export function pLimit(concurrency: number): LimitedRunner {
   if (!Number.isInteger(concurrency) || concurrency < 1) {

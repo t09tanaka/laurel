@@ -17,7 +17,7 @@ import prefixer from 'postcss-prefix-selector';
 
 export const THEME_SCOPE_CLASS = 'proseBookmarkScope';
 
-export interface RewriteThemeCssOptions {
+interface RewriteThemeCssOptions {
   scope?: string;
 }
 

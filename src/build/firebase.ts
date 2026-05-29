@@ -21,7 +21,7 @@ interface FirebaseRewriteRule {
   destination: string;
 }
 
-export interface FirebaseConfig {
+interface FirebaseConfig {
   hosting: {
     public: string;
     ignore: string[];

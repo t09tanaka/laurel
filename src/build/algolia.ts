@@ -11,7 +11,7 @@ import { truncateExcerpt } from './search.ts';
 // shape here — DocSearch's crawler builds that, and forcing it on every
 // record would mis-shape generic Algolia indices. See `emitDocSearchCss`
 // for the DocSearch-compatible CSS classes promised by the task.
-export interface AlgoliaRecord {
+interface AlgoliaRecord {
   objectID: string;
   url: string;
   title: string;
@@ -22,7 +22,7 @@ export interface AlgoliaRecord {
   published_at?: string;
 }
 
-export interface AlgoliaBundle {
+interface AlgoliaBundle {
   records: AlgoliaRecord[];
   meta: {
     generated_at: string;

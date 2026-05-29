@@ -18,7 +18,7 @@ const DEFAULT_LOG_LINES = 200;
 const REDACTED = '[REDACTED]';
 const TAR_BLOCK_SIZE = 512;
 
-export interface DiagnosticsBundleResult {
+interface DiagnosticsBundleResult {
   output: string;
   entries: string[];
   bytes?: number;

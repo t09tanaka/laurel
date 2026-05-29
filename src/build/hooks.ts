@@ -1,6 +1,6 @@
 import { logger } from '~/util/logger.ts';
 
-export interface RunPostBuildHookOptions {
+interface RunPostBuildHookOptions {
   cwd: string;
   outputDir: string;
   command: string | undefined;

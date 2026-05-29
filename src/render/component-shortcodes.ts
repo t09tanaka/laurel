@@ -19,7 +19,7 @@ const SHORTCODE_PATTERN = /\{([A-Za-z][A-Za-z0-9_-]*)\}/g;
 //   - <kbd> / <samp> / <var>: keyboard / sample / variable text fragments
 const SKIP_ELEMENT_NAMES = new Set(['pre', 'code', 'script', 'style', 'kbd', 'samp', 'var']);
 
-export interface ComponentShortcodeResult {
+interface ComponentShortcodeResult {
   html: string;
   used: Set<string>;
   missing: Set<string>;

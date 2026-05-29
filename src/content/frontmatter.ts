@@ -2,12 +2,12 @@ import matter from 'gray-matter';
 import yaml from 'js-yaml';
 import { NectarError } from '~/util/errors.ts';
 
-export interface ParsedFrontmatter {
+interface ParsedFrontmatter {
   data: Record<string, unknown>;
   body: string;
 }
 
-export interface ParseFrontmatterOptions {
+interface ParseFrontmatterOptions {
   filePath?: string;
 }
 

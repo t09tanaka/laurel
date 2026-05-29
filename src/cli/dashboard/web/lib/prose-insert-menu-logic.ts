@@ -55,7 +55,7 @@ export function buildComponentParagraph(
   return para.create(null, schema.text(`{${slug}}`));
 }
 
-export interface ComponentSubmenuEntry {
+interface ComponentSubmenuEntry {
   slug: string;
   label: string;
   hint: string;
@@ -167,7 +167,7 @@ export function build3x3Table(schema: Schema): ProseNode | null {
   return table.create(null, [headerRow, ...bodyRows]);
 }
 
-export type ValidateBookmarkUrlResult = { ok: true; value: string } | { ok: false; error: string };
+type ValidateBookmarkUrlResult = { ok: true; value: string } | { ok: false; error: string };
 
 export function validateBookmarkUrl(raw: string): ValidateBookmarkUrlResult {
   const trimmed = raw.trim();

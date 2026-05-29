@@ -1980,7 +1980,7 @@ export const configSchema = z
 export type NectarConfig = z.infer<typeof configSchema>;
 export type ContentKindConfig = z.infer<typeof contentKindSchema>;
 // Input shape from `nectar.toml`. Strict, only `label` + `url`.
-export type NavigationItemConfig = z.infer<typeof navigationItemSchema>;
+type NavigationItemConfig = z.infer<typeof navigationItemSchema>;
 
 // Runtime shape exposed to themes via `@site.navigation`. The render layer
 // enriches each item with `slug` (derived from `label` so themes can emit

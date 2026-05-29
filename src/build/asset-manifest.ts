@@ -5,12 +5,12 @@ import { ensureDir } from '~/util/fs.ts';
 export const ASSET_MANIFEST_FILENAME = 'asset-manifest.json';
 export const ASSET_MANIFEST_DIR = '.nectar';
 
-export interface AssetManifestEntry {
+interface AssetManifestEntry {
   path: string;
   integrity: string;
 }
 
-export type AssetManifestJson = Record<string, AssetManifestEntry>;
+type AssetManifestJson = Record<string, AssetManifestEntry>;
 
 export function assetManifestAbsPath(outputDir: string): string {
   return join(outputDir, ASSET_MANIFEST_DIR, ASSET_MANIFEST_FILENAME);

@@ -62,7 +62,7 @@ const CARD_CSS: Record<(typeof CARD_NAMES)[number], string> = {
     '.kg-video-card{position:relative}.kg-video-container{position:relative;width:100%;overflow:hidden;background:#000}.kg-video-container video{display:block;width:100%;height:auto}.kg-video-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff}.kg-video-play-icon{width:72px;height:72px}',
 };
 
-export interface EmitCardAssetsOptions {
+interface EmitCardAssetsOptions {
   outputDir: string;
   cardAssets: ThemeCardAssets;
 }

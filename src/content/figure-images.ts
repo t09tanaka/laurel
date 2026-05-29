@@ -20,7 +20,7 @@ const FOLLOWING_EM_CAPTION_RE = /^\s*<p>\s*<em>([\s\S]*?)<\/em>\s*<\/p>/i;
 
 const KOENIG_IMAGE_WIDTHS = new Set(['regular', 'wide', 'full']);
 
-export interface PromoteImagesToFiguresOptions {
+interface PromoteImagesToFiguresOptions {
   prioritizeFirstImage?: boolean;
 }
 

@@ -17,12 +17,12 @@ export interface LintIssue {
   file?: string;
 }
 
-export interface LintReport {
+interface LintReport {
   errors: LintIssue[];
   warnings: LintIssue[];
 }
 
-export interface LintContentOptions {
+interface LintContentOptions {
   cwd: string;
   config: NectarConfig;
   content: ContentGraph;
@@ -40,10 +40,7 @@ export interface LintContentOptions {
   externalTimeoutMs?: number;
 }
 
-export type ExternalFetch = (
-  url: string,
-  signal: AbortSignal,
-) => Promise<{ ok: boolean; status: number }>;
+type ExternalFetch = (url: string, signal: AbortSignal) => Promise<{ ok: boolean; status: number }>;
 
 // Known frontmatter keys per content kind, mirroring everything the loader reads
 // in `normalizePost` / `normalizePage` / `normalizeAuthor` / `normalizeTag`.

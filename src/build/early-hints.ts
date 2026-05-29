@@ -23,7 +23,7 @@ export interface RouteEarlyHints {
   links: EarlyHintLink[];
 }
 
-export type EarlyHintsJson = Omit<RouteEarlyHints, 'output_path'>;
+type EarlyHintsJson = Omit<RouteEarlyHints, 'output_path'>;
 
 export function buildKnownEarlyHintHrefs(theme: ThemeBundle, basePath: string): Set<string> {
   const out = new Set<string>();

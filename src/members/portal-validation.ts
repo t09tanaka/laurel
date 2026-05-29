@@ -58,7 +58,7 @@ const REQUIRE_EXPLICIT_OVERRIDES: ReadonlySet<PortalConfig['provider']> = new Se
   'emailoctopus',
 ]);
 
-export interface PortalValidationFinding {
+interface PortalValidationFinding {
   // Stable identifier so tests can assert on the specific class of warning
   // without depending on the exact wording.
   readonly code:

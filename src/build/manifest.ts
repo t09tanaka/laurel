@@ -18,13 +18,13 @@ export const MANIFEST_VERSION = 3 as const;
 
 export const MANIFEST_FILENAME = '.nectar-manifest.json';
 
-export interface GeneratorSourceFingerprintCacheStats {
+interface GeneratorSourceFingerprintCacheStats {
   hits: number;
   misses: number;
   sets: number;
 }
 
-export interface GeneratorSourceFingerprintCache {
+interface GeneratorSourceFingerprintCache {
   get(key: string): string | undefined;
   set(key: string, value: string): void;
   stats(): GeneratorSourceFingerprintCacheStats;
@@ -294,7 +294,7 @@ export interface RouteContentInput {
   size: number;
 }
 
-export interface RouteContentInputIndex {
+interface RouteContentInputIndex {
   posts: ReadonlyMap<string, RouteContentInput>;
   pages: ReadonlyMap<string, RouteContentInput>;
   tags: ReadonlyMap<string, RouteContentInput>;

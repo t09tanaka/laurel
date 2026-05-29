@@ -87,7 +87,7 @@ interface WxrDocument {
   };
 }
 
-export interface ImportWordPressOptions {
+interface ImportWordPressOptions {
   cwd: string;
   // Path to a WXR (WordPress eXtended RSS) export file. WordPress writes these
   // from Tools → Export as `*.xml` (or `*.wordpress.xml`).
@@ -99,7 +99,7 @@ export interface ImportWordPressOptions {
   dryRun?: boolean;
 }
 
-export interface WordPressImportSummary {
+interface WordPressImportSummary {
   posts: number;
   pages: number;
   tags: number;

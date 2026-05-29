@@ -5,7 +5,7 @@ import { NectarError, isNectarError } from '~/util/errors.ts';
 
 const SOURCE_STACK_KEY = '__nectarSourceStack';
 
-export interface ThemeSourceInfo {
+interface ThemeSourceInfo {
   file: string;
   kind: 'template' | 'layout' | 'partial' | 'template-partial';
   name: string;

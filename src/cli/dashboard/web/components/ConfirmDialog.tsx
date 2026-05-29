@@ -1,7 +1,7 @@
 import type { JSX } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
-export interface ConfirmRequest {
+interface ConfirmRequest {
   title: string;
   body?: string;
   confirmLabel?: string;
@@ -13,7 +13,7 @@ interface PendingRequest extends ConfirmRequest {
   resolve: (value: boolean) => void;
 }
 
-export interface ConfirmApi {
+interface ConfirmApi {
   ask: (request: ConfirmRequest) => Promise<boolean>;
 }
 

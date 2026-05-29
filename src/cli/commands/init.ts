@@ -11,7 +11,7 @@ import { INIT_SPEC } from '../specs.ts';
 const KNOWN_THEMES = ['source', 'casper', 'edition', 'dawn', 'alto'] as const;
 type KnownTheme = (typeof KNOWN_THEMES)[number];
 
-export interface InitAnswers {
+interface InitAnswers {
   title: string;
   url: string;
   theme: string;

@@ -8,14 +8,14 @@ export const PORTAL_MANIFEST_PATH = '.nectar/portal-manifest.json';
 
 type PortalManifestBehavior = 'rewrite' | 'remove-invite-only' | 'runtime-warning' | 'deep-link';
 
-export interface PortalManifestSelector {
+interface PortalManifestSelector {
   selector: string;
   action: string;
   behavior: PortalManifestBehavior;
   href?: string;
 }
 
-export interface PortalManifest {
+interface PortalManifest {
   schema: 'nectar.portal-manifest.v1';
   provider: NectarConfig['components']['portal']['provider'];
   invite_only: boolean;

@@ -31,16 +31,16 @@ export interface DeploymentArtifacts {
   autoNoindexProvider?: DeploymentProvider | undefined;
 }
 
-export interface DeployTarget {
+interface DeployTarget {
   name: string;
   emit(ctx: DeploymentArtifacts): Promise<void> | void;
 }
 
-export interface DeployHeaderApplication extends HeaderApplication {
+interface DeployHeaderApplication extends HeaderApplication {
   flush(): Promise<void> | void;
 }
 
-export interface DeployHeaderTarget {
+interface DeployHeaderTarget {
   name: string;
   createApplication(ctx: DeploymentArtifacts): DeployHeaderApplication | undefined;
 }

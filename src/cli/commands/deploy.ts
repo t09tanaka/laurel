@@ -10,14 +10,7 @@ import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } fr
 import { reportError } from '../report.ts';
 import { DEPLOY_SPEC } from '../specs.ts';
 
-export type DeployTarget =
-  | 'cloudflare'
-  | 'netlify'
-  | 'vercel'
-  | 'github-pages'
-  | 's3'
-  | 'r2'
-  | 'rsync';
+type DeployTarget = 'cloudflare' | 'netlify' | 'vercel' | 'github-pages' | 's3' | 'r2' | 'rsync';
 
 const DEPLOY_TARGETS: readonly DeployTarget[] = [
   'cloudflare',
@@ -198,7 +191,7 @@ interface DeployPreflightPlan {
   bucket: string;
 }
 
-export interface DeployPlan {
+interface DeployPlan {
   target: DeployTarget;
   // The external command + argv that would be spawned. For multi-step targets
   // (github-pages) this is the headline command; auxiliary git plumbing is
@@ -221,7 +214,7 @@ export interface DeployPlan {
   summary: string;
 }
 
-export interface RunDeployOptions {
+interface RunDeployOptions {
   /** Override `process.cwd()` (tests). */
   cwd?: string;
   /** Override `process.env` (tests). */
@@ -453,7 +446,7 @@ function formatBytes(bytes: number): string {
   return `${bytes} B`;
 }
 
-export interface PlanDeployArgs {
+interface PlanDeployArgs {
   target: DeployTarget;
   cwd: string;
   env: Record<string, string | undefined>;

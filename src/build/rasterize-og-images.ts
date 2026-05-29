@@ -42,7 +42,7 @@ async function loadResvg(): Promise<ResvgConstructor | null> {
   return cachedResvg;
 }
 
-export interface RasterizeOgImagesOptions {
+interface RasterizeOgImagesOptions {
   cwd: string;
   config: NectarConfig;
   content: ContentGraph;

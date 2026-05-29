@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import Handlebars from 'handlebars';
 import type { ThemeBundle } from './types.ts';
 
-export interface ThemeCompileIssue {
+interface ThemeCompileIssue {
   file: string;
   name: string;
   kind: 'template' | 'partial';

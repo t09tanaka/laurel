@@ -4,7 +4,7 @@ import { EMOJI_CATEGORIES } from './prose-emoji-data.ts';
 // inside a ProseMirror NodeView without dragging the UI framework into the
 // editor's critical path — same convention as prose-insert-menu.ts.
 
-export interface EmojiPickerOptions {
+interface EmojiPickerOptions {
   onSelect: (emoji: string) => void;
 }
 

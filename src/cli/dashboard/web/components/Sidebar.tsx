@@ -1,9 +1,9 @@
 import type { JSX } from 'preact';
 import type { DashboardShellSection, DashboardState } from '../types.ts';
 
-export type SidebarBuildPhase = 'idle' | 'running' | 'done' | 'error';
+type SidebarBuildPhase = 'idle' | 'running' | 'done' | 'error';
 
-export type SidebarNavTarget = 'posts' | 'pages' | 'components' | 'authors' | 'tags' | 'settings';
+type SidebarNavTarget = 'posts' | 'pages' | 'components' | 'authors' | 'tags' | 'settings';
 
 interface SidebarProps {
   section: DashboardShellSection;
@@ -266,7 +266,7 @@ function NavLink(props: NavLinkProps): JSX.Element {
   );
 }
 
-export interface StatusRailValues {
+interface StatusRailValues {
   sync: { label: string; state: string };
   build: { label: string; state: string };
   preview: { label: string; state: string };

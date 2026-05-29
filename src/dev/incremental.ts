@@ -10,7 +10,7 @@
 
 export type DevChangeCategory = 'content' | 'theme' | 'config';
 
-export interface DevReuseDecision {
+interface DevReuseDecision {
   // When true, the next build() can hand back the previously-loaded config and
   // skip loadConfig. CLI-side overrides (basePath / baseUrl / copyContentAssets)
   // are re-applied by build() on top of the reused config object.

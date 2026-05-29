@@ -19,14 +19,7 @@ import type { ResolvedCollection } from './routes-yaml.ts';
 // are substituted as-is — the schema validates that templates start with `/`
 // and end with `/`, so the resulting URL inherits those guarantees.
 
-export type PermalinkToken =
-  | 'slug'
-  | 'id'
-  | 'primary_tag'
-  | 'primary_author'
-  | 'year'
-  | 'month'
-  | 'day';
+type PermalinkToken = 'slug' | 'id' | 'primary_tag' | 'primary_author' | 'year' | 'month' | 'day';
 
 const KNOWN_TOKENS: readonly PermalinkToken[] = [
   'slug',
@@ -38,7 +31,7 @@ const KNOWN_TOKENS: readonly PermalinkToken[] = [
   'day',
 ];
 
-export interface PermalinkResolution {
+interface PermalinkResolution {
   url: string;
   unknownTokens: string[];
 }
@@ -114,9 +107,9 @@ export function listKnownPermalinkTokens(): readonly PermalinkToken[] {
 // warning slot in the return value so the route planner can surface the issue
 // once and the build still completes.
 
-export type PostPredicate = (post: Post) => boolean;
+type PostPredicate = (post: Post) => boolean;
 
-export interface ParsedFilter {
+interface ParsedFilter {
   predicate: PostPredicate;
   warnings: string[];
 }

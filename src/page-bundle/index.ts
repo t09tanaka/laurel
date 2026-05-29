@@ -7,7 +7,7 @@ import { formatContentSource } from '~/content/format.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
 import { pathContainsSymlink } from '~/util/fs.ts';
 
-export type PageBundleAssetEncoding = 'utf8' | 'base64';
+type PageBundleAssetEncoding = 'utf8' | 'base64';
 export type PageBundleConflictPolicy = 'skip' | 'overwrite' | 'rename';
 
 export interface PageBundleAsset {
@@ -34,14 +34,14 @@ export interface PageBundle {
   assets: PageBundleAsset[];
 }
 
-export interface ExportPageBundleOptions {
+interface ExportPageBundleOptions {
   cwd: string;
   config: NectarConfig;
   slug: string;
   includeAssets?: boolean;
 }
 
-export interface ImportPageBundleOptions {
+interface ImportPageBundleOptions {
   cwd: string;
   config: NectarConfig;
   bundle: PageBundle;

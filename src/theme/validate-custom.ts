@@ -3,23 +3,23 @@ import { suggestClosest } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
 import type { ThemeCustomSettingDefinition, ThemePackage } from './types.ts';
 
-export interface ThemeCustomIssue {
+interface ThemeCustomIssue {
   key: string;
   suggestion?: string;
 }
 
-export interface ThemeCustomValueIssue {
+interface ThemeCustomValueIssue {
   key: string;
   reason: string;
   suggestion?: string;
 }
 
-export interface ValidateThemeCustomOptions {
+interface ValidateThemeCustomOptions {
   config: NectarConfig;
   pkg: ThemePackage;
 }
 
-export interface ValidateThemeCustomResult {
+interface ValidateThemeCustomResult {
   unknownKeys: ThemeCustomIssue[];
   invalidValues: ThemeCustomValueIssue[];
 }
