@@ -1,6 +1,38 @@
 import { describe, expect, test } from 'bun:test';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createZipArchive } from '~/cli/dashboard/zip-writer';
-import { BUNDLE_SCHEMA, parseEntryBundleZip } from '~/entry-bundle/index';
+import { loadConfig } from '~/config/loader';
+import { BUNDLE_SCHEMA, exportEntryBundle, parseEntryBundleZip } from '~/entry-bundle/index';
+import { readZipArchive } from '~/entry-bundle/zip';
+
+async function makeFixture(): Promise<string> {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-entry-bundle-')));
+  await mkdir(join(dir, 'content/posts'), { recursive: true });
+  await writeFile(
+    join(dir, 'nectar.toml'),
+    ['[site]', 'title = "Bundle Site"', 'url = "https://bundle.test"', ''].join('\n'),
+    'utf8',
+  );
+  await writeFile(
+    join(dir, 'content/posts/hello.md'),
+    ['---', 'title: Hello', 'slug: hello', 'status: draft', '---', '', 'Body text.', ''].join('\n'),
+    'utf8',
+  );
+  return dir;
+}
+
+function rawEntryMd(zip: Uint8Array): string {
+  const entries = readZipArchive(zip);
+  const entry = entries.find((e) => e.path === 'entry.md');
+  if (!entry) throw new Error('entry.md missing from zip');
+  return new TextDecoder().decode(entry.bytes);
+}
+
+function hasManifest(zip: Uint8Array): boolean {
+  return readZipArchive(zip).some((e) => e.path === 'nectar-bundle.json');
+}
 
 const encoder = new TextEncoder();
 
@@ -57,5 +89,19 @@ describe('parseEntryBundleZip', () => {
       { path: 'entry.md', bytes: ENTRY_MD },
     ]);
     expect(() => parseEntryBundleZip(zip)).toThrow(/schema/i);
+  });
+});
+
+describe('exportEntryBundle', () => {
+  test('stamps needs-review and includes a manifest', async () => {
+    const dir = await makeFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const { zip } = await exportEntryBundle({ cwd: dir, config, kind: 'post', slug: 'hello' });
+      expect(rawEntryMd(zip)).toMatch(/status:\s*needs-review/);
+      expect(hasManifest(zip)).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
