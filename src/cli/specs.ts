@@ -1600,7 +1600,7 @@ export const DEPLOY_SPEC: CommandSpec = {
 export const EXPORT_SPEC: CommandSpec = {
   name: 'export',
   summary:
-    'Dump the loaded content, a single page bundle, or regenerate the RSS feed without running a full build',
+    'Dump the loaded content, a single entry bundle, or regenerate the RSS feed without running a full build',
   options: {
     config: {
       type: 'string',
@@ -1611,7 +1611,7 @@ export const EXPORT_SPEC: CommandSpec = {
       type: 'string',
       short: 'o',
       description:
-        'Path to write the export to. Defaults to stdout. Parent directories are created as needed; existing files are overwritten',
+        'Path to write the export to. For `entry` format defaults to `<slug>.nectar.zip` in cwd; for other formats defaults to stdout. Parent directories are created as needed; existing files are overwritten',
       placeholder: '<path>',
     },
     pretty: {
@@ -1631,6 +1631,12 @@ export const EXPORT_SPEC: CommandSpec = {
         'Include local content assets referenced by `nectar export page <slug>`. Enabled by default',
       negatedDescription: 'Omit local asset payloads from a page collaboration bundle',
     },
+    kind: {
+      type: 'string',
+      description:
+        'For `entry` format: content kind to export (`post` or `page`). Defaults to `post`',
+      placeholder: '<post|page>',
+    },
     json: {
       type: 'boolean',
       description:
@@ -1641,12 +1647,12 @@ export const EXPORT_SPEC: CommandSpec = {
     {
       name: 'format',
       description:
-        'Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), or `page` (single Page collaboration bundle)',
+        'Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), `page` (legacy single page JSON bundle), or `entry` (zip entry-bundle for posts and pages)',
       required: true,
     },
     {
       name: 'slug',
-      description: 'Page slug when format is `page`',
+      description: 'Entry slug when format is `entry` or `page`',
       required: false,
     },
   ],
@@ -1655,13 +1661,16 @@ export const EXPORT_SPEC: CommandSpec = {
     'nectar export json --pretty -o snapshot.json',
     'nectar export ghost-json -o ghost-backup.json',
     'nectar export rss -o feed.xml',
+    'nectar export entry hello-world',
+    'nectar export entry hello-world -o out.nectar.zip',
+    'nectar export entry about --kind page -o about.nectar.zip',
     'nectar export page about -o about.page.json',
   ],
 };
 
 export const IMPORT_SPEC: CommandSpec = {
   name: 'import',
-  summary: 'Import a Nectar collaboration bundle',
+  summary: 'Import a Nectar collaboration bundle (entry zip or legacy page JSON)',
   options: {
     config: {
       type: 'string',
@@ -1670,7 +1679,7 @@ export const IMPORT_SPEC: CommandSpec = {
     },
     'on-conflict': {
       type: 'string',
-      description: 'How to handle existing page files: skip (default), overwrite, or rename',
+      description: 'How to handle existing files: skip (default), overwrite, or rename',
       placeholder: '<skip|overwrite|rename>',
     },
     'dry-run': {
@@ -1680,22 +1689,27 @@ export const IMPORT_SPEC: CommandSpec = {
     json: {
       type: 'boolean',
       description:
-        'No-op here; `import page` always emits a JSON result. Accepted so the global `--json` flag does not error',
+        'No-op here; `import` always emits a JSON result. Accepted so the global `--json` flag does not error',
     },
   },
   positionals: [
     {
       name: 'kind',
-      description: 'Import kind. Currently only `page` is supported',
+      description:
+        'Import kind: `entry` (zip entry-bundle for posts and pages) or `page` (legacy nectar.page.v1 JSON bundle)',
       required: true,
     },
     {
       name: 'file',
-      description: 'Path to a `nectar.page.v1` page collaboration bundle',
+      description:
+        'Path to a `.nectar.zip` entry bundle (kind=entry) or a `nectar.page.v1` JSON file (kind=page)',
       required: true,
     },
   ],
   examples: [
+    'nectar import entry hello-world.nectar.zip',
+    'nectar import entry hello-world.nectar.zip --dry-run',
+    'nectar import entry hello-world.nectar.zip --on-conflict rename',
     'nectar import page about.page.json --dry-run',
     'nectar import page about.page.json --on-conflict rename',
     'nectar import page about.page.json --on-conflict overwrite',

@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseEntryBundleZip } from '~/entry-bundle/index.ts';
 
 const CLI_ENTRY = fileURLToPath(new URL('../../../src/cli/index.ts', import.meta.url));
 
@@ -265,6 +266,93 @@ describe('cli export', () => {
       expect(exitCode).toBe(0);
       const parsed = JSON.parse(stdout) as { assets: unknown[] };
       expect(parsed.assets).toEqual([]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('export entry writes a zip to --output path for a post', async () => {
+    const dir = await makeFixture();
+    try {
+      const outPath = join(dir, 'hello-world.nectar.zip');
+      const { stdout, stderr, exitCode } = await runCli(
+        ['export', 'entry', 'hello-world', '--output', outPath],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      expect(stderr).toBe('');
+      expect(stdout.trim()).toBe('');
+      const bytes = new Uint8Array(await Bun.file(outPath).arrayBuffer());
+      const bundle = parseEntryBundleZip(bytes);
+      expect(bundle.kind).toBe('post');
+      expect(bundle.slug).toBe('hello-world');
+      expect(bundle.frontmatter.status).toBe('needs-review');
+      expect(bundle.body).toContain('Body of post');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('export entry --kind page writes a zip for a page', async () => {
+    const dir = await makeFixture();
+    try {
+      const outPath = join(dir, 'about.nectar.zip');
+      const { stderr, exitCode } = await runCli(
+        ['export', 'entry', 'about', '--kind', 'page', '--output', outPath],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      expect(stderr).toBe('');
+      const bytes = new Uint8Array(await Bun.file(outPath).arrayBuffer());
+      const bundle = parseEntryBundleZip(bytes);
+      expect(bundle.kind).toBe('page');
+      expect(bundle.slug).toBe('about');
+      expect(bundle.frontmatter.status).toBe('needs-review');
+      expect(bundle.assets.length).toBeGreaterThan(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('export entry defaults output to <slug>.nectar.zip in cwd', async () => {
+    const dir = await makeFixture();
+    try {
+      const { stderr, exitCode } = await runCli(['export', 'entry', 'hello-world'], dir);
+      expect(exitCode).toBe(0);
+      expect(stderr).toBe('');
+      const bytes = new Uint8Array(
+        await Bun.file(join(dir, 'hello-world.nectar.zip')).arrayBuffer(),
+      );
+      const bundle = parseEntryBundleZip(bytes);
+      expect(bundle.slug).toBe('hello-world');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('export entry prints warning when assets are omitted', async () => {
+    const dir = await makeFixture();
+    try {
+      // Remove the asset so it becomes omitted
+      await rm(join(dir, 'content/images/about.txt'));
+      const outPath = join(dir, 'about.nectar.zip');
+      const { stderr, exitCode } = await runCli(
+        ['export', 'entry', 'about', '--kind', 'page', '--output', outPath],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      expect(stderr).toContain('about.txt');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('export entry missing slug prints usage error', async () => {
+    const dir = await makeFixture();
+    try {
+      const { stderr, exitCode } = await runCli(['export', 'entry'], dir);
+      expect(exitCode).toBe(2);
+      expect(stderr).toContain('Missing required argument');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

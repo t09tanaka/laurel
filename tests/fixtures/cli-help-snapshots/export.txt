@@ -1,22 +1,23 @@
-Dump the loaded content, a single page bundle, or regenerate the RSS feed without running a full build
+Dump the loaded content, a single entry bundle, or regenerate the RSS feed without running a full build
 
 Usage:
-  nectar export [--config <path>] [--output <path>] [--pretty] [--include-drafts] [--assets] [--no-assets] [--json] <format> [slug]
+  nectar export [--config <path>] [--output <path>] [--pretty] [--include-drafts] [--assets] [--no-assets] [--kind <post|page>] [--json] <format> [slug]
 
 Arguments:
-  format              Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), or `page` (single Page collaboration bundle)
-  slug                Page slug when format is `page`
+  format              Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), `page` (legacy single page JSON bundle), or `entry` (zip entry-bundle for posts and pages)
+  slug                Entry slug when format is `entry` or `page`
 
 End of options:
   Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
-  -o, --output <path> Path to write the export to. Defaults to stdout. Parent directories are created as needed; existing files are overwritten
+  -o, --output <path> Path to write the export to. For `entry` format defaults to `<slug>.nectar.zip` in cwd; for other formats defaults to stdout. Parent directories are created as needed; existing files are overwritten
   --pretty            Pretty-print JSON output with 2-space indentation (`json` and `ghost-json` only). Default emits compact JSON
   --include-drafts    Include posts and pages with `status: draft` in the export. Off by default so an unintended draft cannot leak through `nectar export`
   --assets            Include local content assets referenced by `nectar export page <slug>`. Enabled by default
   --no-assets         Omit local asset payloads from a page collaboration bundle
+  --kind <post|page>  For `entry` format: content kind to export (`post` or `page`). Defaults to `post`
   -j, --json          No-op here; `export` already emits its own format-specific payload (json/ghost-json/rss). Accepted so the global `--json` flag does not error
   -h, --help          Show help for this command
 
@@ -35,4 +36,7 @@ Examples:
   nectar export json --pretty -o snapshot.json
   nectar export ghost-json -o ghost-backup.json
   nectar export rss -o feed.xml
+  nectar export entry hello-world
+  nectar export entry hello-world -o out.nectar.zip
+  nectar export entry about --kind page -o about.nectar.zip
   nectar export page about -o about.page.json

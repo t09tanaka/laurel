@@ -6,15 +6,16 @@ import type { NectarConfig } from '~/config/schema.ts';
 import { loadContent } from '~/content/loader.ts';
 import { htmlToPlaintext } from '~/content/markdown.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
+import { type EntryKind, exportEntryBundle } from '~/entry-bundle/index.ts';
 import { exportPageBundle } from '~/page-bundle/index.ts';
 import { EXIT_CODES, exitCodeForError } from '~/util/errors.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { EXPORT_SPEC } from '../specs.ts';
 
-type ExportFormat = 'json' | 'ghost-json' | 'rss' | 'page';
+type ExportFormat = 'json' | 'ghost-json' | 'rss' | 'page' | 'entry';
 
-const EXPORT_FORMATS: readonly ExportFormat[] = ['json', 'ghost-json', 'rss', 'page'];
+const EXPORT_FORMATS: readonly ExportFormat[] = ['json', 'ghost-json', 'rss', 'page', 'entry'];
 
 interface RunExportOptions {
   /** Override `process.cwd()` (tests). */
@@ -65,12 +66,48 @@ export async function runExport(args: string[], options: RunExportOptions = {}):
   try {
     config = await loadConfig({ cwd, configPath });
     content =
-      format === 'page'
+      format === 'page' || format === 'entry'
         ? ({ posts: [], pages: [], tags: [], authors: [] } as unknown as ContentGraph)
         : await loadContent({ cwd, config, includeDrafts });
   } catch (err) {
     reportError(err, cwd);
     return exitCodeForError(err);
+  }
+
+  if (format === 'entry') {
+    const slug = parsed.positionals[1];
+    if (!slug) {
+      process.stderr.write('Missing required argument for entry export: <slug>\n\n');
+      process.stderr.write(formatCommandHelp(EXPORT_SPEC));
+      return EXIT_CODES.usage;
+    }
+    const kindRaw = typeof parsed.values.kind === 'string' ? parsed.values.kind : 'post';
+    if (kindRaw !== 'post' && kindRaw !== 'page') {
+      process.stderr.write(`Invalid --kind value: ${kindRaw} (expected one of: post, page)\n\n`);
+      process.stderr.write(formatCommandHelp(EXPORT_SPEC));
+      return EXIT_CODES.usage;
+    }
+    const kind: EntryKind = kindRaw;
+    const defaultOut = `${slug}.nectar.zip`;
+    const outRel = outputPath ?? defaultOut;
+    const abs = isAbsolute(outRel) ? outRel : resolve(cwd, outRel);
+    try {
+      const { zip, omittedAssets } = await exportEntryBundle({ cwd, config, kind, slug });
+      if (omittedAssets.length > 0) {
+        process.stderr.write(
+          `Warning: ${omittedAssets.length} asset(s) could not be bundled and were omitted:\n`,
+        );
+        for (const a of omittedAssets) {
+          process.stderr.write(`  ${a}\n`);
+        }
+      }
+      await mkdir(dirname(abs), { recursive: true });
+      await Bun.write(abs, zip);
+    } catch (err) {
+      reportError(err, cwd);
+      return exitCodeForError(err);
+    }
+    return EXIT_CODES.ok;
   }
 
   let body: string;
