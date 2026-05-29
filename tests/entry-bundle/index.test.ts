@@ -1,10 +1,15 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createZipArchive } from '~/cli/dashboard/zip-writer';
 import { loadConfig } from '~/config/loader';
-import { BUNDLE_SCHEMA, exportEntryBundle, parseEntryBundleZip } from '~/entry-bundle/index';
+import {
+  BUNDLE_SCHEMA,
+  exportEntryBundle,
+  importEntryBundle,
+  parseEntryBundleZip,
+} from '~/entry-bundle/index';
 import { readZipArchive } from '~/entry-bundle/zip';
 
 async function makeFixture(): Promise<string> {
@@ -100,6 +105,43 @@ describe('exportEntryBundle', () => {
       const { zip } = await exportEntryBundle({ cwd: dir, config, kind: 'post', slug: 'hello' });
       expect(rawEntryMd(zip)).toMatch(/status:\s*needs-review/);
       expect(hasManifest(zip)).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('importEntryBundle', () => {
+  test('overwrites a pre-existing post and lands needs-review', async () => {
+    const dir = await makeFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const { zip } = await exportEntryBundle({ cwd: dir, config, kind: 'post', slug: 'hello' });
+      const result = await importEntryBundle({ cwd: dir, config, zip, onConflict: 'overwrite' });
+      expect(result.written).toBe(true);
+      const landed = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
+      expect(landed).toMatch(/status:\s*needs-review/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('dryRun writes nothing', async () => {
+    const dir = await makeFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const { zip } = await exportEntryBundle({ cwd: dir, config, kind: 'post', slug: 'hello' });
+      const before = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
+      const result = await importEntryBundle({
+        cwd: dir,
+        config,
+        zip,
+        onConflict: 'overwrite',
+        dryRun: true,
+      });
+      expect(result.written).toBe(false);
+      const after = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
+      expect(after).toBe(before);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
