@@ -2083,7 +2083,7 @@
    * preview of the same gesture, both on hover-in and hover-out. */
   .rowActions {
     display: flex;
-    justify-content: flex-start;
+    justify-content: flex-end;
     align-items: center;
     gap: 16px;
     flex-wrap: nowrap;
