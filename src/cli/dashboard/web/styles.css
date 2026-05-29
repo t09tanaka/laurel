@@ -1125,6 +1125,20 @@
       transform: none;
     }
   }
+  /* Unified modal open/close motion — every overlay (confirm dialog, command
+   * palette, upload modals) shares the page-transition gesture: a soft
+   * right-to-left slide + fade on the panel, a plain fade on the backdrop.
+   * The `.is-closing` modifier (driven by useModalTransition) reverses the
+   * panel back out to the right so dismissal mirrors entry, keeping the whole
+   * dashboard feeling like one editorial gesture. */
+  @keyframes modalBackdropIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
   /* The editor's metadata column is position: fixed. A transform on ANY
    * ancestor retargets a fixed element's containing block, so the
    * pageSlideIn translateX (and .main's mainFadeIn translateY) would pin the
@@ -1143,6 +1157,44 @@
     to {
       opacity: 1;
     }
+  }
+  @keyframes modalBackdropOut {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes modalPanelIn {
+    from {
+      opacity: 0;
+      transform: translateX(18px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes modalPanelOut {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 0;
+      transform: translateX(18px);
+    }
+  }
+  .confirmBackdrop.is-closing,
+  .cmdkBackdrop.is-closing,
+  .modalBackdrop.is-closing {
+    animation: modalBackdropOut 0.18s ease-in both;
+  }
+  .confirmBackdrop.is-closing .confirmPanel,
+  .cmdkBackdrop.is-closing .cmdkPanel,
+  .modalBackdrop.is-closing .modalDialog {
+    animation: modalPanelOut 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
   .panel[aria-busy="true"] .tableWrap {
     position: relative;
@@ -1180,7 +1232,7 @@
     align-items: center;
     padding: 20px;
     backdrop-filter: blur(2px);
-    animation: cmdkBackdropIn 0.14s ease-out;
+    animation: modalBackdropIn 0.18s ease-out;
   }
   .confirmPanel {
     width: 100%;
@@ -1190,7 +1242,7 @@
     border-radius: 12px;
     box-shadow: var(--elevation-6);
     padding: 22px 24px 18px;
-    animation: cmdkPanelIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: modalPanelIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .confirmTitle {
     margin: 0 0 6px;
@@ -1531,7 +1583,7 @@
     align-items: flex-start;
     padding: 12vh 16px 16px;
     backdrop-filter: blur(2px);
-    animation: cmdkBackdropIn 0.14s ease-out;
+    animation: modalBackdropIn 0.18s ease-out;
   }
   .cmdkPanel {
     width: 100%;
@@ -1548,30 +1600,12 @@
     display: grid;
     grid-template-rows: auto 1fr auto;
     max-height: min(72vh, 600px);
-    animation: cmdkPanelIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: modalPanelIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
   }
   @keyframes mainFadeIn {
     from {
       opacity: 0;
       transform: translateY(2px);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-  @keyframes cmdkBackdropIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-  @keyframes cmdkPanelIn {
-    from {
-      opacity: 0;
-      transform: translateY(-8px) scale(0.985);
     }
     to {
       opacity: 1;
@@ -1765,6 +1799,20 @@
   @media (prefers-reduced-motion: reduce) {
     .skeletonBar,
     .panel[aria-busy="true"] .tableWrap::after {
+      animation: none;
+    }
+    .confirmBackdrop,
+    .cmdkBackdrop,
+    .modalBackdrop,
+    .confirmPanel,
+    .cmdkPanel,
+    .modalDialog,
+    .confirmBackdrop.is-closing,
+    .cmdkBackdrop.is-closing,
+    .modalBackdrop.is-closing,
+    .confirmBackdrop.is-closing .confirmPanel,
+    .cmdkBackdrop.is-closing .cmdkPanel,
+    .modalBackdrop.is-closing .modalDialog {
       animation: none;
     }
   }
@@ -2221,6 +2269,7 @@
     align-items: center;
     justify-content: center;
     padding: 24px;
+    animation: modalBackdropIn 0.18s ease-out;
   }
   /* Full-screen overlay rendered during a Ghost import. Sits above the
    * upload modal (`z-index: 200`) and the rest of the dashboard so the
@@ -2360,6 +2409,7 @@
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
     display: grid;
     gap: 14px;
+    animation: modalPanelIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .modalHead {
     display: flex;

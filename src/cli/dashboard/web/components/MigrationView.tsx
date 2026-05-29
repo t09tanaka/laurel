@@ -1,6 +1,7 @@
 import type { JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { type GhostImportStreamEvent, streamGhostImport } from '../lib/api.ts';
+import { Modal, useModalCanClose } from './Modal.tsx';
 import { StatePanel } from './StatePanel.tsx';
 import { UploadDropzone } from './UploadDropzone.tsx';
 
@@ -69,7 +70,7 @@ function GhostImportPanel(props: GhostImportPanelProps): JSX.Element {
           />
         ) : null}
       </div>
-      {uploadOpen ? (
+      <Modal open={uploadOpen} onClose={() => setUploadOpen(false)}>
         <GhostImportModal
           onClose={() => setUploadOpen(false)}
           onResult={async (next) => {
@@ -80,7 +81,7 @@ function GhostImportPanel(props: GhostImportPanelProps): JSX.Element {
             }
           }}
         />
-      ) : null}
+      </Modal>
     </article>
   );
 }
@@ -140,6 +141,9 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
     return `Invalid source URL: "${trimmed}". Expected an absolute URL like https://oldblog.com.`;
   })();
   const visibleSourceUrlError = sourceUrlTouched || sourceUrlSubmitted ? sourceUrlError : '';
+
+  // Block backdrop dismissal while an import is in flight.
+  useModalCanClose(!busy);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -258,17 +262,7 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
   }
 
   return (
-    <div
-      class="modalBackdrop"
-      role="presentation"
-      tabIndex={-1}
-      onClick={(event) => {
-        if (event.target === event.currentTarget && !busy) onClose();
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape' && !busy) onClose();
-      }}
-    >
+    <>
       <dialog class="modalDialog" aria-modal="true" aria-label="Upload Ghost export" open>
         <header class="modalHead">
           <h3>Upload Ghost export</h3>
@@ -398,7 +392,7 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
       {busy && progress ? (
         <GhostImportProgress state={progress} onCancel={handleCancelImport} />
       ) : null}
-    </div>
+    </>
   );
 }
 

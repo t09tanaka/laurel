@@ -1,5 +1,6 @@
 import type { JSX } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { Modal } from './Modal.tsx';
 
 interface ConfirmRequest {
   title: string;
@@ -67,46 +68,42 @@ export function useConfirmHost(): { api: ConfirmApi; node: JSX.Element } {
 
   const api = useMemo<ConfirmApi>(() => ({ ask }), [ask]);
 
-  const node = !pending ? (
-    <></>
-  ) : (
-    <div
-      class="confirmBackdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) respond(false);
-      }}
-    >
-      <div
-        class={`confirmPanel ${pending.intent === 'danger' ? 'confirmPanel-danger' : ''}`}
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="confirmTitle"
-      >
-        <h2 class="confirmTitle" id="confirmTitle">
-          {pending.title}
-        </h2>
-        {pending.body ? <p class="confirmBody">{pending.body}</p> : null}
-        <div class="confirmActions">
-          <button
-            type="button"
-            class="btn secondary"
-            ref={cancelRef}
-            onClick={() => respond(false)}
-          >
-            {pending.cancelLabel ?? 'Cancel'}
-          </button>
-          <button
-            type="button"
-            class={`btn ${pending.intent === 'danger' ? 'btn-danger' : ''}`}
-            ref={confirmRef}
-            onClick={() => respond(true)}
-          >
-            {pending.confirmLabel ?? 'Confirm'}
-          </button>
+  // Modal keeps the panel mounted through its close animation and freezes the
+  // last content, so the panel stays intact while `pending` clears on dismiss.
+  const node = (
+    <Modal open={pending !== null} onClose={() => respond(false)} backdropClass="confirmBackdrop">
+      {pending ? (
+        <div
+          class={`confirmPanel ${pending.intent === 'danger' ? 'confirmPanel-danger' : ''}`}
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="confirmTitle"
+        >
+          <h2 class="confirmTitle" id="confirmTitle">
+            {pending.title}
+          </h2>
+          {pending.body ? <p class="confirmBody">{pending.body}</p> : null}
+          <div class="confirmActions">
+            <button
+              type="button"
+              class="btn secondary"
+              ref={cancelRef}
+              onClick={() => respond(false)}
+            >
+              {pending.cancelLabel ?? 'Cancel'}
+            </button>
+            <button
+              type="button"
+              class={`btn ${pending.intent === 'danger' ? 'btn-danger' : ''}`}
+              ref={confirmRef}
+              onClick={() => respond(true)}
+            >
+              {pending.confirmLabel ?? 'Confirm'}
+            </button>
+          </div>
         </div>
-      </div>
-    </div>
+      ) : null}
+    </Modal>
   );
 
   return { api, node };
