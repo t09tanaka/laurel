@@ -245,6 +245,43 @@ export async function saveContent(args: {
   return { status: response.status, data: (await response.json()) as SaveContentResult };
 }
 
+type TrashContentResult =
+  | { ok: true; entry: { id: string; slug: string; originalPath: string } }
+  | { ok: false; reason: 'conflict'; current: DashboardContentItem }
+  | { ok: false; reason: string; error?: string };
+
+type RestoreTrashResult =
+  | { ok: true; entry: { id: string; slug: string; originalPath: string } }
+  | { ok: false; reason: string; error?: string };
+
+/** Undo a soft delete: move a trashed entry back to its original path. The
+ * server rejects with `already-exists` if a file now occupies that path. */
+export async function restoreTrash(
+  id: string,
+): Promise<{ status: number; data: RestoreTrashResult }> {
+  const response = await fetch(`/api/trash/${encodeURIComponent(id)}/restore`, {
+    method: 'POST',
+    headers: writeHeaders(),
+  });
+  return { status: response.status, data: (await response.json()) as RestoreTrashResult };
+}
+
+/** Move a post / page to `.nectar/trash` (soft delete). The server gates on
+ * `fingerprint` so a stale tab can't clobber a file edited elsewhere — a
+ * mismatch comes back as a 409 conflict carrying the on-disk `current`. */
+export async function trashContent(args: {
+  kind: 'posts' | 'pages';
+  slug: string;
+  fingerprint: ContentFingerprint;
+}): Promise<{ status: number; data: TrashContentResult }> {
+  const response = await fetch(`/api/content/${args.kind}/${encodeURIComponent(args.slug)}/trash`, {
+    method: 'POST',
+    headers: writeHeaders(),
+    body: JSON.stringify({ fingerprint: args.fingerprint }),
+  });
+  return { status: response.status, data: (await response.json()) as TrashContentResult };
+}
+
 export async function approvePage(args: {
   slug: string;
   fingerprint: ContentFingerprint;
