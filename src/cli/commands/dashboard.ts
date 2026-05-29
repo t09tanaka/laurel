@@ -1758,6 +1758,10 @@ export async function handleDashboardRequest(
       const rawOnConflict = form?.get('onConflict');
       const onConflict: 'skip' | 'overwrite' | 'rename' =
         rawOnConflict === 'overwrite' || rawOnConflict === 'rename' ? rawOnConflict : 'skip';
+      const rawMerged = form?.get('mergedContent');
+      const mergedEntry = typeof rawMerged === 'string' ? rawMerged : undefined;
+      const rawExpected = form?.get('expectedExisting');
+      const expectedExisting = typeof rawExpected === 'string' ? rawExpected : undefined;
       const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
       try {
         const result = await importEntryBundle({
@@ -1766,6 +1770,8 @@ export async function handleDashboardRequest(
           zip: new Uint8Array(await file.arrayBuffer()),
           onConflict,
           dryRun,
+          mergedEntry,
+          expectedExisting,
         });
         if (result.written) {
           ctx.changeBus.broadcast({

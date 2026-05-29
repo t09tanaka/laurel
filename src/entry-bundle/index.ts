@@ -50,6 +50,13 @@ export interface ImportEntryResult {
   warnings: string[];
   /** Summary of the incoming entry, for an import preview before committing. */
   preview: { title: string; excerpt: string; assetCount: number };
+  /**
+   * Populated on a dry-run when the slug collides with an existing entry. Both
+   * sides are normalized markdown (frontmatter + body) so the dashboard can
+   * render a line-level diff and let the user merge changes selectively.
+   * `incoming` is exactly what an overwrite would write.
+   */
+  conflict?: { existing: string; incoming: string };
 }
 
 export function parseEntryBundleZip(zip: Uint8Array): ParsedEntryBundle {
@@ -193,12 +200,31 @@ export async function importEntryBundle({
   zip,
   onConflict,
   dryRun = false,
+  mergedEntry,
+  expectedExisting,
 }: {
   cwd: string;
   config: NectarConfig;
   zip: Uint8Array;
   onConflict: ConflictPolicy;
   dryRun?: boolean;
+  /**
+   * When provided, this markdown is written instead of the serialized bundle
+   * entry — the dashboard's per-line merge of the existing and incoming
+   * entries. Only honored when overwriting a real collision; the slug is
+   * re-pinned to the target server-side so the filename and content slug can't
+   * drift. Assets are still taken from the bundle. The merge intentionally
+   * keeps whatever status the user chose in the diff (the default accept-all
+   * selection still yields needs-review, since the incoming side carries it).
+   */
+  mergedEntry?: string;
+  /**
+   * The normalized existing content the merge was built against (the dry-run
+   * `conflict.existing`). If the file on disk no longer matches, the merge is
+   * stale and the write is rejected rather than silently clobbering edits made
+   * since the diff was opened.
+   */
+  expectedExisting?: string;
 }): Promise<ImportEntryResult> {
   const bundle = parseEntryBundleZip(zip);
   const root = rootForKind(cwd, config, bundle.kind);
@@ -213,6 +239,27 @@ export async function importEntryBundle({
   const requestedSlug = safeSlug(String(bundle.frontmatter.slug ?? bundle.slug));
   const target = resolveImportTarget(root, requestedSlug, onConflict);
   const entryPath = relativePath(cwd, target.path);
+  const collisionPath = join(root, `${requestedSlug}.md`);
+  const collisionExists = existsSync(collisionPath);
+
+  // Importing brings an entry in from outside, so it always lands as
+  // needs-review — a reviewer approves it from there. (Export does not stamp
+  // status; the directional flow lives entirely on the import side.)
+  const frontmatter = { ...bundle.frontmatter, slug: target.slug, status: 'needs-review' };
+
+  // On a dry-run collision, surface both sides so the dashboard can render a
+  // diff. `incoming` is exactly what an overwrite would write. We compute it
+  // against the requested-slug path (where the collision is), independent of
+  // the chosen policy, so the skip-policy probe still gets the diff.
+  let conflict: { existing: string; incoming: string } | undefined;
+  if (dryRun && collisionExists) {
+    const existingRaw = await readFile(collisionPath, 'utf8');
+    conflict = {
+      existing: formatContentSource(existingRaw, { filePath: collisionPath }),
+      incoming: serializeEntryMarkdown(frontmatter, bundle.body, collisionPath),
+    };
+  }
+
   if (target.skipped) {
     return {
       written: false,
@@ -224,14 +271,28 @@ export async function importEntryBundle({
       assetPaths: [],
       warnings: [],
       preview,
+      conflict,
     };
   }
 
-  // Importing brings an entry in from outside, so it always lands as
-  // needs-review — a reviewer approves it from there. (Export does not stamp
-  // status; the directional flow lives entirely on the import side.)
-  const frontmatter = { ...bundle.frontmatter, slug: target.slug, status: 'needs-review' };
-  const warnings = await collectImportWarnings(cwd, config, frontmatter);
+  // A hand-merged entry only makes sense when overwriting an entry that really
+  // exists; reject it otherwise so arbitrary markdown can't ride in on a
+  // skip/rename or a non-colliding import.
+  if (
+    mergedEntry !== undefined &&
+    !(onConflict === 'overwrite' && collisionExists && target.path === collisionPath)
+  ) {
+    throw new Error('A merged entry is only valid when overwriting an existing entry');
+  }
+
+  // Re-pin the slug to the target so a stray slug in the merge can't desync the
+  // filename from the content; everything else (including status) is the user's
+  // merge as-is.
+  const mergedParsed =
+    mergedEntry !== undefined ? parseFrontmatter(mergedEntry, { filePath: entryPath }) : undefined;
+  const mergedFrontmatter = mergedParsed ? { ...mergedParsed.data, slug: target.slug } : undefined;
+
+  const warnings = await collectImportWarnings(cwd, config, mergedFrontmatter ?? frontmatter);
 
   const assetsRoot = absolutise(cwd, config.content.assets_dir);
   const writes: { dest: string; bytes: Uint8Array }[] = [];
@@ -246,11 +307,19 @@ export async function importEntryBundle({
   await assertWritablePathHasNoSymlink(root, target.path);
 
   if (!dryRun) {
-    await writeFile(
-      target.path,
-      serializeEntryMarkdown(frontmatter, bundle.body, entryPath),
-      'utf8',
-    );
+    if (mergedParsed && mergedFrontmatter && expectedExisting !== undefined) {
+      const currentRaw = await readFile(collisionPath, 'utf8');
+      if (formatContentSource(currentRaw, { filePath: collisionPath }) !== expectedExisting) {
+        throw new Error(
+          'The existing entry changed since the diff was opened. Reopen the import to review the current content.',
+        );
+      }
+    }
+    const content =
+      mergedParsed && mergedFrontmatter
+        ? serializeEntryMarkdown(mergedFrontmatter, mergedParsed.body, entryPath)
+        : serializeEntryMarkdown(frontmatter, bundle.body, entryPath);
+    await writeFile(target.path, content, 'utf8');
     for (const write of writes) {
       await mkdir(dirname(write.dest), { recursive: true });
       await writeFile(write.dest, write.bytes);
@@ -267,6 +336,7 @@ export async function importEntryBundle({
     assetPaths,
     warnings,
     preview,
+    conflict,
   };
 }
 

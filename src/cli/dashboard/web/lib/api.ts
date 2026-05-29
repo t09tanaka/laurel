@@ -635,16 +635,27 @@ export interface ImportBundleResult {
   assetPaths: string[];
   warnings: string[];
   preview: { title: string; excerpt: string; assetCount: number };
+  /** Present on a dry-run slug collision: normalized markdown for both sides. */
+  conflict?: { existing: string; incoming: string };
 }
 
 export async function importBundle(
   file: File,
-  opts: { dryRun: boolean; onConflict: 'skip' | 'overwrite' | 'rename' },
+  opts: {
+    dryRun: boolean;
+    onConflict: 'skip' | 'overwrite' | 'rename';
+    /** Per-line merge of existing + incoming to write instead of the bundle entry. */
+    mergedContent?: string;
+    /** The dry-run `conflict.existing` the merge was built from; guards stale writes. */
+    expectedExisting?: string;
+  },
 ): Promise<ImportBundleResult> {
   const form = new FormData();
   form.set('file', file);
   form.set('dryRun', String(opts.dryRun));
   form.set('onConflict', opts.onConflict);
+  if (opts.mergedContent !== undefined) form.set('mergedContent', opts.mergedContent);
+  if (opts.expectedExisting !== undefined) form.set('expectedExisting', opts.expectedExisting);
   const res = await fetch('/api/bundles/import', {
     method: 'POST',
     headers: { 'x-nectar-dashboard-token': dashboardToken },
