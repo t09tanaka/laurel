@@ -2,7 +2,7 @@ import renderHtml from 'dom-serializer';
 import { type ChildNode, type Element, Text } from 'domhandler';
 import { parseDocument } from 'htmlparser2';
 
-export type KoenigLabelTranslator = (key: string) => string;
+type KoenigLabelTranslator = (key: string) => string;
 
 export function localizeKoenigCardLabels(html: string, translate: KoenigLabelTranslator): string {
   if (!hasKoenigI18nMarker(html)) return html;

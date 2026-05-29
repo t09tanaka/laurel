@@ -9,7 +9,7 @@ import { logger } from '~/util/logger.ts';
 // when written by older admin tooling. Both shapes carry the same
 // `{from, to, permanent}` triple, so we normalize at the boundary and keep the
 // rest of the emit pipeline format-agnostic.
-export interface GhostRedirectRule {
+interface GhostRedirectRule {
   from: string;
   to: string;
   permanent: boolean;
@@ -179,7 +179,7 @@ function slugPaths(
   }
 }
 
-export interface WriteRedirectMapsOptions {
+interface WriteRedirectMapsOptions {
   cwd: string;
   outDir?: string;
   customRedirects: GhostRedirectRule[];
@@ -187,7 +187,7 @@ export interface WriteRedirectMapsOptions {
   dryRun: boolean;
 }
 
-export interface RedirectMapsResult {
+interface RedirectMapsResult {
   customCount: number;
   slugCount: number;
   // Absolute paths the import either wrote or would have written. Empty when

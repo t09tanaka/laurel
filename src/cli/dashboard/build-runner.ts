@@ -14,7 +14,7 @@ export function isBuildInFlight(): boolean {
   return buildInFlight;
 }
 
-export interface BuildRunOptions {
+interface BuildRunOptions {
   cwd: string;
   configPath?: string | undefined;
   onComplete?: ((result: { ok: boolean }) => void) | undefined;
@@ -28,7 +28,7 @@ interface BuildStreamEvent {
   message?: string;
 }
 
-export interface BuildSummarySnapshot {
+interface BuildSummarySnapshot {
   outputDir: string;
   routeCount: number;
   assetCount: number;

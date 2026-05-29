@@ -6,7 +6,7 @@ import { pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 export type ContentKind = 'posts' | 'pages';
 export const CONTENT_KINDS: readonly ContentKind[] = ['posts', 'pages'];
 
-export interface ResolvedContentFile {
+interface ResolvedContentFile {
   kind: ContentKind;
   path: string;
 }

@@ -32,13 +32,13 @@ import {
   nodeBy,
 } from './prose-insert-menu-logic.ts';
 
-export interface InsertMenuUploadResult {
+interface InsertMenuUploadResult {
   ok: boolean;
   path?: string;
   error?: string;
 }
 
-export interface InsertMenuOptions {
+interface InsertMenuOptions {
   // Optional image uploader. When provided, the Image menu item is
   // enabled and triggers a hidden file input → upload → insert flow.
   // Without it, the Image item is hidden (so themes / harnesses that

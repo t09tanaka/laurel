@@ -7,24 +7,24 @@ export const LIGHTHOUSE_CATEGORIES = [
   'seo',
 ] as const;
 
-export type LighthouseCategory = (typeof LIGHTHOUSE_CATEGORIES)[number];
+type LighthouseCategory = (typeof LIGHTHOUSE_CATEGORIES)[number];
 
-export interface LighthouseTarget {
+interface LighthouseTarget {
   route: string;
   url: string;
 }
 
-export interface LighthouseScoreFailure {
+interface LighthouseScoreFailure {
   category: LighthouseCategory;
   score: number | null;
 }
 
-export interface LighthouseReportSummary {
+interface LighthouseReportSummary {
   url: string;
   failures: LighthouseScoreFailure[];
 }
 
-export interface LighthouseJsonReport {
+interface LighthouseJsonReport {
   requestedUrl?: string;
   finalDisplayedUrl?: string;
   finalUrl?: string;

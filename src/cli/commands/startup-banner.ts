@@ -9,7 +9,7 @@ import { colorize, getColorEnabled, getOutputMode, logger } from '~/util/logger.
 // NO_COLOR or pipe nectar through a log collector almost always want plain
 // ASCII as well, and falling back keeps the same predicate driving every
 // stylistic choice.
-export interface DevGlyphs {
+interface DevGlyphs {
   check: string;
   warn: string;
   separator: string;
@@ -105,7 +105,7 @@ function collapseToCommonParent(paths: string[]): string | null {
 // banner can carry whatever metadata makes sense for that command. `mode` is
 // rendered verbatim after the separator, so callers control the full suffix
 // (e.g. `"dev mode"`, `"dashboard (dev, HMR)"`).
-export interface BannerMeta {
+interface BannerMeta {
   version: string;
   mode: string;
   rows: Array<[string, string]>;
@@ -127,7 +127,7 @@ export function renderBanner(meta: BannerMeta): string {
 
 // Dev-server flavoured Ready: include build timing + route/asset counts +
 // optional configured site URL row underneath the URL.
-export interface DevReadyBlock {
+interface DevReadyBlock {
   elapsedMs: number;
   url: string;
   routes: number;
@@ -155,7 +155,7 @@ export function renderReady(ready: DevReadyBlock): string {
 // separate function rather than overloading renderReady so the type signatures
 // stay narrow and the dashboard-specific copy ("Ready" instead of "Ready in N
 // ms") is explicit at the call site.
-export interface SimpleReadyBlock {
+interface SimpleReadyBlock {
   url: string;
   siteUrl?: string;
 }
@@ -183,7 +183,7 @@ export function renderWarnings(messages: string[]): string {
   return `\n${[head, ...bullets].join('\n')}\n`;
 }
 
-export interface RebuildBlock {
+interface RebuildBlock {
   routes: number;
   assets: number;
   elapsedMs: number;
@@ -214,7 +214,7 @@ export function renderRebuild(block: RebuildBlock): string {
 // "Ready" block stylistically so contributors see the same finish-line shape
 // whether they're iterating in dev or shipping a one-shot build. `bytes` is
 // optional because dry runs intentionally don't compute output size.
-export interface BuildCompleteBlock {
+interface BuildCompleteBlock {
   elapsedMs: number;
   routes: number;
   assets: number;
@@ -243,7 +243,7 @@ export function renderBuildComplete(block: BuildCompleteBlock): string {
 // over the LAN". `kind` decides the glyph colour: warning → yellow ⚠, info →
 // dim · . The message stays in default terminal colour so it remains readable
 // over both light and dark themes.
-export type NoticeKind = 'warning' | 'info';
+type NoticeKind = 'warning' | 'info';
 
 export function renderNotice(kind: NoticeKind, message: string): string {
   if (getOutputMode() === 'json') return '';
@@ -301,7 +301,7 @@ export function emitStartupEvent(name: string, fields: Record<string, unknown>):
 // cheap even on large blogs. The dashboard's real loader runs lazily on first
 // API request and produces the authoritative graph; this is purely for the
 // "Content: 12 posts, 3 pages, ..." line.
-export interface ContentCounts {
+interface ContentCounts {
   posts: number;
   pages: number;
   components: number;

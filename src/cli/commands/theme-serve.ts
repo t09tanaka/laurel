@@ -24,13 +24,13 @@ const DEFAULT_PORT = 4321;
 const DEFAULT_HOST = 'localhost';
 const REBUILD_DEBOUNCE_MS = 100;
 
-export interface ThemeServeOptions {
+interface ThemeServeOptions {
   parsed: ParsedCommand;
   cwd: string;
   configPath?: string | undefined;
 }
 
-export interface ThemeServeFixture {
+interface ThemeServeFixture {
   workDir: string;
   configPath: string;
   distDir: string;

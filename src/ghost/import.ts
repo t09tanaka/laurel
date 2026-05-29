@@ -304,7 +304,7 @@ export type ImportProgressEvent =
       failed: number;
     };
 
-export interface ImportGhostOptions {
+interface ImportGhostOptions {
   cwd: string;
   // Path to either a Ghost export JSON file or a directory containing one.
   // When a directory is given, `<dir>/content/` is used as the default asset
@@ -566,7 +566,7 @@ export async function importGhostExport(opts: ImportGhostOptions): Promise<Impor
   }
 }
 
-export type GhostExportFormat = 'json' | 'zip' | 'directory' | 'wordpress-xml' | 'unknown';
+type GhostExportFormat = 'json' | 'zip' | 'directory' | 'wordpress-xml' | 'unknown';
 
 // Sniff the export type without trusting the file extension. Order: stat
 // (directory shortcut), then magic-bytes from the first few bytes. Magic

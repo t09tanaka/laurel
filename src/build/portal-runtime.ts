@@ -158,7 +158,7 @@ export const PORTAL_RUNTIME_JS = `/* Nectar static Portal runtime. */
 })();
 `;
 
-export interface EmitPortalRuntimeOptions {
+interface EmitPortalRuntimeOptions {
   outputDir: string;
   enabled: boolean;
 }
@@ -171,7 +171,7 @@ export async function emitPortalRuntime(opts: EmitPortalRuntimeOptions): Promise
   return true;
 }
 
-export interface PortalRuntimeConfig {
+interface PortalRuntimeConfig {
   basePath: string;
   portalUrls: ResolvedPortalUrls;
   recommendationsEnabled: boolean;

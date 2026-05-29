@@ -2,9 +2,9 @@ import type { NectarConfig } from '~/config/schema.ts';
 import { withBasePath } from '~/util/url.ts';
 import { type TrailingSlashPolicy, canonicalRouteUrl } from './routes-yaml.ts';
 
-export type PublicUrlConfig = Pick<NectarConfig, 'site' | 'build'>;
+type PublicUrlConfig = Pick<NectarConfig, 'site' | 'build'>;
 
-export interface PublicUrlParts {
+interface PublicUrlParts {
   siteUrl: string | undefined;
   basePath: string | undefined;
   trailingSlash: TrailingSlashPolicy;

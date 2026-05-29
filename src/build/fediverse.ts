@@ -5,7 +5,7 @@ import { ensureDir } from '~/util/fs.ts';
 
 export const FEDIVERSE_DISCOVERY_PATH = '.well-known/nectar-fediverse.json';
 
-export interface FediverseDiscovery {
+interface FediverseDiscovery {
   schema: 'nectar.fediverse.v1';
   site_url: string;
   activitypub: {

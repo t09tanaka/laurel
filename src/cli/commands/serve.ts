@@ -53,14 +53,14 @@ const SERVE_CONTENT_TYPES_BY_EXTENSION = new Map<string, string>([
 ]);
 
 export type ServeSimulationTarget = 'netlify' | 'cloudflare-pages' | 'vercel';
-export type ServeCompressionMode = 'auto' | 'gzip' | 'br' | 'none';
-export type BrowserOpener = (command: string[]) => void;
+type ServeCompressionMode = 'auto' | 'gzip' | 'br' | 'none';
+type BrowserOpener = (command: string[]) => void;
 interface ServeTlsOptions {
   cert: string;
   key: string;
 }
 
-export interface ServeRunOptions {
+interface ServeRunOptions {
   openBrowser?: BrowserOpener;
 }
 
@@ -621,12 +621,12 @@ async function isResolvedFileInsideServeRoot(rootDir: string, filePath: string):
   }
 }
 
-export type ServeFileLookupResult =
+type ServeFileLookupResult =
   | { kind: 'file'; filePath: string; file: Blob; size: number }
   | { kind: 'missing' }
   | { kind: 'forbidden' };
 
-export interface ServeFileLookupCache {
+interface ServeFileLookupCache {
   lookup(filePath: string): Promise<ServeFileLookupResult>;
   invalidate(): void;
 }

@@ -12,9 +12,9 @@
 // build pipeline can write it verbatim without a bundler step. The emitted JS
 // uses no imports except the lazy Pagefind import in Pagefind mode.
 
-export type SearchShimStrategy = 'json' | 'pagefind' | 'lunr';
+type SearchShimStrategy = 'json' | 'pagefind' | 'lunr';
 
-export interface SearchShimOptions {
+interface SearchShimOptions {
   // Base path prefix applied to absolute URLs the shim resolves. Defaults to
   // "/". Pulled from `[build].base_path`.
   basePath?: string;

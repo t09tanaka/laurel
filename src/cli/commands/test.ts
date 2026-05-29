@@ -5,7 +5,7 @@ interface WritableLike {
   write(chunk: string): unknown;
 }
 
-export interface TestRunOptions {
+interface TestRunOptions {
   stdout?: WritableLike;
   stderr?: WritableLike;
   run?: (command: string[]) => Promise<number>;

@@ -13,13 +13,13 @@ import type { DashboardGhostImportPayload } from '../commands/dashboard.ts';
 //
 // The `progress` event wraps `ImportProgressEvent` so the import library's
 // type can grow new variants without breaking the wire schema here.
-export type GhostImportStreamEvent =
+type GhostImportStreamEvent =
   | { type: 'start'; startedAt: string }
   | { type: 'progress'; event: ImportProgressEvent }
   | { type: 'done'; summary: ImportSummary; mode: 'dry-run' | 'apply'; target: string }
   | { type: 'error'; message: string };
 
-export interface GhostImportStreamOptions {
+interface GhostImportStreamOptions {
   cwd: string;
   payload: DashboardGhostImportPayload;
   // Local path of a staged copy of the upload. Cleaned up after the stream

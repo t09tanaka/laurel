@@ -271,7 +271,7 @@ export async function writeHtmlBatch(outputDir: string, outputs: HtmlOutput[]): 
   }
 }
 
-export interface ThemeAssetCopyCache {
+interface ThemeAssetCopyCache {
   emittedDestinations: Set<string>;
   emittedByContent: Map<string, string>;
 }
@@ -280,7 +280,7 @@ export function createThemeAssetCopyCache(): ThemeAssetCopyCache {
   return { emittedDestinations: new Set(), emittedByContent: new Map() };
 }
 
-export interface CopyAssetsOptions {
+interface CopyAssetsOptions {
   cache?: ThemeAssetCopyCache | undefined;
   previousOutputFiles?: readonly BuildManifestFile[] | undefined;
 }
@@ -434,7 +434,7 @@ function isHardlinkFallbackError(err: unknown): boolean {
   );
 }
 
-export interface CopyContentAssetsOptions {
+interface CopyContentAssetsOptions {
   // Skip raster image files (under contentImagesDir) larger than this many
   // bytes, logging a warning per skip. 0 (or undefined) disables the check.
   maxImageBytes?: number;

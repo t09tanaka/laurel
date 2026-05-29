@@ -32,7 +32,7 @@ const VISIBILITY_VALUES: ReadonlySet<string> = new Set(frontmatterVisibilityValu
 const hasStatusValue = (value: string): boolean => STATUS_VALUES.has(value);
 const hasVisibilityValue = (value: string): boolean => VISIBILITY_VALUES.has(value);
 
-export interface CheckFrontmatterOptions {
+interface CheckFrontmatterOptions {
   cwd: string;
   config: NectarConfig;
 }

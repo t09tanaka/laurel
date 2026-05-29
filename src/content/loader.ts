@@ -103,7 +103,7 @@ interface LocaleFields {
   localeSource: 'frontmatter' | 'path' | 'site';
 }
 
-export interface LoadContentOptions {
+interface LoadContentOptions {
   cwd: string;
   config: NectarConfig;
   // Resolved `routes.yaml`, when available. Used to pick the URL template for

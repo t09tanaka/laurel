@@ -89,7 +89,7 @@ const SVG_SANITIZE_OPTIONS: IOptions = {
   parseStyleAttributes: false,
 };
 
-export interface ImageAssetSanitizationOptions {
+interface ImageAssetSanitizationOptions {
   stripMetadata?: boolean;
 }
 

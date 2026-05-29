@@ -48,7 +48,7 @@ async function loadMinifier(): Promise<MinifierFn | null> {
   return cachedMinifier;
 }
 
-export interface MinifyHtmlOutputsResult {
+interface MinifyHtmlOutputsResult {
   inputBytes: number;
   outputBytes: number;
   minified: boolean;

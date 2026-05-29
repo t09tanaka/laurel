@@ -13,7 +13,7 @@ const LOCAL_CONFIG_NAME = '.nectar.local.toml';
 const MAX_CONFIG_BYTES = 1024 * 1024;
 const LOAD_CONFIG_CACHE_MAX_ENTRIES = 32;
 
-export interface LoadConfigOptions {
+interface LoadConfigOptions {
   cwd: string;
   configPath?: string | readonly string[] | undefined;
   // When provided, takes precedence over `process.env` for `NECTAR_*`

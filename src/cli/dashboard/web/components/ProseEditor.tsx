@@ -219,7 +219,7 @@ export const markdownSerializer = new MarkdownSerializer(
   },
 );
 
-export interface ProseEditorHandle {
+interface ProseEditorHandle {
   getMarkdown: () => string;
   focus: () => void;
 }

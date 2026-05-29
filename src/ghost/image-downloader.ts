@@ -92,7 +92,7 @@ function concatChunks(chunks: Uint8Array[], total: number): Uint8Array {
 // outcome so a UI can render counts of done / skipped / failed alongside the
 // current URL. Counters are cumulative across the lifetime of the downloader
 // instance, so a consumer can render them directly without bookkeeping.
-export interface GhostImageDownloadEvent {
+interface GhostImageDownloadEvent {
   url: string;
   status: 'fetching' | 'done' | 'skipped' | 'failed';
   downloaded: number;
@@ -100,7 +100,7 @@ export interface GhostImageDownloadEvent {
   failed: number;
 }
 
-export interface GhostImageDownloaderOptions {
+interface GhostImageDownloaderOptions {
   // Project root. Downloaded files are written under <cwd>/content/images/.
   cwd: string;
   // Optional content-output root. Defaults to <cwd>/content. When import-ghost

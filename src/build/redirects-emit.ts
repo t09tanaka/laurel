@@ -19,7 +19,7 @@ import { type RedirectRule, collapseRedirects } from './redirects.ts';
 // status codes are not preserved (every redirect becomes a 200 + client-side
 // jump) which is the standard trade-off for static HTML redirects.
 
-export interface EmitRedirectsComponentOptions {
+interface EmitRedirectsComponentOptions {
   outputDir: string;
   rules: readonly RedirectRule[];
   enabled: boolean;

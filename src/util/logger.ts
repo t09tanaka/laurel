@@ -1,4 +1,4 @@
-export type Level = 'trace' | 'debug' | 'info' | 'warn' | 'error';
+type Level = 'trace' | 'debug' | 'info' | 'warn' | 'error';
 
 const order: Record<Level, number> = {
   trace: 5,
@@ -32,7 +32,7 @@ let warningsAsErrorsFailure = false;
 // to the underlying stream; anything else lets it through unchanged. The
 // subscriber receives the already-formatted message body (no `[warn]` prefix)
 // because the caller is expected to render its own decoration around it.
-export type WarningSubscriber = (message: string) => boolean | undefined;
+type WarningSubscriber = (message: string) => boolean | undefined;
 let warningSubscriber: WarningSubscriber | undefined;
 
 export function setWarningSubscriber(subscriber: WarningSubscriber | undefined): void {
@@ -151,7 +151,7 @@ export function colorize(text: string, color: keyof typeof ANSI): string {
 // to the stable {ts, level, msg} envelope. Splitting strings vs structured
 // data this way means existing call sites (`logger.info('built', count,
 // 'routes')`) keep working unchanged.
-export type LogFields = Record<string, unknown>;
+type LogFields = Record<string, unknown>;
 
 function isFieldsObject(value: unknown): value is LogFields {
   return (

@@ -3,7 +3,7 @@ import { relative, resolve } from 'node:path';
 import type { NectarConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 
-export interface MissingAssetReference {
+interface MissingAssetReference {
   owner: string;
   url: string;
   file: string;

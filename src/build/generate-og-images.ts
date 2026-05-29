@@ -46,7 +46,7 @@ async function loadResvg(): Promise<ResvgConstructor | null> {
   return cachedResvg;
 }
 
-export interface GenerateOgImagesOptions {
+interface GenerateOgImagesOptions {
   cwd: string;
   config: NectarConfig;
   content: ContentGraph;

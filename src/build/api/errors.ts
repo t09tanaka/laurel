@@ -1,4 +1,4 @@
-export interface GhostContentApiError {
+interface GhostContentApiError {
   message: string;
   context: string;
   type: string;
@@ -9,7 +9,7 @@ export interface GhostContentApiError {
   id: string;
 }
 
-export interface GhostContentApiErrorEnvelope {
+interface GhostContentApiErrorEnvelope {
   errors: GhostContentApiError[];
 }
 

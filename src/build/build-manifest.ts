@@ -95,7 +95,7 @@ export function changedPathsAbsPath(outputDir: string): string {
   return join(outputDir, BUILD_MANIFEST_DIR, CHANGED_PATHS_FILENAME);
 }
 
-export interface EmitBuildManifestOptions {
+interface EmitBuildManifestOptions {
   outputDir: string;
   config: NectarConfig;
   theme: ThemeBundle;

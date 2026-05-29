@@ -4,7 +4,7 @@ import { relative } from 'node:path';
 // maps to a reserved code in `EXIT_CODES` so callers (CI, shell scripts) can
 // distinguish a config typo from a missing template without parsing stderr.
 // Add a value here when introducing a new boundary; do not reuse codes.
-export type NectarErrorCode = 'config' | 'content' | 'theme' | 'render' | 'emit';
+type NectarErrorCode = 'config' | 'content' | 'theme' | 'render' | 'emit';
 
 // Reserved process exit codes for the CLI. Keep in sync with docs and any
 // shell wrappers that grep on exit status. 0/1/2/130 are POSIX/Node defaults;
@@ -21,13 +21,13 @@ export const EXIT_CODES = {
   sigint: 130,
 } as const;
 
-export interface NectarErrorLocation {
+interface NectarErrorLocation {
   file?: string;
   line?: number;
   col?: number;
 }
 
-export interface NectarErrorInit extends NectarErrorLocation {
+interface NectarErrorInit extends NectarErrorLocation {
   message: string;
   hint?: string;
   docsUrl?: string;
@@ -64,7 +64,7 @@ export function exitCodeForError(err: unknown): number {
   return EXIT_CODES[err.code];
 }
 
-export interface FormatOptions {
+interface FormatOptions {
   cwd?: string;
 }
 

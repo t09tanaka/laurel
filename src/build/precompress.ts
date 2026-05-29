@@ -59,7 +59,7 @@ const gzipP = (buf: Buffer): Promise<Buffer> =>
     gzip(buf, { level: 9 }, (err, out) => (err ? reject(err) : resolve(out)));
   });
 
-export interface PrecompressOptions {
+interface PrecompressOptions {
   outputDir: string;
   enabled: boolean;
   // Only emit Brotli, skip gzip. Useful for hosts that always have Brotli
@@ -68,7 +68,7 @@ export interface PrecompressOptions {
   brotliOnly?: boolean;
 }
 
-export interface PrecompressResult {
+interface PrecompressResult {
   // Number of input files compressed. Companion outputs (.br, .gz) are
   // counted as a pair — i.e. one input → up to two emits.
   fileCount: number;

@@ -4,10 +4,10 @@ const messages = {
   en: enMessages,
 } as const;
 
-export type CliLocale = keyof typeof messages;
-export type MessageId = keyof typeof enMessages;
-export type MessageParams = Record<string, boolean | number | string | null | undefined>;
-export type LocaleEnv = Record<string, string | undefined>;
+type CliLocale = keyof typeof messages;
+type MessageId = keyof typeof enMessages;
+type MessageParams = Record<string, boolean | number | string | null | undefined>;
+type LocaleEnv = Record<string, string | undefined>;
 
 const DEFAULT_LOCALE: CliLocale = 'en';
 

@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import Handlebars from 'handlebars';
 import type { ThemeBundle } from '~/theme/types.ts';
 
-export interface MissingThemeAssetReference {
+interface MissingThemeAssetReference {
   owner: string;
   path: string;
   file: string;

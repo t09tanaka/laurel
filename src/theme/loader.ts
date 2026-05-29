@@ -9,7 +9,7 @@ import { loadThemeAssets } from './assets.ts';
 import { loadThemePackage } from './pkg.ts';
 import type { ThemeBundle, ThemeLocale, ThemeLocaleMap } from './types.ts';
 
-export interface LoadThemeOptions {
+interface LoadThemeOptions {
   cwd: string;
   config: NectarConfig;
 }

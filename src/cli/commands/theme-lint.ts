@@ -13,14 +13,14 @@ import { logger } from '~/util/logger.ts';
 // (level: 'error'); helper / partial omissions are warnings (level: 'warn').
 // Errors fail the exit code so CI gates can wrap this; warnings just print.
 
-export interface LintFinding {
+interface LintFinding {
   level: 'error' | 'warn';
   code: string;
   message: string;
   file?: string;
 }
 
-export interface LintReport {
+interface LintReport {
   themePath: string;
   findings: LintFinding[];
   errors: number;

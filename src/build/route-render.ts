@@ -29,7 +29,7 @@ import {
 } from './search.ts';
 import { transformSubscribeForms } from './subscribe-forms.ts';
 
-export interface RouteRenderOptions {
+interface RouteRenderOptions {
   cwd: string;
   config: NectarConfig;
   content: ContentGraph;

@@ -11,18 +11,18 @@ import { type RedirectRule, type RedirectStatus, collapseRedirects } from './red
 
 export const CLOUDFLARE_WORKERS_MANIFEST_FILE = '_routes-manifest.json';
 
-export interface CloudflareWorkersHeaderRule {
+interface CloudflareWorkersHeaderRule {
   source: string;
   headers: HeaderEntry[];
 }
 
-export interface CloudflareWorkersRedirectRule {
+interface CloudflareWorkersRedirectRule {
   source: string;
   destination: string;
   status: RedirectStatus;
 }
 
-export interface CloudflareWorkersManifest {
+interface CloudflareWorkersManifest {
   version: 1;
   redirects: CloudflareWorkersRedirectRule[];
   headers: CloudflareWorkersHeaderRule[];

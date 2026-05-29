@@ -2,10 +2,10 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ContentSourceFingerprint } from './model.ts';
 
-export type ApprovalKind = 'pages';
+type ApprovalKind = 'pages';
 export type ApprovalStatus = 'approved' | 'needs-approval' | 'stale';
 
-export interface ApprovalReceipt {
+interface ApprovalReceipt {
   kind: ApprovalKind;
   slug: string;
   path: string;
@@ -23,7 +23,7 @@ export interface ApprovalState {
   snapshotPath: string | null;
 }
 
-export interface ApprovalBuildGate {
+interface ApprovalBuildGate {
   mode: 'current' | 'snapshot' | 'skip';
   receipt: ApprovalReceipt | null;
   snapshotMarkdown?: string;

@@ -10,14 +10,14 @@ export const TELEMETRY_SCHEMA_VERSION = 1;
 
 type TelemetryConfigSource = NodeJS.ProcessEnv | string;
 
-export interface TelemetryConfig {
+interface TelemetryConfig {
   enabled: boolean;
   endpoint?: string;
   anonymousMachineId?: string;
   crashReports?: 'never';
 }
 
-export interface TelemetryPayload {
+interface TelemetryPayload {
   schema_version: 1;
   event: 'cli_command';
   anonymous_machine_id: string;
@@ -34,7 +34,7 @@ export interface TelemetryPayload {
   };
 }
 
-export interface TelemetrySendOptions {
+interface TelemetrySendOptions {
   command: string;
   durationMs: number;
   exitCode: number;
@@ -42,7 +42,7 @@ export interface TelemetrySendOptions {
   fetchFn?: (input: string, init: RequestInit) => Promise<Response>;
 }
 
-export interface CrashReportPayload {
+interface CrashReportPayload {
   kind: 'crash';
   error: {
     class: string;
@@ -58,7 +58,7 @@ export interface CrashReportPayload {
   };
 }
 
-export type CrashPromptResult =
+type CrashPromptResult =
   | 'sent'
   | 'declined'
   | 'stored-never'

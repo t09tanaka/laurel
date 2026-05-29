@@ -12,11 +12,11 @@ import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } fr
 import { reportError } from '../report.ts';
 import { EXPORT_SPEC } from '../specs.ts';
 
-export type ExportFormat = 'json' | 'ghost-json' | 'rss' | 'page';
+type ExportFormat = 'json' | 'ghost-json' | 'rss' | 'page';
 
 const EXPORT_FORMATS: readonly ExportFormat[] = ['json', 'ghost-json', 'rss', 'page'];
 
-export interface RunExportOptions {
+interface RunExportOptions {
   /** Override `process.cwd()` (tests). */
   cwd?: string;
 }

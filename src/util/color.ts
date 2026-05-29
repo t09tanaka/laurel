@@ -1,6 +1,6 @@
 export type TextColorClass = 'has-light-text' | 'has-dark-text';
-export type ContrastTextColor = 'light' | 'dark';
-export type RgbColor = [number, number, number];
+type ContrastTextColor = 'light' | 'dark';
+type RgbColor = [number, number, number];
 
 const NAMED_COLORS: Record<string, RgbColor> = {
   black: [0, 0, 0],

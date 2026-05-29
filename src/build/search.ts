@@ -7,7 +7,7 @@ import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 import { absoluteUrlWithBasePath } from '~/util/url.ts';
 
-export interface SearchEntryPost {
+interface SearchEntryPost {
   id: string;
   slug: string;
   title: string;
@@ -18,7 +18,7 @@ export interface SearchEntryPost {
   published_at: string;
 }
 
-export interface SearchEntryPage {
+interface SearchEntryPage {
   id: string;
   slug: string;
   title: string;
@@ -26,21 +26,21 @@ export interface SearchEntryPage {
   url: string;
 }
 
-export interface SearchEntryTag {
+interface SearchEntryTag {
   id: string;
   slug: string;
   name: string;
   url: string;
 }
 
-export interface SearchEntryAuthor {
+interface SearchEntryAuthor {
   id: string;
   slug: string;
   name: string;
   url: string;
 }
 
-export interface SearchIndex {
+interface SearchIndex {
   posts: SearchEntryPost[];
   pages: SearchEntryPage[];
   tags: SearchEntryTag[];

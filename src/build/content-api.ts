@@ -43,7 +43,7 @@ import { buildContentApiHeadersBody, buildContentApiHtaccessBody } from './heade
 // per-resource Cache-Control TTLs (posts short, tags/authors longer; see
 // `headers.ts:CONTENT_API_CACHE_TTL`).
 
-export interface EmitContentApiStubsOptions {
+interface EmitContentApiStubsOptions {
   content: ContentGraph;
   outputDir: string;
   // When set, rewrites relative URLs inside serialized `html` fields to

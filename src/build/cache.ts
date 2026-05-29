@@ -7,32 +7,32 @@ const DEFAULT_CACHE_ROOT = '.nectar/cache';
 
 export const EMBED_CACHE_NAMESPACE = 'embeds';
 
-export interface BuildJsonCacheOptions {
+interface BuildJsonCacheOptions {
   cwd: string;
   namespace: string;
   cacheDir?: string;
   now?: () => Date;
 }
 
-export interface BuildJsonCacheWriteOptions {
+interface BuildJsonCacheWriteOptions {
   ttlMs?: number;
   metadata?: Record<string, unknown>;
   now?: () => Date;
 }
 
-export interface BuildJsonCacheReadOptions<T> {
+interface BuildJsonCacheReadOptions<T> {
   ttlMs?: number;
   allowStale?: boolean;
   now?: () => Date;
   validate?: (value: unknown) => value is T;
 }
 
-export interface BuildJsonCacheReadThroughOptions<T> extends BuildJsonCacheReadOptions<T> {
+interface BuildJsonCacheReadThroughOptions<T> extends BuildJsonCacheReadOptions<T> {
   offline?: boolean;
   fetchValue: () => Promise<T>;
 }
 
-export interface BuildJsonCacheHit<T> {
+interface BuildJsonCacheHit<T> {
   key: string;
   cacheKey: string;
   path: string;
@@ -43,7 +43,7 @@ export interface BuildJsonCacheHit<T> {
   metadata: Record<string, unknown>;
 }
 
-export type BuildJsonCacheReadThroughResult<T> =
+type BuildJsonCacheReadThroughResult<T> =
   | { status: 'hit' | 'stale' | 'refreshed'; hit: BuildJsonCacheHit<T> }
   | { status: 'offline-miss'; key: string; cacheKey: string; path: string };
 
@@ -58,7 +58,7 @@ interface CacheEntry<T = unknown> {
   value: T;
 }
 
-export interface BuildJsonCache {
+interface BuildJsonCache {
   namespace: string;
   rootDir: string;
   pathFor: (key: unknown) => { key: string; cacheKey: string; path: string };

@@ -9,7 +9,7 @@
 
 import { Parser } from 'htmlparser2';
 
-export interface OgpMeta {
+interface OgpMeta {
   url: string;
   title: string;
   description: string;
@@ -200,9 +200,9 @@ export function pickMetadata(html: string, finalUrl: URL): OgpMeta {
   };
 }
 
-export type FetchOgpError = 'invalid_url' | 'blocked' | 'timeout' | 'fetch_failed' | 'no_metadata';
+type FetchOgpError = 'invalid_url' | 'blocked' | 'timeout' | 'fetch_failed' | 'no_metadata';
 
-export type FetchOgpResult = { ok: true; meta: OgpMeta } | { ok: false; error: FetchOgpError };
+type FetchOgpResult = { ok: true; meta: OgpMeta } | { ok: false; error: FetchOgpError };
 
 export interface FetchOgpOptions {
   fetch: (url: string, init: RequestInit) => Promise<Response>;

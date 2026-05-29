@@ -4,20 +4,20 @@ import type { NectarConfig } from '~/config/schema.ts';
 import { isNectarError } from '~/util/errors.ts';
 import { reportError } from './report.ts';
 
-export interface ConfigValidationOk {
+interface ConfigValidationOk {
   ok: true;
   config: NectarConfig;
 }
 
-export interface ConfigValidationFailure {
+interface ConfigValidationFailure {
   ok: false;
   error: unknown;
   entry: ConfigValidationEntry;
 }
 
-export type ConfigValidationResult = ConfigValidationOk | ConfigValidationFailure;
+type ConfigValidationResult = ConfigValidationOk | ConfigValidationFailure;
 
-export interface ConfigValidationEntry {
+interface ConfigValidationEntry {
   code: string;
   message: string;
   file?: string;

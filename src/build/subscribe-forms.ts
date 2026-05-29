@@ -11,7 +11,7 @@ import { SUBSCRIBE_NOOP_REASON, subscribeNoopSubmitHandler } from '~/members/noo
 // Public config shape consumed by the build pipeline. Stays a plain object
 // rather than re-exporting the adapter type so a downstream embedder cannot
 // accidentally depend on adapter-internal helpers.
-export interface SubscribeFormConfig {
+interface SubscribeFormConfig {
   provider: SubscribeProvider;
   action?: string | undefined;
   method?: 'get' | 'post' | undefined;

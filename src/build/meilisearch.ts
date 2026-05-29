@@ -9,7 +9,7 @@ import { truncateExcerpt } from './search.ts';
 // `a-zA-Z0-9-_`, so the colon-prefixed IDs we use for Algolia (`post:abc`)
 // have to be sanitized. We rewrite the colon to `_` and keep the original
 // type in a separate field for filtering.
-export interface MeilisearchDocument {
+interface MeilisearchDocument {
   id: string;
   url: string;
   title: string;
@@ -20,7 +20,7 @@ export interface MeilisearchDocument {
   published_at?: string;
 }
 
-export interface MeilisearchBundle {
+interface MeilisearchBundle {
   documents: MeilisearchDocument[];
   meta: {
     generated_at: string;

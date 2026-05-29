@@ -8,7 +8,7 @@ export interface MarkdownPool {
   close(): Promise<void>;
 }
 
-export interface MarkdownPoolOptions {
+interface MarkdownPoolOptions {
   // Number of `renderMarkdown` calls expected during the pool's lifetime.
   // Used to skip worker spawn for small workloads where the spawn cost would
   // dominate over the actual rendering cost.

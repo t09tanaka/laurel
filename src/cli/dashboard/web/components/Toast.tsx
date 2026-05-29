@@ -1,9 +1,9 @@
 import type { JSX } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
-export type ToastIntent = 'info' | 'success' | 'warn' | 'error';
+type ToastIntent = 'info' | 'success' | 'warn' | 'error';
 
-export interface ToastInput {
+interface ToastInput {
   intent?: ToastIntent;
   title?: string;
   message: string;
@@ -15,7 +15,7 @@ interface ToastItem extends ToastInput {
   intent: ToastIntent;
 }
 
-export interface ToastApi {
+interface ToastApi {
   push: (toast: ToastInput) => void;
   dismiss: (id: number) => void;
 }

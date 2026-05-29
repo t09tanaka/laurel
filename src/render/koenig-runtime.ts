@@ -12,7 +12,7 @@ export const KOENIG_RUNTIME_CARD_TYPES = [
   'video',
 ] as const;
 
-export type KoenigRuntimeCardType = (typeof KOENIG_RUNTIME_CARD_TYPES)[number];
+type KoenigRuntimeCardType = (typeof KOENIG_RUNTIME_CARD_TYPES)[number];
 
 const CARD_CLASS_BY_TYPE: Record<KoenigRuntimeCardType, string> = {
   audio: 'kg-audio-card',

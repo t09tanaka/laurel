@@ -9,7 +9,7 @@ import { absoluteUrl, absoluteUrlWithBasePath } from '~/util/url.ts';
 import { buildContentApiNotFoundEnvelope } from './api/errors.ts';
 import { projectPagination } from './api/pagination.ts';
 
-export interface EmitContentApiOptions {
+interface EmitContentApiOptions {
   config: NectarConfig;
   content: ContentGraph;
   outputDir: string;

@@ -12,7 +12,7 @@ export type { OnConflict };
 
 export type StaticSiteSource = 'hugo' | 'jekyll';
 
-export interface ImportStaticSiteOptions {
+interface ImportStaticSiteOptions {
   cwd: string;
   source: StaticSiteSource;
   sourcePath: string;
@@ -20,7 +20,7 @@ export interface ImportStaticSiteOptions {
   dryRun?: boolean;
 }
 
-export interface StaticSiteImportSummary {
+interface StaticSiteImportSummary {
   posts: number;
   skipped: number;
   overwritten: number;

@@ -163,7 +163,7 @@ type EditableKind = 'posts' | 'pages' | 'authors' | 'tags' | 'components';
 type DashboardContentKind = 'posts' | 'pages';
 type DashboardSort = 'created_desc' | 'created_asc' | 'updated_desc' | 'title_asc';
 
-export interface DashboardStateOptions {
+interface DashboardStateOptions {
   cwd: string;
   configPath?: string;
   page?: number;
@@ -178,14 +178,14 @@ export interface DashboardStateOptions {
   requestOrigin?: string;
 }
 
-export interface DashboardStateQuery {
+interface DashboardStateQuery {
   kind?: DashboardContentKind;
   status?: string;
   search?: string;
   sort?: DashboardSort;
 }
 
-export interface DashboardStatusCounts {
+interface DashboardStatusCounts {
   all: number;
   draft: number;
   published: number;
@@ -233,7 +233,7 @@ export interface DashboardPreviewSandboxPolicy {
   note: string;
 }
 
-export interface DashboardPreviewArtifact {
+interface DashboardPreviewArtifact {
   state: DashboardPreviewState;
   label: string;
   route: string;
@@ -415,7 +415,7 @@ interface DashboardOperations {
   };
 }
 
-export interface DashboardAssetReference {
+interface DashboardAssetReference {
   value: string;
   kind: 'none' | 'remote' | 'data' | 'asset' | 'project' | 'external';
   exists: boolean | null;
@@ -425,7 +425,7 @@ export interface DashboardAssetReference {
   warning: string | null;
 }
 
-export interface DashboardAssetInventory {
+interface DashboardAssetInventory {
   dir: string;
   exists: boolean;
   files: number;
@@ -438,7 +438,7 @@ export interface DashboardAssetInventory {
   markdownInsertPrefix: string;
 }
 
-export interface DashboardBulkActionDescriptor {
+interface DashboardBulkActionDescriptor {
   id: DashboardBulkAction;
   label: string;
   danger: boolean;
@@ -447,13 +447,13 @@ export interface DashboardBulkActionDescriptor {
 
 type DashboardBulkAction = 'set-status' | 'add-tag' | 'remove-tag' | 'touch-updated-at';
 
-export interface DashboardBulkTarget {
+interface DashboardBulkTarget {
   kind: DashboardContentKind;
   slug: string;
   fingerprint: ContentSourceFingerprint;
 }
 
-export type DashboardBulkResult =
+type DashboardBulkResult =
   | {
       ok: true;
       changed: Array<{ kind: DashboardContentKind; slug: string; path: string }>;
@@ -461,7 +461,7 @@ export type DashboardBulkResult =
     }
   | { ok: false; reason: 'invalid-action' | 'invalid-payload' };
 
-export interface DashboardTrashEntry {
+interface DashboardTrashEntry {
   id: string;
   slug: string;
   kind: DashboardContentKind | null;
@@ -473,13 +473,13 @@ export interface DashboardTrashEntry {
   restoreBlocked: boolean;
 }
 
-export interface DashboardTrashInventory {
+interface DashboardTrashInventory {
   path: string;
   exists: boolean;
   entries: DashboardTrashEntry[];
 }
 
-export interface DashboardContentTemplate {
+interface DashboardContentTemplate {
   id: string;
   name: string;
   kind: DashboardContentKind | 'any';
@@ -487,7 +487,7 @@ export interface DashboardContentTemplate {
   description: string;
 }
 
-export interface DashboardInternalLink {
+interface DashboardInternalLink {
   kind: DashboardContentKind;
   slug: string;
   title: string;
@@ -496,14 +496,14 @@ export interface DashboardInternalLink {
   markdown: string;
 }
 
-export interface DashboardSlugRenamePreview {
+interface DashboardSlugRenamePreview {
   currentSlug: string;
   currentUrl: string;
   redirectFrom: string;
   redirectTo: string;
 }
 
-export interface DashboardSyncEvent {
+interface DashboardSyncEvent {
   reason: string;
   at: string;
   kind?: EditableKind | 'settings' | 'project';
@@ -523,7 +523,7 @@ export interface DashboardSyncSnapshot {
 
 type DashboardContentWarningSeverity = 'info' | 'warning';
 
-export interface DashboardContentWarning {
+interface DashboardContentWarning {
   code:
     | 'feature-image-alt'
     | 'inline-image-alt'
@@ -611,7 +611,7 @@ export interface DashboardSocialSettings {
   github: string;
 }
 
-export interface DashboardContentItem {
+interface DashboardContentItem {
   kind: EditableKind;
   slug: string;
   path: string;
@@ -625,7 +625,7 @@ export interface DashboardContentItem {
   internalLinks: DashboardInternalLink[];
 }
 
-export type DashboardWriteResult =
+type DashboardWriteResult =
   | { ok: true; fingerprint: ContentSourceFingerprint; changedPath: string }
   | {
       ok: false;
@@ -636,7 +636,7 @@ export type DashboardWriteResult =
     }
   | { ok: false; reason: 'not-found' | 'invalid-kind' | 'forbidden'; changedPath?: string };
 
-export interface DashboardSettings {
+interface DashboardSettings {
   configPath: string;
   fingerprint: ContentSourceFingerprint;
   site: {
@@ -661,7 +661,7 @@ export interface DashboardSettings {
   };
 }
 
-export type DashboardSettingsWriteResult =
+type DashboardSettingsWriteResult =
   | { ok: true; fingerprint: ContentSourceFingerprint; changedPath: string }
   | { ok: false; reason: 'conflict'; changedPath: string; current: DashboardSettings }
   | {
@@ -672,14 +672,14 @@ export type DashboardSettingsWriteResult =
       theme: string;
     };
 
-export interface DashboardComponentReferenceRewriteSummary {
+interface DashboardComponentReferenceRewriteSummary {
   // Number of post / page files whose body was modified.
   filesChanged: number;
   // Total `{old}` occurrences replaced across all rewritten files.
   occurrencesRewritten: number;
 }
 
-export type DashboardSlugRenameResult =
+type DashboardSlugRenameResult =
   | {
       ok: true;
       kind: EditableKind;
@@ -707,7 +707,7 @@ export type DashboardSlugRenameResult =
       changedPath?: string;
     };
 
-export type DashboardTrashResult =
+type DashboardTrashResult =
   | {
       ok: true;
       entry: DashboardTrashEntry;
@@ -718,7 +718,7 @@ export type DashboardTrashResult =
       current?: DashboardContentItem;
     };
 
-export interface DashboardConflictDiff {
+interface DashboardConflictDiff {
   frontmatter: {
     current: Record<string, unknown>;
     draft: Record<string, unknown>;
@@ -752,20 +752,20 @@ export interface DashboardGhostImportPayload {
   maxImageSizeBytes?: number;
 }
 
-export interface DashboardGhostImportResult {
+interface DashboardGhostImportResult {
   ok: true;
   mode: 'dry-run' | 'apply';
   target: string;
   summary: ImportSummary;
 }
 
-export interface DashboardPageBundleImportPayload {
+interface DashboardPageBundleImportPayload {
   file?: string;
   dryRun?: boolean;
   onConflict?: PageBundleConflictPolicy;
 }
 
-export interface DashboardPageBundleImportResult {
+interface DashboardPageBundleImportResult {
   ok: true;
   dryRun: boolean;
   result: ImportPageBundleResult;
@@ -776,15 +776,15 @@ interface DashboardWatchMetadata {
   warnings: string[];
 }
 
-export interface DashboardSecurityContext {
+interface DashboardSecurityContext {
   origin: string;
   token: string;
   lanExposed: boolean;
 }
 
-export type DashboardServerMode = 'dev' | 'prod';
+type DashboardServerMode = 'dev' | 'prod';
 
-export interface DashboardRequestContext {
+interface DashboardRequestContext {
   cwd: string;
   configPath?: string;
   changeBus: ChangeBus;
@@ -794,7 +794,7 @@ export interface DashboardRequestContext {
   mode?: DashboardServerMode;
 }
 
-export type DashboardTaxonomyFileResult =
+type DashboardTaxonomyFileResult =
   | {
       ok: true;
       kind: 'authors' | 'tags';
@@ -804,7 +804,7 @@ export type DashboardTaxonomyFileResult =
     }
   | { ok: false; reason: 'not-found' | 'already-exists' | 'invalid-kind' | 'forbidden' };
 
-export interface StartDashboardServerOptions {
+interface StartDashboardServerOptions {
   cwd: string;
   configPath?: string;
   port: number;
@@ -812,7 +812,7 @@ export interface StartDashboardServerOptions {
   mode: DashboardServerMode;
 }
 
-export interface DashboardServerHandle {
+interface DashboardServerHandle {
   port: number;
   url: string;
   stop: () => Promise<void>;

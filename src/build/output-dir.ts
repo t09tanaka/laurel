@@ -110,14 +110,14 @@ export async function commitStagingDir(stagingDir: string, finalDir: string): Pr
   }
 }
 
-export interface CleanupStaleOutputOptions {
+interface CleanupStaleOutputOptions {
   outputDir: string;
   keepRelPaths: Iterable<string>;
   preservePatterns?: readonly string[] | undefined;
   previousOutputFiles?: readonly { path: string }[] | undefined;
 }
 
-export interface CleanupStaleOutputResult {
+interface CleanupStaleOutputResult {
   removed: string[];
 }
 

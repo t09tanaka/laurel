@@ -7,11 +7,11 @@ const CACHE_SCHEMA_VERSION = 1;
 const NPM_LATEST_URL = 'https://registry.npmjs.org/nectar/latest';
 const GITHUB_LATEST_URL = 'https://api.github.com/repos/t09tanaka/nectar/releases/latest';
 
-export type ReleaseSource = 'npm' | 'github';
-export type ReleaseCheckStatus = 'disabled' | 'update-available' | 'up-to-date' | 'unknown';
-export type ReleaseFetch = (url: string, init?: RequestInit) => Promise<Response>;
+type ReleaseSource = 'npm' | 'github';
+type ReleaseCheckStatus = 'disabled' | 'update-available' | 'up-to-date' | 'unknown';
+type ReleaseFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
-export interface ReleaseCheckResult {
+interface ReleaseCheckResult {
   status: ReleaseCheckStatus;
   currentVersion: string;
   latestVersion?: string;
