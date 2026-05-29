@@ -48,6 +48,9 @@ interface EditorViewProps {
   onRenamed?: (kind: DashboardContentItem['kind'], newSlug: string) => Promise<void> | void;
   onConflict: (message: string, current: DashboardContentItem) => void;
   onDirtyChange: (dirty: boolean) => void;
+  // Posts / pages only — moves the file to trash. The parent owns the
+  // confirm dialog, the API call, and the post-delete navigation.
+  onDelete?: () => Promise<void> | void;
 }
 
 const SAVE_CHIP_LABEL: Record<EditorSaveState, string> = {
@@ -761,6 +764,25 @@ export function EditorView(props: EditorViewProps): JSX.Element {
                   />
                 </div>
               </details>
+              {props.onDelete ? (
+                <div class="editorDangerZone">
+                  <div class="editorDangerLabel">Danger zone</div>
+                  <button
+                    class="editorDangerDelete"
+                    id="deleteContent"
+                    type="button"
+                    onClick={() => {
+                      void props.onDelete?.();
+                    }}
+                    title={`Move this ${current.kind === 'pages' ? 'page' : 'post'} to trash`}
+                  >
+                    Delete this {current.kind === 'pages' ? 'page' : 'post'}
+                  </button>
+                  <p class="editorDangerHint">
+                    Moves this {current.kind === 'pages' ? 'page' : 'post'} to the trash.
+                  </p>
+                </div>
+              ) : null}
             </>
           ) : null}
         </aside>

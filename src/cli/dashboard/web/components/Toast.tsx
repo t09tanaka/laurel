@@ -8,6 +8,9 @@ interface ToastInput {
   title?: string;
   message: string;
   duration?: number;
+  /** Optional inline action (e.g. Undo). Runs `onClick`, then auto-dismisses
+   * the toast. Kept to a single action to stay within the toast's footprint. */
+  action?: { label: string; onClick: () => void };
 }
 
 interface ToastItem extends ToastInput {
@@ -75,6 +78,18 @@ export function useToastHost(): { api: ToastApi; node: JSX.Element } {
             {item.title ? <div class="toastTitle">{item.title}</div> : null}
             <div class="toastMessage">{item.message}</div>
           </div>
+          {item.action ? (
+            <button
+              type="button"
+              class="toastAction"
+              onClick={() => {
+                item.action?.onClick();
+                dismiss(item.id);
+              }}
+            >
+              {item.action.label}
+            </button>
+          ) : null}
           <button
             type="button"
             class="toastClose"
@@ -83,6 +98,12 @@ export function useToastHost(): { api: ToastApi; node: JSX.Element } {
           >
             ×
           </button>
+          {(item.duration ?? 4000) > 0 ? (
+            <span
+              class="toastProgress"
+              style={{ animationDuration: `${item.duration ?? 4000}ms` }}
+            />
+          ) : null}
         </div>
       ))}
     </section>
