@@ -764,6 +764,25 @@ export function EditorView(props: EditorViewProps): JSX.Element {
                   />
                 </div>
               </details>
+              {props.onDelete ? (
+                <div class="editorDangerZone">
+                  <div class="editorDangerLabel">Danger zone</div>
+                  <button
+                    class="editorDangerDelete"
+                    id="deleteContent"
+                    type="button"
+                    onClick={() => {
+                      void props.onDelete?.();
+                    }}
+                    title={`Move this ${current.kind === 'pages' ? 'page' : 'post'} to trash`}
+                  >
+                    Delete this {current.kind === 'pages' ? 'page' : 'post'}
+                  </button>
+                  <p class="editorDangerHint">
+                    Moves this {current.kind === 'pages' ? 'page' : 'post'} to the trash.
+                  </p>
+                </div>
+              ) : null}
             </>
           ) : null}
         </aside>
@@ -771,25 +790,12 @@ export function EditorView(props: EditorViewProps): JSX.Element {
       {/* Footer is rendered only when there's a notice to surface or when
        * the Approve action is available — otherwise Save is in the header
        * and the footer is dead weight. */}
-      {notice || isContent ? (
+      {notice || current.kind === 'pages' ? (
         <div class="editorFooter">
           <output class="notice" id="notice">
             {notice}
           </output>
           <div class="editorActions">
-            {isContent && props.onDelete ? (
-              <button
-                class="btn secondary editorDelete"
-                id="deleteContent"
-                type="button"
-                onClick={() => {
-                  void props.onDelete?.();
-                }}
-                title={`Move this ${current.kind === 'pages' ? 'page' : 'post'} to trash`}
-              >
-                Delete
-              </button>
-            ) : null}
             {current.kind === 'pages' ? (
               <button
                 class="btn secondary"

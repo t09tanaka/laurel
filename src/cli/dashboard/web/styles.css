@@ -1125,6 +1125,25 @@
       transform: none;
     }
   }
+  /* The editor's metadata column is position: fixed. A transform on ANY
+   * ancestor retargets a fixed element's containing block, so the
+   * pageSlideIn translateX (and .main's mainFadeIn translateY) would pin the
+   * aside to the animating wrapper mid-entrance and snap it to the viewport
+   * on completion — a visible width/position flash when opening a record.
+   * Fade the editor shell and its .main with opacity only (no transform) so
+   * the aside stays viewport-fixed; list panels keep the full slide. */
+  .editor.editorPage,
+  body.editorOpen .main {
+    animation-name: editorPaneFadeIn;
+  }
+  @keyframes editorPaneFadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
   .panel[aria-busy="true"] .tableWrap {
     position: relative;
   }
@@ -1214,6 +1233,8 @@
     pointer-events: none;
   }
   .toast {
+    position: relative;
+    overflow: hidden;
     pointer-events: auto;
     min-width: 240px;
     max-width: 360px;
@@ -1275,6 +1296,65 @@
   .toastClose:hover {
     background: var(--reaction);
     color: var(--text-primary);
+  }
+  /* Inline toast action (Undo). Ghost at rest, fills with ink on hover —
+   * same restraint-then-commit gesture as the editor's danger button. */
+  .toastAction {
+    flex: 0 0 auto;
+    align-self: center;
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: var(--font-serif);
+    font-size: 12.5px;
+    font-weight: 500;
+    letter-spacing: -0.003em;
+    padding: 5px 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  }
+  .toastAction:hover {
+    background: var(--text-primary);
+    color: var(--text-invert);
+    border-color: var(--text-primary);
+  }
+  /* Countdown bar — depletes left-to-right over the toast's auto-dismiss
+   * duration (set inline via animation-duration). Tinted to the intent so it
+   * reads as "time left on this notice", not chrome. */
+  .toastProgress {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 2px;
+    transform-origin: left center;
+    background: var(--text-muted);
+    opacity: 0.5;
+    animation-name: toastProgress;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+  }
+  .toast-success .toastProgress {
+    background: var(--success);
+  }
+  .toast-warn .toastProgress {
+    background: var(--caution);
+  }
+  .toast-error .toastProgress {
+    background: var(--danger);
+  }
+  .toast-info .toastProgress {
+    background: var(--color-focus);
+  }
+  @keyframes toastProgress {
+    from {
+      transform: scaleX(1);
+    }
+    to {
+      transform: scaleX(0);
+    }
   }
   @keyframes toastIn {
     from {
@@ -3354,6 +3434,61 @@
   }
   .editorMetaAdvanced .editorMetaSection:last-child {
     border-bottom: 0;
+  }
+  /* Danger Zone — destructive delete pinned to the foot of the sidebar.
+   * Reads as a quiet editorial stanza, not a stock alert box: hairline rule,
+   * serif-italic label dimmed toward danger, and a ghost button that only
+   * commits to full danger ink on hover. */
+  .editorDangerZone {
+    margin-top: 22px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-weak);
+    display: grid;
+    gap: 12px;
+  }
+  .editorDangerLabel {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 13px;
+    letter-spacing: 0;
+    color: color-mix(in srgb, var(--danger) 52%, var(--text-muted));
+  }
+  .editorDangerDelete {
+    width: 100%;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 9px 14px;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid color-mix(in srgb, var(--danger) 24%, transparent);
+    box-shadow: none;
+    font-family: var(--font-serif);
+    font-size: 13.5px;
+    font-weight: 500;
+    letter-spacing: -0.003em;
+    cursor: pointer;
+    transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease, box-shadow
+      0.16s ease, transform 0.08s ease;
+  }
+  .editorDangerDelete:hover {
+    background: var(--danger);
+    color: #ffffff;
+    border-color: var(--danger);
+    box-shadow: var(--shadow-elevation-2);
+  }
+  .editorDangerDelete:active {
+    transform: scale(0.99);
+    box-shadow: var(--shadow-elevation-1);
+  }
+  .editorDangerHint {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-muted);
   }
   /* Status select sized to the 280px sidebar — full-width control with
    * the same border + focus treatment as the slug input. */

@@ -28,6 +28,7 @@ import {
   fetchContent,
   fetchDashboardState,
   materializeTaxonomy,
+  restoreTrash,
   streamBuild,
   trashContent,
 } from './lib/api.ts';
@@ -443,12 +444,39 @@ export function DashboardApp(): JSX.Element {
       return;
     }
     clearDraftsForPath(editor.path);
+    const trashedSlug = editor.slug;
+    const trashId = data.ok ? data.entry.id : undefined;
     setEditor(null);
     setEditorDirty(false);
     toastHost.api.push({
       intent: 'success',
       title: 'Moved to trash',
-      message: `"${editor.slug}" was moved to trash.`,
+      message: `"${trashedSlug}" was moved to trash.`,
+      // Generous window so the undo is a genuine safety net, not a race.
+      duration: 7000,
+      action: trashId
+        ? {
+            label: 'Undo',
+            onClick: () => {
+              void (async () => {
+                const { status: restoreStatus, data: restored } = await restoreTrash(trashId);
+                if (restoreStatus >= 400 || !restored.ok) {
+                  const message =
+                    ('error' in restored ? restored.error : undefined) ??
+                    `Could not restore "${trashedSlug}".`;
+                  toastHost.api.push({ intent: 'error', title: 'Restore failed', message });
+                  return;
+                }
+                toastHost.api.push({
+                  intent: 'success',
+                  title: 'Restored',
+                  message: `"${trashedSlug}" is back in ${label}s.`,
+                });
+                await load({ force: true });
+              })();
+            },
+          }
+        : undefined,
     });
     await load({ force: true });
     syncPath(pathForView(ui.view), 'push');
