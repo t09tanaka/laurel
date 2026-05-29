@@ -492,23 +492,6 @@ export async function streamGhostImport(
   }
 }
 
-interface PageBundleImportPayload {
-  file: string;
-  dryRun: boolean;
-  onConflict: 'skip' | 'rename' | 'overwrite';
-}
-
-export async function importPageBundle(
-  payload: PageBundleImportPayload,
-): Promise<{ status: number; data: unknown }> {
-  const response = await fetch('/api/page-bundles/import', {
-    method: 'POST',
-    headers: writeHeaders(),
-    body: JSON.stringify(payload),
-  });
-  return { status: response.status, data: await response.json() };
-}
-
 export interface BuildSummarySnapshot {
   outputDir: string;
   routeCount: number;
@@ -601,10 +584,39 @@ export async function streamBuild(onEvent: (event: BuildStreamEvent) => void): P
   }
 }
 
-export async function exportPageBundle(slug: string): Promise<unknown> {
-  const response = await fetch(`/api/page-bundles/export/${encodeURIComponent(slug)}`);
-  const data = await response.json();
-  if (!response.ok)
-    throw new Error((data as { error?: string }).error ?? 'Could not export page bundle');
-  return data;
+export function bundleExportUrl(kind: 'post' | 'page', slug: string): string {
+  return `/api/bundles/export?kind=${encodeURIComponent(kind)}&slug=${encodeURIComponent(slug)}`;
+}
+
+export interface ImportBundleResult {
+  written: boolean;
+  skipped: boolean;
+  renamed: boolean;
+  kind: 'post' | 'page';
+  slug: string;
+  entryPath: string;
+  assetPaths: string[];
+  warnings: string[];
+  preview: { title: string; excerpt: string; assetCount: number };
+}
+
+export async function importBundle(
+  file: File,
+  opts: { dryRun: boolean; onConflict: 'skip' | 'overwrite' | 'rename' },
+): Promise<ImportBundleResult> {
+  const form = new FormData();
+  form.set('file', file);
+  form.set('dryRun', String(opts.dryRun));
+  form.set('onConflict', opts.onConflict);
+  const res = await fetch('/api/bundles/import', {
+    method: 'POST',
+    headers: { 'x-nectar-dashboard-token': dashboardToken },
+    body: form,
+  });
+  if (!res.ok)
+    throw new Error(
+      ((await res.json().catch(() => ({}))) as { error?: string }).error ??
+        `Import failed (${res.status})`,
+    );
+  return res.json() as Promise<ImportBundleResult>;
 }

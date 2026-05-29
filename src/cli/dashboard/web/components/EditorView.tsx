@@ -5,7 +5,7 @@ import {
   type EditorSaveState,
   reduceEditorFocus,
 } from '../../editor-focus.ts';
-import { approvePage, renameContentSlug, saveContent } from '../lib/api.ts';
+import { approvePage, bundleExportUrl, renameContentSlug, saveContent } from '../lib/api.ts';
 import {
   buildFrontmatter as buildFrontmatterFor,
   snapshotFromItem as snapshotFromItemFor,
@@ -323,6 +323,17 @@ export function EditorView(props: EditorViewProps): JSX.Element {
     window.open(previewUrl(), '_blank', 'noopener');
   }
 
+  // Export a portable .zip bundle of this entry (markdown + assets), carrying
+  // its current status as-is. Like Preview, the bundle reflects the SAVED file
+  // — set the status and save first, then export to hand off for review or to
+  // return a verdict.
+  function handleExport() {
+    if (current.kind !== 'posts' && current.kind !== 'pages') return;
+    const entryKind = current.kind === 'pages' ? 'page' : 'post';
+    if (dirty) setNotice('Export bundles the saved file. Save first to include current edits.');
+    window.location.href = bundleExportUrl(entryKind, current.slug);
+  }
+
   const warnings = computeWarnings(snapshot.body);
   const saveState = focus.saveState;
 
@@ -381,6 +392,16 @@ export function EditorView(props: EditorViewProps): JSX.Element {
           >
             {SAVE_CHIP_LABEL[saveState]}
           </span>
+          <button
+            class="textLink editorPreviewLink"
+            id="exportEditor"
+            type="button"
+            disabled={!isContent}
+            onClick={handleExport}
+            title="Export a portable .zip bundle of this entry"
+          >
+            Export
+          </button>
           <button
             class="textLink editorPreviewLink"
             id="previewEditor"
@@ -485,6 +506,8 @@ export function EditorView(props: EditorViewProps): JSX.Element {
               >
                 <option>published</option>
                 <option>draft</option>
+                <option>needs-review</option>
+                <option>approved</option>
               </select>
             </div>
           ) : null}

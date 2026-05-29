@@ -110,11 +110,14 @@ interface LoadContentOptions {
   // tag/author archives so `tag.url` / `author.url` reflect any custom paths
   // (and become `''` when the taxonomy is disabled via routes.yaml).
   routesYaml?: RoutesYaml;
-  // When true, posts and pages with `status: draft` are kept in the content
-  // graph instead of being filtered out. Default-excluded so a forgotten WIP
-  // can't accidentally ship; the CLI's `--include-drafts` opts in for preview
-  // builds. Scheduled posts continue to be gated on their `published_at`
-  // timestamp regardless of this flag.
+  // When true, posts and pages whose status is neither `published` nor
+  // `scheduled` are kept in the content graph instead of being filtered out.
+  // This covers every non-public workflow status — `draft`, `needs-review`,
+  // and `approved` — so an exported (needs-review) entry stays unpublished by
+  // default. Default-excluded so a forgotten WIP can't accidentally ship; the
+  // CLI's `--include-drafts` opts in for preview builds. Scheduled posts
+  // continue to be gated on their `published_at` timestamp regardless of this
+  // flag.
   includeDrafts?: boolean;
   // When true, posts whose `published_at` is in the future, and posts with
   // `status: scheduled` regardless of date, are kept in the content graph
@@ -333,7 +336,7 @@ async function loadContentWithPool({
   const resolvedPosts: Post[] = [];
   const emailOnlyPosts: Post[] = [];
   for (const raw of posts) {
-    if (raw.status === 'draft' && !includeDrafts) continue;
+    if (raw.status !== 'published' && raw.status !== 'scheduled' && !includeDrafts) continue;
     if (!includeFuturePosts) {
       if (raw.status === 'scheduled') continue;
       if (new Date(raw.published_at).getTime() > nowMs) continue;
@@ -407,7 +410,7 @@ async function loadContentWithPool({
 
   const resolvedPages: Page[] = [];
   for (const raw of pages) {
-    if (raw.status === 'draft' && !includeDrafts) continue;
+    if (raw.status !== 'published' && !includeDrafts) continue;
     const resolved = resolvePageRelations(
       raw,
       authorMap,
@@ -846,7 +849,7 @@ interface RawPost {
   updated_at: string;
   created_at: string;
   visibility: 'public' | 'members' | 'paid' | 'tiers' | 'filter';
-  status: 'published' | 'draft' | 'scheduled';
+  status: 'published' | 'draft' | 'scheduled' | 'needs-review' | 'approved';
   tierSlugs: string[];
   tagSlugs: string[];
   authorSlugs: string[];
@@ -884,7 +887,7 @@ interface RawPage
     | 'count'
   > {
   show_title_and_feature_image: boolean;
-  status: 'published' | 'draft';
+  status: 'published' | 'draft' | 'needs-review' | 'approved';
   custom_template: string | undefined;
 }
 
@@ -1862,7 +1865,10 @@ async function normalizePage(
   return {
     ...base,
     show_title_and_feature_image: asBool(data.show_title_and_feature_image, true),
-    status: base.status === 'draft' ? 'draft' : 'published',
+    status:
+      base.status === 'draft' || base.status === 'needs-review' || base.status === 'approved'
+        ? base.status
+        : 'published',
     custom_template: sanitizeCustomTemplate(
       asString(data.template ?? data.custom_template),
       filePath,

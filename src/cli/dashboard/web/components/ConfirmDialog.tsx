@@ -13,7 +13,7 @@ interface PendingRequest extends ConfirmRequest {
   resolve: (value: boolean) => void;
 }
 
-interface ConfirmApi {
+export interface ConfirmApi {
   ask: (request: ConfirmRequest) => Promise<boolean>;
 }
 
