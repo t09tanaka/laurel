@@ -1,5 +1,6 @@
 import type { JSX } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { Modal } from './Modal.tsx';
 
 export interface CommandItem {
   id: string;
@@ -60,8 +61,6 @@ export function CommandPalette({ open, items, onClose }: CommandPaletteProps): J
     el?.scrollIntoView({ block: 'nearest' });
   }, [active, open]);
 
-  if (!open) return null;
-
   function handleKeyDown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
       event.preventDefault();
@@ -94,13 +93,7 @@ export function CommandPalette({ open, items, onClose }: CommandPaletteProps): J
   }
 
   return (
-    <div
-      class="cmdkBackdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
+    <Modal open={open} onClose={onClose} backdropClass="cmdkBackdrop">
       <dialog
         class="cmdkPanel"
         aria-modal="true"
@@ -157,6 +150,6 @@ export function CommandPalette({ open, items, onClose }: CommandPaletteProps): J
           </span>
         </div>
       </dialog>
-    </div>
+    </Modal>
   );
 }

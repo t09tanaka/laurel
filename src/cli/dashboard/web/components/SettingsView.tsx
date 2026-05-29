@@ -6,6 +6,7 @@ import { useFileDropHover } from '../lib/use-file-drop-hover.ts';
 import type { DashboardState } from '../types.ts';
 import { FaviconField } from './FaviconField.tsx';
 import { FeatureImageField } from './FeatureImageField.tsx';
+import { Modal, useModalCanClose } from './Modal.tsx';
 
 const SOCIAL_FIELDS = [
   ['twitter', 'X / Twitter', 'https://x.com/yourhandle'],
@@ -654,7 +655,7 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
         </div>
       ) : null}
 
-      {uploadOpen ? (
+      <Modal open={uploadOpen} onClose={() => setUploadOpen(false)}>
         <ThemeUploadModal
           themeDir={theme.dir ?? 'themes'}
           onClose={() => setUploadOpen(false)}
@@ -662,7 +663,7 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
             await props.onSettingsSaved();
           }}
         />
-      ) : null}
+      </Modal>
     </section>
   );
 }
@@ -677,6 +678,9 @@ function ThemeUploadModal({ themeDir, onClose, onUploaded }: ThemeUploadModalPro
   const [status, setStatus] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const { isDragging, dragHoverProps, clearDrag } = useFileDropHover();
+
+  // Block backdrop dismissal while a theme upload is in flight.
+  useModalCanClose(!busy);
 
   // Esc closes; focus is delegated to the file input.
   useEffect(() => {
@@ -704,66 +708,54 @@ function ThemeUploadModal({ themeDir, onClose, onUploaded }: ThemeUploadModalPro
   }
 
   return (
-    <div
-      class="modalBackdrop"
-      role="presentation"
-      tabIndex={-1}
-      onClick={(event) => {
-        if (event.target === event.currentTarget && !busy) onClose();
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape' && !busy) onClose();
-      }}
-    >
-      <dialog class="modalDialog" aria-modal="true" aria-label="Upload theme" open>
-        <header class="modalHead">
-          <h3>Upload theme</h3>
-          <button
-            type="button"
-            class="modalClose"
-            aria-label="Close"
-            disabled={busy}
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </header>
-        <p class="meta">
-          Drop a Ghost-compatible theme .zip; it extracts into <code>{themeDir}/</code> and becomes
-          selectable in the Theme list.
-        </p>
-        <label
-          class={`themeUploadDrop${busy ? ' busy' : ''}${isDragging ? ' isDragging' : ''}`}
-          {...dragHoverProps}
-          onDrop={(event) => {
-            clearDrag();
-            const file = Array.from(event.dataTransfer?.files ?? []).find((f) =>
-              /\.zip$/i.test(f.name),
-            );
-            if (!file) return;
-            event.preventDefault();
-            void handleFile(file);
-          }}
+    <dialog class="modalDialog" aria-modal="true" aria-label="Upload theme" open>
+      <header class="modalHead">
+        <h3>Upload theme</h3>
+        <button
+          type="button"
+          class="modalClose"
+          aria-label="Close"
+          disabled={busy}
+          onClick={onClose}
         >
-          <input
-            type="file"
-            accept=".zip,application/zip"
-            class="srOnly"
-            disabled={busy}
-            onChange={(event) => {
-              const file = (event.currentTarget as HTMLInputElement).files?.[0];
-              if (file) void handleFile(file);
-            }}
-          />
-          <span class="themeUploadHint">{busy ? 'Uploading…' : 'Click or drop a .zip'}</span>
-        </label>
-        {status ? (
-          <output class="notice" aria-live="polite">
-            {status}
-          </output>
-        ) : null}
-      </dialog>
-    </div>
+          ×
+        </button>
+      </header>
+      <p class="meta">
+        Drop a Ghost-compatible theme .zip; it extracts into <code>{themeDir}/</code> and becomes
+        selectable in the Theme list.
+      </p>
+      <label
+        class={`themeUploadDrop${busy ? ' busy' : ''}${isDragging ? ' isDragging' : ''}`}
+        {...dragHoverProps}
+        onDrop={(event) => {
+          clearDrag();
+          const file = Array.from(event.dataTransfer?.files ?? []).find((f) =>
+            /\.zip$/i.test(f.name),
+          );
+          if (!file) return;
+          event.preventDefault();
+          void handleFile(file);
+        }}
+      >
+        <input
+          type="file"
+          accept=".zip,application/zip"
+          class="srOnly"
+          disabled={busy}
+          onChange={(event) => {
+            const file = (event.currentTarget as HTMLInputElement).files?.[0];
+            if (file) void handleFile(file);
+          }}
+        />
+        <span class="themeUploadHint">{busy ? 'Uploading…' : 'Click or drop a .zip'}</span>
+      </label>
+      {status ? (
+        <output class="notice" aria-live="polite">
+          {status}
+        </output>
+      ) : null}
+    </dialog>
   );
 }
 

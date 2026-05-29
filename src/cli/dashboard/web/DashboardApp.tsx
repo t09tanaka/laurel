@@ -10,6 +10,7 @@ import { CreateView } from './components/CreateView.tsx';
 import { EditorView } from './components/EditorView.tsx';
 import { ImportModal } from './components/ImportModal.tsx';
 import { MigrationView } from './components/MigrationView.tsx';
+import { Modal } from './components/Modal.tsx';
 import { PageHeader } from './components/PageHeader.tsx';
 import { SettingsSubnav } from './components/SettingsSubnav.tsx';
 import { SettingsView } from './components/SettingsView.tsx';
@@ -818,13 +819,13 @@ export function DashboardApp(): JSX.Element {
         ) : null}
       </main>
       <CommandPalette open={cmdkOpen} items={commandItems} onClose={() => setCmdkOpen(false)} />
-      {importOpen ? (
+      <Modal open={importOpen} onClose={() => setImportOpen(false)}>
         <ImportModal
           onClose={() => setImportOpen(false)}
           onImported={() => void load({ force: true })}
           toast={toastHost.api}
         />
-      ) : null}
+      </Modal>
       {confirmHost.node}
       {toastHost.node}
     </div>

@@ -1,6 +1,7 @@
 import type { JSX } from 'preact';
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { type ImportBundleResult, importBundle } from '../lib/api.ts';
+import { useModalCanClose } from './Modal.tsx';
 import type { ToastApi } from './Toast.tsx';
 import { UploadDropzone } from './UploadDropzone.tsx';
 
@@ -21,6 +22,18 @@ export function ImportModal({ onClose, onImported, toast }: ImportModalProps): J
   const [probing, setProbing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  // Block backdrop dismissal while an import is in flight.
+  useModalCanClose(!busy);
+
+  // Esc closes unless an import is running.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !busy) onClose();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [busy, onClose]);
 
   async function pick(next: File): Promise<void> {
     setFile(next);
@@ -71,82 +84,70 @@ export function ImportModal({ onClose, onImported, toast }: ImportModalProps): J
   const collides = probe?.skipped === true;
 
   return (
-    <div
-      class="modalBackdrop"
-      role="presentation"
-      tabIndex={-1}
-      onClick={(event) => {
-        if (event.target === event.currentTarget && !busy) onClose();
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape' && !busy) onClose();
-      }}
-    >
-      <dialog class="modalDialog" aria-modal="true" aria-label="Import a zip bundle" open>
-        <header class="modalHead">
-          <h3>Import</h3>
-          <button
-            type="button"
-            class="modalClose"
-            aria-label="Close"
-            disabled={busy}
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </header>
-        <p class="meta">
-          Drop a Nectar entry bundle <code>.zip</code>. The imported entry lands as{' '}
-          <strong>needs&#8209;review</strong>.
-        </p>
-
-        <UploadDropzone
-          accept=".zip,application/zip"
-          file={file}
+    <dialog class="modalDialog" aria-modal="true" aria-label="Import a zip bundle" open>
+      <header class="modalHead">
+        <h3>Import</h3>
+        <button
+          type="button"
+          class="modalClose"
+          aria-label="Close"
           disabled={busy}
-          hint="Click or drop a .zip bundle"
-          onPick={(f) => void pick(f)}
-          onClear={clear}
-          match={(name) => /\.zip$/i.test(name)}
-        />
+          onClick={onClose}
+        >
+          ×
+        </button>
+      </header>
+      <p class="meta">
+        Drop a Nectar entry bundle <code>.zip</code>. The imported entry lands as{' '}
+        <strong>needs&#8209;review</strong>.
+      </p>
 
-        {probing ? <p class="meta">Reading bundle…</p> : null}
-        {error ? <p class="importError">{error}</p> : null}
+      <UploadDropzone
+        accept=".zip,application/zip"
+        file={file}
+        disabled={busy}
+        hint="Click or drop a .zip bundle"
+        onPick={(f) => void pick(f)}
+        onClear={clear}
+        match={(name) => /\.zip$/i.test(name)}
+      />
 
-        {probe ? (
-          <div class="importPreview" data-collision={collides ? 'true' : 'false'}>
-            <div class="importPreviewHead">
-              <span class="importPreviewKind">{probe.kind}</span>
-              <span class="importPreviewSlug">{probe.slug}</span>
-            </div>
-            <p class="importPreviewTitle">{probe.preview.title}</p>
-            {probe.preview.excerpt ? (
-              <p class="importPreviewExcerpt">{probe.preview.excerpt}</p>
-            ) : null}
-            <p class="importPreviewMeta">
-              {probe.preview.assetCount} asset(s)
-              {collides ? ' · a matching entry already exists' : ' · new entry'}
-            </p>
-            {collides ? (
-              <p class="importPreviewWarn">Importing will overwrite the existing {probe.kind}.</p>
-            ) : null}
+      {probing ? <p class="meta">Reading bundle…</p> : null}
+      {error ? <p class="importError">{error}</p> : null}
+
+      {probe ? (
+        <div class="importPreview" data-collision={collides ? 'true' : 'false'}>
+          <div class="importPreviewHead">
+            <span class="importPreviewKind">{probe.kind}</span>
+            <span class="importPreviewSlug">{probe.slug}</span>
           </div>
-        ) : null}
-
-        <div class="modalActions">
-          <button type="button" class="btn secondary" disabled={busy} onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="btn"
-            disabled={!probe || busy || probing}
-            onClick={() => void commit()}
-          >
-            {busy ? 'Importing…' : collides ? 'Overwrite & import' : 'Import'}
-          </button>
+          <p class="importPreviewTitle">{probe.preview.title}</p>
+          {probe.preview.excerpt ? (
+            <p class="importPreviewExcerpt">{probe.preview.excerpt}</p>
+          ) : null}
+          <p class="importPreviewMeta">
+            {probe.preview.assetCount} asset(s)
+            {collides ? ' · a matching entry already exists' : ' · new entry'}
+          </p>
+          {collides ? (
+            <p class="importPreviewWarn">Importing will overwrite the existing {probe.kind}.</p>
+          ) : null}
         </div>
-      </dialog>
-    </div>
+      ) : null}
+
+      <div class="modalActions">
+        <button type="button" class="btn secondary" disabled={busy} onClick={onClose}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="btn"
+          disabled={!probe || busy || probing}
+          onClick={() => void commit()}
+        >
+          {busy ? 'Importing…' : collides ? 'Overwrite & import' : 'Import'}
+        </button>
+      </div>
+    </dialog>
   );
 }
