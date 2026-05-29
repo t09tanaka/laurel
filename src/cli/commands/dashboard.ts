@@ -61,18 +61,16 @@ import type {
   Tag,
 } from '~/content/model.ts';
 import {
+  exportEntryBundle,
+  importEntryBundle,
+  markEntryNeedsReview,
+} from '~/entry-bundle/index.ts';
+import {
   type ImportSummary,
   ON_CONFLICT_VALUES,
   type OnConflict,
   importGhostExport,
 } from '~/ghost/import.ts';
-import {
-  type ImportPageBundleResult,
-  type PageBundleConflictPolicy,
-  exportPageBundle,
-  importPageBundle,
-  parsePageBundle,
-} from '~/page-bundle/index.ts';
 import { type LoadedPluginSet, loadPlugins } from '~/plugin/loader.ts';
 import type { BuildContext } from '~/plugin/types.ts';
 import { type NectarEngine, createEngine } from '~/render/engine.ts';
@@ -757,18 +755,6 @@ interface DashboardGhostImportResult {
   mode: 'dry-run' | 'apply';
   target: string;
   summary: ImportSummary;
-}
-
-interface DashboardPageBundleImportPayload {
-  file?: string;
-  dryRun?: boolean;
-  onConflict?: PageBundleConflictPolicy;
-}
-
-interface DashboardPageBundleImportResult {
-  ok: true;
-  dryRun: boolean;
-  result: ImportPageBundleResult;
 }
 
 interface DashboardWatchMetadata {
@@ -1734,65 +1720,67 @@ export async function handleDashboardRequest(
         if (stagedPath) await unlink(stagedPath).catch(() => {});
       }
     }
-    const pageBundleExportMatch = url.pathname.match(/^\/api\/page-bundles\/export\/([^/]+)$/);
-    if (request.method === 'GET' && pageBundleExportMatch) {
-      const slug = decodeURIComponent(pageBundleExportMatch[1] ?? '');
-      if (!SLUG_RE.test(slug)) return jsonResponse({ error: 'invalid page slug' }, 400);
+    if (request.method === 'GET' && url.pathname === '/api/bundles/export') {
+      const kind = stringParam(url, 'kind');
+      const slug = stringParam(url, 'slug');
+      if (kind !== 'post' && kind !== 'page') {
+        return jsonResponse({ error: 'kind must be post or page' }, 400);
+      }
+      if (!slug || !SLUG_RE.test(slug)) {
+        return jsonResponse({ error: 'slug is required' }, 400);
+      }
       const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
       try {
-        return jsonResponse(await exportPageBundle({ cwd: ctx.cwd, config, slug }));
+        const { zip } = await exportEntryBundle({ cwd: ctx.cwd, config, kind, slug });
+        await markEntryNeedsReview({ cwd: ctx.cwd, config, kind, slug });
+        ctx.changeBus.broadcast({
+          reason: 'bundle-export',
+          kind: kind === 'post' ? 'posts' : 'pages',
+        });
+        return new Response(zip, {
+          headers: {
+            'content-type': 'application/zip',
+            'content-disposition': `attachment; filename="${slug}.nectar.zip"`,
+          },
+        });
       } catch (err) {
         return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 404);
       }
     }
-    if (request.method === 'POST' && url.pathname === '/api/page-bundles/import') {
+    if (request.method === 'POST' && url.pathname === '/api/bundles/import') {
       const blocked = validateWriteRequest(request, ctx.security);
       if (blocked) return blocked;
-      const contentType = request.headers.get('content-type') ?? '';
-      let payload: DashboardPageBundleImportPayload;
-      let stagedPath: string | undefined;
-      if (contentType.startsWith('multipart/')) {
-        const form = await request.formData().catch(() => null);
-        const file = form?.get('file');
-        if (!(file instanceof File)) {
-          return jsonResponse({ error: 'file field is required (multipart/form-data)' }, 400);
-        }
-        const MAX_BYTES = 50 * 1024 * 1024;
-        if (file.size > MAX_BYTES) {
-          return jsonResponse({ error: 'page bundle exceeds 50MB limit' }, 413);
-        }
-        const safe = (file.name || 'page-bundle').replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 80);
-        stagedPath = resolve(ctx.cwd, '.nectar', `import-bundle-${Date.now()}-${safe}`);
-        await mkdir(dirname(stagedPath), { recursive: true });
-        await Bun.write(stagedPath, new Uint8Array(await file.arrayBuffer()));
-        payload = {
-          file: stagedPath,
-          dryRun: String(form?.get('dryRun') ?? 'true') !== 'false',
-          onConflict:
-            (form?.get('onConflict') as DashboardPageBundleImportPayload['onConflict']) ?? 'skip',
-        };
-      } else {
-        const json = await readJsonPayload<DashboardPageBundleImportPayload>(
-          request,
-          ctx.maxBodyBytes,
-        );
-        if (json instanceof Response) return json;
-        payload = json;
+      const form = await request.formData().catch(() => null);
+      const file = form?.get('file');
+      if (!(file instanceof File)) {
+        return jsonResponse({ error: 'file field is required (multipart/form-data)' }, 400);
       }
+      const MAX_BYTES = 50 * 1024 * 1024;
+      if (file.size > MAX_BYTES) {
+        return jsonResponse({ error: 'entry bundle exceeds 50MB limit' }, 413);
+      }
+      const dryRun = String(form?.get('dryRun') ?? 'true') !== 'false';
+      const rawOnConflict = form?.get('onConflict');
+      const onConflict: 'skip' | 'overwrite' | 'rename' =
+        rawOnConflict === 'overwrite' || rawOnConflict === 'rename' ? rawOnConflict : 'skip';
+      const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
       try {
-        const result = await runDashboardPageBundleImport({
+        const result = await importEntryBundle({
           cwd: ctx.cwd,
-          configPath: ctx.configPath,
-          payload,
+          config,
+          zip: new Uint8Array(await file.arrayBuffer()),
+          onConflict,
+          dryRun,
         });
-        if (!result.dryRun) {
-          ctx.changeBus.broadcast({ reason: 'page-bundle-import', kind: 'pages' });
+        if (result.written) {
+          ctx.changeBus.broadcast({
+            reason: 'bundle-import',
+            kind: result.kind === 'post' ? 'posts' : 'pages',
+          });
         }
         return jsonResponse(result);
       } catch (err) {
         return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 400);
-      } finally {
-        if (stagedPath) await unlink(stagedPath).catch(() => {});
       }
     }
     if (request.method === 'GET' && url.pathname === '/api/settings/site') {
@@ -2212,29 +2200,6 @@ export async function runDashboardGhostImport({
     target: outputDir ?? 'content/',
     summary,
   };
-}
-
-export async function runDashboardPageBundleImport({
-  cwd,
-  configPath,
-  payload,
-}: {
-  cwd: string;
-  configPath?: string;
-  payload: DashboardPageBundleImportPayload;
-}): Promise<DashboardPageBundleImportResult> {
-  const file = typeof payload.file === 'string' ? payload.file.trim() : '';
-  if (!file) throw new Error('file is required');
-  const onConflict = payload.onConflict ?? 'skip';
-  if (!['skip', 'overwrite', 'rename'].includes(onConflict)) {
-    throw new Error(`invalid onConflict: ${String(payload.onConflict)}`);
-  }
-  const dryRun = payload.dryRun !== false;
-  const config = await loadConfig({ cwd, configPath });
-  const bundlePath = isAbsolute(file) ? file : resolve(cwd, file);
-  const bundle = parsePageBundle(JSON.parse(await readFile(bundlePath, 'utf8')));
-  const result = await importPageBundle({ cwd, config, bundle, onConflict, dryRun });
-  return { ok: true, dryRun, result };
 }
 
 function cleanOptionalString(value: unknown): string | undefined {

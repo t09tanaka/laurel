@@ -913,70 +913,143 @@ describe('dashboard data', () => {
         'utf8',
       );
 
+      // Export via the zip bundle endpoint
       const exported = await handleDashboardRequest(
-        new Request('http://127.0.0.1:4322/api/page-bundles/export/about'),
+        new Request('http://127.0.0.1:4322/api/bundles/export?kind=page&slug=about'),
         { cwd: dir, changeBus: createChangeBus() },
       );
       expect(exported.status).toBe(200);
-      const bundle = (await exported.json()) as {
-        nectar: { schema: string };
-        page: { slug: string; body: string };
-        assets: Array<{ path: string; content: string }>;
-      };
-      expect(bundle.nectar.schema).toBe('nectar.page.v1');
-      expect(bundle.page.slug).toBe('about');
-      expect(bundle.page.body).toContain('About dashboard body');
-      expect(bundle.assets[0]?.path).toBe('content/images/about.txt');
+      expect(exported.headers.get('content-type')).toBe('application/zip');
+      const zipBytes = new Uint8Array(await exported.arrayBuffer());
+      expect(zipBytes.length).toBeGreaterThan(0);
 
-      const bundlePath = join(dir, 'about.page.json');
-      await writeFile(
-        bundlePath,
-        JSON.stringify({
-          ...bundle,
-          page: {
-            ...bundle.page,
-            frontmatter: { title: 'Imported Dashboard About', slug: 'about' },
-            body: 'Imported dashboard body.\n',
-          },
-        }),
-        'utf8',
-      );
+      // markEntryNeedsReview side effect
+      const srcAfterExport = await readFile(join(dir, 'content/pages/about.md'), 'utf8');
+      expect(srcAfterExport).toContain('needs-review');
 
+      // Dry-run import (rename conflict policy) → written:false, file not created
+      const dryRunForm = new FormData();
+      dryRunForm.append('file', new File([zipBytes], 'about.nectar.zip'));
+      dryRunForm.append('onConflict', 'rename');
+      dryRunForm.append('dryRun', 'true');
       const preview = await handleDashboardRequest(
-        new Request('http://127.0.0.1:4322/api/page-bundles/import', {
+        new Request('http://127.0.0.1:4322/api/bundles/import', {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ file: bundlePath, dryRun: true, onConflict: 'rename' }),
+          body: dryRunForm,
         }),
         { cwd: dir, changeBus: createChangeBus() },
       );
       expect(preview.status).toBe(200);
       const previewBody = (await preview.json()) as {
-        dryRun: boolean;
-        result: { pagePath: string };
+        written: boolean;
+        renamed: boolean;
+        entryPath: string;
       };
-      expect(previewBody.dryRun).toBe(true);
-      expect(previewBody.result.pagePath).toBe('content/pages/about-2.md');
+      expect(previewBody.written).toBe(false);
+      expect(previewBody.renamed).toBe(true);
+      expect(previewBody.entryPath).toBe('content/pages/about-2.md');
       await expect(access(join(dir, 'content/pages/about-2.md'))).rejects.toThrow();
 
+      // Apply import
+      const applyForm = new FormData();
+      applyForm.append('file', new File([zipBytes], 'about.nectar.zip'));
+      applyForm.append('onConflict', 'rename');
+      applyForm.append('dryRun', 'false');
       const applied = await handleDashboardRequest(
-        new Request('http://127.0.0.1:4322/api/page-bundles/import', {
+        new Request('http://127.0.0.1:4322/api/bundles/import', {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ file: bundlePath, dryRun: false, onConflict: 'rename' }),
+          body: applyForm,
         }),
         { cwd: dir, changeBus: createChangeBus() },
       );
       expect(applied.status).toBe(200);
       const appliedBody = (await applied.json()) as {
-        dryRun: boolean;
-        result: { pagePath: string };
+        written: boolean;
+        renamed: boolean;
+        entryPath: string;
       };
-      expect(appliedBody.dryRun).toBe(false);
-      expect(appliedBody.result.pagePath).toBe('content/pages/about-2.md');
-      expect(await readFile(join(dir, 'content/pages/about-2.md'), 'utf8')).toContain(
-        'Imported dashboard body.',
+      expect(appliedBody.written).toBe(true);
+      expect(appliedBody.renamed).toBe(true);
+      expect(appliedBody.entryPath).toBe('content/pages/about-2.md');
+      expect(await readFile(join(dir, appliedBody.entryPath), 'utf8')).toContain(
+        'About dashboard body',
       );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('exports and imports entry zip bundles (posts + pages) via /api/bundles', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await mkdir(join(dir, 'content/images'), { recursive: true });
+      await writeFile(join(dir, 'content/images/hero.txt'), 'hero asset\n', 'utf8');
+      await writeFile(
+        join(dir, 'content/posts/old.md'),
+        [
+          '---',
+          'title: Old Post',
+          'slug: old',
+          'date: 2026-01-01T00:00:00Z',
+          'created_at: 2026-01-01T00:00:00Z',
+          'feature_image: /content/images/hero.txt',
+          '---',
+          '',
+          'Old body.',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+
+      // GET /api/bundles/export?kind=post&slug=old → 200, application/zip, non-empty body
+      const exported = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/bundles/export?kind=post&slug=old'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(exported.status).toBe(200);
+      expect(exported.headers.get('content-type')).toBe('application/zip');
+      const zipBytes = new Uint8Array(await exported.arrayBuffer());
+      expect(zipBytes.length).toBeGreaterThan(0);
+
+      // markEntryNeedsReview side effect: source file should now have status: needs-review
+      const srcAfterExport = await readFile(join(dir, 'content/posts/old.md'), 'utf8');
+      expect(srcAfterExport).toContain('needs-review');
+
+      // POST /api/bundles/import with multipart zip → written:true, disk entry has needs-review
+      const form = new FormData();
+      form.append('file', new File([zipBytes], 'old.nectar.zip'));
+      form.append('onConflict', 'overwrite');
+      form.append('dryRun', 'false');
+      const imported = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/bundles/import', { method: 'POST', body: form }),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(imported.status).toBe(200);
+      const importedBody = (await imported.json()) as {
+        written: boolean;
+        kind: string;
+        slug: string;
+        entryPath: string;
+      };
+      expect(importedBody.written).toBe(true);
+      expect(importedBody.kind).toBe('post');
+      expect(importedBody.slug).toBe('old');
+      const importedSrc = await readFile(join(dir, importedBody.entryPath), 'utf8');
+      expect(importedSrc).toContain('needs-review');
+
+      // 400 for missing kind
+      const bad = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/bundles/export?slug=old'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(bad.status).toBe(400);
+
+      // 400 for invalid kind
+      const badKind = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/bundles/export?kind=author&slug=old'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(badKind.status).toBe(400);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
