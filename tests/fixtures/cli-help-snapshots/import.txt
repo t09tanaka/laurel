@@ -1,11 +1,11 @@
-Import a Nectar collaboration bundle (entry zip or legacy page JSON)
+Import a Nectar zip entry-bundle (post or page)
 
 Usage:
   nectar import [--config <path>] [--on-conflict <skip|overwrite|rename>] [--dry-run] [--json] <kind> <file>
 
 Arguments:
-  kind                Import kind: `entry` (zip entry-bundle for posts and pages) or `page` (legacy nectar.page.v1 JSON bundle)
-  file                Path to a `.nectar.zip` entry bundle (kind=entry) or a `nectar.page.v1` JSON file (kind=page)
+  kind                Import kind. Only `entry` is supported; the bundle manifest carries the post/page kind, so it is not specified here
+  file                Path to a `.nectar.zip` entry bundle (posts or pages)
 
 End of options:
   Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
@@ -31,6 +31,4 @@ Examples:
   nectar import entry hello-world.nectar.zip
   nectar import entry hello-world.nectar.zip --dry-run
   nectar import entry hello-world.nectar.zip --on-conflict rename
-  nectar import page about.page.json --dry-run
-  nectar import page about.page.json --on-conflict rename
-  nectar import page about.page.json --on-conflict overwrite
+  nectar import entry hello-world.nectar.zip --on-conflict overwrite

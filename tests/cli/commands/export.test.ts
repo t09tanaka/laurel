@@ -236,41 +236,6 @@ describe('cli export', () => {
     }
   });
 
-  test('export page emits a collaboration bundle for one page', async () => {
-    const dir = await makeFixture();
-    try {
-      const { stdout, exitCode } = await runCli(['export', 'page', 'about', '--pretty'], dir);
-      expect(exitCode).toBe(0);
-      const parsed = JSON.parse(stdout) as {
-        nectar: { schema: string };
-        page: { slug: string; path: string; frontmatter: Record<string, unknown>; body: string };
-        assets: Array<{ path: string; encoding: string; content: string }>;
-      };
-      expect(parsed.nectar.schema).toBe('nectar.page.v1');
-      expect(parsed.page.slug).toBe('about');
-      expect(parsed.page.path).toBe('content/pages/about.md');
-      expect(parsed.page.frontmatter.feature_image).toBe('/content/images/about.txt');
-      expect(parsed.page.body).toContain('About page body');
-      expect(parsed.assets).toEqual([
-        { path: 'content/images/about.txt', encoding: 'utf8', content: 'about asset\n' },
-      ]);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-
-  test('export page --no-assets omits local asset payloads', async () => {
-    const dir = await makeFixture();
-    try {
-      const { stdout, exitCode } = await runCli(['export', 'page', 'about', '--no-assets'], dir);
-      expect(exitCode).toBe(0);
-      const parsed = JSON.parse(stdout) as { assets: unknown[] };
-      expect(parsed.assets).toEqual([]);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-
   test('export entry writes a zip to --output path for a post', async () => {
     const dir = await makeFixture();
     try {

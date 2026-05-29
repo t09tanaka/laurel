@@ -1624,13 +1624,6 @@ export const EXPORT_SPEC: CommandSpec = {
       description:
         'Include posts and pages with `status: draft` in the export. Off by default so an unintended draft cannot leak through `nectar export`',
     },
-    assets: {
-      type: 'boolean',
-      default: true,
-      description:
-        'Include local content assets referenced by `nectar export page <slug>`. Enabled by default',
-      negatedDescription: 'Omit local asset payloads from a page collaboration bundle',
-    },
     kind: {
       type: 'string',
       description:
@@ -1647,12 +1640,12 @@ export const EXPORT_SPEC: CommandSpec = {
     {
       name: 'format',
       description:
-        'Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), `page` (legacy single page JSON bundle), or `entry` (zip entry-bundle for posts and pages)',
+        'Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), or `entry` (zip entry-bundle for a single post or page)',
       required: true,
     },
     {
       name: 'slug',
-      description: 'Entry slug when format is `entry` or `page`',
+      description: 'Entry slug when format is `entry`',
       required: false,
     },
   ],
@@ -1664,13 +1657,12 @@ export const EXPORT_SPEC: CommandSpec = {
     'nectar export entry hello-world',
     'nectar export entry hello-world -o out.nectar.zip',
     'nectar export entry about --kind page -o about.nectar.zip',
-    'nectar export page about -o about.page.json',
   ],
 };
 
 export const IMPORT_SPEC: CommandSpec = {
   name: 'import',
-  summary: 'Import a Nectar collaboration bundle (entry zip or legacy page JSON)',
+  summary: 'Import a Nectar zip entry-bundle (post or page)',
   options: {
     config: {
       type: 'string',
@@ -1696,13 +1688,12 @@ export const IMPORT_SPEC: CommandSpec = {
     {
       name: 'kind',
       description:
-        'Import kind: `entry` (zip entry-bundle for posts and pages) or `page` (legacy nectar.page.v1 JSON bundle)',
+        'Import kind. Only `entry` is supported; the bundle manifest carries the post/page kind, so it is not specified here',
       required: true,
     },
     {
       name: 'file',
-      description:
-        'Path to a `.nectar.zip` entry bundle (kind=entry) or a `nectar.page.v1` JSON file (kind=page)',
+      description: 'Path to a `.nectar.zip` entry bundle (posts or pages)',
       required: true,
     },
   ],
@@ -1710,9 +1701,7 @@ export const IMPORT_SPEC: CommandSpec = {
     'nectar import entry hello-world.nectar.zip',
     'nectar import entry hello-world.nectar.zip --dry-run',
     'nectar import entry hello-world.nectar.zip --on-conflict rename',
-    'nectar import page about.page.json --dry-run',
-    'nectar import page about.page.json --on-conflict rename',
-    'nectar import page about.page.json --on-conflict overwrite',
+    'nectar import entry hello-world.nectar.zip --on-conflict overwrite',
   ],
 };
 

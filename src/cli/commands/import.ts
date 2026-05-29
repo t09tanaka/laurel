@@ -1,11 +1,6 @@
 import { isAbsolute, resolve } from 'node:path';
 import { loadConfig } from '~/config/loader.ts';
 import { type ConflictPolicy, importEntryBundle } from '~/entry-bundle/index.ts';
-import {
-  type PageBundleConflictPolicy,
-  importPageBundle,
-  parsePageBundle,
-} from '~/page-bundle/index.ts';
 import { EXIT_CODES, exitCodeForError } from '~/util/errors.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
@@ -31,8 +26,8 @@ export async function runImport(args: string[]): Promise<number> {
   }
 
   const kind = parsed.positionals[0];
-  if (kind !== 'page' && kind !== 'entry') {
-    process.stderr.write('Missing or unknown import kind: expected `page` or `entry`\n\n');
+  if (kind !== 'entry') {
+    process.stderr.write('Missing or unknown import kind: expected `entry`\n\n');
     process.stderr.write(formatCommandHelp(IMPORT_SPEC));
     return EXIT_CODES.usage;
   }
@@ -58,33 +53,11 @@ export async function runImport(args: string[]): Promise<number> {
   const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
   const dryRun = parsed.values['dry-run'] === true;
 
-  if (kind === 'entry') {
-    try {
-      const config = await loadConfig({ cwd, configPath });
-      const abs = isAbsolute(file) ? file : resolve(cwd, file);
-      const zip = new Uint8Array(await Bun.file(abs).arrayBuffer());
-      const result = await importEntryBundle({ cwd, config, zip, onConflict, dryRun });
-      process.stdout.write(`${JSON.stringify({ ok: true, dryRun, result })}\n`);
-      return EXIT_CODES.ok;
-    } catch (err) {
-      reportError(err, cwd);
-      return exitCodeForError(err);
-    }
-  }
-
-  // kind === 'page': legacy JSON page-bundle import
   try {
     const config = await loadConfig({ cwd, configPath });
     const abs = isAbsolute(file) ? file : resolve(cwd, file);
-    const raw = await Bun.file(abs).text();
-    const bundle = parsePageBundle(JSON.parse(raw));
-    const result = await importPageBundle({
-      cwd,
-      config,
-      bundle,
-      onConflict: onConflict as PageBundleConflictPolicy,
-      dryRun,
-    });
+    const zip = new Uint8Array(await Bun.file(abs).arrayBuffer());
+    const result = await importEntryBundle({ cwd, config, zip, onConflict, dryRun });
     process.stdout.write(`${JSON.stringify({ ok: true, dryRun, result })}\n`);
     return EXIT_CODES.ok;
   } catch (err) {

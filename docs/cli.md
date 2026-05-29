@@ -199,7 +199,7 @@ when prompts are enabled.
 | [`nectar migrate`](#nectar-migrate) | Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>` |
 | [`nectar deploy`](#nectar-deploy) | Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync |
 | [`nectar export`](#nectar-export) | Dump the loaded content, a single entry bundle, or regenerate the RSS feed without running a full build |
-| [`nectar import`](#nectar-import) | Import a Nectar collaboration bundle (entry zip or legacy page JSON) |
+| [`nectar import`](#nectar-import) | Import a Nectar zip entry-bundle (post or page) |
 | [`nectar upgrade`](#nectar-upgrade) | Upgrade the installed Nectar CLI when the install method supports it |
 | [`nectar telemetry`](#nectar-telemetry) | Manage opt-in anonymous usage telemetry |
 | [`nectar plugins`](#nectar-plugins) | Inspect future Nectar plugins |
@@ -1175,15 +1175,15 @@ Dump the loaded content, a single entry bundle, or regenerate the RSS feed witho
 Usage:
 
 ```
-nectar export [--config <path>] [--output <path>] [--pretty] [--include-drafts] [--assets] [--no-assets] [--kind <post|page>] [--json] <format> [slug]
+nectar export [--config <path>] [--output <path>] [--pretty] [--include-drafts] [--kind <post|page>] [--json] <format> [slug]
 ```
 
 Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<format>` | required | Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), `page` (legacy single page JSON bundle), or `entry` (zip entry-bundle for posts and pages) |
-| `[slug]` | optional | Entry slug when format is `entry` or `page` |
+| `<format>` | required | Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), or `entry` (zip entry-bundle for a single post or page) |
+| `[slug]` | optional | Entry slug when format is `entry` |
 
 Options:
 
@@ -1193,8 +1193,6 @@ Options:
 | `-o, --output <path>` | string | `NECTAR_EXPORT_OUTPUT` | Path to write the export to. For `entry` format defaults to `<slug>.nectar.zip` in cwd; for other formats defaults to stdout. Parent directories are created as needed; existing files are overwritten |
 | `--pretty` | boolean | `NECTAR_EXPORT_PRETTY` | Pretty-print JSON output with 2-space indentation (`json` and `ghost-json` only). Default emits compact JSON |
 | `--include-drafts` | boolean | `NECTAR_EXPORT_INCLUDE_DRAFTS` | Include posts and pages with `status: draft` in the export. Off by default so an unintended draft cannot leak through `nectar export` |
-| `--assets` | boolean | `NECTAR_EXPORT_ASSETS` | Include local content assets referenced by `nectar export page <slug>`. Enabled by default |
-| `--no-assets` | boolean | `NECTAR_EXPORT_ASSETS=0` | Omit local asset payloads from a page collaboration bundle |
 | `--kind <post\|page>` | string | `NECTAR_EXPORT_KIND` | For `entry` format: content kind to export (`post` or `page`). Defaults to `post` |
 | `-j, --json` | boolean | `NECTAR_EXPORT_JSON` | No-op here; `export` already emits its own format-specific payload (json/ghost-json/rss). Accepted so the global `--json` flag does not error |
 
@@ -1208,12 +1206,11 @@ nectar export rss -o feed.xml
 nectar export entry hello-world
 nectar export entry hello-world -o out.nectar.zip
 nectar export entry about --kind page -o about.nectar.zip
-nectar export page about -o about.page.json
 ```
 
 ### `nectar import`
 
-Import a Nectar collaboration bundle (entry zip or legacy page JSON)
+Import a Nectar zip entry-bundle (post or page)
 
 Usage:
 
@@ -1225,8 +1222,8 @@ Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<kind>` | required | Import kind: `entry` (zip entry-bundle for posts and pages) or `page` (legacy nectar.page.v1 JSON bundle) |
-| `<file>` | required | Path to a `.nectar.zip` entry bundle (kind=entry) or a `nectar.page.v1` JSON file (kind=page) |
+| `<kind>` | required | Import kind. Only `entry` is supported; the bundle manifest carries the post/page kind, so it is not specified here |
+| `<file>` | required | Path to a `.nectar.zip` entry bundle (posts or pages) |
 
 Options:
 
@@ -1243,9 +1240,7 @@ Examples:
 nectar import entry hello-world.nectar.zip
 nectar import entry hello-world.nectar.zip --dry-run
 nectar import entry hello-world.nectar.zip --on-conflict rename
-nectar import page about.page.json --dry-run
-nectar import page about.page.json --on-conflict rename
-nectar import page about.page.json --on-conflict overwrite
+nectar import entry hello-world.nectar.zip --on-conflict overwrite
 ```
 
 ### `nectar upgrade`

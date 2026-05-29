@@ -24,47 +24,6 @@ async function runCli(args: string[], cwd?: string): Promise<RunResult> {
   return { stdout, stderr, exitCode };
 }
 
-async function makeFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-page-')));
-  await mkdir(join(dir, 'content/pages'), { recursive: true });
-  await mkdir(join(dir, 'content/images'), { recursive: true });
-  await writeFile(
-    join(dir, 'nectar.toml'),
-    [
-      '[site]',
-      'title = "Import Page Site"',
-      'description = "Imports page bundles"',
-      'url = "https://import-page.test"',
-      '',
-      '[components.rss]',
-      'enabled = false',
-      '',
-      '[components.sitemap]',
-      'enabled = false',
-      '',
-    ].join('\n'),
-    'utf8',
-  );
-  await writeFile(
-    join(dir, 'content/pages/about.md'),
-    ['---', 'title: Existing About', 'slug: about', '---', '', 'Existing body.', ''].join('\n'),
-    'utf8',
-  );
-  const bundle = {
-    nectar: { schema: 'nectar.page.v1', generated_at: '2026-05-22T00:00:00.000Z' },
-    site: { title: 'Partner Site', url: 'https://partner.test' },
-    page: {
-      slug: 'about',
-      path: 'content/pages/about.md',
-      frontmatter: { title: 'Partner About', slug: 'about' },
-      body: 'Partner body.\n',
-    },
-    assets: [{ path: 'content/images/partner.txt', encoding: 'utf8', content: 'asset\n' }],
-  };
-  await writeFile(join(dir, 'about.page.json'), JSON.stringify(bundle), 'utf8');
-  return dir;
-}
-
 async function makeEntryFixture(): Promise<{ srcDir: string; destDir: string; zipPath: string }> {
   const srcDir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-entry-src-')));
   const destDir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-entry-dest-')));
@@ -126,50 +85,6 @@ async function makeEntryFixture(): Promise<{ srcDir: string; destDir: string; zi
 }
 
 describe('cli import', () => {
-  test('import page --dry-run reports planned rename without writing files', async () => {
-    const dir = await makeFixture();
-    try {
-      const { stdout, stderr, exitCode } = await runCli(
-        ['import', 'page', 'about.page.json', '--dry-run', '--on-conflict', 'rename'],
-        dir,
-      );
-      expect(exitCode).toBe(0);
-      expect(stderr).toBe('');
-      const parsed = JSON.parse(stdout) as {
-        ok: boolean;
-        dryRun: boolean;
-        result: { pagePath: string };
-      };
-      expect(parsed.ok).toBe(true);
-      expect(parsed.dryRun).toBe(true);
-      expect(parsed.result.pagePath).toBe('content/pages/about-2.md');
-      await expect(readFile(join(dir, 'content/pages/about-2.md'), 'utf8')).rejects.toThrow();
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-
-  test('import page applies rename conflict policy and restores assets', async () => {
-    const dir = await makeFixture();
-    try {
-      const { stdout, stderr, exitCode } = await runCli(
-        ['import', 'page', 'about.page.json', '--on-conflict', 'rename'],
-        dir,
-      );
-      expect(exitCode).toBe(0);
-      expect(stderr).toBe('');
-      const parsed = JSON.parse(stdout) as { ok: boolean; result: { pagePath: string } };
-      expect(parsed.ok).toBe(true);
-      expect(parsed.result.pagePath).toBe('content/pages/about-2.md');
-      expect(await readFile(join(dir, 'content/pages/about-2.md'), 'utf8')).toContain(
-        'title: Partner About',
-      );
-      expect(await readFile(join(dir, 'content/images/partner.txt'), 'utf8')).toBe('asset\n');
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-
   test('import entry writes the post with status needs-review', async () => {
     const { srcDir, destDir, zipPath } = await makeEntryFixture();
     try {
@@ -224,6 +139,18 @@ describe('cli import', () => {
       const { stderr, exitCode } = await runCli(['import', 'entry'], destDir);
       expect(exitCode).toBe(2);
       expect(stderr).toContain('Missing required argument');
+    } finally {
+      await rm(srcDir, { recursive: true, force: true });
+      await rm(destDir, { recursive: true, force: true });
+    }
+  });
+
+  test('legacy `page` import kind is rejected', async () => {
+    const { srcDir, destDir, zipPath } = await makeEntryFixture();
+    try {
+      const { stderr, exitCode } = await runCli(['import', 'page', zipPath], destDir);
+      expect(exitCode).toBe(2);
+      expect(stderr).toContain('expected `entry`');
     } finally {
       await rm(srcDir, { recursive: true, force: true });
       await rm(destDir, { recursive: true, force: true });
