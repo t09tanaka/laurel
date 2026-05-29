@@ -1,8 +1,12 @@
 # Entry zip handoff — collaboration via portable single-entry archives
 
 Date: 2026-05-29
-Status: Approved (design), pending implementation plan
-Revision: 2 (reconciled with the existing `src/page-bundle/` implementation)
+Status: Implemented
+Revision: 4 (directional — export is a plain read that carries status as-is and
+does not mutate the source; import forces the entry to `needs-review`. Import is
+a modal with drag-and-drop upload + a bundle preview. The list drops per-row
+published/draft status text and instead flags needs-review entries with a warm
+amber attention treatment.)
 
 ## Problem
 
@@ -42,13 +46,20 @@ sidecar gate for pages is left untouched (orthogonal).
 Make a single entry (post or page) portable as a self-contained **zip archive**,
 and use that zip as the unit of collaboration:
 
-1. A writer exports an entry as a zip from its detail page. Exporting means
-   "send for review" — it stamps `status: needs-review` into the entry's
-   frontmatter (both in the zip and, on the exporter's own copy, in `content/`).
+1. A writer exports the entry as a zip from its detail page ("Export", next to
+   "Preview"). Export is a plain read — it does not change the source's status.
 2. The zip is handed off out of band (email, drive, chat — not Nectar's
    concern).
-3. A reviewer imports the zip from the list page. The entry lands in the
-   reviewer's `content/` as **needs-review**, ready to be reviewed and approved.
+3. A reviewer imports the zip from the list page ("Import"). The imported entry
+   always lands as **`needs-review`** (forced on import), so it surfaces in the
+   reviewer's "Needs review" filter with a clear attention treatment. The
+   reviewer approves it by setting `published` / `approved` in the editor.
+
+**Directional, import-forced.** The directional flow lives entirely on the
+import side: export is neutral (carries `status` as-is, mutates nothing), and
+importing — the act of bringing an entry in from outside — is what marks it
+`needs-review`. The editor status field offers `published` / `draft` /
+`needs-review` / `approved` so a reviewer can move an entry forward.
 
 Because workflow state lives in **frontmatter**, the same `status` field is
 visible to Git users in a PR diff and to dashboard users in the UI — one field
@@ -61,7 +72,7 @@ never gave them.
 The same entry is exported, edited, and imported back. On import, a slug
 collision with an existing entry is the **normal case**, not an error: the
 incoming zip **overwrites** the receiver's copy (conflict policy `overwrite`,
-after a confirmation dialog in the UI) and the entry becomes needs-review. This
+after a confirmation dialog in the UI), preserving the bundle's status. This
 naturally supports "writer fixes it and sends it back to the editor" in both
 directions.
 
@@ -93,18 +104,23 @@ Replace the JSON `PageBundle` with a zip-packaged `EntryBundle`:
 
 ### 2. Export (entry detail page)
 
-- Button "Export for review" on the post detail / page detail view.
-- Server: resolve the entry by `kind`+`slug`, stamp `status: needs-review` into
-  its frontmatter on disk (so the exporter's own copy reflects "sent"),
-  bundle `entry.md` + resolved assets (feature image, inline figure images,
-  gallery images) + manifest into a zip, stream it as a download.
+- Button "Export" next to "Preview" on the post / page detail (editor) view.
+- `GET /api/bundles/export?kind=&slug=` is a **pure read**: it resolves the
+  entry, bundles `entry.md` (frontmatter carried as-is) + resolved assets
+  (feature image, inline figure images, gallery images) + manifest into a zip,
+  and streams it as a download. It does **not** mutate the source — the writer
+  controls status via the editor status field before exporting. Because the GET
+  performs no write, it needs no CSRF gating.
 - Asset resolution reuses the ported `collectBundleAssets`.
 
 ### 3. Import (entry list page)
 
-- Button "Import zip" on the posts list (and pages list).
-- New server endpoint accepts a multipart zip upload (mirror the existing
-  `POST /api/page-bundles/import` / Ghost-import multipart pattern).
+- Button "Import" next to "New" in the posts/pages list toolbar. It opens a
+  **modal** with a drag-and-drop dropzone (reuses the shared `UploadDropzone`).
+  After a file is dropped, a dry-run probe drives a **preview** (kind, slug,
+  title, excerpt, asset count, and a collision warning), then the user commits.
+- Server endpoint accepts a multipart zip upload (mirror the existing Ghost
+  import multipart pattern).
 - Treat the zip as **untrusted input**:
   - **Zip-slip protection**: reject entries whose normalized path escapes the
     extraction root (`..`, absolute paths, drive letters).
@@ -114,10 +130,10 @@ Replace the JSON `PageBundle` with a zip-packaged `EntryBundle`:
     (`src/content/frontmatter-schema.ts`); reject with a clear error otherwise.
   - **Size / entry caps**: reject implausibly large archives or too many
     entries (zip-bomb defense).
-- Import flow: validate + stage in memory/temp; determine target slug+kind from
-  the manifest; on slug collision the client shows a confirmation dialog, then
-  imports with conflict policy `overwrite`; nothing is written until confirm.
-  The landed entry keeps `status: needs-review`.
+- Import flow: dry-run probe (conflict policy `skip`) detects a slug collision;
+  the modal shows an overwrite warning; committing imports with `overwrite` on
+  collision (else `skip` for a new slug). **The landed entry is forced to
+  `needs-review`** regardless of the bundle's status.
 
 ### 4. Frontmatter `status` value + publish gate
 
@@ -130,13 +146,21 @@ Replace the JSON `PageBundle` with a zip-packaged `EntryBundle`:
   (adjust the predicate to "not published" rather than "is draft" if needed).
 - Backward compatibility: posts/pages without `status` already default to
   `published` via the schema, so introducing the new values unpublishes nothing.
+- The editor status `<select>` (EditorView) offers `published` / `draft` /
+  `needs-review` / `approved`, so a reviewer can move an imported entry forward
+  (e.g. needs-review → published).
 
 ### 5. Review queue (dashboard)
 
 In the posts/pages list (`ContentTable`):
 
-- Show a `status` column.
-- Add a **"Needs review" filter** so a reviewer sees their queue.
+- **No per-row published/draft status text** — it was list noise. Instead,
+  `needs-review` rows get a warm amber **attention treatment**: a left stripe, a
+  faint persistent tint, and a "NEEDS REVIEW" pill by the title (reusing the
+  existing `--caution` / `--warning-subdued` tokens, so it stays in the
+  editorial design language).
+- Keep the status **filter tabs** (All / Drafts / Published / Needs review) so a
+  reviewer can narrow to their queue.
 
 No threaded comments in phase 1.
 
@@ -147,10 +171,11 @@ No threaded comments in phase 1.
   (writer + reader); delete the JSON `nectar.page.v1` path.
 - Migrate all dashboard wiring (endpoints, `lib/api.ts`, `ContentTable`
   `ExportOverflow`, import UI) to the new system, covering posts and pages.
-- Export stamps `status: needs-review`; import overwrites on collision (with
-  confirm dialog) and lands needs-review.
-- Add `needs-review` / `approved` to the status enum; confirm publish gate
-  excludes them.
+- Directional: export carries `status` as-is (pure-read GET, no source
+  mutation); import forces `needs-review` via an upload modal (D&D + preview),
+  overwrite-on-collision.
+- Add `needs-review` / `approved` to the status enum and the editor status
+  selector; confirm publish gate excludes non-published statuses.
 - `status` column + "Needs review" filter in the list.
 
 **Phase 2 (deferred, not in this spec):**
@@ -189,18 +214,18 @@ No threaded comments in phase 1.
 
 ## Success criteria
 
-1. From an entry's detail page, "Export for review" downloads a zip containing
-   `entry.md` (with `status: needs-review`), all referenced images under
-   `assets/`, and a `nectar-bundle.json` manifest; the exporter's own copy is
-   updated to `needs-review`.
-2. From the list, importing that zip writes the entry into `content/`; if the
-   slug exists, a confirmation dialog precedes overwrite; the landed entry shows
-   as needs-review.
+1. From an entry's detail page, "Export" downloads a zip containing `entry.md`
+   (frontmatter carried as saved), all referenced images under `assets/`, and a
+   `nectar-bundle.json` manifest. The export GET does not mutate the source.
+2. From the list, "Import" opens a modal; dropping a zip shows a preview (kind,
+   slug, title, excerpt, collision); committing writes the entry into `content/`
+   (overwrite-on-collision) and the landed entry is forced to `needs-review`.
 3. A malicious zip (path traversal, oversized, malformed frontmatter, missing
    manifest, non-bundle archive) is rejected with a clear error and writes
    nothing.
 4. The build excludes `draft` / `needs-review` / `approved` entries from live
    output; `published` entries publish.
-5. The list shows a `status` column and can filter to "Needs review".
+5. The list shows no per-row published/draft text; `needs-review` rows carry the
+   amber attention treatment and can be filtered via the "Needs review" tab.
 6. The old JSON `nectar.page.v1` page-bundle code and its endpoints are gone;
    pages and posts both use the new zip bundle.

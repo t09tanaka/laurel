@@ -125,6 +125,13 @@ real-world themes against static Markdown content. The current explicit scope is
   `bun-plugin-tailwind` (see `bunfig.toml`). The prod bundle is still
   produced by `scripts/build-dashboard-bundle.ts` and is required before
   `bun run build:cli` or `bun publish`.
+- **Visual/style verification must be done in prod mode**, not `--dev`.
+  Rebuild the bundle (`bun run scripts/build-dashboard-bundle.ts`) and serve
+  with `bun run src/cli/index.ts dashboard` (no flag). The Bun 1.3.x dev
+  server can segfault after repeated HMR cycles and intermittently drops the
+  stylesheet (content-hashed CSS 404s mid-reload), which reads as "styles not
+  applied" even though the source is fine. Reserve `--dev` for active code
+  iteration; confirm look-and-feel against the prod bundle.
 
 ## What "done" looks like for the bootstrap milestone
 
