@@ -137,9 +137,8 @@ export async function exportEntryBundle({
   });
   if (!resolved) throw new Error(`${kind} not found: ${slug}`);
   // resolveContentSlugPath already confirmed the file exists, so a sync
-  // containment check suffices here (no need for an async existence-aware
-  // guard like page-bundle's isInsideExistingRoot). Keep the containment
-  // check itself so a resolver fallback can never escape the content root.
+  // containment check suffices here; it still guards against a resolver-fallback
+  // escape where an adversarial slug could traverse outside the content root.
   if (!isInsidePath(resolve(root), resolve(resolved.path))) {
     throw new Error(`${kind} is outside its configured directory: ${slug}`);
   }
