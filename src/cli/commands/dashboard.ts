@@ -60,11 +60,7 @@ import type {
   Post,
   Tag,
 } from '~/content/model.ts';
-import {
-  exportEntryBundle,
-  importEntryBundle,
-  markEntryNeedsReview,
-} from '~/entry-bundle/index.ts';
+import { exportEntryBundle, importEntryBundle } from '~/entry-bundle/index.ts';
 import {
   type ImportSummary,
   ON_CONFLICT_VALUES,
@@ -1744,33 +1740,6 @@ export async function handleDashboardRequest(
         });
       } catch (err) {
         return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 404);
-      }
-    }
-    if (request.method === 'POST' && url.pathname === '/api/bundles/mark-needs-review') {
-      const blocked = validateWriteRequest(request, ctx.security);
-      if (blocked) return blocked;
-      const payload = await readJsonPayload<{ kind?: unknown; slug?: unknown }>(request);
-      if (payload instanceof Response) return payload;
-      const { kind, slug } = payload;
-      if (kind !== 'post' && kind !== 'page') {
-        return jsonResponse({ error: 'kind must be post or page' }, 400);
-      }
-      if (typeof slug !== 'string' || !slug) {
-        return jsonResponse({ error: 'slug is required' }, 400);
-      }
-      if (!SLUG_RE.test(slug)) {
-        return jsonResponse({ error: 'invalid slug' }, 400);
-      }
-      try {
-        const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
-        await markEntryNeedsReview({ cwd: ctx.cwd, config, kind, slug });
-        ctx.changeBus.broadcast({
-          reason: 'bundle-export',
-          kind: kind === 'post' ? 'posts' : 'pages',
-        });
-        return jsonResponse({ ok: true });
-      } catch (err) {
-        return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 400);
       }
     }
     if (request.method === 'POST' && url.pathname === '/api/bundles/import') {

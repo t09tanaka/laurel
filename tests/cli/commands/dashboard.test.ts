@@ -923,56 +923,10 @@ describe('dashboard data', () => {
       const zipBytes = new Uint8Array(await exported.arrayBuffer());
       expect(zipBytes.length).toBeGreaterThan(0);
 
-      // Source file must NOT have been mutated by the GET export
+      // Source file must NOT have been mutated by the GET export (pure read,
+      // neutral transport — no status stamping).
       const srcAfterExport = await readFile(join(dir, 'content/pages/about.md'), 'utf8');
       expect(srcAfterExport).not.toContain('needs-review');
-
-      // POST /api/bundles/mark-needs-review flips source status
-      const markRes = await handleDashboardRequest(
-        new Request('http://127.0.0.1:4322/api/bundles/mark-needs-review', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ kind: 'page', slug: 'about' }),
-        }),
-        { cwd: dir, changeBus: createChangeBus() },
-      );
-      expect(markRes.status).toBe(200);
-      expect(await markRes.json()).toMatchObject({ ok: true });
-      const srcAfterMark = await readFile(join(dir, 'content/pages/about.md'), 'utf8');
-      expect(srcAfterMark).toContain('needs-review');
-
-      // 400 for bad kind
-      const markBadKind = await handleDashboardRequest(
-        new Request('http://127.0.0.1:4322/api/bundles/mark-needs-review', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ kind: 'author', slug: 'about' }),
-        }),
-        { cwd: dir, changeBus: createChangeBus() },
-      );
-      expect(markBadKind.status).toBe(400);
-
-      // 400 for missing slug
-      const markNoSlug = await handleDashboardRequest(
-        new Request('http://127.0.0.1:4322/api/bundles/mark-needs-review', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ kind: 'page' }),
-        }),
-        { cwd: dir, changeBus: createChangeBus() },
-      );
-      expect(markNoSlug.status).toBe(400);
-
-      // 400 for invalid slug
-      const markBadSlug = await handleDashboardRequest(
-        new Request('http://127.0.0.1:4322/api/bundles/mark-needs-review', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ kind: 'page', slug: '../etc/passwd' }),
-        }),
-        { cwd: dir, changeBus: createChangeBus() },
-      );
-      expect(markBadSlug.status).toBe(400);
 
       // Dry-run import (rename conflict policy) → written:false, file not created
       const dryRunForm = new FormData();
@@ -1037,6 +991,7 @@ describe('dashboard data', () => {
           '---',
           'title: Old Post',
           'slug: old',
+          'status: draft',
           'date: 2026-01-01T00:00:00Z',
           'created_at: 2026-01-01T00:00:00Z',
           'feature_image: /content/images/hero.txt',
@@ -1058,25 +1013,12 @@ describe('dashboard data', () => {
       const zipBytes = new Uint8Array(await exported.arrayBuffer());
       expect(zipBytes.length).toBeGreaterThan(0);
 
-      // GET alone must NOT mutate source
+      // GET alone must NOT mutate source (pure read, neutral transport)
       const srcAfterExport = await readFile(join(dir, 'content/posts/old.md'), 'utf8');
       expect(srcAfterExport).not.toContain('needs-review');
+      expect(srcAfterExport).toContain('status: draft');
 
-      // POST /api/bundles/mark-needs-review flips source status to needs-review
-      const markRes = await handleDashboardRequest(
-        new Request('http://127.0.0.1:4322/api/bundles/mark-needs-review', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ kind: 'post', slug: 'old' }),
-        }),
-        { cwd: dir, changeBus: createChangeBus() },
-      );
-      expect(markRes.status).toBe(200);
-      expect(await markRes.json()).toMatchObject({ ok: true });
-      const srcAfterMark = await readFile(join(dir, 'content/posts/old.md'), 'utf8');
-      expect(srcAfterMark).toContain('needs-review');
-
-      // POST /api/bundles/import with multipart zip → written:true, disk entry has needs-review
+      // POST /api/bundles/import with multipart zip → written:true, status preserved
       const form = new FormData();
       form.append('file', new File([zipBytes], 'old.nectar.zip'));
       form.append('onConflict', 'overwrite');
