@@ -333,7 +333,7 @@ async function loadContentWithPool({
   const resolvedPosts: Post[] = [];
   const emailOnlyPosts: Post[] = [];
   for (const raw of posts) {
-    if (raw.status === 'draft' && !includeDrafts) continue;
+    if (raw.status !== 'published' && raw.status !== 'scheduled' && !includeDrafts) continue;
     if (!includeFuturePosts) {
       if (raw.status === 'scheduled') continue;
       if (new Date(raw.published_at).getTime() > nowMs) continue;
@@ -407,7 +407,7 @@ async function loadContentWithPool({
 
   const resolvedPages: Page[] = [];
   for (const raw of pages) {
-    if (raw.status === 'draft' && !includeDrafts) continue;
+    if (raw.status !== 'published' && !includeDrafts) continue;
     const resolved = resolvePageRelations(
       raw,
       authorMap,
@@ -846,7 +846,7 @@ interface RawPost {
   updated_at: string;
   created_at: string;
   visibility: 'public' | 'members' | 'paid' | 'tiers' | 'filter';
-  status: 'published' | 'draft' | 'scheduled';
+  status: 'published' | 'draft' | 'scheduled' | 'needs-review' | 'approved';
   tierSlugs: string[];
   tagSlugs: string[];
   authorSlugs: string[];
@@ -884,7 +884,7 @@ interface RawPage
     | 'count'
   > {
   show_title_and_feature_image: boolean;
-  status: 'published' | 'draft';
+  status: 'published' | 'draft' | 'needs-review' | 'approved';
   custom_template: string | undefined;
 }
 
@@ -1862,7 +1862,10 @@ async function normalizePage(
   return {
     ...base,
     show_title_and_feature_image: asBool(data.show_title_and_feature_image, true),
-    status: base.status === 'draft' ? 'draft' : 'published',
+    status:
+      base.status === 'draft' || base.status === 'needs-review' || base.status === 'approved'
+        ? base.status
+        : 'published',
     custom_template: sanitizeCustomTemplate(
       asString(data.template ?? data.custom_template),
       filePath,
