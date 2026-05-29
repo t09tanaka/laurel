@@ -8,6 +8,7 @@ import {
   BUNDLE_SCHEMA,
   exportEntryBundle,
   importEntryBundle,
+  markEntryNeedsReview,
   parseEntryBundleZip,
 } from '~/entry-bundle/index';
 import { readZipArchive } from '~/entry-bundle/zip';
@@ -142,6 +143,20 @@ describe('importEntryBundle', () => {
       expect(result.written).toBe(false);
       const after = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
       expect(after).toBe(before);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('markEntryNeedsReview', () => {
+  test('rewrites the source file with needs-review', async () => {
+    const dir = await makeFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      await markEntryNeedsReview({ cwd: dir, config, kind: 'post', slug: 'hello' });
+      const landed = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
+      expect(landed).toMatch(/status:\s*needs-review/);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
