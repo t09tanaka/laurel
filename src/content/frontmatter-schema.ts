@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-export const frontmatterStatusValues = ['published', 'draft', 'scheduled'] as const;
-export const pageFrontmatterStatusValues = ['published', 'draft'] as const;
+export const frontmatterStatusValues = ['published', 'draft', 'scheduled', 'needs-review', 'approved'] as const;
+export const pageFrontmatterStatusValues = ['published', 'draft', 'needs-review', 'approved'] as const;
 export const frontmatterVisibilityValues = [
   'public',
   'members',
