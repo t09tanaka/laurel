@@ -1726,8 +1726,11 @@ export async function handleDashboardRequest(
       if (kind !== 'post' && kind !== 'page') {
         return jsonResponse({ error: 'kind must be post or page' }, 400);
       }
-      if (!slug || !SLUG_RE.test(slug)) {
+      if (!slug) {
         return jsonResponse({ error: 'slug is required' }, 400);
+      }
+      if (!SLUG_RE.test(slug)) {
+        return jsonResponse({ error: 'invalid slug' }, 400);
       }
       const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
       try {
