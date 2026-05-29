@@ -15,7 +15,7 @@ interface ToastItem extends ToastInput {
   intent: ToastIntent;
 }
 
-interface ToastApi {
+export interface ToastApi {
   push: (toast: ToastInput) => void;
   dismiss: (id: number) => void;
 }

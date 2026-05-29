@@ -187,6 +187,7 @@ interface DashboardStatusCounts {
   all: number;
   draft: number;
   published: number;
+  needsReview: number;
 }
 
 export interface DashboardList<T> {
@@ -3036,10 +3037,16 @@ async function componentSummary(
 }
 
 function countSummariesByStatus(items: DashboardContentSummary[]): DashboardStatusCounts {
-  const counts: DashboardStatusCounts = { all: items.length, draft: 0, published: 0 };
+  const counts: DashboardStatusCounts = {
+    all: items.length,
+    draft: 0,
+    published: 0,
+    needsReview: 0,
+  };
   for (const item of items) {
     if (item.status === 'draft') counts.draft += 1;
     else if (item.status === 'published') counts.published += 1;
+    else if (item.status === 'needs-review') counts.needsReview += 1;
   }
   return counts;
 }

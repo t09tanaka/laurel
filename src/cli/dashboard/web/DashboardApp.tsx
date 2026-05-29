@@ -731,6 +731,9 @@ export function DashboardApp(): JSX.Element {
                 onOpen={(slug) => {
                   void openEditor(ui.view as 'posts' | 'pages', slug);
                 }}
+                onRefresh={() => void load({ force: true })}
+                toast={toastHost.api}
+                confirm={confirmHost.api}
               />
             ) : ui.view === 'authors' || ui.view === 'tags' ? (
               <TaxonomyView

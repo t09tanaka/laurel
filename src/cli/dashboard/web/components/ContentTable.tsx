@@ -1,6 +1,6 @@
 import type { JSX } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
-import { exportPageBundle } from '../lib/api.ts';
+import { useRef, useState } from 'preact/hooks';
+import { bundleExportUrl, importBundle } from '../lib/api.ts';
 import { formatDate } from '../lib/format.ts';
 import { pathForEditor } from '../lib/routes.ts';
 import type {
@@ -9,7 +9,9 @@ import type {
   DashboardList,
   DashboardStatusCounts,
 } from '../types.ts';
+import type { ConfirmApi } from './ConfirmDialog.tsx';
 import { StatePanel } from './StatePanel.tsx';
+import type { ToastApi } from './Toast.tsx';
 
 interface ContentTableProps {
   kind: DashboardContentView;
@@ -21,6 +23,9 @@ interface ContentTableProps {
   onPrev: () => void;
   onNext: () => void;
   onOpen: (slug: string) => void;
+  onRefresh: () => void;
+  toast: ToastApi;
+  confirm: ConfirmApi;
 }
 
 // `list.total` reflects items after status + search filtering. To tell
@@ -41,11 +46,50 @@ const STATUS_TABS: ReadonlyArray<{
   { value: '', label: 'All', key: 'all' },
   { value: 'draft', label: 'Drafts', key: 'draft' },
   { value: 'published', label: 'Published', key: 'published' },
+  { value: 'needs-review', label: 'Needs review', key: 'needsReview' },
 ];
 
 export function ContentTable(props: ContentTableProps): JSX.Element {
   const { kind, list } = props;
   const isPages = kind === 'pages';
+  const entryKind = kind === 'pages' ? 'page' : 'post';
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  async function handleImport(file: File): Promise<void> {
+    setImporting(true);
+    try {
+      // Dry-run with skip to probe for slug collision.
+      const probe = await importBundle(file, { dryRun: true, onConflict: 'skip' });
+      if (probe.skipped) {
+        // Slug already exists — ask for confirmation before overwriting.
+        const ok = await props.confirm.ask({
+          title: 'Entry already exists',
+          body: `A ${entryKind} with slug "${probe.slug}" already exists. Overwrite it and mark it for review?`,
+          confirmLabel: 'Overwrite',
+          cancelLabel: 'Cancel',
+          intent: 'danger',
+        });
+        if (!ok) return;
+        await importBundle(file, { dryRun: false, onConflict: 'overwrite' });
+      } else {
+        // No collision — proceed with skip policy (equivalent for new entries).
+        await importBundle(file, { dryRun: false, onConflict: 'skip' });
+      }
+      props.onRefresh();
+      props.toast.push({ intent: 'success', message: `Imported ${probe.slug}` });
+    } catch (err) {
+      props.toast.push({
+        intent: 'error',
+        title: 'Import failed',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
   return (
     <div>
       <div class="panelHead listHead">
@@ -55,23 +99,47 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
             {props.resultCount} result(s) · page {list.page} of {list.pages}
           </span>
         </div>
-        <StatusTabs
-          value={props.statusFilter}
-          counts={list.statusCounts}
-          onChange={props.onStatusFilterChange}
-        />
+        <div class="listHeadActions">
+          <StatusTabs
+            value={props.statusFilter}
+            counts={list.statusCounts}
+            onChange={props.onStatusFilterChange}
+          />
+          <button
+            type="button"
+            class="btn secondary btnCompact"
+            disabled={importing}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {importing ? 'Importing…' : 'Import zip'}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".zip"
+            class="srOnly"
+            aria-hidden="true"
+            tabIndex={-1}
+            onChange={(event) => {
+              const file = (event.target as HTMLInputElement).files?.[0];
+              if (file) void handleImport(file);
+            }}
+          />
+        </div>
       </div>
       {list.items.length ? (
         <div class="tableWrap">
           <table class="table contentTable">
             <colgroup>
               <col class="titleCol" />
+              <col class="statusCol" />
               <col class="dateCol" />
               <col class="actionsCol" />
             </colgroup>
             <thead class="srOnly">
               <tr>
                 <th>Title</th>
+                <th>Status</th>
                 <th class="dateCol">Updated</th>
                 <th>Actions</th>
               </tr>
@@ -82,6 +150,7 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
                   key={item.slug}
                   item={item}
                   kind={kind}
+                  entryKind={entryKind}
                   isPages={isPages}
                   onOpen={() => props.onOpen(item.slug)}
                 />
@@ -217,17 +286,18 @@ function StatusTabs({ value, counts, onChange }: StatusTabsProps): JSX.Element {
 interface ContentRowProps {
   item: ContentSummary;
   kind: DashboardContentView;
+  entryKind: 'post' | 'page';
   isPages: boolean;
   onOpen: () => void;
 }
 
-function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Element {
+function ContentRow({ item, kind, entryKind, isPages, onOpen }: ContentRowProps): JSX.Element {
   const status = item.status ?? 'published';
   const title = item.title?.trim() ? item.title : '(untitled)';
   const editorHref = pathForEditor(kind, item.slug);
   // Clicking anywhere on the row that's not an existing anchor /
   // button opens the editor — the title link and Detail link still
-  // behave as before, and the Preview link / Export overflow stop
+  // behave as before, and the Preview link / Export action stop
   // here so they don't get swallowed. Modifier keys are left alone so
   // the user can still cmd-click a title to open in a new tab.
   const onRowClick = (event: MouseEvent) => {
@@ -263,6 +333,11 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
           </span>
         </div>
       </td>
+      <td class="statusCell">
+        <span class="statusBadge" data-status={status}>
+          {status}
+        </span>
+      </td>
       <td class="dateCell">{formatDate(item.createdAt)}</td>
       <td class="actionsCell">
         <div class="rowActions">
@@ -283,7 +358,16 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
           >
             Detail
           </a>
-          {isPages ? <ExportOverflow slug={item.slug} /> : null}
+          <a
+            class="textLink"
+            href={bundleExportUrl(entryKind, item.slug)}
+            download
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+          >
+            Export
+          </a>
         </div>
       </td>
     </tr>
@@ -305,83 +389,4 @@ function ApprovalPill({ approval, compact: _compact }: ApprovalPillProps): JSX.E
       {label}
     </span>
   );
-}
-
-interface ExportOverflowProps {
-  slug: string;
-}
-
-function ExportOverflow({ slug }: ExportOverflowProps): JSX.Element {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!open) return;
-    function onDown(event: MouseEvent | TouchEvent) {
-      if (!wrapRef.current) return;
-      if (event.target instanceof Node && wrapRef.current.contains(event.target)) return;
-      setOpen(false);
-    }
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false);
-    }
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('touchstart', onDown, { passive: true });
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('touchstart', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-  return (
-    <div class="overflowMenu" ref={wrapRef}>
-      <button
-        type="button"
-        class="btn secondary btnCompact btnIcon"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="More actions"
-        onClick={(event) => {
-          event.stopPropagation();
-          setOpen((value) => !value);
-        }}
-      >
-        <span aria-hidden="true">⋯</span>
-      </button>
-      {open ? (
-        <div role="menu" class="overflowMenuList">
-          <button
-            type="button"
-            role="menuitem"
-            class="overflowMenuItem"
-            data-export-page={slug}
-            onClick={(event) => {
-              event.stopPropagation();
-              setOpen(false);
-              void downloadPageBundle(slug);
-            }}
-          >
-            Export bundle
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-async function downloadPageBundle(slug: string): Promise<void> {
-  try {
-    const data = await exportPageBundle(slug);
-    const blob = new Blob([`${JSON.stringify(data, null, 2)}\n`], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${slug}.page.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  } catch (err) {
-    alert(err instanceof Error ? err.message : String(err));
-  }
 }

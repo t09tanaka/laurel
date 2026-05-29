@@ -69,6 +69,7 @@ export interface DashboardStatusCounts {
   all: number;
   draft: number;
   published: number;
+  needsReview: number;
 }
 
 export interface DashboardList<T> {
