@@ -151,7 +151,84 @@ describe('cli import', () => {
     try {
       const { stderr, exitCode } = await runCli(['import', 'page', zipPath], destDir);
       expect(exitCode).toBe(2);
-      expect(stderr).toContain('expected `entry`');
+      expect(stderr).toContain('expected one of: entry, components');
+    } finally {
+      await rm(srcDir, { recursive: true, force: true });
+      await rm(destDir, { recursive: true, force: true });
+    }
+  });
+
+  async function makeComponentsFixture(): Promise<{
+    srcDir: string;
+    destDir: string;
+    zipPath: string;
+  }> {
+    const srcDir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-comp-src-')));
+    const destDir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-comp-dest-')));
+    const toml = ['[site]', 'title = "Components Test"', 'url = "https://comp.test"', ''].join(
+      '\n',
+    );
+    await writeFile(join(srcDir, 'nectar.toml'), toml, 'utf8');
+    await writeFile(join(destDir, 'nectar.toml'), toml, 'utf8');
+    await mkdir(join(srcDir, 'content/components'), { recursive: true });
+    for (const slug of ['callout', 'cta']) {
+      await writeFile(
+        join(srcDir, `content/components/${slug}.md`),
+        [
+          '---',
+          `slug: ${slug}`,
+          `description: ${slug} snippet`,
+          '---',
+          '',
+          '```html',
+          `<div class="${slug}">{${slug}}</div>`,
+          '```',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+    }
+    const { exportComponentsBundle } = await import('~/components-bundle/index.ts');
+    const config = await loadConfig({ cwd: srcDir });
+    const { zip } = await exportComponentsBundle({ cwd: srcDir, config });
+    const zipPath = join(srcDir, 'components.nectar.zip');
+    await Bun.write(zipPath, zip);
+    return { srcDir, destDir, zipPath };
+  }
+
+  test('import components writes every component into the target', async () => {
+    const { srcDir, destDir, zipPath } = await makeComponentsFixture();
+    try {
+      const { stdout, exitCode } = await runCli(['import', 'components', zipPath], destDir);
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout) as {
+        ok: boolean;
+        result: { written: number };
+      };
+      expect(parsed.ok).toBe(true);
+      expect(parsed.result.written).toBe(2);
+      const written = await readFile(join(destDir, 'content/components/callout.md'), 'utf8');
+      expect(written).toContain('```html');
+    } finally {
+      await rm(srcDir, { recursive: true, force: true });
+      await rm(destDir, { recursive: true, force: true });
+    }
+  });
+
+  test('import components --dry-run writes nothing', async () => {
+    const { srcDir, destDir, zipPath } = await makeComponentsFixture();
+    try {
+      const { stdout, exitCode } = await runCli(
+        ['import', 'components', zipPath, '--dry-run'],
+        destDir,
+      );
+      expect(exitCode).toBe(0);
+      const parsed = JSON.parse(stdout) as { dryRun: boolean; result: { written: number } };
+      expect(parsed.dryRun).toBe(true);
+      expect(parsed.result.written).toBe(0);
+      await expect(
+        readFile(join(destDir, 'content/components/callout.md'), 'utf8'),
+      ).rejects.toThrow();
     } finally {
       await rm(srcDir, { recursive: true, force: true });
       await rm(destDir, { recursive: true, force: true });

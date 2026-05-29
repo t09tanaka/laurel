@@ -1,4 +1,5 @@
 import { isAbsolute, resolve } from 'node:path';
+import { importComponentsBundle } from '~/components-bundle/index.ts';
 import { loadConfig } from '~/config/loader.ts';
 import { type ConflictPolicy, importEntryBundle } from '~/entry-bundle/index.ts';
 import { EXIT_CODES, exitCodeForError } from '~/util/errors.ts';
@@ -7,6 +8,7 @@ import { reportError } from '../report.ts';
 import { IMPORT_SPEC } from '../specs.ts';
 
 const ON_CONFLICT_VALUES: readonly ConflictPolicy[] = ['skip', 'overwrite', 'rename'];
+const IMPORT_KINDS = ['entry', 'components'] as const;
 
 export async function runImport(args: string[]): Promise<number> {
   let parsed: ParsedCommand;
@@ -26,8 +28,10 @@ export async function runImport(args: string[]): Promise<number> {
   }
 
   const kind = parsed.positionals[0];
-  if (kind !== 'entry') {
-    process.stderr.write('Missing or unknown import kind: expected `entry`\n\n');
+  if (kind !== 'entry' && kind !== 'components') {
+    process.stderr.write(
+      `Missing or unknown import kind: expected one of: ${IMPORT_KINDS.join(', ')}\n\n`,
+    );
     process.stderr.write(formatCommandHelp(IMPORT_SPEC));
     return EXIT_CODES.usage;
   }
@@ -57,7 +61,10 @@ export async function runImport(args: string[]): Promise<number> {
     const config = await loadConfig({ cwd, configPath });
     const abs = isAbsolute(file) ? file : resolve(cwd, file);
     const zip = new Uint8Array(await Bun.file(abs).arrayBuffer());
-    const result = await importEntryBundle({ cwd, config, zip, onConflict, dryRun });
+    const result =
+      kind === 'components'
+        ? await importComponentsBundle({ cwd, config, zip, onConflict, dryRun })
+        : await importEntryBundle({ cwd, config, zip, onConflict, dryRun });
     process.stdout.write(`${JSON.stringify({ ok: true, dryRun, result })}\n`);
     return EXIT_CODES.ok;
   } catch (err) {

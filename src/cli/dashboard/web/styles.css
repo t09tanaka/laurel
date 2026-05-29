@@ -2507,6 +2507,74 @@
     font-weight: 500;
     color: var(--caution, #a86900);
   }
+  /* Per-snippet list inside the components import preview. Compact, mono
+   * slugs with a faint "exists" flag on collisions — same restraint as the
+   * single-entry preview, just enumerated for the bulk case. */
+  .importPreviewList {
+    margin: 2px 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+  .importPreviewList li {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .importPreviewList li[data-collision="true"] {
+    color: var(--text-primary);
+  }
+  .importPreviewList .importPreviewWarn {
+    font-family: var(--font-sans);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  /* Bulk-export affordances on the components list head. The action cluster
+   * sits opposite the count and only the export button carries weight; Clear
+   * stays a quiet text link so it never competes. */
+  .listHeadActions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding-bottom: 10px;
+  }
+  .listHeadSelection {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+  /* Selection checkbox column. Hidden until the row is hovered, focused, or
+   * already selected, so the resting table stays as clean as before the
+   * bulk feature landed. */
+  .selectCell {
+    width: 1%;
+    padding-right: 4px;
+    vertical-align: top;
+    padding-top: 16px;
+  }
+  .rowSelect {
+    cursor: pointer;
+    accent-color: var(--accent, var(--text-primary));
+    opacity: 0;
+    transition: opacity 0.12s ease;
+  }
+  .contentRow:hover .rowSelect,
+  .contentRow:focus-within .rowSelect,
+  .contentRow[data-selected="true"] .rowSelect {
+    opacity: 1;
+  }
+  .contentRow[data-selected="true"] {
+    background: color-mix(in srgb, var(--accent, var(--text-primary)) 6%, transparent);
+  }
   .themeUploadDrop {
     display: flex;
     align-items: center;

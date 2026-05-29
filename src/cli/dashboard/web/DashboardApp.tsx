@@ -3,6 +3,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'preact/hoo
 import { BuildPanel, type BuildPhase } from './components/BuildPanel.tsx';
 import { type CommandItem, CommandPalette } from './components/CommandPalette.tsx';
 import { ComponentEditorView } from './components/ComponentEditorView.tsx';
+import { ComponentImportModal } from './components/ComponentImportModal.tsx';
 import { ComponentsView } from './components/ComponentsView.tsx';
 import { useConfirmHost } from './components/ConfirmDialog.tsx';
 import { ContentTable } from './components/ContentTable.tsx';
@@ -583,9 +584,10 @@ export function DashboardApp(): JSX.Element {
   // button would dump the user into a post-create flow that has nothing
   // to do with the settings panel they're looking at.
   const showNewButton = !createMode && !editor && !inSettings;
-  // Zip import is entry-only — it lands posts/pages, so offer it alongside
-  // New in the posts/pages list views.
-  const showImportButton = showNewButton && (ui.view === 'posts' || ui.view === 'pages');
+  // Zip import lands posts/pages (entry bundles) or components (bulk bundle),
+  // so offer it alongside New in those list views.
+  const showImportButton =
+    showNewButton && (ui.view === 'posts' || ui.view === 'pages' || ui.view === 'components');
   // Filter input only makes sense when there's actually a list to filter.
   // Editors, the create form, settings, and migration have no view-scoped
   // search target, so hide the input there.
@@ -897,11 +899,19 @@ export function DashboardApp(): JSX.Element {
       </main>
       <CommandPalette open={cmdkOpen} items={commandItems} onClose={() => setCmdkOpen(false)} />
       <Modal open={importOpen} onClose={() => setImportOpen(false)}>
-        <ImportModal
-          onClose={() => setImportOpen(false)}
-          onImported={() => void load({ force: true })}
-          toast={toastHost.api}
-        />
+        {ui.view === 'components' ? (
+          <ComponentImportModal
+            onClose={() => setImportOpen(false)}
+            onImported={() => void load({ force: true })}
+            toast={toastHost.api}
+          />
+        ) : (
+          <ImportModal
+            onClose={() => setImportOpen(false)}
+            onImported={() => void load({ force: true })}
+            toast={toastHost.api}
+          />
+        )}
       </Modal>
       {confirmHost.node}
       {toastHost.node}
