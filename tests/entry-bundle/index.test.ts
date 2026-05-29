@@ -8,7 +8,6 @@ import {
   BUNDLE_SCHEMA,
   exportEntryBundle,
   importEntryBundle,
-  markEntryNeedsReview,
   parseEntryBundleZip,
 } from '~/entry-bundle/index';
 import { readZipArchive } from '~/entry-bundle/zip';
@@ -100,13 +99,40 @@ describe('parseEntryBundleZip', () => {
 });
 
 describe('exportEntryBundle', () => {
-  test('stamps needs-review and includes a manifest', async () => {
+  test('carries the entry status as-is and includes a manifest', async () => {
     const dir = await makeFixture();
     try {
       const config = await loadConfig({ cwd: dir });
       const { zip } = await exportEntryBundle({ cwd: dir, config, kind: 'post', slug: 'hello' });
-      expect(rawEntryMd(zip)).toMatch(/status:\s*needs-review/);
+      // Neutral transport: the fixture is a draft, so the bundle stays a draft
+      // (no needs-review stamping).
+      expect(rawEntryMd(zip)).toMatch(/status:\s*draft/);
+      expect(rawEntryMd(zip)).not.toMatch(/status:\s*needs-review/);
       expect(hasManifest(zip)).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('export does not stamp status, but import forces needs-review', async () => {
+    const dir = await makeFixture();
+    try {
+      await writeFile(
+        join(dir, 'content/posts/hello.md'),
+        ['---', 'title: Hello', 'slug: hello', 'status: published', '---', '', 'Body.', ''].join(
+          '\n',
+        ),
+        'utf8',
+      );
+      const config = await loadConfig({ cwd: dir });
+      const { zip } = await exportEntryBundle({ cwd: dir, config, kind: 'post', slug: 'hello' });
+      // Export carries the source status as-is (no stamping)…
+      expect(rawEntryMd(zip)).toMatch(/status:\s*published/);
+      // …but importing always lands the entry as needs-review.
+      const result = await importEntryBundle({ cwd: dir, config, zip, onConflict: 'overwrite' });
+      expect(result.written).toBe(true);
+      const landed = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
+      expect(landed).toMatch(/status:\s*needs-review/);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -153,6 +179,7 @@ describe('importEntryBundle', () => {
       const { zip } = await exportEntryBundle({ cwd: dir, config, kind: 'post', slug: 'hello' });
       const result = await importEntryBundle({ cwd: dir, config, zip, onConflict: 'overwrite' });
       expect(result.written).toBe(true);
+      expect(result.preview.title).toBe('Hello');
       const landed = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
       expect(landed).toMatch(/status:\s*needs-review/);
     } finally {
@@ -235,20 +262,6 @@ describe('importEntryBundle', () => {
       expect(result.kind).toBe('page');
       expect(result.written).toBe(true);
       const landed = await readFile(join(dir, 'content/pages/about.md'), 'utf8');
-      expect(landed).toMatch(/status:\s*needs-review/);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-});
-
-describe('markEntryNeedsReview', () => {
-  test('rewrites the source file with needs-review', async () => {
-    const dir = await makeFixture();
-    try {
-      const config = await loadConfig({ cwd: dir });
-      await markEntryNeedsReview({ cwd: dir, config, kind: 'post', slug: 'hello' });
-      const landed = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
       expect(landed).toMatch(/status:\s*needs-review/);
     } finally {
       await rm(dir, { recursive: true, force: true });

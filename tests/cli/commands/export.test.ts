@@ -236,9 +236,24 @@ describe('cli export', () => {
     }
   });
 
-  test('export entry writes a zip to --output path for a post', async () => {
+  test('export entry writes a zip to --output path for a post, carrying status as-is', async () => {
     const dir = await makeFixture();
     try {
+      // Neutral transport: the bundle carries whatever status the writer set
+      // (no needs-review stamping on export).
+      await writeFile(
+        join(dir, 'content/posts/hello-world.md'),
+        [
+          '---',
+          'title: Hello World',
+          'slug: hello-world',
+          'status: needs-review',
+          '---',
+          '',
+          'Body of post.',
+          '',
+        ].join('\n'),
+      );
       const outPath = join(dir, 'hello-world.nectar.zip');
       const { stdout, stderr, exitCode } = await runCli(
         ['export', 'entry', 'hello-world', '--output', outPath],
@@ -258,9 +273,24 @@ describe('cli export', () => {
     }
   });
 
-  test('export entry --kind page writes a zip for a page', async () => {
+  test('export entry --kind page writes a zip for a page, carrying status as-is', async () => {
     const dir = await makeFixture();
     try {
+      // A reviewer returning a verdict: the bundle carries "approved".
+      await writeFile(
+        join(dir, 'content/pages/about.md'),
+        [
+          '---',
+          'title: About',
+          'slug: about',
+          'status: approved',
+          'feature_image: /content/images/about.txt',
+          '---',
+          '',
+          'About page body with ![Cover](/content/images/about.txt).',
+          '',
+        ].join('\n'),
+      );
       const outPath = join(dir, 'about.nectar.zip');
       const { stderr, exitCode } = await runCli(
         ['export', 'entry', 'about', '--kind', 'page', '--output', outPath],
@@ -272,7 +302,7 @@ describe('cli export', () => {
       const bundle = parseEntryBundleZip(bytes);
       expect(bundle.kind).toBe('page');
       expect(bundle.slug).toBe('about');
-      expect(bundle.frontmatter.status).toBe('needs-review');
+      expect(bundle.frontmatter.status).toBe('approved');
       expect(bundle.assets.length).toBeGreaterThan(0);
     } finally {
       await rm(dir, { recursive: true, force: true });

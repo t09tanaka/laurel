@@ -48,6 +48,8 @@ export interface ImportEntryResult {
   entryPath: string;
   assetPaths: string[];
   warnings: string[];
+  /** Summary of the incoming entry, for an import preview before committing. */
+  preview: { title: string; excerpt: string; assetCount: number };
 }
 
 export function parseEntryBundleZip(zip: Uint8Array): ParsedEntryBundle {
@@ -148,12 +150,16 @@ export async function exportEntryBundle({
 
   const raw = await readFile(resolved.path, 'utf8');
   const parsed = parseFrontmatter(raw, { filePath: resolved.path });
-  const frontmatter = { ...parsed.data, status: 'needs-review' };
+  // Neutral transport: the bundle carries the entry's status as-is. The
+  // sender sets the workflow status (needs-review / approved / draft / …) in
+  // the editor before exporting, and import preserves it — so the same zip
+  // works writer→reviewer and reviewer→writer.
+  const frontmatter = parsed.data;
 
   const { assets, omitted } = await collectBundleAssets({
     cwd,
     config,
-    frontmatter: parsed.data,
+    frontmatter,
     body: parsed.body,
   });
 
@@ -198,6 +204,12 @@ export async function importEntryBundle({
   const root = rootForKind(cwd, config, bundle.kind);
   await mkdir(root, { recursive: true });
 
+  const preview = {
+    title: typeof bundle.frontmatter.title === 'string' ? bundle.frontmatter.title : bundle.slug,
+    excerpt: excerptFromBody(bundle.body),
+    assetCount: bundle.assets.length,
+  };
+
   const requestedSlug = safeSlug(String(bundle.frontmatter.slug ?? bundle.slug));
   const target = resolveImportTarget(root, requestedSlug, onConflict);
   const entryPath = relativePath(cwd, target.path);
@@ -211,9 +223,13 @@ export async function importEntryBundle({
       entryPath,
       assetPaths: [],
       warnings: [],
+      preview,
     };
   }
 
+  // Importing brings an entry in from outside, so it always lands as
+  // needs-review — a reviewer approves it from there. (Export does not stamp
+  // status; the directional flow lives entirely on the import side.)
   const frontmatter = { ...bundle.frontmatter, slug: target.slug, status: 'needs-review' };
   const warnings = await collectImportWarnings(cwd, config, frontmatter);
 
@@ -250,37 +266,19 @@ export async function importEntryBundle({
     entryPath,
     assetPaths,
     warnings,
+    preview,
   };
 }
 
-export async function markEntryNeedsReview({
-  cwd,
-  config,
-  kind,
-  slug,
-}: {
-  cwd: string;
-  config: NectarConfig;
-  kind: EntryKind;
-  slug: string;
-}): Promise<void> {
-  const root = rootForKind(cwd, config, kind);
-  const resolved = await resolveContentSlugPath(slug, [kind === 'post' ? 'posts' : 'pages'], {
-    posts: absolutise(cwd, config.content.posts_dir),
-    pages: absolutise(cwd, config.content.pages_dir),
-  });
-  if (!resolved) throw new Error(`${kind} not found: ${slug}`);
-  if (!isInsidePath(resolve(root), resolve(resolved.path))) {
-    throw new Error(`${kind} is outside its configured directory: ${slug}`);
-  }
-  const raw = await readFile(resolved.path, 'utf8');
-  const parsed = parseFrontmatter(raw, { filePath: resolved.path });
-  const frontmatter = { ...parsed.data, status: 'needs-review' };
-  await writeFile(
-    resolved.path,
-    serializeEntryMarkdown(frontmatter, parsed.body, resolved.path),
-    'utf8',
-  );
+function excerptFromBody(body: string): string {
+  const text = body
+    .replace(/^---[\s\S]*?---/, '')
+    .replace(/[#>*_`>\-]/g, ' ')
+    .replace(/!\[[^\]]*]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]*)]\([^)]*\)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length > 200 ? `${text.slice(0, 200)}…` : text;
 }
 
 function serializeEntryMarkdown(

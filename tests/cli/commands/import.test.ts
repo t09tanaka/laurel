@@ -55,6 +55,7 @@ async function makeEntryFixture(): Promise<{ srcDir: string; destDir: string; zi
       '---',
       'title: Hello Entry',
       'slug: hello-entry',
+      'status: published',
       'published_at: 2026-01-01T00:00:00Z',
       '---',
       '',
@@ -85,7 +86,7 @@ async function makeEntryFixture(): Promise<{ srcDir: string; destDir: string; zi
 }
 
 describe('cli import', () => {
-  test('import entry writes the post with status needs-review', async () => {
+  test('import entry writes the post and forces status needs-review', async () => {
     const { srcDir, destDir, zipPath } = await makeEntryFixture();
     try {
       const { stdout, stderr, exitCode } = await runCli(['import', 'entry', zipPath], destDir);
