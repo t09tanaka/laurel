@@ -492,23 +492,6 @@ export async function streamGhostImport(
   }
 }
 
-interface PageBundleImportPayload {
-  file: string;
-  dryRun: boolean;
-  onConflict: 'skip' | 'rename' | 'overwrite';
-}
-
-export async function importPageBundle(
-  payload: PageBundleImportPayload,
-): Promise<{ status: number; data: unknown }> {
-  const response = await fetch('/api/page-bundles/import', {
-    method: 'POST',
-    headers: writeHeaders(),
-    body: JSON.stringify(payload),
-  });
-  return { status: response.status, data: await response.json() };
-}
-
 export interface BuildSummarySnapshot {
   outputDir: string;
   routeCount: number;
