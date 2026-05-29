@@ -48,6 +48,9 @@ interface EditorViewProps {
   onRenamed?: (kind: DashboardContentItem['kind'], newSlug: string) => Promise<void> | void;
   onConflict: (message: string, current: DashboardContentItem) => void;
   onDirtyChange: (dirty: boolean) => void;
+  // Posts / pages only — moves the file to trash. The parent owns the
+  // confirm dialog, the API call, and the post-delete navigation.
+  onDelete?: () => Promise<void> | void;
 }
 
 const SAVE_CHIP_LABEL: Record<EditorSaveState, string> = {
@@ -745,12 +748,25 @@ export function EditorView(props: EditorViewProps): JSX.Element {
       {/* Footer is rendered only when there's a notice to surface or when
        * the Approve action is available — otherwise Save is in the header
        * and the footer is dead weight. */}
-      {notice || current.kind === 'pages' ? (
+      {notice || isContent ? (
         <div class="editorFooter">
           <output class="notice" id="notice">
             {notice}
           </output>
           <div class="editorActions">
+            {isContent && props.onDelete ? (
+              <button
+                class="btn secondary editorDelete"
+                id="deleteContent"
+                type="button"
+                onClick={() => {
+                  void props.onDelete?.();
+                }}
+                title={`Move this ${current.kind === 'pages' ? 'page' : 'post'} to trash`}
+              >
+                Delete
+              </button>
+            ) : null}
             {current.kind === 'pages' ? (
               <button
                 class="btn secondary"

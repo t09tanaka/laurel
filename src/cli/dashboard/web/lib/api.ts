@@ -245,6 +245,27 @@ export async function saveContent(args: {
   return { status: response.status, data: (await response.json()) as SaveContentResult };
 }
 
+type TrashContentResult =
+  | { ok: true; entry: unknown }
+  | { ok: false; reason: 'conflict'; current: DashboardContentItem }
+  | { ok: false; reason: string; error?: string };
+
+/** Move a post / page to `.nectar/trash` (soft delete). The server gates on
+ * `fingerprint` so a stale tab can't clobber a file edited elsewhere — a
+ * mismatch comes back as a 409 conflict carrying the on-disk `current`. */
+export async function trashContent(args: {
+  kind: 'posts' | 'pages';
+  slug: string;
+  fingerprint: ContentFingerprint;
+}): Promise<{ status: number; data: TrashContentResult }> {
+  const response = await fetch(`/api/content/${args.kind}/${encodeURIComponent(args.slug)}/trash`, {
+    method: 'POST',
+    headers: writeHeaders(),
+    body: JSON.stringify({ fingerprint: args.fingerprint }),
+  });
+  return { status: response.status, data: (await response.json()) as TrashContentResult };
+}
+
 export async function approvePage(args: {
   slug: string;
   fingerprint: ContentFingerprint;

@@ -28,6 +28,7 @@ import {
   fetchDashboardState,
   materializeTaxonomy,
   streamBuild,
+  trashContent,
 } from './lib/api.ts';
 import {
   normalizeView,
@@ -39,6 +40,7 @@ import {
   shellSectionFor,
   syncPath,
 } from './lib/routes.ts';
+import { clearDraftsForPath } from './lib/storage.ts';
 import { CREATE_HEAD, createHeadFor, viewHeadFor } from './lib/view-head.ts';
 import type {
   DashboardContentItem,
@@ -402,6 +404,52 @@ export function DashboardApp(): JSX.Element {
   function handleEditorConflict(message: string, current: DashboardContentItem) {
     dispatch({ type: 'conflict', message });
     setEditor(current);
+  }
+
+  // Soft-delete the open post / page: confirm, move to trash, then drop the
+  // editor and bounce back to the list. Pages/posts only — the backend trash
+  // route rejects authors/tags, and the editor only renders Delete for content.
+  async function handleEditorDelete(): Promise<void> {
+    if (!editor || (editor.kind !== 'posts' && editor.kind !== 'pages')) return;
+    const label = editor.kind === 'pages' ? 'page' : 'post';
+    const confirmed = await confirmHost.api.ask({
+      title: `Delete this ${label}?`,
+      body: `"${editor.slug}" moves to trash (.nectar/trash). You can restore it from there until it's purged. Any unsaved edits are discarded.`,
+      confirmLabel: 'Delete',
+      cancelLabel: 'Keep editing',
+      intent: 'danger',
+    });
+    if (!confirmed) return;
+    const { status, data } = await trashContent({
+      kind: editor.kind,
+      slug: editor.slug,
+      fingerprint: editor.fingerprint,
+    });
+    if (status === 409 && !data.ok && data.reason === 'conflict' && 'current' in data) {
+      toastHost.api.push({
+        intent: 'warn',
+        title: 'Changed on disk',
+        message: 'This file changed on disk. Reloaded the latest version — review before deleting.',
+      });
+      setEditor(data.current);
+      return;
+    }
+    if (status >= 400 || !data.ok) {
+      const message =
+        ('error' in data ? data.error : undefined) ?? `Could not delete ${label} (${status}).`;
+      toastHost.api.push({ intent: 'error', title: 'Delete failed', message });
+      return;
+    }
+    clearDraftsForPath(editor.path);
+    setEditor(null);
+    setEditorDirty(false);
+    toastHost.api.push({
+      intent: 'success',
+      title: 'Moved to trash',
+      message: `"${editor.slug}" was moved to trash.`,
+    });
+    await load({ force: true });
+    syncPath(pathForView(ui.view), 'push');
   }
 
   const handleDownloadZip = useCallback(() => {
@@ -806,6 +854,7 @@ export function DashboardApp(): JSX.Element {
               onRenamed={handleEditorRenamed}
               onConflict={handleEditorConflict}
               onDirtyChange={setEditorDirty}
+              onDelete={handleEditorDelete}
             />
           )
         ) : null}
