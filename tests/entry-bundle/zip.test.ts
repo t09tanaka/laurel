@@ -10,6 +10,7 @@ describe('createZipArchive', () => {
       { path: 'data/foo.bin', bytes: new Uint8Array([0, 1, 2, 3, 4]) },
     ];
     const zip = createZipArchive(entries);
+    // EOCD is the trailing 22 bytes because createZipArchive writes no zip comment.
     // Last 22 bytes are the EOCD
     const eocd = zip.subarray(zip.length - 22);
     const view = new DataView(eocd.buffer, eocd.byteOffset, eocd.byteLength);
@@ -25,13 +26,17 @@ describe('readZipArchive', () => {
   test('round-trips text and binary entries', () => {
     const textBytes = new TextEncoder().encode('# Hello\nThis is entry.md\n');
     const binBytes = new Uint8Array([0, 1, 2, 255, 254]);
+    // Repetitive payload deflates smaller than its source, so it is stored with
+    // method 8 and exercises the inflate path in readZipArchive.
+    const bigBytes = new TextEncoder().encode('Hello World '.repeat(10));
     const inputs = [
       { path: 'entry.md', bytes: textBytes },
       { path: 'assets/images/a.bin', bytes: binBytes },
+      { path: 'big.txt', bytes: bigBytes },
     ];
     const zip = createZipArchive(inputs);
     const result = readZipArchive(zip);
-    expect(result).toHaveLength(2);
+    expect(result).toHaveLength(3);
 
     const mdEntry = result.find((e) => e.path === 'entry.md');
     expect(mdEntry).toBeDefined();
@@ -40,6 +45,10 @@ describe('readZipArchive', () => {
     const binEntry = result.find((e) => e.path === 'assets/images/a.bin');
     expect(binEntry).toBeDefined();
     expect(binEntry?.bytes).toEqual(binBytes);
+
+    const bigEntry = result.find((e) => e.path === 'big.txt');
+    expect(bigEntry).toBeDefined();
+    expect(bigEntry?.bytes).toEqual(bigBytes);
   });
 
   test('throws on invalid zip data', () => {
