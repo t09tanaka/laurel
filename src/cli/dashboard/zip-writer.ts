@@ -123,6 +123,54 @@ function makeEocd(
   return eocd;
 }
 
+export interface ZipInputEntry {
+  path: string;
+  bytes: Uint8Array;
+}
+
+export function createZipArchive(inputs: ZipInputEntry[]): Uint8Array {
+  const encoder = new TextEncoder();
+  const chunks: Uint8Array[] = [];
+  const entries: ZipEntry[] = [];
+  let offset = 0;
+  for (const input of inputs) {
+    const crc = crc32(input.bytes);
+    const compressed = deflateRawSync(input.bytes);
+    const useDeflate = compressed.length < input.bytes.length;
+    const payload = useDeflate
+      ? new Uint8Array(compressed.buffer, compressed.byteOffset, compressed.byteLength)
+      : input.bytes;
+    const entry: ZipEntry = {
+      pathBytes: encoder.encode(input.path),
+      crc,
+      compressedSize: payload.length,
+      uncompressedSize: input.bytes.length,
+      method: useDeflate ? 8 : 0,
+      localHeaderOffset: offset,
+    };
+    const local = makeLocalHeader(entry);
+    chunks.push(local, payload);
+    offset += local.length + payload.length;
+    entries.push(entry);
+  }
+  const centralOffset = offset;
+  let centralSize = 0;
+  for (const entry of entries) {
+    const central = makeCentralHeader(entry);
+    chunks.push(central);
+    centralSize += central.length;
+  }
+  chunks.push(makeEocd(entries.length, centralSize, centralOffset));
+  const total = chunks.reduce((n, c) => n + c.length, 0);
+  const out = new Uint8Array(total);
+  let p = 0;
+  for (const c of chunks) {
+    out.set(c, p);
+    p += c.length;
+  }
+  return out;
+}
+
 export function createDistZipStream(rootDir: string): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   return new ReadableStream<Uint8Array>({

@@ -1950,6 +1950,33 @@
   .contentRow[data-approval="stale"] .titleLine::before {
     content: "Stale";
   }
+  /* Imported entries awaiting review get the strongest attention treatment in
+   * the list: a warm amber left stripe + a persistent subtle tint so the row
+   * reads as "action needed" at a glance, paired with the .reviewPill. Uses
+   * the same caution/warning tokens as the pages-approval rule above. */
+  .contentRow[data-status="needs-review"] {
+    box-shadow: inset 3px 0 0 var(--caution, #a86900);
+    background: color-mix(in srgb, var(--warning-subdued, #fff6df) 55%, transparent);
+  }
+  .contentRow[data-status="needs-review"]:hover,
+  .contentRow[data-status="needs-review"]:focus-within {
+    box-shadow: inset 3px 0 0 var(--caution, #a86900);
+    background: color-mix(in srgb, var(--warning-subdued, #fff6df) 85%, transparent);
+  }
+  .reviewPill {
+    flex: 0 0 auto;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--caution, #a86900);
+    background: var(--warning-subdued, #fff6df);
+    border: 1px solid color-mix(in srgb, var(--caution, #a86900) 35%, transparent);
+    border-radius: 999px;
+    padding: 1px 8px;
+    line-height: 16px;
+  }
   .titleCell {
     min-width: 0;
     max-width: 100%;
@@ -2056,7 +2083,7 @@
    * preview of the same gesture, both on hover-in and hover-out. */
   .rowActions {
     display: flex;
-    justify-content: flex-start;
+    justify-content: flex-end;
     align-items: center;
     gap: 16px;
     flex-wrap: nowrap;
@@ -2278,6 +2305,77 @@
   .modalClose:hover {
     color: var(--text-primary);
     background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  }
+  /* Import modal: footer actions + a preview card of the bundle's contents. */
+  .modalActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  .importError {
+    margin: 0;
+    font-size: 13px;
+    color: var(--color-danger, #b42318);
+  }
+  .importPreview {
+    display: grid;
+    gap: 6px;
+    padding: 12px 14px;
+    border: 1px solid var(--border-default);
+    border-left: 3px solid var(--border-strong);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+  }
+  .importPreview[data-collision="true"] {
+    border-left-color: var(--caution, #a86900);
+    background: color-mix(in srgb, var(--warning-subdued, #fff6df) 60%, var(--surface-raised));
+  }
+  .importPreviewHead {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .importPreviewKind {
+    font-family: var(--font-sans);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .importPreviewSlug {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .importPreviewTitle {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .importPreviewExcerpt {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .importPreviewMeta {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .importPreviewWarn {
+    margin: 0;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--caution, #a86900);
   }
   .themeUploadDrop {
     display: flex;

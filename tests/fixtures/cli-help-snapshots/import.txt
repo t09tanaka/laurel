@@ -1,20 +1,20 @@
-Import a Nectar collaboration bundle
+Import a Nectar zip entry-bundle (post or page)
 
 Usage:
   nectar import [--config <path>] [--on-conflict <skip|overwrite|rename>] [--dry-run] [--json] <kind> <file>
 
 Arguments:
-  kind                Import kind. Currently only `page` is supported
-  file                Path to a `nectar.page.v1` page collaboration bundle
+  kind                Import kind. Only `entry` is supported; the bundle manifest carries the post/page kind, so it is not specified here
+  file                Path to a `.nectar.zip` entry bundle (posts or pages)
 
 End of options:
   Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
-  --on-conflict <skip|overwrite|rename>  How to handle existing page files: skip (default), overwrite, or rename
+  --on-conflict <skip|overwrite|rename>  How to handle existing files: skip (default), overwrite, or rename
   --dry-run           Validate the bundle and report planned writes without changing files
-  -j, --json          No-op here; `import page` always emits a JSON result. Accepted so the global `--json` flag does not error
+  -j, --json          No-op here; `import` always emits a JSON result. Accepted so the global `--json` flag does not error
   -h, --help          Show help for this command
 
 Environment variables:
@@ -28,6 +28,7 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar import page about.page.json --dry-run
-  nectar import page about.page.json --on-conflict rename
-  nectar import page about.page.json --on-conflict overwrite
+  nectar import entry hello-world.nectar.zip
+  nectar import entry hello-world.nectar.zip --dry-run
+  nectar import entry hello-world.nectar.zip --on-conflict rename
+  nectar import entry hello-world.nectar.zip --on-conflict overwrite

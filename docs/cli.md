@@ -198,8 +198,8 @@ when prompts are enabled.
 | [`nectar theme`](#nectar-theme) | Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials; `serve` runs a fast fixture-backed theme dev server |
 | [`nectar migrate`](#nectar-migrate) | Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>` |
 | [`nectar deploy`](#nectar-deploy) | Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync |
-| [`nectar export`](#nectar-export) | Dump the loaded content, a single page bundle, or regenerate the RSS feed without running a full build |
-| [`nectar import`](#nectar-import) | Import a Nectar collaboration bundle |
+| [`nectar export`](#nectar-export) | Dump the loaded content, a single entry bundle, or regenerate the RSS feed without running a full build |
+| [`nectar import`](#nectar-import) | Import a Nectar zip entry-bundle (post or page) |
 | [`nectar upgrade`](#nectar-upgrade) | Upgrade the installed Nectar CLI when the install method supports it |
 | [`nectar telemetry`](#nectar-telemetry) | Manage opt-in anonymous usage telemetry |
 | [`nectar plugins`](#nectar-plugins) | Inspect future Nectar plugins |
@@ -259,7 +259,7 @@ Options:
 | `--no-atomic` | boolean | `NECTAR_BUILD_ATOMIC=0` | Disable atomic staging: write directly into build.output_dir instead of a sibling temp dir. Faster on slow filesystems but a mid-build failure leaves a half-written output and skips .nectarignore preservation; intended as an escape hatch for sandboxed CI runners where the rename-into-place step is restricted |
 | `--concurrency <n>` | string | `NECTAR_BUILD_CONCURRENCY` | Cap on how many routes render in parallel (positive integer). Defaults to availableParallelism() (CPU count). Lower it on memory-constrained CI runners; raise it cautiously — the render path is CPU-bound on the single JS thread so values above CPU count rarely help |
 | `--dry-run` | boolean | `NECTAR_BUILD_DRY_RUN` | Plan routes, load templates, and render every route into memory without writing anything to disk (no staging dir, no asset copies, no manifest, no sitemap/RSS/etc.). Prints the same summary line as a real build; pair with --verbose to also print a per-route table (URL, template, bytes, output path) |
-| `--include-drafts` | boolean | `NECTAR_BUILD_INCLUDE_DRAFTS` | Include posts and pages with `status: draft` in the build. Default is to exclude them so a forgotten WIP cannot accidentally ship. Emits a "Building with drafts" warning so the looser policy is visible in CI logs. NECTAR_DRAFTS=1 is honoured as a shorter env-var alias alongside the standard NECTAR_BUILD_INCLUDE_DRAFTS |
+| `--include-drafts` | boolean | `NECTAR_BUILD_INCLUDE_DRAFTS` | Include posts and pages whose status is not published or scheduled (`status: draft`, `needs-review`, or `approved`) in the build. Default is to exclude them so a forgotten WIP or in-review entry cannot accidentally ship. Emits a "Building with drafts" warning so the looser policy is visible in CI logs. NECTAR_DRAFTS=1 is honoured as a shorter env-var alias alongside the standard NECTAR_BUILD_INCLUDE_DRAFTS |
 | `--force` | boolean | `NECTAR_BUILD_FORCE` | Ignore the previous build manifest (.nectar-manifest.json in the output dir) and re-render every route from scratch. Default behaviour reuses unchanged route HTML when the per-route hash (config + site + theme + template + route data) matches the last successful build; use --force as an escape hatch when the incremental cache appears stale or corrupted |
 | `--clean` | boolean | `NECTAR_BUILD_CLEAN` | Delete stale files from build.output_dir after the current build completes. Enabled by default; pass --no-clean when the deploy target owns cleanup, such as hashed filenames retained across releases |
 | `--no-clean` | boolean | `NECTAR_BUILD_CLEAN=0` | Skip stale-file cleanup in build.output_dir, preserving files that were not emitted by the current build |
@@ -535,7 +535,7 @@ Options:
 | `--strict` | boolean | `NECTAR_CHECK_STRICT` | Exit with non-zero status if any warnings were emitted during the check |
 | `--check-links` | boolean | `NECTAR_CHECK_CHECK_LINKS` | Scan every post/page body for relative `[text](./foo.md)` cross-links and relative image references; warn if any do not resolve to a known post/page or an existing file. Opt-in because it re-reads every body during check |
 | `--check-external` | boolean | `NECTAR_CHECK_CHECK_EXTERNAL` | Probe each external http(s) URL in navigation (and post/page bodies when --check-links is also set) with a HEAD request; warn on non-2xx, timeout, or network failure. Opt-in because it hits the network and is slow; per-URL timeout defaults to 5s |
-| `--check-frontmatter` | boolean | `NECTAR_CHECK_CHECK_FRONTMATTER` | Walk content/posts/**/*.md and content/pages/**/*.md and validate each frontmatter block against the schema (required title, date format, status one of published/draft/scheduled, …). Off by default because it re-reads every file; pair with --strict in CI to fail on warnings |
+| `--check-frontmatter` | boolean | `NECTAR_CHECK_CHECK_FRONTMATTER` | Walk content/posts/**/*.md and content/pages/**/*.md and validate each frontmatter block against the schema (required title, date format, status one of published/draft/scheduled/needs-review/approved, …). Off by default because it re-reads every file; pair with --strict in CI to fail on warnings |
 | `--check-templates` | boolean | `NECTAR_CHECK_CHECK_TEMPLATES` | Cross-check the active theme against the route plan: warn when a route would request a template name (post, page, tag, author, index, default) that does not exist in the theme. Stops a typo in a route layout from rendering through the default fallback unnoticed |
 | `-j, --json` | boolean | `NECTAR_CHECK_JSON` | Emit the check report as JSON ({ ok, errors: [...], warnings: [...] }) on stdout for CI consumption. Each entry includes file, line, message, and code |
 
@@ -1170,31 +1170,30 @@ nectar deploy s3 --bucket my-bucket --region us-east-1 --preflight
 
 ### `nectar export`
 
-Dump the loaded content, a single page bundle, or regenerate the RSS feed without running a full build
+Dump the loaded content, a single entry bundle, or regenerate the RSS feed without running a full build
 
 Usage:
 
 ```
-nectar export [--config <path>] [--output <path>] [--pretty] [--include-drafts] [--assets] [--no-assets] [--json] <format> [slug]
+nectar export [--config <path>] [--output <path>] [--pretty] [--include-drafts] [--kind <post|page>] [--json] <format> [slug]
 ```
 
 Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<format>` | required | Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), or `page` (single Page collaboration bundle) |
-| `[slug]` | optional | Page slug when format is `page` |
+| `<format>` | required | Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), or `entry` (zip entry-bundle for a single post or page) |
+| `[slug]` | optional | Entry slug when format is `entry` |
 
 Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
 | `-c, --config <path>` | string | `NECTAR_EXPORT_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
-| `-o, --output <path>` | string | `NECTAR_EXPORT_OUTPUT` | Path to write the export to. Defaults to stdout. Parent directories are created as needed; existing files are overwritten |
+| `-o, --output <path>` | string | `NECTAR_EXPORT_OUTPUT` | Path to write the export to. For `entry` format defaults to `<slug>.nectar.zip` in cwd; for other formats defaults to stdout. Parent directories are created as needed; existing files are overwritten |
 | `--pretty` | boolean | `NECTAR_EXPORT_PRETTY` | Pretty-print JSON output with 2-space indentation (`json` and `ghost-json` only). Default emits compact JSON |
 | `--include-drafts` | boolean | `NECTAR_EXPORT_INCLUDE_DRAFTS` | Include posts and pages with `status: draft` in the export. Off by default so an unintended draft cannot leak through `nectar export` |
-| `--assets` | boolean | `NECTAR_EXPORT_ASSETS` | Include local content assets referenced by `nectar export page <slug>`. Enabled by default |
-| `--no-assets` | boolean | `NECTAR_EXPORT_ASSETS=0` | Omit local asset payloads from a page collaboration bundle |
+| `--kind <post\|page>` | string | `NECTAR_EXPORT_KIND` | For `entry` format: content kind to export (`post` or `page`). Defaults to `post` |
 | `-j, --json` | boolean | `NECTAR_EXPORT_JSON` | No-op here; `export` already emits its own format-specific payload (json/ghost-json/rss). Accepted so the global `--json` flag does not error |
 
 Examples:
@@ -1204,12 +1203,14 @@ nectar export json > content.json
 nectar export json --pretty -o snapshot.json
 nectar export ghost-json -o ghost-backup.json
 nectar export rss -o feed.xml
-nectar export page about -o about.page.json
+nectar export entry hello-world
+nectar export entry hello-world -o out.nectar.zip
+nectar export entry about --kind page -o about.nectar.zip
 ```
 
 ### `nectar import`
 
-Import a Nectar collaboration bundle
+Import a Nectar zip entry-bundle (post or page)
 
 Usage:
 
@@ -1221,24 +1222,25 @@ Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<kind>` | required | Import kind. Currently only `page` is supported |
-| `<file>` | required | Path to a `nectar.page.v1` page collaboration bundle |
+| `<kind>` | required | Import kind. Only `entry` is supported; the bundle manifest carries the post/page kind, so it is not specified here |
+| `<file>` | required | Path to a `.nectar.zip` entry bundle (posts or pages) |
 
 Options:
 
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
 | `-c, --config <path>` | string | `NECTAR_IMPORT_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
-| `--on-conflict <skip\|overwrite\|rename>` | string | `NECTAR_IMPORT_ON_CONFLICT` | How to handle existing page files: skip (default), overwrite, or rename |
+| `--on-conflict <skip\|overwrite\|rename>` | string | `NECTAR_IMPORT_ON_CONFLICT` | How to handle existing files: skip (default), overwrite, or rename |
 | `--dry-run` | boolean | `NECTAR_IMPORT_DRY_RUN` | Validate the bundle and report planned writes without changing files |
-| `-j, --json` | boolean | `NECTAR_IMPORT_JSON` | No-op here; `import page` always emits a JSON result. Accepted so the global `--json` flag does not error |
+| `-j, --json` | boolean | `NECTAR_IMPORT_JSON` | No-op here; `import` always emits a JSON result. Accepted so the global `--json` flag does not error |
 
 Examples:
 
 ```
-nectar import page about.page.json --dry-run
-nectar import page about.page.json --on-conflict rename
-nectar import page about.page.json --on-conflict overwrite
+nectar import entry hello-world.nectar.zip
+nectar import entry hello-world.nectar.zip --dry-run
+nectar import entry hello-world.nectar.zip --on-conflict rename
+nectar import entry hello-world.nectar.zip --on-conflict overwrite
 ```
 
 ### `nectar upgrade`

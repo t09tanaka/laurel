@@ -1,6 +1,5 @@
 import type { JSX } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
-import { exportPageBundle } from '../lib/api.ts';
+import { useRef } from 'preact/hooks';
 import { formatDate } from '../lib/format.ts';
 import { pathForEditor } from '../lib/routes.ts';
 import type {
@@ -41,11 +40,13 @@ const STATUS_TABS: ReadonlyArray<{
   { value: '', label: 'All', key: 'all' },
   { value: 'draft', label: 'Drafts', key: 'draft' },
   { value: 'published', label: 'Published', key: 'published' },
+  { value: 'needs-review', label: 'Needs review', key: 'needsReview' },
 ];
 
 export function ContentTable(props: ContentTableProps): JSX.Element {
   const { kind, list } = props;
   const isPages = kind === 'pages';
+
   return (
     <div>
       <div class="panelHead listHead">
@@ -55,11 +56,13 @@ export function ContentTable(props: ContentTableProps): JSX.Element {
             {props.resultCount} result(s) · page {list.page} of {list.pages}
           </span>
         </div>
-        <StatusTabs
-          value={props.statusFilter}
-          counts={list.statusCounts}
-          onChange={props.onStatusFilterChange}
-        />
+        <div class="listHeadActions">
+          <StatusTabs
+            value={props.statusFilter}
+            counts={list.statusCounts}
+            onChange={props.onStatusFilterChange}
+          />
+        </div>
       </div>
       {list.items.length ? (
         <div class="tableWrap">
@@ -227,15 +230,16 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
   const editorHref = pathForEditor(kind, item.slug);
   // Clicking anywhere on the row that's not an existing anchor /
   // button opens the editor — the title link and Detail link still
-  // behave as before, and the Preview link / Export overflow stop
-  // here so they don't get swallowed. Modifier keys are left alone so
-  // the user can still cmd-click a title to open in a new tab.
+  // behave as before, and the Preview link stops here so it doesn't
+  // get swallowed. Modifier keys are left alone so the user can still
+  // cmd-click a title to open in a new tab.
   const onRowClick = (event: MouseEvent) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     if ((event.target as HTMLElement | null)?.closest('a, button')) return;
     event.preventDefault();
     onOpen();
   };
+
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: row click is a pointer-only affordance; keyboard users navigate through the inner title and Detail anchors which retain link semantics
     <tr class="contentRow" data-row-slug={item.slug} data-status={status} onClick={onRowClick}>
@@ -253,6 +257,7 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
           >
             <span class="titleText">{title}</span>
           </a>
+          {status === 'needs-review' ? <span class="reviewPill">Needs review</span> : null}
           {isPages && item.approval?.status !== 'approved' ? (
             <ApprovalPill approval={item.approval} compact />
           ) : null}
@@ -283,7 +288,6 @@ function ContentRow({ item, kind, isPages, onOpen }: ContentRowProps): JSX.Eleme
           >
             Detail
           </a>
-          {isPages ? <ExportOverflow slug={item.slug} /> : null}
         </div>
       </td>
     </tr>
@@ -305,83 +309,4 @@ function ApprovalPill({ approval, compact: _compact }: ApprovalPillProps): JSX.E
       {label}
     </span>
   );
-}
-
-interface ExportOverflowProps {
-  slug: string;
-}
-
-function ExportOverflow({ slug }: ExportOverflowProps): JSX.Element {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!open) return;
-    function onDown(event: MouseEvent | TouchEvent) {
-      if (!wrapRef.current) return;
-      if (event.target instanceof Node && wrapRef.current.contains(event.target)) return;
-      setOpen(false);
-    }
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false);
-    }
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('touchstart', onDown, { passive: true });
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('touchstart', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-  return (
-    <div class="overflowMenu" ref={wrapRef}>
-      <button
-        type="button"
-        class="btn secondary btnCompact btnIcon"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="More actions"
-        onClick={(event) => {
-          event.stopPropagation();
-          setOpen((value) => !value);
-        }}
-      >
-        <span aria-hidden="true">⋯</span>
-      </button>
-      {open ? (
-        <div role="menu" class="overflowMenuList">
-          <button
-            type="button"
-            role="menuitem"
-            class="overflowMenuItem"
-            data-export-page={slug}
-            onClick={(event) => {
-              event.stopPropagation();
-              setOpen(false);
-              void downloadPageBundle(slug);
-            }}
-          >
-            Export bundle
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-async function downloadPageBundle(slug: string): Promise<void> {
-  try {
-    const data = await exportPageBundle(slug);
-    const blob = new Blob([`${JSON.stringify(data, null, 2)}\n`], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${slug}.page.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  } catch (err) {
-    alert(err instanceof Error ? err.message : String(err));
-  }
 }

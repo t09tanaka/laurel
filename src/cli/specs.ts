@@ -59,7 +59,7 @@ export const BUILD_SPEC: CommandSpec = {
     'include-drafts': {
       type: 'boolean',
       description:
-        'Include posts and pages with `status: draft` in the build. Default is to exclude them so a forgotten WIP cannot accidentally ship. Emits a "Building with drafts" warning so the looser policy is visible in CI logs. NECTAR_DRAFTS=1 is honoured as a shorter env-var alias alongside the standard NECTAR_BUILD_INCLUDE_DRAFTS',
+        'Include posts and pages whose status is not published or scheduled (`status: draft`, `needs-review`, or `approved`) in the build. Default is to exclude them so a forgotten WIP or in-review entry cannot accidentally ship. Emits a "Building with drafts" warning so the looser policy is visible in CI logs. NECTAR_DRAFTS=1 is honoured as a shorter env-var alias alongside the standard NECTAR_BUILD_INCLUDE_DRAFTS',
     },
     force: {
       type: 'boolean',
@@ -471,7 +471,7 @@ export const CHECK_SPEC: CommandSpec = {
     'check-frontmatter': {
       type: 'boolean',
       description:
-        'Walk content/posts/**/*.md and content/pages/**/*.md and validate each frontmatter block against the schema (required title, date format, status one of published/draft/scheduled, …). Off by default because it re-reads every file; pair with --strict in CI to fail on warnings',
+        'Walk content/posts/**/*.md and content/pages/**/*.md and validate each frontmatter block against the schema (required title, date format, status one of published/draft/scheduled/needs-review/approved, …). Off by default because it re-reads every file; pair with --strict in CI to fail on warnings',
     },
     'check-templates': {
       type: 'boolean',
@@ -1600,7 +1600,7 @@ export const DEPLOY_SPEC: CommandSpec = {
 export const EXPORT_SPEC: CommandSpec = {
   name: 'export',
   summary:
-    'Dump the loaded content, a single page bundle, or regenerate the RSS feed without running a full build',
+    'Dump the loaded content, a single entry bundle, or regenerate the RSS feed without running a full build',
   options: {
     config: {
       type: 'string',
@@ -1611,7 +1611,7 @@ export const EXPORT_SPEC: CommandSpec = {
       type: 'string',
       short: 'o',
       description:
-        'Path to write the export to. Defaults to stdout. Parent directories are created as needed; existing files are overwritten',
+        'Path to write the export to. For `entry` format defaults to `<slug>.nectar.zip` in cwd; for other formats defaults to stdout. Parent directories are created as needed; existing files are overwritten',
       placeholder: '<path>',
     },
     pretty: {
@@ -1624,12 +1624,11 @@ export const EXPORT_SPEC: CommandSpec = {
       description:
         'Include posts and pages with `status: draft` in the export. Off by default so an unintended draft cannot leak through `nectar export`',
     },
-    assets: {
-      type: 'boolean',
-      default: true,
+    kind: {
+      type: 'string',
       description:
-        'Include local content assets referenced by `nectar export page <slug>`. Enabled by default',
-      negatedDescription: 'Omit local asset payloads from a page collaboration bundle',
+        'For `entry` format: content kind to export (`post` or `page`). Defaults to `post`',
+      placeholder: '<post|page>',
     },
     json: {
       type: 'boolean',
@@ -1641,12 +1640,12 @@ export const EXPORT_SPEC: CommandSpec = {
     {
       name: 'format',
       description:
-        'Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), or `page` (single Page collaboration bundle)',
+        'Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), or `entry` (zip entry-bundle for a single post or page)',
       required: true,
     },
     {
       name: 'slug',
-      description: 'Page slug when format is `page`',
+      description: 'Entry slug when format is `entry`',
       required: false,
     },
   ],
@@ -1655,13 +1654,15 @@ export const EXPORT_SPEC: CommandSpec = {
     'nectar export json --pretty -o snapshot.json',
     'nectar export ghost-json -o ghost-backup.json',
     'nectar export rss -o feed.xml',
-    'nectar export page about -o about.page.json',
+    'nectar export entry hello-world',
+    'nectar export entry hello-world -o out.nectar.zip',
+    'nectar export entry about --kind page -o about.nectar.zip',
   ],
 };
 
 export const IMPORT_SPEC: CommandSpec = {
   name: 'import',
-  summary: 'Import a Nectar collaboration bundle',
+  summary: 'Import a Nectar zip entry-bundle (post or page)',
   options: {
     config: {
       type: 'string',
@@ -1670,7 +1671,7 @@ export const IMPORT_SPEC: CommandSpec = {
     },
     'on-conflict': {
       type: 'string',
-      description: 'How to handle existing page files: skip (default), overwrite, or rename',
+      description: 'How to handle existing files: skip (default), overwrite, or rename',
       placeholder: '<skip|overwrite|rename>',
     },
     'dry-run': {
@@ -1680,25 +1681,27 @@ export const IMPORT_SPEC: CommandSpec = {
     json: {
       type: 'boolean',
       description:
-        'No-op here; `import page` always emits a JSON result. Accepted so the global `--json` flag does not error',
+        'No-op here; `import` always emits a JSON result. Accepted so the global `--json` flag does not error',
     },
   },
   positionals: [
     {
       name: 'kind',
-      description: 'Import kind. Currently only `page` is supported',
+      description:
+        'Import kind. Only `entry` is supported; the bundle manifest carries the post/page kind, so it is not specified here',
       required: true,
     },
     {
       name: 'file',
-      description: 'Path to a `nectar.page.v1` page collaboration bundle',
+      description: 'Path to a `.nectar.zip` entry bundle (posts or pages)',
       required: true,
     },
   ],
   examples: [
-    'nectar import page about.page.json --dry-run',
-    'nectar import page about.page.json --on-conflict rename',
-    'nectar import page about.page.json --on-conflict overwrite',
+    'nectar import entry hello-world.nectar.zip',
+    'nectar import entry hello-world.nectar.zip --dry-run',
+    'nectar import entry hello-world.nectar.zip --on-conflict rename',
+    'nectar import entry hello-world.nectar.zip --on-conflict overwrite',
   ],
 };
 
