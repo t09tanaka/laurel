@@ -1796,7 +1796,11 @@ export async function handleDashboardRequest(
       }
       const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
       try {
-        const { zip, missing } = await exportComponentsBundle({ cwd: ctx.cwd, config, slugs });
+        const { zip, missing, omittedAssets } = await exportComponentsBundle({
+          cwd: ctx.cwd,
+          config,
+          slugs,
+        });
         const headers: Record<string, string> = {
           'content-type': 'application/zip',
           'content-disposition': 'attachment; filename="components.nectar.zip"',
@@ -1806,6 +1810,12 @@ export async function handleDashboardRequest(
         // *every* requested slug is missing), so without this header an API
         // client has no way to learn that a requested component was skipped.
         if (missing.length > 0) headers['x-nectar-missing-components'] = missing.join(',');
+        // Likewise surface assets that a component references but could not be
+        // bundled (missing / unsafe / symlinked) so the receiver knows an image
+        // will be absent.
+        if (omittedAssets.length > 0) {
+          headers['x-nectar-omitted-assets'] = omittedAssets.join(',');
+        }
         return new Response(zip, { headers });
       } catch (err) {
         return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 404);

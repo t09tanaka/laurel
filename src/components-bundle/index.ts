@@ -1,5 +1,6 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { isAbsolute, resolve } from 'node:path';
+import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { absolutise } from '~/cli/content-paths.ts';
 import { createZipArchive } from '~/cli/dashboard/zip-writer.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import { COMPONENT_SLUG_PATTERN, loadComponents } from '~/content/components.ts';
@@ -7,22 +8,28 @@ import { parseFrontmatter } from '~/content/frontmatter.ts';
 import {
   type ConflictPolicy,
   assertWritablePathHasNoSymlink,
+  assetRelFromReference,
+  collectReferencedAssetBytes,
   isInsidePath,
   isRecord,
+  isSafeRelativePath,
   parseBundleManifestJson,
   readBundleEntries,
   relativePath,
   resolveImportTarget,
   serializeMarkdownSource,
 } from '~/entry-bundle/shared.ts';
+import type { ZipFileEntry } from '~/entry-bundle/zip.ts';
 
 // A components bundle is a portable zip used to hand a *set* of reusable
 // component snippets between editors — the bulk analogue of the single-entry
 // zip handoff (`~/entry-bundle`). It is deliberately its own schema rather
 // than reusing the entry bundle: a component file is a `{slug}.md` with CSS +
-// HTML fenced blocks (no assets, no post/page kind), so a one-entry-per-zip
-// shape would not fit. Components carry no workflow `status`, so — unlike
-// entry import — nothing is stamped on the way in.
+// HTML fenced blocks (no post/page kind), so a one-entry-per-zip shape would
+// not fit. A component's HTML/CSS may still reference image assets (`<img src>`,
+// CSS `url(...)`); those are pulled in under `assets/` so the snippet renders on
+// the receiving side instead of pointing at a missing image. Components carry no
+// workflow `status`, so — unlike entry import — nothing is stamped on the way in.
 export const COMPONENTS_BUNDLE_SCHEMA = 'nectar.components.v1';
 
 export type { ConflictPolicy } from '~/entry-bundle/shared.ts';
@@ -31,6 +38,11 @@ const MAX_ENTRIES = 4000;
 const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
 const MANIFEST_PATH = 'nectar-components.json';
 const COMPONENTS_PREFIX = 'components/';
+// Image assets a component's HTML/CSS references travel here as `assets/<rel>`,
+// where `<rel>` is relative to the configured assets dir (e.g. content/images).
+// Additive to the `v1` schema: an asset-less bundle and an importer predating
+// this field both see `assets: []`.
+const ASSETS_PREFIX = 'assets/';
 
 export interface ComponentsBundleManifestEntry {
   slug: string;
@@ -53,6 +65,7 @@ export interface ParsedBundleComponent {
 
 export interface ParsedComponentsBundle {
   components: ParsedBundleComponent[];
+  assets: ZipFileEntry[];
   manifest: ComponentsBundleManifest;
 }
 
@@ -71,6 +84,10 @@ export interface ImportComponentsBundleResult {
   written: number;
   skipped: number;
   renamed: number;
+  /** Asset paths (relative to cwd) created because the destination lacked them.
+   * Existing assets are never overwritten, so they are absent here. Only assets
+   * referenced by an imported (non-skipped) component are pulled in. */
+  importedAssets: string[];
 }
 
 export function parseComponentsBundleZip(zip: Uint8Array): ParsedComponentsBundle {
@@ -87,9 +104,18 @@ export function parseComponentsBundleZip(zip: Uint8Array): ParsedComponentsBundl
 
   const decoder = new TextDecoder();
   const components: ParsedBundleComponent[] = [];
+  const assets: ZipFileEntry[] = [];
   const seen = new Set<string>();
   for (const entry of entries) {
     if (entry.path === MANIFEST_PATH) continue;
+    if (entry.path.startsWith(ASSETS_PREFIX)) {
+      const rel = entry.path.slice(ASSETS_PREFIX.length);
+      if (!isSafeRelativePath(rel)) {
+        throw new Error(`Unsafe asset path in bundle: ${entry.path}`);
+      }
+      assets.push(entry);
+      continue;
+    }
     if (!entry.path.startsWith(COMPONENTS_PREFIX)) {
       throw new Error(`Unexpected bundle entry outside components/: ${entry.path}`);
     }
@@ -118,7 +144,7 @@ export function parseComponentsBundleZip(zip: Uint8Array): ParsedComponentsBundl
     throw new Error('Bundle contains no components');
   }
 
-  return { components, manifest };
+  return { components, assets, manifest };
 }
 
 function parseManifest(input: unknown): ComponentsBundleManifest {
@@ -152,7 +178,12 @@ export async function exportComponentsBundle({
   config: NectarConfig;
   /** When omitted, every component is exported. Otherwise the listed slugs. */
   slugs?: string[];
-}): Promise<{ zip: Uint8Array; exportedSlugs: string[]; missing: string[] }> {
+}): Promise<{
+  zip: Uint8Array;
+  exportedSlugs: string[];
+  missing: string[];
+  omittedAssets: string[];
+}> {
   const available = await loadComponents(cwd, config);
   const bySlug = new Map(available.map((c) => [c.slug, c]));
 
@@ -181,17 +212,29 @@ export async function exportComponentsBundle({
   const componentsRoot = resolve(cwd, config.content.components_dir);
   const manifestEntries: ComponentsBundleManifestEntry[] = [];
   const fileInputs: { path: string; bytes: Uint8Array }[] = [];
+  const assetRels = new Set<string>();
   for (const component of selected) {
     const abs = resolve(cwd, component.source.path);
     if (!isInsidePath(componentsRoot, abs)) {
       throw new Error(`Component is outside its configured directory: ${component.slug}`);
     }
     const buffer = await readFile(abs);
-    fileInputs.push({
-      path: `${COMPONENTS_PREFIX}${component.slug}.md`,
-      bytes: new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength),
-    });
+    const bytes = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+    fileInputs.push({ path: `${COMPONENTS_PREFIX}${component.slug}.md`, bytes });
+    for (const ref of collectComponentAssetReferences(new TextDecoder().decode(bytes))) {
+      const rel = assetRelFromReference(ref, config.content.assets_dir);
+      if (rel) assetRels.add(rel);
+    }
     manifestEntries.push({ slug: component.slug, path: relativePath(cwd, abs) });
+  }
+
+  // Pull in the image assets the selected components reference so the snippets
+  // render on the receiving side. Missing / unsafe / symlinked assets are
+  // dropped and reported in omittedAssets, mirroring the entry bundle.
+  const assetsRoot = absolutise(cwd, config.content.assets_dir);
+  const { assets, omitted } = await collectReferencedAssetBytes(assetsRoot, assetRels);
+  for (const asset of assets) {
+    fileInputs.push({ path: `${ASSETS_PREFIX}${asset.rel}`, bytes: asset.bytes });
   }
 
   const manifest: ComponentsBundleManifest = {
@@ -209,7 +252,40 @@ export async function exportComponentsBundle({
     ...fileInputs,
   ];
 
-  return { zip: createZipArchive(inputs), exportedSlugs: selected.map((c) => c.slug), missing };
+  return {
+    zip: createZipArchive(inputs),
+    exportedSlugs: selected.map((c) => c.slug),
+    missing,
+    omittedAssets: omitted,
+  };
+}
+
+// Scan a component file for the image assets its HTML/CSS references. This is a
+// pragmatic scanner for author-controlled snippets, not a full HTML/CSS parser:
+// it covers the common forms — markdown images, `<img src>`, `<img|source
+// srcset>` (each comma-separated candidate's URL), and CSS `url(...)` (quoted —
+// which may contain `)` — or unquoted). The caller filters each to an
+// assets-dir-relative path, so over-collected non-asset strings are harmless.
+function collectComponentAssetReferences(text: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(/!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+    if (m[1]) out.push(m[1]);
+  }
+  for (const m of text.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)) {
+    if (m[1]) out.push(m[1]);
+  }
+  for (const m of text.matchAll(/<(?:img|source)\b[^>]*\bsrcset=["']([^"']+)["'][^>]*>/gi)) {
+    if (!m[1]) continue;
+    for (const candidate of m[1].split(',')) {
+      const url = candidate.trim().split(/\s+/, 1)[0];
+      if (url) out.push(url);
+    }
+  }
+  for (const m of text.matchAll(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^'")]+))\s*\)/gi)) {
+    const url = (m[1] ?? m[2] ?? m[3] ?? '').trim();
+    if (url) out.push(url);
+  }
+  return out;
 }
 
 export async function importComponentsBundle({
@@ -239,6 +315,10 @@ export async function importComponentsBundle({
     : bundle.components;
 
   const results: ImportComponentResult[] = [];
+  // Assets are only restored for components that actually land — a skipped or
+  // unticked snippet should not drag its images in. Collect the assets-dir-
+  // relative paths the imported components reference as we go.
+  const neededAssetRels = new Set<string>();
   for (const component of targets) {
     const target = resolveImportTarget(root, component.slug, onConflict, {
       validateSlug: (slug) => COMPONENT_SLUG_PATTERN.test(slug),
@@ -260,13 +340,14 @@ export async function importComponentsBundle({
     // When renamed on conflict, the in-file slug must follow the filename so
     // the `{slug}` shortcode still resolves.
     const frontmatter = { ...component.frontmatter, slug: target.slug };
+    const serialized = serializeMarkdownSource(frontmatter, component.body, target.path);
+    for (const ref of collectComponentAssetReferences(serialized)) {
+      const rel = assetRelFromReference(ref, config.content.assets_dir);
+      if (rel) neededAssetRels.add(rel);
+    }
     if (!dryRun) {
       await assertWritablePathHasNoSymlink(root, target.path, { label: 'components directory' });
-      await writeFile(
-        target.path,
-        serializeMarkdownSource(frontmatter, component.body, target.path),
-        'utf8',
-      );
+      await writeFile(target.path, serialized, 'utf8');
     }
     results.push({
       written: !dryRun,
@@ -278,11 +359,36 @@ export async function importComponentsBundle({
     });
   }
 
+  // Restore referenced assets the destination is missing. Never overwrite an
+  // existing asset: the receiver's own copy of a shared path wins, matching the
+  // component "import only when absent" rule. Computed even on a dry run so the
+  // preview can show what would be created.
+  const assetsRoot = absolutise(cwd, config.content.assets_dir);
+  const importedAssets: string[] = [];
+  for (const asset of bundle.assets) {
+    const rel = asset.path.slice(ASSETS_PREFIX.length);
+    if (!neededAssetRels.has(rel)) continue;
+    const dest = join(assetsRoot, rel);
+    // Only an existing *regular file* counts as a present asset to leave alone.
+    // A symlink (or other non-regular file) at the path falls through to the
+    // symlink guard below, which rejects it rather than silently skipping —
+    // matching how the entry bundle refuses to write through a symlinked asset.
+    const existing = await lstat(dest).catch(() => undefined);
+    if (existing?.isFile()) continue;
+    if (!dryRun) {
+      await assertWritablePathHasNoSymlink(assetsRoot, dest, { label: 'assets directory' });
+      await mkdir(dirname(dest), { recursive: true });
+      await writeFile(dest, asset.bytes);
+    }
+    importedAssets.push(relativePath(cwd, dest));
+  }
+
   return {
     components: results,
     written: results.filter((r) => r.written).length,
     skipped: results.filter((r) => r.skipped).length,
     renamed: results.filter((r) => r.renamed).length,
+    importedAssets,
   };
 }
 

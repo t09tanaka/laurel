@@ -327,3 +327,213 @@ describe('importComponentsBundle round trip', () => {
     }
   });
 });
+
+// A component whose CSS (url()) and HTML (<img src>) reference image assets,
+// with the image files present under content/images.
+function assetComponentMd(slug: string): string {
+  return [
+    '---',
+    `slug: ${slug}`,
+    'description: With assets',
+    '---',
+    '',
+    '```css',
+    `.${slug} { background: url("/content/images/${slug}-bg.png"); }`,
+    '```',
+    '',
+    '```html',
+    `<img src="/content/images/${slug}-icon.svg" alt="">`,
+    '```',
+    '',
+  ].join('\n');
+}
+
+async function makeAssetFixture(slug = 'alpha'): Promise<string> {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-components-assets-')));
+  await mkdir(join(dir, 'content/components'), { recursive: true });
+  await mkdir(join(dir, 'content/images'), { recursive: true });
+  await writeFile(
+    join(dir, 'nectar.toml'),
+    ['[site]', 'title = "Bundle Site"', 'url = "https://bundle.test"', ''].join('\n'),
+    'utf8',
+  );
+  await writeFile(join(dir, `content/components/${slug}.md`), assetComponentMd(slug), 'utf8');
+  await writeFile(join(dir, `content/images/${slug}-bg.png`), 'PNGBYTES', 'utf8');
+  await writeFile(join(dir, `content/images/${slug}-icon.svg`), '<svg/>', 'utf8');
+  return dir;
+}
+
+describe('components bundle asset handoff', () => {
+  test('export carries assets referenced by component CSS and HTML', async () => {
+    const dir = await makeAssetFixture('alpha');
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const { zip, omittedAssets } = await exportComponentsBundle({ cwd: dir, config });
+      expect(omittedAssets).toEqual([]);
+      const paths = readZipArchive(zip)
+        .map((e) => e.path)
+        .sort();
+      expect(paths).toContain('assets/alpha-bg.png');
+      expect(paths).toContain('assets/alpha-icon.svg');
+      expect(parseComponentsBundleZip(zip).assets).toHaveLength(2);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('import restores missing assets without overwriting existing ones', async () => {
+    const source = await makeAssetFixture('alpha');
+    const dest = await makeFixture([]);
+    try {
+      const srcConfig = await loadConfig({ cwd: source });
+      const { zip } = await exportComponentsBundle({ cwd: source, config: srcConfig });
+      // Pre-seed one of the two assets at the destination; it must not be clobbered.
+      await mkdir(join(dest, 'content/images'), { recursive: true });
+      await writeFile(join(dest, 'content/images/alpha-bg.png'), 'LOCAL', 'utf8');
+      const destConfig = await loadConfig({ cwd: dest });
+      const result = await importComponentsBundle({
+        cwd: dest,
+        config: destConfig,
+        zip,
+        onConflict: 'overwrite',
+      });
+      expect(result.importedAssets).toEqual(['content/images/alpha-icon.svg']);
+      expect(await readFile(join(dest, 'content/images/alpha-bg.png'), 'utf8')).toBe('LOCAL');
+      expect(existsSync(join(dest, 'content/images/alpha-icon.svg'))).toBe(true);
+    } finally {
+      await rm(source, { recursive: true, force: true });
+      await rm(dest, { recursive: true, force: true });
+    }
+  });
+
+  test('assets are not restored for a skipped component', async () => {
+    const dir = await makeAssetFixture('alpha');
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const { zip } = await exportComponentsBundle({ cwd: dir, config });
+      // Remove the local assets, then import with skip (alpha already exists).
+      await rm(join(dir, 'content/images/alpha-bg.png'));
+      await rm(join(dir, 'content/images/alpha-icon.svg'));
+      const result = await importComponentsBundle({ cwd: dir, config, zip, onConflict: 'skip' });
+      expect(result.skipped).toBe(1);
+      expect(result.importedAssets).toEqual([]);
+      expect(existsSync(join(dir, 'content/images/alpha-icon.svg'))).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('dry-run reports assets that would be created without writing them', async () => {
+    const source = await makeAssetFixture('alpha');
+    const dest = await makeFixture([]);
+    try {
+      const srcConfig = await loadConfig({ cwd: source });
+      const { zip } = await exportComponentsBundle({ cwd: source, config: srcConfig });
+      const destConfig = await loadConfig({ cwd: dest });
+      const result = await importComponentsBundle({
+        cwd: dest,
+        config: destConfig,
+        zip,
+        onConflict: 'overwrite',
+        dryRun: true,
+      });
+      expect(result.importedAssets.sort()).toEqual([
+        'content/images/alpha-bg.png',
+        'content/images/alpha-icon.svg',
+      ]);
+      expect(existsSync(join(dest, 'content/images/alpha-bg.png'))).toBe(false);
+    } finally {
+      await rm(source, { recursive: true, force: true });
+      await rm(dest, { recursive: true, force: true });
+    }
+  });
+
+  test('export reports a referenced-but-missing asset in omittedAssets', async () => {
+    const dir = await makeAssetFixture('alpha');
+    try {
+      await rm(join(dir, 'content/images/alpha-bg.png'));
+      const config = await loadConfig({ cwd: dir });
+      const { omittedAssets } = await exportComponentsBundle({ cwd: dir, config });
+      expect(omittedAssets).toEqual(['alpha-bg.png']);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('parseComponentsBundleZip rejects a traversing asset path', () => {
+    const zip = createZipArchive([
+      { path: 'nectar-components.json', bytes: manifestBytes() },
+      { path: 'components/alpha.md', bytes: encoder.encode(componentMd('alpha')) },
+      { path: 'assets/../evil.png', bytes: encoder.encode('x') },
+    ]);
+    expect(() => parseComponentsBundleZip(zip)).toThrow(/asset path/i);
+  });
+
+  test('export carries assets referenced via srcset and a parenthesised url()', async () => {
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-components-assets-')));
+    try {
+      await mkdir(join(dir, 'content/components'), { recursive: true });
+      await mkdir(join(dir, 'content/images'), { recursive: true });
+      await writeFile(
+        join(dir, 'nectar.toml'),
+        ['[site]', 'title = "Bundle Site"', 'url = "https://bundle.test"', ''].join('\n'),
+        'utf8',
+      );
+      await writeFile(
+        join(dir, 'content/components/gamma.md'),
+        [
+          '---',
+          'slug: gamma',
+          'description: srcset and url()',
+          '---',
+          '',
+          '```css',
+          '.gamma { background: url("/content/images/g(1).png"); }',
+          '```',
+          '',
+          '```html',
+          '<img srcset="/content/images/g-1x.png 1x, /content/images/g-2x.png 2x" src="/content/images/g-1x.png">',
+          '```',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+      for (const name of ['g(1).png', 'g-1x.png', 'g-2x.png']) {
+        await writeFile(join(dir, `content/images/${name}`), 'IMG', 'utf8');
+      }
+      const config = await loadConfig({ cwd: dir });
+      const { zip, omittedAssets } = await exportComponentsBundle({ cwd: dir, config });
+      expect(omittedAssets).toEqual([]);
+      const assetPaths = readZipArchive(zip)
+        .map((e) => e.path)
+        .filter((p) => p.startsWith('assets/'))
+        .sort();
+      expect(assetPaths).toEqual(['assets/g(1).png', 'assets/g-1x.png', 'assets/g-2x.png']);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('import refuses to skip through a symlink at the asset destination', async () => {
+    const source = await makeAssetFixture('alpha');
+    const dest = await makeFixture([]);
+    try {
+      const srcConfig = await loadConfig({ cwd: source });
+      const { zip } = await exportComponentsBundle({ cwd: source, config: srcConfig });
+      // Point the would-be asset path at a symlink to a precious file outside.
+      await mkdir(join(dest, 'content/images'), { recursive: true });
+      const outside = join(dest, 'precious.png');
+      await writeFile(outside, 'PRECIOUS', 'utf8');
+      await symlink(outside, join(dest, 'content/images/alpha-icon.svg'));
+      const destConfig = await loadConfig({ cwd: dest });
+      await expect(
+        importComponentsBundle({ cwd: dest, config: destConfig, zip, onConflict: 'overwrite' }),
+      ).rejects.toThrow(/symlink/);
+      // The symlink target must be left untouched.
+      expect(await readFile(outside, 'utf8')).toBe('PRECIOUS');
+    } finally {
+      await rm(source, { recursive: true, force: true });
+      await rm(dest, { recursive: true, force: true });
+    }
+  });
+});

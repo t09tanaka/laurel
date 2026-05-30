@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs';
-import { lstat } from 'node:fs/promises';
+import { lstat, readFile, stat } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { formatContentSource } from '~/content/format.ts';
+import { pathContainsSymlink } from '~/util/fs.ts';
 import { type ZipFileEntry, readZipArchive } from './zip.ts';
 
 // Helpers shared by the two zip-bundle codecs (`~/entry-bundle` for a single
@@ -142,4 +143,61 @@ export function relativePath(cwd: string, path: string): string {
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+// A bundle-internal relative path is safe iff it stays within the bundle: no
+// absolute paths, no backslashes, and no empty / `.` / `..` segments. Used both
+// to filter asset references on export and to reject zip-slip paths on import.
+export function isSafeRelativePath(value: string): boolean {
+  return (
+    value.length > 0 &&
+    !isAbsolute(value) &&
+    !value.includes('\\') &&
+    value.split('/').every((part) => part.length > 0 && part !== '.' && part !== '..')
+  );
+}
+
+// Resolve a content reference (frontmatter value, `<img src>`, CSS `url(...)`,
+// markdown image) to a path relative to the assets directory, or undefined when
+// it is not a local asset under `assetsDir` (external URL, data: URI, outside
+// the assets dir, or an unsafe path). `assetsDir` is the configured dir name
+// (e.g. `content/images`).
+export function assetRelFromReference(value: string, assetsDir: string): string | undefined {
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value) || value.startsWith('data:')) return undefined;
+  const normalizedAssets = assetsDir.replace(/^\/+|\/+$/g, '');
+  const normalized = value.replace(/^\/+/, '').split(/[?#]/, 1)[0] ?? '';
+  if (!normalized.startsWith(`${normalizedAssets}/`)) return undefined;
+  const rel = normalized.slice(normalizedAssets.length + 1);
+  if (!isSafeRelativePath(rel)) return undefined;
+  return rel;
+}
+
+// Read the bytes for a set of asset-relative paths under `assetsRoot`, dropping
+// any that traverse a symlink, escape the root, or are not regular files. The
+// dropped paths are returned in `omitted` so the caller can warn. Paths are
+// de-duplicated and sorted for a deterministic bundle.
+export async function collectReferencedAssetBytes(
+  assetsRoot: string,
+  rels: Iterable<string>,
+): Promise<{ assets: { rel: string; bytes: Uint8Array }[]; omitted: string[] }> {
+  const assets: { rel: string; bytes: Uint8Array }[] = [];
+  const omitted: string[] = [];
+  for (const rel of [...new Set(rels)].sort()) {
+    const abs = join(assetsRoot, rel);
+    if (pathContainsSymlink(assetsRoot, rel) || !isInsidePath(resolve(assetsRoot), resolve(abs))) {
+      omitted.push(rel);
+      continue;
+    }
+    const info = await stat(abs).catch(() => undefined);
+    if (!info?.isFile()) {
+      omitted.push(rel);
+      continue;
+    }
+    const buffer = await readFile(abs);
+    assets.push({
+      rel,
+      bytes: new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength),
+    });
+  }
+  return { assets, omitted };
 }

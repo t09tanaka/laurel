@@ -141,11 +141,23 @@ export async function runExport(args: string[], options: RunExportOptions = {}):
     const outRel = outputPath ?? 'components.nectar.zip';
     const abs = isAbsolute(outRel) ? outRel : resolve(cwd, outRel);
     try {
-      const { zip, exportedSlugs, missing } = await exportComponentsBundle({ cwd, config, slugs });
+      const { zip, exportedSlugs, missing, omittedAssets } = await exportComponentsBundle({
+        cwd,
+        config,
+        slugs,
+      });
       if (missing.length > 0) {
         process.stderr.write(`Warning: ${missing.length} unknown component(s) skipped:\n`);
         for (const m of missing) {
           process.stderr.write(`  ${m}\n`);
+        }
+      }
+      if (omittedAssets.length > 0) {
+        process.stderr.write(
+          `Warning: ${omittedAssets.length} asset(s) could not be bundled and were omitted:\n`,
+        );
+        for (const a of omittedAssets) {
+          process.stderr.write(`  ${a}\n`);
         }
       }
       await mkdir(dirname(abs), { recursive: true });
