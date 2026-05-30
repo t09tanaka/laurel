@@ -2603,44 +2603,12 @@
   .exportOption[data-selected="false"] code {
     color: var(--text-secondary);
   }
-  /* Bulk-export affordances on the components list head. The action cluster
-   * sits opposite the count and only the export button carries weight; Clear
-   * stays a quiet text link so it never competes. */
+  /* Action cluster on a list head, sitting opposite the count. */
   .listHeadActions {
     display: flex;
     align-items: center;
     gap: 14px;
     padding-bottom: 10px;
-  }
-  .listHeadSelection {
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-size: 13px;
-    color: var(--text-secondary);
-    font-variant-numeric: lining-nums tabular-nums;
-  }
-  /* Selection checkbox column. Hidden until the row is hovered, focused, or
-   * already selected, so the resting table stays as clean as before the
-   * bulk feature landed. */
-  .selectCell {
-    width: 1%;
-    padding-right: 4px;
-    vertical-align: top;
-    padding-top: 16px;
-  }
-  .rowSelect {
-    cursor: pointer;
-    accent-color: var(--accent, var(--text-primary));
-    opacity: 0;
-    transition: opacity 0.12s ease;
-  }
-  .contentRow:hover .rowSelect,
-  .contentRow:focus-within .rowSelect,
-  .contentRow[data-selected="true"] .rowSelect {
-    opacity: 1;
-  }
-  .contentRow[data-selected="true"] {
-    background: color-mix(in srgb, var(--accent, var(--text-primary)) 6%, transparent);
   }
   .themeUploadDrop {
     display: flex;
