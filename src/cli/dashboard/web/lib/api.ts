@@ -634,8 +634,15 @@ export interface ImportBundleResult {
   entryPath: string;
   assetPaths: string[];
   importedTags: string[];
+  importedAuthors: string[];
   warnings: string[];
-  preview: { title: string; excerpt: string; assetCount: number; tagCount: number };
+  preview: {
+    title: string;
+    excerpt: string;
+    assetCount: number;
+    tagCount: number;
+    authorCount: number;
+  };
 }
 
 export async function importBundle(
