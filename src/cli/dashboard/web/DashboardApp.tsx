@@ -69,6 +69,16 @@ function formatBuildDuration(ms: number): string {
   return `${m}m ${s}s`;
 }
 
+// Singular noun per editable kind, used in Delete confirm / toast copy.
+// Pluralised inline as `${label}s` (post→posts … component→components).
+const DELETE_LABELS: Record<DashboardEditorKind, string> = {
+  posts: 'post',
+  pages: 'page',
+  authors: 'author',
+  tags: 'tag',
+  components: 'component',
+};
+
 const INITIAL_ROUTE = routeFromPath(location.pathname);
 
 const INITIAL_STATE: DashboardUiState = {
@@ -411,14 +421,25 @@ export function DashboardApp(): JSX.Element {
   }
 
   // Soft-delete the open post / page: confirm, move to trash, then drop the
-  // editor and bounce back to the list. Pages/posts only — the backend trash
-  // route rejects authors/tags, and the editor only renders Delete for content.
+  // editor and bounce back to the list. Works for every editable kind — the
+  // backend trash route + restore are kind-agnostic, so the Undo safety net
+  // covers posts, pages, authors, tags and components alike.
   async function handleEditorDelete(): Promise<void> {
-    if (!editor || (editor.kind !== 'posts' && editor.kind !== 'pages')) return;
-    const label = editor.kind === 'pages' ? 'page' : 'post';
+    if (!editor) return;
+    const label = DELETE_LABELS[editor.kind];
+    // Authors / tags can be derived from posts, so deleting only drops the
+    // customization file — the taxonomy reverts to a virtual entry while any
+    // post still references it. Components stop expanding wherever `{slug}`
+    // appears. Spell this out so Delete doesn't read as "purge everywhere".
+    const consequence =
+      editor.kind === 'authors' || editor.kind === 'tags'
+        ? ` Posts that reference this ${label} keep working — it reverts to a derived entry until you recreate the file.`
+        : editor.kind === 'components'
+          ? ` Any \`{${editor.slug}}\` reference in posts or pages stops expanding until you restore it.`
+          : '';
     const confirmed = await confirmHost.api.ask({
       title: `Delete this ${label}?`,
-      body: `"${editor.slug}" moves to trash (.nectar/trash). You can restore it from there until it's purged. Any unsaved edits are discarded.`,
+      body: `"${editor.slug}" moves to trash (.nectar/trash). You can restore it from there until it's purged. Any unsaved edits are discarded.${consequence}`,
       confirmLabel: 'Delete',
       cancelLabel: 'Keep editing',
       intent: 'danger',
@@ -871,6 +892,7 @@ export function DashboardApp(): JSX.Element {
               onRenamed={handleEditorRenamed}
               onConflict={handleEditorConflict}
               onDirtyChange={setEditorDirty}
+              onDelete={handleEditorDelete}
             />
           ) : editor.kind === 'components' ? (
             <ComponentEditorView
@@ -880,6 +902,7 @@ export function DashboardApp(): JSX.Element {
               onRenamed={handleEditorRenamed}
               onConflict={handleEditorConflict}
               onDirtyChange={setEditorDirty}
+              onDelete={handleEditorDelete}
             />
           ) : (
             <EditorView

@@ -52,6 +52,9 @@ interface ComponentEditorViewProps {
   onConflict: (message: string, current: DashboardContentItem) => void;
   onDirtyChange: (dirty: boolean) => void;
   onRenamed?: (kind: DashboardContentItem['kind'], newSlug: string) => Promise<void> | void;
+  // Soft-delete to .nectar/trash (restorable). DashboardApp owns the confirm
+  // dialog, the trash call and the post-delete navigation.
+  onDelete?: () => Promise<void> | void;
 }
 
 export function ComponentEditorView(props: ComponentEditorViewProps): JSX.Element {
@@ -233,6 +236,19 @@ export function ComponentEditorView(props: ComponentEditorViewProps): JSX.Elemen
           >
             {saveLabel[saveState]}
           </span>
+          {props.onDelete ? (
+            <button
+              class="btn danger"
+              type="button"
+              onClick={() => {
+                void props.onDelete?.();
+              }}
+              disabled={saving}
+              title="Move this component to trash"
+            >
+              Delete
+            </button>
+          ) : null}
           <button
             class="btn"
             type="button"

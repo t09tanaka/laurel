@@ -512,6 +512,76 @@ describe('dashboard data', () => {
     }
   });
 
+  test('soft-deletes authors, tags and components and restores them via trash metadata', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      await mkdir(join(dir, 'content/components'), { recursive: true });
+      await writeFile(
+        join(dir, 'content/components/callout.md'),
+        '---\nslug: callout\ndescription: Inline aside\n---\n\n```css\n.callout {}\n```\n\n```html\n<aside></aside>\n```\n',
+        'utf8',
+      );
+
+      const cases: Array<{ kind: 'authors' | 'tags' | 'components'; slug: string; path: string }> =
+        [
+          { kind: 'authors', slug: 'casper', path: 'content/authors/casper.md' },
+          { kind: 'tags', slug: 'news', path: 'content/tags/news.md' },
+          { kind: 'components', slug: 'callout', path: 'content/components/callout.md' },
+        ];
+
+      for (const { kind, slug, path } of cases) {
+        const item = await readDashboardContentItem({ cwd: dir, config, kind, slug });
+        const trashed = await trashDashboardContentItem({
+          cwd: dir,
+          config,
+          kind,
+          slug,
+          expectedFingerprint: item.fingerprint,
+          now: new Date('2026-01-10T00:00:00Z'),
+        });
+        expect(trashed.ok).toBe(true);
+        if (!trashed.ok) throw new Error(`expected trash result for ${kind}`);
+        expect(trashed.entry.originalPath).toBe(path);
+        expect(existsSync(join(dir, path))).toBe(false);
+
+        const restored = await restoreDashboardTrashEntry({ cwd: dir, id: trashed.entry.id });
+        expect(restored.ok).toBe(true);
+        expect(existsSync(join(dir, path))).toBe(true);
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects a stale-fingerprint taxonomy delete with a conflict', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const item = await readDashboardContentItem({
+        cwd: dir,
+        config,
+        kind: 'authors',
+        slug: 'casper',
+      });
+      const result = await trashDashboardContentItem({
+        cwd: dir,
+        config,
+        kind: 'authors',
+        slug: 'casper',
+        expectedFingerprint: { ...item.fingerprint, size: item.fingerprint.size + 1 },
+        now: new Date('2026-01-10T00:00:00Z'),
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error('expected conflict');
+      expect(result.reason).toBe('conflict');
+      // The file must still be on disk — a rejected delete is a no-op.
+      expect(existsSync(join(dir, 'content/authors/casper.md'))).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('renames slugs with fingerprint checks and optional redirect suggestions', async () => {
     const dir = await makeDashboardFixture();
     try {

@@ -266,11 +266,12 @@ export async function restoreTrash(
   return { status: response.status, data: (await response.json()) as RestoreTrashResult };
 }
 
-/** Move a post / page to `.nectar/trash` (soft delete). The server gates on
- * `fingerprint` so a stale tab can't clobber a file edited elsewhere — a
- * mismatch comes back as a 409 conflict carrying the on-disk `current`. */
+/** Move a post / page / author / tag / component to `.nectar/trash` (soft
+ * delete). The server gates on `fingerprint` so a stale tab can't clobber a
+ * file edited elsewhere — a mismatch comes back as a 409 conflict carrying the
+ * on-disk `current`. Restorable via {@link restoreTrash} until purged. */
 export async function trashContent(args: {
-  kind: 'posts' | 'pages';
+  kind: DashboardEditorKind;
   slug: string;
   fingerprint: ContentFingerprint;
 }): Promise<{ status: number; data: TrashContentResult }> {

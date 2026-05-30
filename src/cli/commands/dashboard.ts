@@ -459,7 +459,7 @@ type DashboardBulkResult =
 interface DashboardTrashEntry {
   id: string;
   slug: string;
-  kind: DashboardContentKind | null;
+  kind: EditableKind | null;
   originalPath: string;
   trashPath: string;
   metadataPath: string;
@@ -1568,13 +1568,15 @@ export async function handleDashboardRequest(
       });
       return jsonResponse(result);
     }
-    const contentTrashMatch = url.pathname.match(/^\/api\/content\/(posts|pages)\/([^/]+)\/trash$/);
+    const contentTrashMatch = url.pathname.match(/^\/api\/content\/([^/]+)\/([^/]+)\/trash$/);
     if (request.method === 'POST' && contentTrashMatch) {
       const blocked = validateWriteRequest(request, ctx.security);
       if (blocked) return blocked;
-      const kind = contentTrashMatch[1] as DashboardContentKind;
+      const kind = parseEditableKind(contentTrashMatch[1] ?? '');
       const slug = decodeURIComponent(contentTrashMatch[2] ?? '');
-      if (!SLUG_RE.test(slug)) return jsonResponse({ error: 'invalid content path' }, 400);
+      if (kind === undefined || !SLUG_RE.test(slug)) {
+        return jsonResponse({ error: 'invalid content path' }, 400);
+      }
       const payload = await readJsonPayload<{ fingerprint?: ContentSourceFingerprint }>(
         request,
         ctx.maxBodyBytes,
@@ -2586,7 +2588,7 @@ export async function trashDashboardContentItem({
 }: {
   cwd: string;
   config: NectarConfig;
-  kind: DashboardContentKind;
+  kind: EditableKind;
   slug: string;
   expectedFingerprint: ContentSourceFingerprint;
   now: Date;
@@ -4991,7 +4993,7 @@ function trashEntryFromMetadata(
   const trashedAt = stringValue(metadata.trashed_at);
   const purgeAfter = stringValue(metadata.purge_after);
   const kindRaw = metadata.kind;
-  const kind = kindRaw === 'posts' || kindRaw === 'pages' ? kindRaw : null;
+  const kind = (typeof kindRaw === 'string' ? parseEditableKind(kindRaw) : undefined) ?? null;
   if (!slug || !originalPath || !trashPath || !trashedAt || !purgeAfter) return null;
   if (isAbsolute(originalPath) || isAbsolute(trashPath)) return null;
   const trashAbs = resolve(cwd, trashPath);
