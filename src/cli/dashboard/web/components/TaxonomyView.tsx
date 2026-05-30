@@ -98,29 +98,33 @@ export function TaxonomyView(props: TaxonomyViewProps): JSX.Element {
                       <span class="taxCountNum">{item.count}</span>
                       <span class="taxCountUnit"> {item.count === 1 ? 'post' : 'posts'}</span>
                     </td>
-                    <td>
-                      {item.editable ? (
-                        <a
-                          class="btn secondary taxAction"
-                          href={editorHref ?? '#'}
-                          data-edit={item.slug}
-                          onClick={(event) => {
-                            event.preventDefault();
-                            props.onEdit(item.slug);
-                          }}
-                        >
-                          Edit
-                        </a>
-                      ) : (
-                        <button
-                          class="btn secondary taxAction"
-                          type="button"
-                          data-materialize={item.slug}
-                          onClick={() => props.onMaterialize(item.slug)}
-                        >
-                          Create file
-                        </button>
-                      )}
+                    <td class="actionsCell">
+                      <div class="rowActions">
+                        {item.editable ? (
+                          <a
+                            class="textLink textLinkStrong"
+                            href={editorHref ?? '#'}
+                            data-edit={item.slug}
+                            onClick={(event) => {
+                              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+                                return;
+                              event.preventDefault();
+                              props.onEdit(item.slug);
+                            }}
+                          >
+                            Detail
+                          </a>
+                        ) : (
+                          <button
+                            class="textLink textLinkStrong"
+                            type="button"
+                            data-materialize={item.slug}
+                            onClick={() => props.onMaterialize(item.slug)}
+                          >
+                            Create file
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
