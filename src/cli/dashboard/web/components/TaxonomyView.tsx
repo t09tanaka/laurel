@@ -54,7 +54,7 @@ export function TaxonomyView(props: TaxonomyViewProps): JSX.Element {
                     }
                   : undefined;
                 return (
-                  // biome-ignore lint/a11y/useKeyWithClickEvents: row click is a pointer-only affordance; keyboard users navigate through the inner title anchor and Edit button which retain their own semantics
+                  // biome-ignore lint/a11y/useKeyWithClickEvents: row click is a pointer-only affordance; keyboard users navigate through the inner title anchor and the Detail/Create file action which retain their own semantics
                   <tr
                     key={item.slug}
                     class="contentRow"
