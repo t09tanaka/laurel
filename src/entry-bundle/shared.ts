@@ -101,7 +101,16 @@ export async function assertWritablePathHasNoSymlink(
   const rel = relative(rootAbs, targetAbs);
   const parts = rel ? rel.split(sep) : [];
   let current = rootAbs;
-  await assertNotSymlink(current);
+  // A not-yet-created root (e.g. importing an asset- or tag-bearing bundle into
+  // a fresh project that has no content/images or content/tags yet) is not a
+  // symlink risk — the recursive mkdir at write time creates it. Tolerate
+  // ENOENT here just as the per-segment walk below does.
+  try {
+    await assertNotSymlink(current);
+  } catch (err) {
+    if (isNotFoundError(err)) return;
+    throw err;
+  }
   for (const part of parts) {
     current = join(current, part);
     try {

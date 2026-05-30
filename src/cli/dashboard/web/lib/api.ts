@@ -633,8 +633,9 @@ export interface ImportBundleResult {
   slug: string;
   entryPath: string;
   assetPaths: string[];
+  importedTags: string[];
   warnings: string[];
-  preview: { title: string; excerpt: string; assetCount: number };
+  preview: { title: string; excerpt: string; assetCount: number; tagCount: number };
 }
 
 export async function importBundle(

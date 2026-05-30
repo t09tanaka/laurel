@@ -97,7 +97,12 @@ export async function runExport(args: string[], options: RunExportOptions = {}):
     const outRel = outputPath ?? defaultOut;
     const abs = isAbsolute(outRel) ? outRel : resolve(cwd, outRel);
     try {
-      const { zip, omittedAssets } = await exportEntryBundle({ cwd, config, kind, slug });
+      const { zip, omittedAssets, bundledTags } = await exportEntryBundle({
+        cwd,
+        config,
+        kind,
+        slug,
+      });
       if (omittedAssets.length > 0) {
         process.stderr.write(
           `Warning: ${omittedAssets.length} asset(s) could not be bundled and were omitted:\n`,
@@ -105,6 +110,11 @@ export async function runExport(args: string[], options: RunExportOptions = {}):
         for (const a of omittedAssets) {
           process.stderr.write(`  ${a}\n`);
         }
+      }
+      if (bundledTags.length > 0) {
+        process.stderr.write(
+          `Bundled ${bundledTags.length} tag definition(s): ${bundledTags.join(', ')}\n`,
+        );
       }
       await mkdir(dirname(abs), { recursive: true });
       await Bun.write(abs, zip);

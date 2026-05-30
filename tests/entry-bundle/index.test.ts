@@ -268,3 +268,198 @@ describe('importEntryBundle', () => {
     }
   });
 });
+
+// Builds a fixture whose post references a `release` tag that has a rich
+// definition file (name, description, feature image) plus the image asset.
+async function makeTaggedFixture(): Promise<string> {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-entry-bundle-tags-')));
+  await mkdir(join(dir, 'content/posts'), { recursive: true });
+  await mkdir(join(dir, 'content/tags'), { recursive: true });
+  await mkdir(join(dir, 'content/images'), { recursive: true });
+  await writeFile(
+    join(dir, 'nectar.toml'),
+    ['[site]', 'title = "Bundle Site"', 'url = "https://bundle.test"', ''].join('\n'),
+    'utf8',
+  );
+  await writeFile(
+    join(dir, 'content/posts/hello.md'),
+    [
+      '---',
+      'title: Hello',
+      'slug: hello',
+      'status: draft',
+      'tags: [release]',
+      'primary_tag: release',
+      '---',
+      '',
+      'Body text.',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  await writeFile(
+    join(dir, 'content/tags/release.md'),
+    [
+      '---',
+      'slug: release',
+      'name: "Release Notes"',
+      'description: "What shipped."',
+      'feature_image: "/content/images/release.svg"',
+      '---',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  await writeFile(join(dir, 'content/images/release.svg'), '<svg/>', 'utf8');
+  return dir;
+}
+
+describe('entry bundle tag handoff', () => {
+  test('export carries referenced tag definitions and their assets', async () => {
+    const dir = await makeTaggedFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const { zip, bundledTags } = await exportEntryBundle({
+        cwd: dir,
+        config,
+        kind: 'post',
+        slug: 'hello',
+      });
+      expect(bundledTags).toEqual(['release']);
+      const paths = readZipArchive(zip).map((e) => e.path);
+      expect(paths).toContain('tags/release.md');
+      expect(paths).toContain('assets/release.svg');
+      const parsed = parseEntryBundleZip(zip);
+      expect(parsed.tags).toHaveLength(1);
+      expect(parsed.tags[0]?.slug).toBe('release');
+      expect(parsed.tags[0]?.frontmatter.name).toBe('Release Notes');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('import creates a missing tag definition with metadata intact', async () => {
+    const src = await makeTaggedFixture();
+    const dest = await makeFixture();
+    try {
+      const srcConfig = await loadConfig({ cwd: src });
+      const { zip } = await exportEntryBundle({
+        cwd: src,
+        config: srcConfig,
+        kind: 'post',
+        slug: 'hello',
+      });
+      const destConfig = await loadConfig({ cwd: dest });
+      const result = await importEntryBundle({
+        cwd: dest,
+        config: destConfig,
+        zip,
+        onConflict: 'overwrite',
+      });
+      expect(result.importedTags).toEqual(['release']);
+      const tagFile = await readFile(join(dest, 'content/tags/release.md'), 'utf8');
+      expect(tagFile).toContain('Release Notes');
+      expect(tagFile).toContain('What shipped.');
+    } finally {
+      await rm(src, { recursive: true, force: true });
+      await rm(dest, { recursive: true, force: true });
+    }
+  });
+
+  test('import never overwrites an existing tag definition', async () => {
+    const src = await makeTaggedFixture();
+    const dest = await makeTaggedFixture();
+    try {
+      // Give the destination its own customised `release` tag.
+      await writeFile(
+        join(dest, 'content/tags/release.md'),
+        ['---', 'slug: release', 'name: "Local Release"', '---', ''].join('\n'),
+        'utf8',
+      );
+      const srcConfig = await loadConfig({ cwd: src });
+      const { zip } = await exportEntryBundle({
+        cwd: src,
+        config: srcConfig,
+        kind: 'post',
+        slug: 'hello',
+      });
+      const destConfig = await loadConfig({ cwd: dest });
+      const result = await importEntryBundle({
+        cwd: dest,
+        config: destConfig,
+        zip,
+        onConflict: 'overwrite',
+      });
+      expect(result.importedTags).toEqual([]);
+      const tagFile = await readFile(join(dest, 'content/tags/release.md'), 'utf8');
+      expect(tagFile).toContain('Local Release');
+    } finally {
+      await rm(src, { recursive: true, force: true });
+      await rm(dest, { recursive: true, force: true });
+    }
+  });
+
+  test('dryRun reports tags that would be created without writing them', async () => {
+    const src = await makeTaggedFixture();
+    const dest = await makeFixture();
+    try {
+      const srcConfig = await loadConfig({ cwd: src });
+      const { zip } = await exportEntryBundle({
+        cwd: src,
+        config: srcConfig,
+        kind: 'post',
+        slug: 'hello',
+      });
+      const destConfig = await loadConfig({ cwd: dest });
+      const result = await importEntryBundle({
+        cwd: dest,
+        config: destConfig,
+        zip,
+        onConflict: 'overwrite',
+        dryRun: true,
+      });
+      expect(result.importedTags).toEqual(['release']);
+      expect(result.preview.tagCount).toBe(1);
+      await expect(readFile(join(dest, 'content/tags/release.md'), 'utf8')).rejects.toThrow();
+    } finally {
+      await rm(src, { recursive: true, force: true });
+      await rm(dest, { recursive: true, force: true });
+    }
+  });
+
+  test('warns when a referenced tag has no bundled definition', async () => {
+    const dir = await makeFixture();
+    try {
+      // Post references a tag with no definition file anywhere.
+      await writeFile(
+        join(dir, 'content/posts/hello.md'),
+        ['---', 'title: Hello', 'slug: hello', 'tags: [ghost-tag]', '---', '', 'Body.', ''].join(
+          '\n',
+        ),
+        'utf8',
+      );
+      const config = await loadConfig({ cwd: dir });
+      const { zip, bundledTags } = await exportEntryBundle({
+        cwd: dir,
+        config,
+        kind: 'post',
+        slug: 'hello',
+      });
+      expect(bundledTags).toEqual([]);
+      const result = await importEntryBundle({ cwd: dir, config, zip, onConflict: 'overwrite' });
+      expect(result.importedTags).toEqual([]);
+      expect(result.warnings.some((w) => w.includes('ghost-tag'))).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('parseEntryBundleZip rejects a traversing tag path', () => {
+    const zip = createZipArchive([
+      { path: 'nectar-bundle.json', bytes: manifestEntry() },
+      { path: 'entry.md', bytes: ENTRY_MD },
+      { path: 'tags/../evil.md', bytes: bytes('---\nslug: evil\n---\n') },
+    ]);
+    expect(() => parseEntryBundleZip(zip)).toThrow(/tag path/i);
+  });
+});
