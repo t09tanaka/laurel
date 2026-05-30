@@ -656,4 +656,66 @@ describe('entry bundle author handoff', () => {
     ]);
     expect(() => parseEntryBundleZip(zip)).toThrow(/author path/i);
   });
+
+  test('export carries an author referenced only via primary_author', async () => {
+    const dir = await makeAuthoredFixture();
+    try {
+      // Reference casper through primary_author alone (no authors/author list).
+      await writeFile(
+        join(dir, 'content/posts/hello.md'),
+        [
+          '---',
+          'title: Hello',
+          'slug: hello',
+          'status: draft',
+          'primary_author: casper',
+          '---',
+          '',
+          'Body text.',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+      const config = await loadConfig({ cwd: dir });
+      const { zip, bundledAuthors } = await exportEntryBundle({
+        cwd: dir,
+        config,
+        kind: 'post',
+        slug: 'hello',
+      });
+      expect(bundledAuthors).toEqual(['casper']);
+      expect(parseEntryBundleZip(zip).authors[0]?.slug).toBe('casper');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('warns once when a primary_author has no bundled definition', async () => {
+    const dir = await makeFixture();
+    try {
+      // Reference the same missing author twice (authors + primary_author).
+      await writeFile(
+        join(dir, 'content/posts/hello.md'),
+        [
+          '---',
+          'title: Hello',
+          'slug: hello',
+          'authors: [ghost]',
+          'primary_author: ghost',
+          '---',
+          '',
+          'Body.',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+      const config = await loadConfig({ cwd: dir });
+      const { zip } = await exportEntryBundle({ cwd: dir, config, kind: 'post', slug: 'hello' });
+      const result = await importEntryBundle({ cwd: dir, config, zip, onConflict: 'overwrite' });
+      const ghostWarnings = result.warnings.filter((w) => w.includes('ghost'));
+      expect(ghostWarnings).toHaveLength(1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });

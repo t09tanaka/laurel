@@ -391,7 +391,10 @@ export async function importEntryBundle({
   // at export time). The loader will auto-stub these from the slug, losing
   // every other field — surfacing it here lets the reviewer add the tag.
   const willExist = new Set([...existingTags, ...importedTags.map((s) => s.toLowerCase())]);
-  for (const tagSlug of tagSlugsFrom(bundle.frontmatter.tags, bundle.frontmatter.primary_tag)) {
+  for (const tagSlug of slugReferencesFrom(
+    bundle.frontmatter.tags,
+    bundle.frontmatter.primary_tag,
+  )) {
     if (!willExist.has(tagSlug.toLowerCase())) {
       warnings.push(`tag "${tagSlug}" not found in content/tags and no definition was bundled`);
     }
@@ -422,10 +425,11 @@ export async function importEntryBundle({
     ...existingAuthors,
     ...importedAuthors.map((s) => s.toLowerCase()),
   ]);
-  for (const authorSlug of authorSlugsFrom([
+  for (const authorSlug of slugReferencesFrom(
     bundle.frontmatter.author,
     bundle.frontmatter.authors,
-  ])) {
+    bundle.frontmatter.primary_author,
+  )) {
     if (!authorsWillExist.has(authorSlug.toLowerCase())) {
       warnings.push(
         `author "${authorSlug}" not found in content/authors and no definition was bundled`,
@@ -521,20 +525,13 @@ async function collectBundleAssets({
   return { assets, omitted };
 }
 
-function authorSlugsFrom(value: unknown): string[] {
-  if (typeof value === 'string') return value.trim() ? [value.trim()] : [];
-  if (Array.isArray(value)) return value.flatMap(authorSlugsFrom);
-  if (isRecord(value) && typeof value.slug === 'string') {
-    return value.slug.trim() ? [value.slug.trim()] : [];
-  }
-  return [];
-}
-
-// Tag references in frontmatter mirror authors: a bare slug string, an array
-// of them, or `{ slug }` objects. `primary_tag` is folded in so a post that
-// only names its tag there still travels with the definition. Returns a
-// de-duplicated list preserving first-seen order.
-function tagSlugsFrom(...values: unknown[]): string[] {
+// Tag and author references in frontmatter take the same shapes: a bare slug
+// string, an array of them, or `{ slug }` objects. The `primary_tag` /
+// `primary_author` field is folded in by the caller so an entry that only names
+// its tag/author there still travels with the definition (and is warned about
+// when missing). Returns a de-duplicated list (case-insensitive) preserving
+// first-seen order and casing.
+function slugReferencesFrom(...values: unknown[]): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   const visit = (value: unknown): void => {
@@ -566,12 +563,13 @@ async function collectReferencedTagDefinitions({
 }): Promise<ParsedBundleTag[]> {
   return collectReferencedDefinitions(
     absolutise(cwd, config.content.tags_dir),
-    tagSlugsFrom(frontmatter.tags, frontmatter.primary_tag),
+    slugReferencesFrom(frontmatter.tags, frontmatter.primary_tag),
   );
 }
 
 // Read the author definition files for the slugs an entry references. Mirrors
-// the tag collector: `author` / `authors` (string, array, or `{ slug }`).
+// the tag collector: `author` / `authors` / `primary_author` (string, array, or
+// `{ slug }`).
 async function collectReferencedAuthorDefinitions({
   cwd,
   config,
@@ -583,7 +581,7 @@ async function collectReferencedAuthorDefinitions({
 }): Promise<ParsedBundleAuthor[]> {
   return collectReferencedDefinitions(
     absolutise(cwd, config.content.authors_dir),
-    authorSlugsFrom([frontmatter.author, frontmatter.authors]),
+    slugReferencesFrom(frontmatter.author, frontmatter.authors, frontmatter.primary_author),
   );
 }
 
