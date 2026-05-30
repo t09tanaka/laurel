@@ -1,5 +1,4 @@
-import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { absolutise } from '~/cli/content-paths.ts';
 import { createZipArchive } from '~/cli/dashboard/zip-writer.ts';
@@ -261,9 +260,12 @@ export async function exportComponentsBundle({
   };
 }
 
-// Scan a component file for the assets its HTML/CSS references: HTML `<img src>`,
-// CSS `url(...)` (optionally quoted), and markdown images (rare in components but
-// harmless to include). The caller resolves each to an assets-dir-relative path.
+// Scan a component file for the image assets its HTML/CSS references. This is a
+// pragmatic scanner for author-controlled snippets, not a full HTML/CSS parser:
+// it covers the common forms — markdown images, `<img src>`, `<img|source
+// srcset>` (each comma-separated candidate's URL), and CSS `url(...)` (quoted —
+// which may contain `)` — or unquoted). The caller filters each to an
+// assets-dir-relative path, so over-collected non-asset strings are harmless.
 function collectComponentAssetReferences(text: string): string[] {
   const out: string[] = [];
   for (const m of text.matchAll(/!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
@@ -272,8 +274,16 @@ function collectComponentAssetReferences(text: string): string[] {
   for (const m of text.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)) {
     if (m[1]) out.push(m[1]);
   }
-  for (const m of text.matchAll(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi)) {
-    if (m[2]) out.push(m[2].trim());
+  for (const m of text.matchAll(/<(?:img|source)\b[^>]*\bsrcset=["']([^"']+)["'][^>]*>/gi)) {
+    if (!m[1]) continue;
+    for (const candidate of m[1].split(',')) {
+      const url = candidate.trim().split(/\s+/, 1)[0];
+      if (url) out.push(url);
+    }
+  }
+  for (const m of text.matchAll(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^'")]+))\s*\)/gi)) {
+    const url = (m[1] ?? m[2] ?? m[3] ?? '').trim();
+    if (url) out.push(url);
   }
   return out;
 }
@@ -359,7 +369,12 @@ export async function importComponentsBundle({
     const rel = asset.path.slice(ASSETS_PREFIX.length);
     if (!neededAssetRels.has(rel)) continue;
     const dest = join(assetsRoot, rel);
-    if (existsSync(dest)) continue;
+    // Only an existing *regular file* counts as a present asset to leave alone.
+    // A symlink (or other non-regular file) at the path falls through to the
+    // symlink guard below, which rejects it rather than silently skipping —
+    // matching how the entry bundle refuses to write through a symlinked asset.
+    const existing = await lstat(dest).catch(() => undefined);
+    if (existing?.isFile()) continue;
     if (!dryRun) {
       await assertWritablePathHasNoSymlink(assetsRoot, dest, { label: 'assets directory' });
       await mkdir(dirname(dest), { recursive: true });
