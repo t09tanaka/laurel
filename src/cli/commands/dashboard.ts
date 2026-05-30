@@ -1796,13 +1796,17 @@ export async function handleDashboardRequest(
       }
       const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
       try {
-        const { zip } = await exportComponentsBundle({ cwd: ctx.cwd, config, slugs });
-        return new Response(zip, {
-          headers: {
-            'content-type': 'application/zip',
-            'content-disposition': 'attachment; filename="components.nectar.zip"',
-          },
-        });
+        const { zip, missing } = await exportComponentsBundle({ cwd: ctx.cwd, config, slugs });
+        const headers: Record<string, string> = {
+          'content-type': 'application/zip',
+          'content-disposition': 'attachment; filename="components.nectar.zip"',
+        };
+        // Surface format-valid-but-nonexistent slugs to programmatic callers:
+        // exportComponentsBundle returns a partial zip (it only throws when
+        // *every* requested slug is missing), so without this header an API
+        // client has no way to learn that a requested component was skipped.
+        if (missing.length > 0) headers['x-nectar-missing-components'] = missing.join(',');
+        return new Response(zip, { headers });
       } catch (err) {
         return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 404);
       }

@@ -1,9 +1,11 @@
 import type { JSX } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { type ImportComponentsResult, importComponentsBundle } from '../lib/api.ts';
 import { useModalCanClose } from './Modal.tsx';
 import type { ToastApi } from './Toast.tsx';
 import { UploadDropzone } from './UploadDropzone.tsx';
+
+type ConflictPolicy = 'skip' | 'overwrite' | 'rename';
 
 interface ComponentImportModalProps {
   onClose: () => void;
@@ -27,6 +29,13 @@ export function ComponentImportModal({
   const [probing, setProbing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // How collisions are resolved on commit. Defaults to the safe `skip` so a
+  // pre-existing (possibly locally-customised) snippet is never overwritten
+  // unless the editor explicitly chooses to.
+  const [onConflict, setOnConflict] = useState<ConflictPolicy>('skip');
+  // Monotonic id so a slow probe for a superseded file can't land its result
+  // over a newer pick (drop bundle A, quickly swap to B → A's response is stale).
+  const probeId = useRef(0);
 
   useModalCanClose(!busy);
 
@@ -39,42 +48,42 @@ export function ComponentImportModal({
   }, [busy, onClose]);
 
   async function pick(next: File): Promise<void> {
+    probeId.current += 1;
+    const id = probeId.current;
     setFile(next);
     setProbe(null);
     setError('');
+    setOnConflict('skip');
     setProbing(true);
     try {
       // Dry-run with skip so each collision surfaces as skipped:true.
-      setProbe(await importComponentsBundle(next, { dryRun: true, onConflict: 'skip' }));
+      const result = await importComponentsBundle(next, { dryRun: true, onConflict: 'skip' });
+      if (probeId.current === id) setProbe(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (probeId.current === id) setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setProbing(false);
+      if (probeId.current === id) setProbing(false);
     }
   }
 
   function clear(): void {
+    probeId.current += 1;
     setFile(null);
     setProbe(null);
     setError('');
+    setOnConflict('skip');
   }
 
   async function commit(): Promise<void> {
     if (!file || !probe) return;
     setBusy(true);
     try {
-      const collides = probe.skipped > 0;
-      const result = await importComponentsBundle(file, {
-        dryRun: false,
-        // Overwrite only when collisions exist; otherwise plain skip leaves
-        // any unexpected pre-existing snippet untouched.
-        onConflict: collides ? 'overwrite' : 'skip',
-      });
+      const result = await importComponentsBundle(file, { dryRun: false, onConflict });
       onImported();
-      toast.push({
-        intent: 'success',
-        message: `Imported ${result.written} component${result.written === 1 ? '' : 's'}`,
-      });
+      const parts = [`${result.written} imported`];
+      if (result.renamed > 0) parts.push(`${result.renamed} renamed`);
+      if (result.skipped > 0) parts.push(`${result.skipped} skipped`);
+      toast.push({ intent: 'success', message: parts.join(', ') });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -86,6 +95,15 @@ export function ComponentImportModal({
   const total = probe?.components.length ?? 0;
   const collisions = probe?.skipped ?? 0;
   const fresh = total - collisions;
+  const commitLabel = busy
+    ? 'Importing…'
+    : collisions === 0
+      ? `Import ${total}`
+      : onConflict === 'overwrite'
+        ? `Overwrite & import ${total}`
+        : onConflict === 'rename'
+          ? `Import ${total} (rename ${collisions})`
+          : `Import ${fresh} (skip ${collisions})`;
 
   return (
     <dialog class="modalDialog" aria-modal="true" aria-label="Import a components bundle" open>
@@ -140,10 +158,30 @@ export function ComponentImportModal({
             ))}
           </ul>
           {collisions > 0 ? (
-            <p class="importPreviewWarn">
-              Importing will overwrite {collisions} existing component
-              {collisions === 1 ? '' : 's'}.
-            </p>
+            <fieldset class="importConflict">
+              <legend>
+                {collisions} component{collisions === 1 ? '' : 's'} already exist. On conflict:
+              </legend>
+              {(
+                [
+                  ['skip', 'Skip them (keep existing)'],
+                  ['overwrite', 'Overwrite with the bundle'],
+                  ['rename', 'Keep both (import as -2, -3…)'],
+                ] as [ConflictPolicy, string][]
+              ).map(([value, label]) => (
+                <label key={value} class="importConflictOption">
+                  <input
+                    type="radio"
+                    name="componentImportConflict"
+                    value={value}
+                    checked={onConflict === value}
+                    disabled={busy}
+                    onChange={() => setOnConflict(value)}
+                  />
+                  {label}
+                </label>
+              ))}
+            </fieldset>
           ) : null}
         </div>
       ) : null}
@@ -158,7 +196,7 @@ export function ComponentImportModal({
           disabled={!probe || busy || probing || total === 0}
           onClick={() => void commit()}
         >
-          {busy ? 'Importing…' : collisions > 0 ? `Overwrite & import ${total}` : `Import ${total}`}
+          {commitLabel}
         </button>
       </div>
     </dialog>

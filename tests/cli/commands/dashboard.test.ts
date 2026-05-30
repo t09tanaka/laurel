@@ -1122,6 +1122,16 @@ describe('dashboard data', () => {
         { cwd: dir, changeBus: createChangeBus() },
       );
       expect(badSlug.status).toBe(400);
+
+      // A partial export (one real slug + one that does not exist) still
+      // succeeds but reports the skipped slug via a response header so a
+      // programmatic caller can tell something was omitted.
+      const partial = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/components/bundle/export?slugs=callout,ghost'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(partial.status).toBe(200);
+      expect(partial.headers.get('x-nectar-missing-components')).toBe('ghost');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

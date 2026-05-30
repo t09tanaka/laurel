@@ -1,12 +1,20 @@
-import { existsSync } from 'node:fs';
-import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { isAbsolute, resolve } from 'node:path';
 import { createZipArchive } from '~/cli/dashboard/zip-writer.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import { COMPONENT_SLUG_PATTERN, loadComponents } from '~/content/components.ts';
-import { formatContentSource } from '~/content/format.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
-import { readZipArchive } from '~/entry-bundle/zip.ts';
+import {
+  type ConflictPolicy,
+  assertWritablePathHasNoSymlink,
+  isInsidePath,
+  isRecord,
+  parseBundleManifestJson,
+  readBundleEntries,
+  relativePath,
+  resolveImportTarget,
+  serializeMarkdownSource,
+} from '~/entry-bundle/shared.ts';
 
 // A components bundle is a portable zip used to hand a *set* of reusable
 // component snippets between editors — the bulk analogue of the single-entry
@@ -17,7 +25,7 @@ import { readZipArchive } from '~/entry-bundle/zip.ts';
 // entry import — nothing is stamped on the way in.
 export const COMPONENTS_BUNDLE_SCHEMA = 'nectar.components.v1';
 
-export type ConflictPolicy = 'skip' | 'overwrite' | 'rename';
+export type { ConflictPolicy } from '~/entry-bundle/shared.ts';
 
 const MAX_ENTRIES = 4000;
 const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
@@ -66,21 +74,16 @@ export interface ImportComponentsBundleResult {
 }
 
 export function parseComponentsBundleZip(zip: Uint8Array): ParsedComponentsBundle {
-  const entries = readZipArchive(zip);
-  if (entries.length > MAX_ENTRIES) {
-    throw new Error(`Bundle has too many entries: ${entries.length} > ${MAX_ENTRIES}`);
-  }
-  let total = 0;
-  for (const entry of entries) {
-    total += entry.bytes.length;
-    if (total > MAX_TOTAL_BYTES) {
-      throw new Error(`Bundle exceeds maximum total size of ${MAX_TOTAL_BYTES} bytes`);
-    }
-  }
+  const entries = readBundleEntries(zip, {
+    maxEntries: MAX_ENTRIES,
+    maxTotalBytes: MAX_TOTAL_BYTES,
+  });
 
   const manifestEntry = entries.find((e) => e.path === MANIFEST_PATH);
   if (!manifestEntry) throw new Error(`Bundle is missing ${MANIFEST_PATH} manifest`);
-  const manifest = parseManifest(safeJsonParse(new TextDecoder().decode(manifestEntry.bytes)));
+  const manifest = parseManifest(
+    parseBundleManifestJson(new TextDecoder().decode(manifestEntry.bytes)),
+  );
 
   const decoder = new TextDecoder();
   const components: ParsedBundleComponent[] = [];
@@ -138,14 +141,6 @@ function parseManifest(input: unknown): ComponentsBundleManifest {
   // site / generated_at are provenance for the zip copy only; intentionally
   // not surfaced on the parsed bundle.
   return { schema: input.schema, components };
-}
-
-function safeJsonParse(raw: string): unknown {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    throw new Error('Invalid bundle manifest: not valid JSON');
-  }
 }
 
 export async function exportComponentsBundle({
@@ -236,7 +231,9 @@ export async function importComponentsBundle({
 
   const results: ImportComponentResult[] = [];
   for (const component of bundle.components) {
-    const target = resolveImportTarget(root, component.slug, onConflict);
+    const target = resolveImportTarget(root, component.slug, onConflict, {
+      validateSlug: (slug) => COMPONENT_SLUG_PATTERN.test(slug),
+    });
     const path = relativePath(cwd, target.path);
     if (target.skipped) {
       results.push({
@@ -255,10 +252,10 @@ export async function importComponentsBundle({
     // the `{slug}` shortcode still resolves.
     const frontmatter = { ...component.frontmatter, slug: target.slug };
     if (!dryRun) {
-      await assertWritablePathHasNoSymlink(root, target.path);
+      await assertWritablePathHasNoSymlink(root, target.path, { label: 'components directory' });
       await writeFile(
         target.path,
-        serializeComponentMarkdown(frontmatter, component.body, target.path),
+        serializeMarkdownSource(frontmatter, component.body, target.path),
         'utf8',
       );
     }
@@ -280,72 +277,6 @@ export async function importComponentsBundle({
   };
 }
 
-function serializeComponentMarkdown(
-  frontmatter: Record<string, unknown>,
-  body: string,
-  filePath: string,
-): string {
-  const withNewline = body.endsWith('\n') ? body : `${body}\n`;
-  return formatContentSource(
-    `---\n${JSON.stringify(frontmatter)}\n---\n${withNewline.startsWith('\n') ? withNewline : `\n${withNewline}`}`,
-    { filePath },
-  );
-}
-
-function resolveImportTarget(
-  root: string,
-  requestedSlug: string,
-  onConflict: ConflictPolicy,
-): { path: string; slug: string; skipped: boolean; renamed: boolean } {
-  const first = join(root, `${requestedSlug}.md`);
-  if (!existsSync(first)) {
-    return { path: first, slug: requestedSlug, skipped: false, renamed: false };
-  }
-  if (onConflict === 'skip') {
-    return { path: first, slug: requestedSlug, skipped: true, renamed: false };
-  }
-  if (onConflict === 'overwrite') {
-    return { path: first, slug: requestedSlug, skipped: false, renamed: false };
-  }
-  for (let i = 2; i < 1000; i += 1) {
-    const slug = `${requestedSlug}-${i}`;
-    if (!COMPONENT_SLUG_PATTERN.test(slug)) break;
-    const candidate = join(root, `${slug}.md`);
-    if (!existsSync(candidate)) return { path: candidate, slug, skipped: false, renamed: true };
-  }
-  throw new Error(`Could not find an available filename for slug: ${requestedSlug}`);
-}
-
-async function assertWritablePathHasNoSymlink(root: string, target: string): Promise<void> {
-  const rootAbs = resolve(root);
-  const targetAbs = resolve(target);
-  if (!isInsidePath(rootAbs, targetAbs)) {
-    throw new Error(`Refusing to write outside configured components directory: ${target}`);
-  }
-  const rel = relative(rootAbs, targetAbs);
-  const parts = rel ? rel.split(sep) : [];
-  let current = rootAbs;
-  await assertNotSymlink(current);
-  for (const part of parts) {
-    current = join(current, part);
-    try {
-      await assertNotSymlink(current);
-    } catch (err) {
-      if (isNotFoundError(err)) return;
-      throw err;
-    }
-  }
-}
-
-async function assertNotSymlink(path: string): Promise<void> {
-  const info = await lstat(path);
-  if (info.isSymbolicLink()) throw new Error(`Refusing to write through symlink: ${path}`);
-}
-
-function isNotFoundError(err: unknown): boolean {
-  return isRecord(err) && err.code === 'ENOENT';
-}
-
 function isSafeComponentFile(value: string): boolean {
   return (
     value.endsWith('.md') &&
@@ -355,17 +286,4 @@ function isSafeComponentFile(value: string): boolean {
     value !== '.md' &&
     value !== '..'
   );
-}
-
-function isInsidePath(root: string, target: string): boolean {
-  const rel = relative(resolve(root), resolve(target));
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
-}
-
-function relativePath(cwd: string, path: string): string {
-  return relative(cwd, path).split(sep).join('/');
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
