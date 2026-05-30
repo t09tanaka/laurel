@@ -97,7 +97,7 @@ export async function runExport(args: string[], options: RunExportOptions = {}):
     const outRel = outputPath ?? defaultOut;
     const abs = isAbsolute(outRel) ? outRel : resolve(cwd, outRel);
     try {
-      const { zip, omittedAssets, bundledTags } = await exportEntryBundle({
+      const { zip, omittedAssets, bundledTags, bundledAuthors } = await exportEntryBundle({
         cwd,
         config,
         kind,
@@ -114,6 +114,11 @@ export async function runExport(args: string[], options: RunExportOptions = {}):
       if (bundledTags.length > 0) {
         process.stderr.write(
           `Bundled ${bundledTags.length} tag definition(s): ${bundledTags.join(', ')}\n`,
+        );
+      }
+      if (bundledAuthors.length > 0) {
+        process.stderr.write(
+          `Bundled ${bundledAuthors.length} author definition(s): ${bundledAuthors.join(', ')}\n`,
         );
       }
       await mkdir(dirname(abs), { recursive: true });
