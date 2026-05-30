@@ -143,6 +143,19 @@ function rewriteCssUrls(value: string, config: NectarConfig, plan: ContentImageA
   });
 }
 
+// Resolve a single `/content/images/...` URL through the fingerprint plan to
+// its emitted `/_images/<hash>/...` form. Used outside the HTML rewriter (e.g.
+// the image sitemap) so non-HTML surfaces point at the same hashed file the
+// rendered `<img>` tags do. URLs not covered by the plan are returned as-is.
+export function resolveContentImageUrl(
+  url: string,
+  config: NectarConfig,
+  plan: ContentImageAssetPlan,
+): string {
+  if (plan.entries.length === 0) return url;
+  return rewriteImageUrl(url, config, plan);
+}
+
 function rewriteImageUrl(raw: string, config: NectarConfig, plan: ContentImageAssetPlan): string {
   const decoded = decodeHtmlAttr(raw).trim();
   if (!decoded || decoded.startsWith('//')) return raw;

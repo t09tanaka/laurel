@@ -3,7 +3,7 @@
   <url>
     <loc>https://nectar.example.com/hello-nectar/</loc>
       <image:image>
-        <image:loc>https://nectar.example.com/content/images/welcome-cover.svg</image:loc>
+        <image:loc>https://nectar.example.com/_images/0138c2bdee92acfb/welcome-cover.svg</image:loc>
         <image:caption>Cover art by Casper.</image:caption>
       </image:image>
     <lastmod>2026-05-19T09:00:00.000Z</lastmod>
@@ -13,7 +13,7 @@
   <url>
     <loc>https://nectar.example.com/migrating-from-ghost/</loc>
       <image:image>
-        <image:loc>https://nectar.example.com/content/images/migration-cover.svg</image:loc>
+        <image:loc>https://nectar.example.com/_images/e663ccd733d9c7d1/migration-cover.svg</image:loc>
       </image:image>
     <lastmod>2026-05-25T05:47:06.337Z</lastmod>
     <changefreq>weekly</changefreq>
@@ -22,7 +22,7 @@
   <url>
     <loc>https://nectar.example.com/writing-with-markdown/</loc>
       <image:image>
-        <image:loc>https://nectar.example.com/content/images/markdown-cover.svg</image:loc>
+        <image:loc>https://nectar.example.com/_images/73b58fe1f69d92fe/markdown-cover.svg</image:loc>
       </image:image>
     <lastmod>2026-05-10T15:00:00.000Z</lastmod>
     <changefreq>weekly</changefreq>
@@ -31,7 +31,7 @@
   <url>
     <loc>https://nectar.example.com/ghost-theme-compatibility/</loc>
       <image:image>
-        <image:loc>https://nectar.example.com/content/images/compat-cover.svg</image:loc>
+        <image:loc>https://nectar.example.com/_images/7ef30b70305b4542/compat-cover.svg</image:loc>
       </image:image>
     <lastmod>2026-05-05T08:00:00.000Z</lastmod>
     <changefreq>weekly</changefreq>
@@ -40,7 +40,7 @@
   <url>
     <loc>https://nectar.example.com/optional-components/</loc>
       <image:image>
-        <image:loc>https://nectar.example.com/content/images/components-cover.svg</image:loc>
+        <image:loc>https://nectar.example.com/_images/6036c0e7d7a118f9/components-cover.svg</image:loc>
       </image:image>
     <lastmod>2026-04-28T12:00:00.000Z</lastmod>
     <changefreq>weekly</changefreq>
@@ -49,7 +49,7 @@
   <url>
     <loc>https://nectar.example.com/static-runtime/</loc>
       <image:image>
-        <image:loc>https://nectar.example.com/content/images/static-cover.svg</image:loc>
+        <image:loc>https://nectar.example.com/_images/aefb61eefef95a58/static-cover.svg</image:loc>
       </image:image>
     <lastmod>2026-04-20T14:00:00.000Z</lastmod>
     <changefreq>weekly</changefreq>
@@ -58,7 +58,7 @@
   <url>
     <loc>https://nectar.example.com/markdown-meets-git/</loc>
       <image:image>
-        <image:loc>https://nectar.example.com/content/images/git-cover.svg</image:loc>
+        <image:loc>https://nectar.example.com/_images/81d26d2970198d3b/git-cover.svg</image:loc>
       </image:image>
     <lastmod>2026-04-12T07:00:00.000Z</lastmod>
     <changefreq>weekly</changefreq>

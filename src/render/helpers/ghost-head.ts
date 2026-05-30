@@ -2,6 +2,7 @@ import type Handlebars from 'handlebars';
 import {
   CARD_ASSETS_CSS_PATH,
   CARD_ASSETS_JS_PATH,
+  cardAssetsCssIntegrity,
   cardAssetsVersion,
   isCardAssetsEnabled,
 } from '~/build/card-assets.ts';
@@ -134,7 +135,14 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       if (meta.canonical) {
         head = appendHeadPart(head, `<link rel="canonical" href="${escapeAttr(meta.canonical)}">`);
       }
-      const ampHref = routeAmpHtmlHref(route, site.url, basePath);
+      // Only advertise an AMP alternate when the theme actually ships an
+      // `amp` template — that is the same condition route planning uses to
+      // emit the `/<slug>/amp/` page (see src/build/routes.ts). Emitting the
+      // hint unconditionally points crawlers at a 404 on themes (e.g. Source)
+      // that have no AMP variant.
+      const ampHref = themeHasAmpTemplate(engine)
+        ? routeAmpHtmlHref(route, site.url, basePath)
+        : undefined;
       if (ampHref) {
         head = appendHeadPart(head, `<link rel="amphtml" href="${escapeAttr(ampHref)}">`);
       }
@@ -436,6 +444,11 @@ function routeAmpHtmlHref(
   }
   const base = route.url.endsWith('/') ? route.url : `${route.url}/`;
   return absoluteUrlWithBasePath(siteUrl, basePath, `${base}amp/`);
+}
+
+function themeHasAmpTemplate(engine: NectarEngine): boolean {
+  const templates = engine.theme?.templates;
+  return !!templates && Object.prototype.hasOwnProperty.call(templates, 'amp');
 }
 
 interface ComputedMeta {
@@ -1478,7 +1491,8 @@ function renderCardAssetsHeadSnippet(engine: NectarEngine, basePath: string): st
   if (!isCardAssetsEnabled(cardAssets)) return undefined;
   const version = cardAssetsVersion(cardAssets);
   const cssHref = joinPath(basePath, `${CARD_ASSETS_CSS_PATH}?v=${version}`);
-  return `<link rel="stylesheet" type="text/css" href="${escapeAttr(cssHref)}">`;
+  const integrity = cardAssetsCssIntegrity(cardAssets);
+  return `<link rel="stylesheet" type="text/css" href="${escapeAttr(cssHref)}" integrity="${escapeAttr(integrity)}" crossorigin="anonymous">`;
 }
 
 function renderKoenigRuntimeSnippet(
