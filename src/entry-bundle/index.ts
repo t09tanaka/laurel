@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { lstat, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { absolutise, resolveContentSlugPath } from '~/cli/content-paths.ts';
 import { createZipArchive } from '~/cli/dashboard/zip-writer.ts';
 import type { NectarConfig } from '~/config/schema.ts';
@@ -19,6 +19,13 @@ const MAX_TOTAL_BYTES = 100 * 1024 * 1024;
 const MANIFEST_PATH = 'nectar-bundle.json';
 const ENTRY_PATH = 'entry.md';
 const ASSETS_PREFIX = 'assets/';
+// Tag definition files referenced by the entry travel under this prefix as
+// `tags/<slug>.md`, so the receiving side can recreate a tag (name,
+// description, feature image, …) that does not yet exist locally instead of
+// falling back to a bare auto-stub. The bundle schema stays `v1`: tags/ is
+// purely additive, so a tag-less bundle parses exactly as before and an
+// importer that predates this field simply finds `tags: []`.
+const TAGS_PREFIX = 'tags/';
 
 export interface EntryBundleManifest {
   schema: string;
@@ -29,6 +36,12 @@ export interface EntryBundleManifest {
   generated_at?: string;
 }
 
+export interface ParsedBundleTag {
+  slug: string;
+  frontmatter: Record<string, unknown>;
+  body: string;
+}
+
 export interface ParsedEntryBundle {
   kind: EntryKind;
   slug: string;
@@ -36,6 +49,7 @@ export interface ParsedEntryBundle {
   frontmatter: Record<string, unknown>;
   body: string;
   assets: ZipFileEntry[];
+  tags: ParsedBundleTag[];
   manifest: EntryBundleManifest;
 }
 
@@ -47,9 +61,12 @@ export interface ImportEntryResult {
   slug: string;
   entryPath: string;
   assetPaths: string[];
+  /** Tag slugs whose definition file was created because the destination
+   * lacked one. Existing tags are never overwritten, so they are absent here. */
+  importedTags: string[];
   warnings: string[];
   /** Summary of the incoming entry, for an import preview before committing. */
-  preview: { title: string; excerpt: string; assetCount: number };
+  preview: { title: string; excerpt: string; assetCount: number; tagCount: number };
 }
 
 export function parseEntryBundleZip(zip: Uint8Array): ParsedEntryBundle {
@@ -76,8 +93,13 @@ export function parseEntryBundleZip(zip: Uint8Array): ParsedEntryBundle {
   });
 
   const assets: ZipFileEntry[] = [];
+  const tags: ParsedBundleTag[] = [];
   for (const entry of entries) {
     if (entry.path === MANIFEST_PATH || entry.path === ENTRY_PATH) continue;
+    if (entry.path.startsWith(TAGS_PREFIX)) {
+      tags.push(parseBundleTag(entry));
+      continue;
+    }
     if (!entry.path.startsWith(ASSETS_PREFIX)) {
       throw new Error(`Unexpected bundle entry outside assets/: ${entry.path}`);
     }
@@ -95,8 +117,22 @@ export function parseEntryBundleZip(zip: Uint8Array): ParsedEntryBundle {
     frontmatter: parsed.data,
     body: parsed.body,
     assets,
+    tags,
     manifest,
   };
+}
+
+function parseBundleTag(entry: ZipFileEntry): ParsedBundleTag {
+  const rel = entry.path.slice(TAGS_PREFIX.length);
+  // Tags live flat as `tags/<slug>.md`. Reject nesting / traversal and any
+  // non-markdown file so a crafted bundle cannot escape the tags directory or
+  // smuggle an executable payload past the importer.
+  if (!isSafeRelativePath(rel) || rel.includes('/') || extname(rel) !== '.md') {
+    throw new Error(`Unsafe tag path in bundle: ${entry.path}`);
+  }
+  const slug = safeSlug(basename(rel, '.md'));
+  const parsed = parseFrontmatter(new TextDecoder().decode(entry.bytes), { filePath: entry.path });
+  return { slug, frontmatter: parsed.data, body: parsed.body };
 }
 
 function parseManifest(input: unknown): EntryBundleManifest {
@@ -134,7 +170,7 @@ export async function exportEntryBundle({
   config: NectarConfig;
   kind: EntryKind;
   slug: string;
-}): Promise<{ zip: Uint8Array; omittedAssets: string[] }> {
+}): Promise<{ zip: Uint8Array; omittedAssets: string[]; bundledTags: string[] }> {
   const root = rootForKind(cwd, config, kind);
   const resolved = await resolveContentSlugPath(slug, [kind === 'post' ? 'posts' : 'pages'], {
     posts: absolutise(cwd, config.content.posts_dir),
@@ -156,11 +192,20 @@ export async function exportEntryBundle({
   // works writer→reviewer and reviewer→writer.
   const frontmatter = parsed.data;
 
+  // Pull in the definition files for tags the entry references so the tag's
+  // name / description / feature image survive the handoff. Without this the
+  // receiver's loader would auto-stub the tag from its slug alone, silently
+  // dropping every other field.
+  const tagDefs = await collectReferencedTagDefinitions({ cwd, config, frontmatter });
+
   const { assets, omitted } = await collectBundleAssets({
     cwd,
     config,
     frontmatter,
     body: parsed.body,
+    // Tag feature images live under the same assets dir; bundle them too so a
+    // freshly-created tag is not left pointing at a missing image.
+    extraFrontmatters: tagDefs.map((t) => t.frontmatter),
   });
 
   const manifest: EntryBundleManifest = {
@@ -181,10 +226,20 @@ export async function exportEntryBundle({
       path: ENTRY_PATH,
       bytes: new TextEncoder().encode(serializeEntryMarkdown(frontmatter, parsed.body, ENTRY_PATH)),
     },
+    ...tagDefs.map((tag) => ({
+      path: `${TAGS_PREFIX}${tag.slug}.md`,
+      bytes: new TextEncoder().encode(
+        serializeEntryMarkdown(tag.frontmatter, tag.body, `${TAGS_PREFIX}${tag.slug}.md`),
+      ),
+    })),
     ...assets.map((asset) => ({ path: `${ASSETS_PREFIX}${asset.rel}`, bytes: asset.bytes })),
   ];
 
-  return { zip: createZipArchive(inputs), omittedAssets: omitted };
+  return {
+    zip: createZipArchive(inputs),
+    omittedAssets: omitted,
+    bundledTags: tagDefs.map((t) => t.slug),
+  };
 }
 
 export async function importEntryBundle({
@@ -208,12 +263,15 @@ export async function importEntryBundle({
     title: typeof bundle.frontmatter.title === 'string' ? bundle.frontmatter.title : bundle.slug,
     excerpt: excerptFromBody(bundle.body),
     assetCount: bundle.assets.length,
+    tagCount: bundle.tags.length,
   };
 
   const requestedSlug = safeSlug(String(bundle.frontmatter.slug ?? bundle.slug));
   const target = resolveImportTarget(root, requestedSlug, onConflict);
   const entryPath = relativePath(cwd, target.path);
   if (target.skipped) {
+    // The entry itself is not coming in, so neither are its tags — bringing a
+    // tag in for an entry we declined would leave an orphan definition.
     return {
       written: false,
       skipped: true,
@@ -222,6 +280,7 @@ export async function importEntryBundle({
       slug: requestedSlug,
       entryPath,
       assetPaths: [],
+      importedTags: [],
       warnings: [],
       preview,
     };
@@ -245,6 +304,39 @@ export async function importEntryBundle({
   }
   await assertWritablePathHasNoSymlink(root, target.path);
 
+  // Create any bundled tag whose definition the destination is missing. We
+  // never overwrite an existing tag file: the receiver's own name / image /
+  // visibility for a shared slug wins, matching the "import only when absent"
+  // intent. The result is computed even on a dry run so the preview can show
+  // what would be created.
+  const tagsRoot = absolutise(cwd, config.content.tags_dir);
+  const existingTags = await existingTagSlugs(tagsRoot);
+  const tagWrites: { dest: string; bytes: Uint8Array }[] = [];
+  const importedTags: string[] = [];
+  for (const tag of bundle.tags) {
+    if (existingTags.has(tag.slug.toLowerCase())) continue;
+    const dest = join(tagsRoot, `${tag.slug}.md`);
+    await assertWritablePathHasNoSymlink(tagsRoot, dest);
+    tagWrites.push({
+      dest,
+      bytes: new TextEncoder().encode(
+        serializeEntryMarkdown(tag.frontmatter, tag.body, relativePath(cwd, dest)),
+      ),
+    });
+    importedTags.push(tag.slug);
+  }
+
+  // Flag tags the entry references that will neither pre-exist nor be created
+  // (an older bundle without tags/, or a tag whose definition file was absent
+  // at export time). The loader will auto-stub these from the slug, losing
+  // every other field — surfacing it here lets the reviewer add the tag.
+  const willExist = new Set([...existingTags, ...importedTags.map((s) => s.toLowerCase())]);
+  for (const tagSlug of tagSlugsFrom(bundle.frontmatter.tags, bundle.frontmatter.primary_tag)) {
+    if (!willExist.has(tagSlug.toLowerCase())) {
+      warnings.push(`tag "${tagSlug}" not found in content/tags and no definition was bundled`);
+    }
+  }
+
   if (!dryRun) {
     await writeFile(
       target.path,
@@ -252,6 +344,10 @@ export async function importEntryBundle({
       'utf8',
     );
     for (const write of writes) {
+      await mkdir(dirname(write.dest), { recursive: true });
+      await writeFile(write.dest, write.bytes);
+    }
+    for (const write of tagWrites) {
       await mkdir(dirname(write.dest), { recursive: true });
       await writeFile(write.dest, write.bytes);
     }
@@ -265,6 +361,7 @@ export async function importEntryBundle({
     slug: target.slug,
     entryPath,
     assetPaths,
+    importedTags,
     warnings,
     preview,
   };
@@ -298,17 +395,23 @@ async function collectBundleAssets({
   config,
   frontmatter,
   body,
+  extraFrontmatters = [],
 }: {
   cwd: string;
   config: NectarConfig;
   frontmatter: Record<string, unknown>;
   body: string;
+  /** Additional frontmatters (e.g. bundled tag definitions) whose asset
+   * references should also be pulled into the bundle. */
+  extraFrontmatters?: Record<string, unknown>[];
 }): Promise<{ assets: { rel: string; bytes: Uint8Array }[]; omitted: string[] }> {
   const assetsRoot = absolutise(cwd, config.content.assets_dir);
   const rels = new Set<string>();
-  for (const value of collectStringValues(frontmatter)) {
-    const rel = assetRelFromReference(value, config.content.assets_dir);
-    if (rel) rels.add(rel);
+  for (const fm of [frontmatter, ...extraFrontmatters]) {
+    for (const value of collectStringValues(fm)) {
+      const rel = assetRelFromReference(value, config.content.assets_dir);
+      if (rel) rels.add(rel);
+    }
   }
   for (const value of collectBodyAssetReferences(body)) {
     const rel = assetRelFromReference(value, config.content.assets_dir);
@@ -377,6 +480,110 @@ function authorSlugsFrom(value: unknown): string[] {
   return [];
 }
 
+// Tag references in frontmatter mirror authors: a bare slug string, an array
+// of them, or `{ slug }` objects. `primary_tag` is folded in so a post that
+// only names its tag there still travels with the definition. Returns a
+// de-duplicated list preserving first-seen order.
+function tagSlugsFrom(...values: unknown[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const visit = (value: unknown): void => {
+    if (typeof value === 'string') {
+      const slug = value.trim();
+      if (slug && !seen.has(slug.toLowerCase())) {
+        seen.add(slug.toLowerCase());
+        out.push(slug);
+      }
+    } else if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+    } else if (isRecord(value) && typeof value.slug === 'string') {
+      visit(value.slug);
+    }
+  };
+  for (const value of values) visit(value);
+  return out;
+}
+
+// Read the tag definition files for the slugs an entry references. A tag's
+// canonical slug is its frontmatter `slug` when valid, else the file basename
+// (mirroring the content loader), so a file named off-slug still matches. Tags
+// without a definition file are skipped — they have nothing to carry.
+async function collectReferencedTagDefinitions({
+  cwd,
+  config,
+  frontmatter,
+}: {
+  cwd: string;
+  config: NectarConfig;
+  frontmatter: Record<string, unknown>;
+}): Promise<ParsedBundleTag[]> {
+  const referenced = new Set(
+    tagSlugsFrom(frontmatter.tags, frontmatter.primary_tag).map((s) => s.toLowerCase()),
+  );
+  if (referenced.size === 0) return [];
+
+  const tagsRoot = absolutise(cwd, config.content.tags_dir);
+  let files: string[];
+  try {
+    files = (await readdir(tagsRoot)).filter((f) => f.endsWith('.md'));
+  } catch {
+    return [];
+  }
+
+  const defs: ParsedBundleTag[] = [];
+  const taken = new Set<string>();
+  for (const file of files.sort()) {
+    const abs = join(tagsRoot, file);
+    if (await isSymlink(abs)) continue;
+    const raw = await readFile(abs, 'utf8').catch(() => undefined);
+    if (raw === undefined) continue;
+    const parsed = parseFrontmatter(raw, { filePath: abs });
+    const slug = tagFileSlug(file, parsed.data);
+    if (!slug || !referenced.has(slug) || taken.has(slug)) continue;
+    taken.add(slug);
+    defs.push({ slug, frontmatter: parsed.data, body: parsed.body });
+  }
+  return defs;
+}
+
+// Resolve the slug a tag definition file represents, lower-cased for matching.
+function tagFileSlug(file: string, frontmatter: Record<string, unknown>): string | undefined {
+  const fromFm = typeof frontmatter.slug === 'string' ? frontmatter.slug.trim().toLowerCase() : '';
+  if (fromFm && /^[a-z0-9][a-z0-9-]*$/.test(fromFm)) return fromFm;
+  const fromName = basename(file, '.md').toLowerCase();
+  return /^[a-z0-9][a-z0-9-]*$/.test(fromName) ? fromName : undefined;
+}
+
+// Lower-cased slugs already defined under the tags directory, used to decide
+// whether a bundled tag is a fresh addition or would clobber a local one.
+async function existingTagSlugs(tagsRoot: string): Promise<Set<string>> {
+  let files: string[];
+  try {
+    files = (await readdir(tagsRoot)).filter((f) => f.endsWith('.md'));
+  } catch {
+    return new Set();
+  }
+  const slugs = new Set<string>();
+  for (const file of files) {
+    const abs = join(tagsRoot, file);
+    const raw = await readFile(abs, 'utf8').catch(() => undefined);
+    const slug =
+      raw === undefined
+        ? undefined
+        : tagFileSlug(file, parseFrontmatter(raw, { filePath: abs }).data);
+    if (slug) slugs.add(slug);
+  }
+  return slugs;
+}
+
+async function isSymlink(path: string): Promise<boolean> {
+  try {
+    return (await lstat(path)).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
 function rootForKind(cwd: string, config: NectarConfig, kind: EntryKind): string {
   return absolutise(cwd, kind === 'post' ? config.content.posts_dir : config.content.pages_dir);
 }
@@ -390,7 +597,16 @@ async function assertWritablePathHasNoSymlink(root: string, target: string): Pro
   const rel = relative(rootAbs, targetAbs);
   const parts = rel ? rel.split(sep) : [];
   let current = rootAbs;
-  await assertNotSymlink(current);
+  // A not-yet-created root (e.g. importing an asset- or tag-bearing bundle into
+  // a fresh project that has no content/images or content/tags yet) is not a
+  // symlink risk — the recursive mkdir at write time creates it. Tolerate
+  // ENOENT here just as the per-segment walk below does.
+  try {
+    await assertNotSymlink(current);
+  } catch (err) {
+    if (isNotFoundError(err)) return;
+    throw err;
+  }
   for (const part of parts) {
     current = join(current, part);
     try {

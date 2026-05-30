@@ -314,12 +314,15 @@ describe('cli export', () => {
     try {
       const { stderr, exitCode } = await runCli(['export', 'entry', 'hello-world'], dir);
       expect(exitCode).toBe(0);
-      expect(stderr).toBe('');
+      // The post references the `release` tag, which has a definition file, so
+      // export carries it along and notes it on stderr.
+      expect(stderr).toContain('Bundled 1 tag definition(s): release');
       const bytes = new Uint8Array(
         await Bun.file(join(dir, 'hello-world.nectar.zip')).arrayBuffer(),
       );
       const bundle = parseEntryBundleZip(bytes);
       expect(bundle.slug).toBe('hello-world');
+      expect(bundle.tags.map((t) => t.slug)).toEqual(['release']);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
