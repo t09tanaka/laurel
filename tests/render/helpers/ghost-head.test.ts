@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
-import { CARD_ASSETS_VERSION } from '~/build/card-assets.ts';
+import { CARD_ASSETS_VERSION, cardAssetsCssIntegrity } from '~/build/card-assets.ts';
 import type { FaviconSet } from '~/build/favicons.ts';
 import type { ContentGraph, SiteData } from '~/content/model.ts';
 import {
@@ -123,18 +123,28 @@ function renderGhostHead(
 }
 
 describe('ghost_head AMP discovery', () => {
-  test('emits rel=amphtml on canonical post routes only', () => {
+  test('emits rel=amphtml on canonical post routes when the theme has an amp template', () => {
+    const html = renderGhostHead({ title: 'Hello', id: 'post-1' }, '/hello/', {
+      routeKind: 'post',
+      theme: { templates: { amp: '' } },
+    });
+
+    expect(html).toContain('<link rel="amphtml" href="https://example.com/hello/amp/">');
+  });
+
+  test('does not emit rel=amphtml when the theme ships no amp template', () => {
     const html = renderGhostHead({ title: 'Hello', id: 'post-1' }, '/hello/', {
       routeKind: 'post',
     });
 
-    expect(html).toContain('<link rel="amphtml" href="https://example.com/hello/amp/">');
+    expect(html).not.toContain('rel="amphtml"');
   });
 
   test('does not emit rel=amphtml on AMP routes themselves', () => {
     const html = renderGhostHead({ title: 'Hello', id: 'post-1' }, '/hello/amp/', {
       routeKind: 'post',
       routeVariant: 'amp',
+      theme: { templates: { amp: '' } },
     });
 
     expect(html).not.toContain('rel="amphtml"');
@@ -269,7 +279,7 @@ describe('ghost_head shared card assets', () => {
     });
 
     expect(html).toContain(
-      `<link rel="stylesheet" type="text/css" href="/assets/ghost-card-assets.css?v=${CARD_ASSETS_VERSION}">`,
+      `<link rel="stylesheet" type="text/css" href="/assets/ghost-card-assets.css?v=${CARD_ASSETS_VERSION}" integrity="${cardAssetsCssIntegrity(true)}" crossorigin="anonymous">`,
     );
     expect(html).not.toContain('ghost-card-assets.js');
   });

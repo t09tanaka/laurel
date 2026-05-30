@@ -1685,9 +1685,13 @@ describe('build pipeline baseUrl override (#250)', () => {
     expect(posts).toContain(
       '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
     );
-    expect(posts).toContain(
-      '<image:loc>https://pr-42.example.com/content/images/cover.png</image:loc>',
+    // The image sitemap must point at the same fingerprinted `/_images/<hash>/`
+    // file the rendered <img> references, not the raw `/content/images/` path
+    // (which is not emitted when content-image fingerprinting is on).
+    expect(posts).toMatch(
+      /<image:loc>https:\/\/pr-42\.example\.com\/_images\/[0-9a-f]+\/cover\.png<\/image:loc>/,
     );
+    expect(posts).not.toContain('/content/images/cover.png');
     expect(posts).toContain('<image:caption>Photo by Ada &amp; Bob</image:caption>');
     expect(posts).not.toContain('prod.example.com');
   });

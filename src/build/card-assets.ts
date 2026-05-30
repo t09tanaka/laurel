@@ -100,6 +100,21 @@ export function renderCardAssetsCss(cardAssets: ThemeCardAssets): string {
   return `/* Nectar Ghost-compatible shared card assets. */\n${sections.join('\n')}\n`;
 }
 
+const cardAssetsCssIntegrityCache = new Map<string, string>();
+
+// Subresource-integrity hash for the emitted card-assets stylesheet, matching
+// the `sha384-<base64>` shape used for fingerprinted theme assets. Computed
+// over the exact bytes `emitCardAssets` writes (the `renderCardAssetsCss`
+// output) so the browser's integrity check passes.
+export function cardAssetsCssIntegrity(cardAssets: ThemeCardAssets): string {
+  const css = renderCardAssetsCss(cardAssets);
+  const cached = cardAssetsCssIntegrityCache.get(css);
+  if (cached) return cached;
+  const integrity = `sha384-${new Bun.CryptoHasher('sha384').update(css).digest('base64')}`;
+  cardAssetsCssIntegrityCache.set(css, integrity);
+  return integrity;
+}
+
 function hashLabel(value: string): string {
   let hash = 0x811c9dc5;
   for (let i = 0; i < value.length; i += 1) {

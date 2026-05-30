@@ -48,6 +48,7 @@ import { CLOUDFLARE_WORKERS_MANIFEST_FILE } from './cloudflare-workers.ts';
 import { emitCloudFrontResponseHeadersPolicy } from './cloudfront-response-headers.ts';
 import { emitCname } from './cname.ts';
 import { emitContentApiStubs } from './content-api.ts';
+import { resolveContentImageUrl } from './content-image-urls.ts';
 import {
   type RouteEarlyHints,
   buildEarlyHintsHeaderRules,
@@ -853,7 +854,12 @@ async function runBuild({
           lastmod: r.lastmod,
           kind: routeKindToSitemapKind(r.kind),
           images: post?.feature_image
-            ? [{ url: post.feature_image, caption: post.feature_image_caption }]
+            ? [
+                {
+                  url: resolveContentImageUrl(post.feature_image, config, contentImagePlan),
+                  caption: post.feature_image_caption,
+                },
+              ]
             : undefined,
         };
       })
