@@ -950,11 +950,19 @@
     display: none;
   }
   .toolbar {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
+    /* Flex (not a fixed grid) so a variable number of action buttons —
+     * Export / Import / New — stays on one line; the filter field flexes to
+     * absorb the remaining width and shrinks before anything wraps. */
+    display: flex;
     gap: 10px;
     align-items: center;
     min-width: 0;
+  }
+  .toolbar .searchWrap {
+    flex: 1 1 auto;
+  }
+  .toolbar .btn {
+    flex: 0 0 auto;
   }
   /* Discoverable ⌘K trigger — small kbd-styled chip next to the New
    * button. Clicking opens the command palette; the kbd itself signals
@@ -2564,6 +2572,56 @@
   }
   .importConflictOption input {
     margin: 0;
+  }
+  /* Components export picker: a checklist of every {slug}, all ticked by
+   * default, so the editor can untick what to leave out before downloading. */
+  .exportSelectAll {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0 2px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .exportSelectAll input {
+    margin: 0;
+  }
+  .exportList {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 280px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .exportList li {
+    margin: 0;
+  }
+  .exportOption {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 6px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .exportOption:hover {
+    background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+  }
+  .exportOption input {
+    margin: 0;
+  }
+  .exportOption code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-primary);
+  }
+  .exportOption .meta {
+    font-size: 12px;
   }
   /* Bulk-export affordances on the components list head. The action cluster
    * sits opposite the count and only the export button carries weight; Clear
@@ -6204,9 +6262,6 @@
       grid-template-columns: 1fr;
       align-items: start;
       gap: 14px;
-    }
-    .toolbar {
-      grid-template-columns: 1fr auto auto;
     }
     .settingsLayout {
       grid-template-columns: 1fr;
