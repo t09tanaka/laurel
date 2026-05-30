@@ -104,6 +104,9 @@ export function ComponentImportModal({
       const parts = [`${result.written} imported`];
       if (result.renamed > 0) parts.push(`${result.renamed} renamed`);
       if (result.skipped > 0) parts.push(`${result.skipped} skipped`);
+      if (result.importedAssets.length > 0) {
+        parts.push(`${result.importedAssets.length} asset(s) added`);
+      }
       toast.push({ intent: 'success', message: parts.join(', ') });
       onClose();
     } catch (err) {

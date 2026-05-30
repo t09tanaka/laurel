@@ -1,5 +1,5 @@
-import { lstat, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
-import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
+import { lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import { absolutise, resolveContentSlugPath } from '~/cli/content-paths.ts';
 import { createZipArchive } from '~/cli/dashboard/zip-writer.ts';
 import type { NectarConfig } from '~/config/schema.ts';
@@ -7,8 +7,11 @@ import { parseFrontmatter } from '~/content/frontmatter.ts';
 import {
   type ConflictPolicy,
   assertWritablePathHasNoSymlink,
+  assetRelFromReference,
+  collectReferencedAssetBytes,
   isInsidePath,
   isRecord,
+  isSafeRelativePath,
   parseBundleManifestJson,
   readBundleEntries,
   relativePath,
@@ -16,7 +19,6 @@ import {
   serializeMarkdownSource,
 } from '~/entry-bundle/shared.ts';
 import type { ZipFileEntry } from '~/entry-bundle/zip.ts';
-import { pathContainsSymlink } from '~/util/fs.ts';
 
 export const BUNDLE_SCHEMA = 'nectar.bundle.v1';
 
@@ -503,26 +505,7 @@ async function collectBundleAssets({
     if (rel) rels.add(rel);
   }
 
-  const assets: { rel: string; bytes: Uint8Array }[] = [];
-  const omitted: string[] = [];
-  for (const rel of [...rels].sort()) {
-    const abs = join(assetsRoot, rel);
-    if (pathContainsSymlink(assetsRoot, rel) || !isInsidePath(resolve(assetsRoot), resolve(abs))) {
-      omitted.push(rel);
-      continue;
-    }
-    const info = await stat(abs).catch(() => undefined);
-    if (!info?.isFile()) {
-      omitted.push(rel);
-      continue;
-    }
-    const buffer = await readFile(abs);
-    assets.push({
-      rel,
-      bytes: new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength),
-    });
-  }
-  return { assets, omitted };
+  return collectReferencedAssetBytes(assetsRoot, rels);
 }
 
 // Tag and author references in frontmatter take the same shapes: a bare slug
@@ -666,16 +649,6 @@ function rootForKind(cwd: string, config: NectarConfig, kind: EntryKind): string
   return absolutise(cwd, kind === 'post' ? config.content.posts_dir : config.content.pages_dir);
 }
 
-function assetRelFromReference(value: string, assetsDir: string): string | undefined {
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value) || value.startsWith('data:')) return undefined;
-  const normalizedAssets = assetsDir.replace(/^\/+|\/+$/g, '');
-  const normalized = value.replace(/^\/+/, '').split(/[?#]/, 1)[0] ?? '';
-  if (!normalized.startsWith(`${normalizedAssets}/`)) return undefined;
-  const rel = normalized.slice(normalizedAssets.length + 1);
-  if (!isSafeRelativePath(rel)) return undefined;
-  return rel;
-}
-
 function collectBodyAssetReferences(body: string): string[] {
   const out: string[] = [];
   for (const match of body.matchAll(/!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
@@ -700,13 +673,4 @@ function safeSlug(value: string): string {
     throw new Error(`Invalid slug in bundle: ${value}`);
   }
   return trimmed;
-}
-
-function isSafeRelativePath(value: string): boolean {
-  return (
-    value.length > 0 &&
-    !isAbsolute(value) &&
-    !value.includes('\\') &&
-    value.split('/').every((part) => part.length > 0 && part !== '.' && part !== '..')
-  );
 }

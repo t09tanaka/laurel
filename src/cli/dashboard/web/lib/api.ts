@@ -689,6 +689,9 @@ export interface ImportComponentsResult {
   written: number;
   skipped: number;
   renamed: number;
+  /** Asset paths created because the destination lacked them. Existing assets
+   * are never overwritten, so they are absent here. */
+  importedAssets: string[];
 }
 
 export async function importComponentsBundle(
