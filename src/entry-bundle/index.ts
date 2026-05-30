@@ -1,18 +1,27 @@
-import { existsSync } from 'node:fs';
 import { lstat, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
-import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import { absolutise, resolveContentSlugPath } from '~/cli/content-paths.ts';
 import { createZipArchive } from '~/cli/dashboard/zip-writer.ts';
 import type { NectarConfig } from '~/config/schema.ts';
-import { formatContentSource } from '~/content/format.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
-import { type ZipFileEntry, readZipArchive } from '~/entry-bundle/zip.ts';
+import {
+  type ConflictPolicy,
+  assertWritablePathHasNoSymlink,
+  isInsidePath,
+  isRecord,
+  parseBundleManifestJson,
+  readBundleEntries,
+  relativePath,
+  resolveImportTarget,
+  serializeMarkdownSource,
+} from '~/entry-bundle/shared.ts';
+import type { ZipFileEntry } from '~/entry-bundle/zip.ts';
 import { pathContainsSymlink } from '~/util/fs.ts';
 
 export const BUNDLE_SCHEMA = 'nectar.bundle.v1';
 
 export type EntryKind = 'post' | 'page';
-export type ConflictPolicy = 'skip' | 'overwrite' | 'rename';
+export type { ConflictPolicy };
 
 const MAX_ENTRIES = 2000;
 const MAX_TOTAL_BYTES = 100 * 1024 * 1024;
@@ -70,21 +79,16 @@ export interface ImportEntryResult {
 }
 
 export function parseEntryBundleZip(zip: Uint8Array): ParsedEntryBundle {
-  const entries = readZipArchive(zip);
-  if (entries.length > MAX_ENTRIES) {
-    throw new Error(`Bundle has too many entries: ${entries.length} > ${MAX_ENTRIES}`);
-  }
-  let total = 0;
-  for (const entry of entries) {
-    total += entry.bytes.length;
-    if (total > MAX_TOTAL_BYTES) {
-      throw new Error(`Bundle exceeds maximum total size of ${MAX_TOTAL_BYTES} bytes`);
-    }
-  }
+  const entries = readBundleEntries(zip, {
+    maxEntries: MAX_ENTRIES,
+    maxTotalBytes: MAX_TOTAL_BYTES,
+  });
 
   const manifestEntry = entries.find((e) => e.path === MANIFEST_PATH);
   if (!manifestEntry) throw new Error(`Bundle is missing ${MANIFEST_PATH} manifest`);
-  const manifest = parseManifest(safeJsonParse(new TextDecoder().decode(manifestEntry.bytes)));
+  const manifest = parseManifest(
+    parseBundleManifestJson(new TextDecoder().decode(manifestEntry.bytes)),
+  );
 
   const entryEntry = entries.find((e) => e.path === ENTRY_PATH);
   if (!entryEntry) throw new Error(`Bundle is missing ${ENTRY_PATH}`);
@@ -152,14 +156,6 @@ function parseManifest(input: unknown): EntryBundleManifest {
   return { schema: input.schema, kind: input.kind, slug: input.slug, path: input.path };
 }
 
-function safeJsonParse(raw: string): unknown {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    throw new Error('Invalid bundle manifest: not valid JSON');
-  }
-}
-
 export async function exportEntryBundle({
   cwd,
   config,
@@ -224,12 +220,14 @@ export async function exportEntryBundle({
     },
     {
       path: ENTRY_PATH,
-      bytes: new TextEncoder().encode(serializeEntryMarkdown(frontmatter, parsed.body, ENTRY_PATH)),
+      bytes: new TextEncoder().encode(
+        serializeMarkdownSource(frontmatter, parsed.body, ENTRY_PATH),
+      ),
     },
     ...tagDefs.map((tag) => ({
       path: `${TAGS_PREFIX}${tag.slug}.md`,
       bytes: new TextEncoder().encode(
-        serializeEntryMarkdown(tag.frontmatter, tag.body, `${TAGS_PREFIX}${tag.slug}.md`),
+        serializeMarkdownSource(tag.frontmatter, tag.body, `${TAGS_PREFIX}${tag.slug}.md`),
       ),
     })),
     ...assets.map((asset) => ({ path: `${ASSETS_PREFIX}${asset.rel}`, bytes: asset.bytes })),
@@ -320,7 +318,7 @@ export async function importEntryBundle({
     tagWrites.push({
       dest,
       bytes: new TextEncoder().encode(
-        serializeEntryMarkdown(tag.frontmatter, tag.body, relativePath(cwd, dest)),
+        serializeMarkdownSource(tag.frontmatter, tag.body, relativePath(cwd, dest)),
       ),
     });
     importedTags.push(tag.slug);
@@ -340,7 +338,7 @@ export async function importEntryBundle({
   if (!dryRun) {
     await writeFile(
       target.path,
-      serializeEntryMarkdown(frontmatter, bundle.body, entryPath),
+      serializeMarkdownSource(frontmatter, bundle.body, entryPath),
       'utf8',
     );
     for (const write of writes) {
@@ -376,18 +374,6 @@ function excerptFromBody(body: string): string {
     .replace(/\s+/g, ' ')
     .trim();
   return text.length > 200 ? `${text.slice(0, 200)}…` : text;
-}
-
-function serializeEntryMarkdown(
-  frontmatter: Record<string, unknown>,
-  body: string,
-  filePath: string,
-): string {
-  const withNewline = body.endsWith('\n') ? body : `${body}\n`;
-  return formatContentSource(
-    `---\n${JSON.stringify(frontmatter)}\n---\n${withNewline.startsWith('\n') ? withNewline : `\n${withNewline}`}`,
-    { filePath },
-  );
 }
 
 async function collectBundleAssets({
@@ -588,68 +574,6 @@ function rootForKind(cwd: string, config: NectarConfig, kind: EntryKind): string
   return absolutise(cwd, kind === 'post' ? config.content.posts_dir : config.content.pages_dir);
 }
 
-async function assertWritablePathHasNoSymlink(root: string, target: string): Promise<void> {
-  const rootAbs = resolve(root);
-  const targetAbs = resolve(target);
-  if (!isInsidePath(rootAbs, targetAbs)) {
-    throw new Error(`Refusing to write outside configured content directory: ${target}`);
-  }
-  const rel = relative(rootAbs, targetAbs);
-  const parts = rel ? rel.split(sep) : [];
-  let current = rootAbs;
-  // A not-yet-created root (e.g. importing an asset- or tag-bearing bundle into
-  // a fresh project that has no content/images or content/tags yet) is not a
-  // symlink risk — the recursive mkdir at write time creates it. Tolerate
-  // ENOENT here just as the per-segment walk below does.
-  try {
-    await assertNotSymlink(current);
-  } catch (err) {
-    if (isNotFoundError(err)) return;
-    throw err;
-  }
-  for (const part of parts) {
-    current = join(current, part);
-    try {
-      await assertNotSymlink(current);
-    } catch (err) {
-      if (isNotFoundError(err)) return;
-      throw err;
-    }
-  }
-}
-
-async function assertNotSymlink(path: string): Promise<void> {
-  const info = await lstat(path);
-  if (info.isSymbolicLink()) throw new Error(`Refusing to write through symlink: ${path}`);
-}
-
-function resolveImportTarget(
-  root: string,
-  requestedSlug: string,
-  onConflict: ConflictPolicy,
-): { path: string; slug: string; skipped: boolean; renamed: boolean } {
-  const first = join(root, `${requestedSlug}.md`);
-  if (!existsSync(first)) {
-    return { path: first, slug: requestedSlug, skipped: false, renamed: false };
-  }
-  if (onConflict === 'skip') {
-    return { path: first, slug: requestedSlug, skipped: true, renamed: false };
-  }
-  if (onConflict === 'overwrite') {
-    return { path: first, slug: requestedSlug, skipped: false, renamed: false };
-  }
-  for (let i = 2; i < 1000; i += 1) {
-    const slug = `${requestedSlug}-${i}`;
-    const candidate = join(root, `${slug}.md`);
-    if (!existsSync(candidate)) return { path: candidate, slug, skipped: false, renamed: true };
-  }
-  throw new Error(`Could not find an available filename for slug: ${requestedSlug}`);
-}
-
-function isNotFoundError(err: unknown): boolean {
-  return isRecord(err) && err.code === 'ENOENT';
-}
-
 function assetRelFromReference(value: string, assetsDir: string): string | undefined {
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value) || value.startsWith('data:')) return undefined;
   const normalizedAssets = assetsDir.replace(/^\/+|\/+$/g, '');
@@ -693,17 +617,4 @@ function isSafeRelativePath(value: string): boolean {
     !value.includes('\\') &&
     value.split('/').every((part) => part.length > 0 && part !== '.' && part !== '..')
   );
-}
-
-function isInsidePath(root: string, target: string): boolean {
-  const rel = relative(root, target);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
-}
-
-function relativePath(cwd: string, path: string): string {
-  return relative(cwd, path).split(sep).join('/');
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }

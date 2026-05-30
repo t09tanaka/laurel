@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { renderFeedSafeHtml } from '~/build/feed-safe-html.ts';
+import { exportComponentsBundle } from '~/components-bundle/index.ts';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import { loadContent } from '~/content/loader.ts';
@@ -12,9 +13,15 @@ import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } fr
 import { reportError } from '../report.ts';
 import { EXPORT_SPEC } from '../specs.ts';
 
-type ExportFormat = 'json' | 'ghost-json' | 'rss' | 'entry';
+type ExportFormat = 'json' | 'ghost-json' | 'rss' | 'entry' | 'components';
 
-const EXPORT_FORMATS: readonly ExportFormat[] = ['json', 'ghost-json', 'rss', 'entry'];
+const EXPORT_FORMATS: readonly ExportFormat[] = [
+  'json',
+  'ghost-json',
+  'rss',
+  'entry',
+  'components',
+];
 
 interface RunExportOptions {
   /** Override `process.cwd()` (tests). */
@@ -64,7 +71,7 @@ export async function runExport(args: string[], options: RunExportOptions = {}):
   try {
     config = await loadConfig({ cwd, configPath });
     content =
-      format === 'entry'
+      format === 'entry' || format === 'components'
         ? ({ posts: [], pages: [], tags: [], authors: [] } as unknown as ContentGraph)
         : await loadContent({ cwd, config, includeDrafts });
   } catch (err) {
@@ -111,6 +118,34 @@ export async function runExport(args: string[], options: RunExportOptions = {}):
       }
       await mkdir(dirname(abs), { recursive: true });
       await Bun.write(abs, zip);
+    } catch (err) {
+      reportError(err, cwd);
+      return exitCodeForError(err);
+    }
+    return EXIT_CODES.ok;
+  }
+
+  if (format === 'components') {
+    const slugsRaw = typeof parsed.values.slugs === 'string' ? parsed.values.slugs : undefined;
+    const slugs = slugsRaw
+      ? slugsRaw
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : undefined;
+    const outRel = outputPath ?? 'components.nectar.zip';
+    const abs = isAbsolute(outRel) ? outRel : resolve(cwd, outRel);
+    try {
+      const { zip, exportedSlugs, missing } = await exportComponentsBundle({ cwd, config, slugs });
+      if (missing.length > 0) {
+        process.stderr.write(`Warning: ${missing.length} unknown component(s) skipped:\n`);
+        for (const m of missing) {
+          process.stderr.write(`  ${m}\n`);
+        }
+      }
+      await mkdir(dirname(abs), { recursive: true });
+      await Bun.write(abs, zip);
+      process.stderr.write(`Exported ${exportedSlugs.length} component(s) to ${outRel}\n`);
     } catch (err) {
       reportError(err, cwd);
       return exitCodeForError(err);

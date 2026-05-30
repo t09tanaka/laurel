@@ -119,7 +119,7 @@ export function ImportModal({ onClose, onImported, toast }: ImportModalProps): J
       {error ? <p class="importError">{error}</p> : null}
 
       {probe ? (
-        <div class="importPreview" data-collision={collides ? 'true' : 'false'}>
+        <div class="importPreview">
           <div class="importPreviewHead">
             <span class="importPreviewKind">{probe.kind}</span>
             <span class="importPreviewSlug">{probe.slug}</span>

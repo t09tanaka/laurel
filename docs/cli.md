@@ -198,8 +198,8 @@ when prompts are enabled.
 | [`nectar theme`](#nectar-theme) | Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials; `serve` runs a fast fixture-backed theme dev server |
 | [`nectar migrate`](#nectar-migrate) | Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>` |
 | [`nectar deploy`](#nectar-deploy) | Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync |
-| [`nectar export`](#nectar-export) | Dump the loaded content, a single entry bundle, or regenerate the RSS feed without running a full build |
-| [`nectar import`](#nectar-import) | Import a Nectar zip entry-bundle (post or page) |
+| [`nectar export`](#nectar-export) | Dump the loaded content, a single entry bundle, a components bundle, or regenerate the RSS feed without running a full build |
+| [`nectar import`](#nectar-import) | Import a Nectar zip bundle: an entry (post or page) or a components bundle |
 | [`nectar upgrade`](#nectar-upgrade) | Upgrade the installed Nectar CLI when the install method supports it |
 | [`nectar telemetry`](#nectar-telemetry) | Manage opt-in anonymous usage telemetry |
 | [`nectar plugins`](#nectar-plugins) | Inspect future Nectar plugins |
@@ -1170,19 +1170,19 @@ nectar deploy s3 --bucket my-bucket --region us-east-1 --preflight
 
 ### `nectar export`
 
-Dump the loaded content, a single entry bundle, or regenerate the RSS feed without running a full build
+Dump the loaded content, a single entry bundle, a components bundle, or regenerate the RSS feed without running a full build
 
 Usage:
 
 ```
-nectar export [--config <path>] [--output <path>] [--pretty] [--include-drafts] [--kind <post|page>] [--json] <format> [slug]
+nectar export [--config <path>] [--output <path>] [--slugs <a,b,c>] [--pretty] [--include-drafts] [--kind <post|page>] [--json] <format> [slug]
 ```
 
 Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<format>` | required | Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), or `entry` (zip entry-bundle for a single post or page) |
+| `<format>` | required | Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), `entry` (zip entry-bundle for a single post or page), or `components` (zip bundle of reusable component snippets for handoff) |
 | `[slug]` | optional | Entry slug when format is `entry` |
 
 Options:
@@ -1190,7 +1190,8 @@ Options:
 | Flag | Type | Env var | Description |
 | --- | --- | --- | --- |
 | `-c, --config <path>` | string | `NECTAR_EXPORT_CONFIG` | Config path(s); repeat or comma-separate to deep-merge in order |
-| `-o, --output <path>` | string | `NECTAR_EXPORT_OUTPUT` | Path to write the export to. For `entry` format defaults to `<slug>.nectar.zip` in cwd; for other formats defaults to stdout. Parent directories are created as needed; existing files are overwritten |
+| `-o, --output <path>` | string | `NECTAR_EXPORT_OUTPUT` | Path to write the export to. For `entry` defaults to `<slug>.nectar.zip`; for `components` defaults to `components.nectar.zip`; for other formats defaults to stdout. Parent directories are created as needed; existing files are overwritten |
+| `--slugs <a,b,c>` | string | `NECTAR_EXPORT_SLUGS` | For `components` format: comma-separated component slugs to export. Omit to export every component |
 | `--pretty` | boolean | `NECTAR_EXPORT_PRETTY` | Pretty-print JSON output with 2-space indentation (`json` and `ghost-json` only). Default emits compact JSON |
 | `--include-drafts` | boolean | `NECTAR_EXPORT_INCLUDE_DRAFTS` | Include posts and pages with `status: draft` in the export. Off by default so an unintended draft cannot leak through `nectar export` |
 | `--kind <post\|page>` | string | `NECTAR_EXPORT_KIND` | For `entry` format: content kind to export (`post` or `page`). Defaults to `post` |
@@ -1206,11 +1207,13 @@ nectar export rss -o feed.xml
 nectar export entry hello-world
 nectar export entry hello-world -o out.nectar.zip
 nectar export entry about --kind page -o about.nectar.zip
+nectar export components                       # every component
+nectar export components --slugs callout,cta -o snippets.nectar.zip
 ```
 
 ### `nectar import`
 
-Import a Nectar zip entry-bundle (post or page)
+Import a Nectar zip bundle: an entry (post or page) or a components bundle
 
 Usage:
 
@@ -1222,8 +1225,8 @@ Arguments:
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `<kind>` | required | Import kind. Only `entry` is supported; the bundle manifest carries the post/page kind, so it is not specified here |
-| `<file>` | required | Path to a `.nectar.zip` entry bundle (posts or pages) |
+| `<kind>` | required | Import kind: `entry` (a single post/page bundle; the manifest carries the post/page kind) or `components` (a bulk components bundle) |
+| `<file>` | required | Path to a `.nectar.zip` bundle (entry or components) |
 
 Options:
 
@@ -1241,6 +1244,8 @@ nectar import entry hello-world.nectar.zip
 nectar import entry hello-world.nectar.zip --dry-run
 nectar import entry hello-world.nectar.zip --on-conflict rename
 nectar import entry hello-world.nectar.zip --on-conflict overwrite
+nectar import components components.nectar.zip
+nectar import components components.nectar.zip --on-conflict overwrite
 ```
 
 ### `nectar upgrade`
