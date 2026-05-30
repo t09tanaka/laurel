@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -195,6 +196,35 @@ describe('importComponentsBundle round trip', () => {
       const written = await readFile(join(target, 'content/components/alpha.md'), 'utf8');
       expect(written).toContain('```html');
       expect(written).toContain('slug: alpha');
+    } finally {
+      await rm(source, { recursive: true, force: true });
+      await rm(target, { recursive: true, force: true });
+    }
+  });
+
+  test('slugs allowlist imports only the selected subset', async () => {
+    const source = await makeFixture(['alpha', 'beta', 'gamma']);
+    const target = await realpath(await mkdtemp(join(tmpdir(), 'nectar-components-target-')));
+    try {
+      await writeFile(
+        join(target, 'nectar.toml'),
+        ['[site]', 'title = "T"', 'url = "https://t.test"', ''].join('\n'),
+        'utf8',
+      );
+      const { zip } = await exportComponentsBundle({
+        cwd: source,
+        config: await loadConfig({ cwd: source }),
+      });
+      const result = await importComponentsBundle({
+        cwd: target,
+        config: await loadConfig({ cwd: target }),
+        zip,
+        onConflict: 'overwrite',
+        slugs: ['alpha', 'gamma'],
+      });
+      expect(result.written).toBe(2);
+      expect(result.components.map((c) => c.slug).sort()).toEqual(['alpha', 'gamma']);
+      expect(existsSync(join(target, 'content/components/beta.md'))).toBe(false);
     } finally {
       await rm(source, { recursive: true, force: true });
       await rm(target, { recursive: true, force: true });

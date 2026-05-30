@@ -29,10 +29,13 @@ export function ComponentImportModal({
   const [probing, setProbing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  // How collisions are resolved on commit. Defaults to the safe `skip` so a
-  // pre-existing (possibly locally-customised) snippet is never overwritten
-  // unless the editor explicitly chooses to.
-  const [onConflict, setOnConflict] = useState<ConflictPolicy>('skip');
+  // How collisions are resolved on commit. Defaults to `overwrite` (a handoff
+  // bundle is usually the newer source of truth); the editor can switch to
+  // skip/rename per import to preserve a locally-customised snippet.
+  const [onConflict, setOnConflict] = useState<ConflictPolicy>('overwrite');
+  // Which snippets in the bundle to actually import (all by default); the
+  // editor unticks rows to leave them out, mirroring the export picker.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   // Monotonic id so a slow probe for a superseded file can't land its result
   // over a newer pick (drop bundle A, quickly swap to B → A's response is stale).
   const probeId = useRef(0);
@@ -53,12 +56,16 @@ export function ComponentImportModal({
     setFile(next);
     setProbe(null);
     setError('');
-    setOnConflict('skip');
+    setOnConflict('overwrite');
     setProbing(true);
     try {
-      // Dry-run with skip so each collision surfaces as skipped:true.
+      // Dry-run over the whole bundle with skip so each collision surfaces as
+      // skipped:true; the subset to actually import is chosen afterwards.
       const result = await importComponentsBundle(next, { dryRun: true, onConflict: 'skip' });
-      if (probeId.current === id) setProbe(result);
+      if (probeId.current === id) {
+        setProbe(result);
+        setSelected(new Set(result.components.map((c) => c.slug)));
+      }
     } catch (err) {
       if (probeId.current === id) setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -71,14 +78,28 @@ export function ComponentImportModal({
     setFile(null);
     setProbe(null);
     setError('');
-    setOnConflict('skip');
+    setOnConflict('overwrite');
+    setSelected(new Set());
+  }
+
+  function toggle(slug: string): void {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug);
+      else next.add(slug);
+      return next;
+    });
   }
 
   async function commit(): Promise<void> {
-    if (!file || !probe) return;
+    if (!file || !probe || selected.size === 0) return;
     setBusy(true);
     try {
-      const result = await importComponentsBundle(file, { dryRun: false, onConflict });
+      const result = await importComponentsBundle(file, {
+        dryRun: false,
+        onConflict,
+        slugs: [...selected],
+      });
       onImported();
       const parts = [`${result.written} imported`];
       if (result.renamed > 0) parts.push(`${result.renamed} renamed`);
@@ -93,17 +114,14 @@ export function ComponentImportModal({
   }
 
   const total = probe?.components.length ?? 0;
-  const collisions = probe?.skipped ?? 0;
-  const fresh = total - collisions;
-  const commitLabel = busy
-    ? 'Importing…'
-    : collisions === 0
-      ? `Import ${total}`
-      : onConflict === 'overwrite'
-        ? `Overwrite & import ${total}`
-        : onConflict === 'rename'
-          ? `Import ${total} (rename ${collisions})`
-          : `Import ${fresh} (skip ${collisions})`;
+  const collisions = probe?.components.filter((c) => c.skipped && selected.has(c.slug)).length ?? 0;
+  const allSelected = total > 0 && selected.size === total;
+
+  function toggleAll(): void {
+    setSelected(allSelected ? new Set() : new Set(probe?.components.map((c) => c.slug) ?? []));
+  }
+
+  const commitLabel = busy ? 'Importing…' : `Import ${selected.size}`;
 
   return (
     <dialog class="modalDialog" aria-modal="true" aria-label="Import a components bundle" open>
@@ -138,7 +156,7 @@ export function ComponentImportModal({
       {error ? <p class="importError">{error}</p> : null}
 
       {probe ? (
-        <div class="importPreview" data-collision={collisions > 0 ? 'true' : 'false'}>
+        <div class="importPreview">
           <div class="importPreviewHead">
             <span class="importPreviewKind">components</span>
             <span class="importPreviewSlug">
@@ -146,43 +164,47 @@ export function ComponentImportModal({
             </span>
           </div>
           <p class="importPreviewMeta">
-            {fresh} new
-            {collisions > 0 ? ` · ${collisions} already exist` : ' · nothing collides'}
+            {selected.size} of {total} selected
+            {collisions > 0 ? ` · ${collisions} already exist` : ''}
           </p>
-          <ul class="importPreviewList">
-            {probe.components.map((c) => (
-              <li key={c.slug} data-collision={c.skipped ? 'true' : 'false'}>
-                <code>{`{${c.slug}}`}</code>
-                {c.skipped ? <span class="importPreviewWarn">exists</span> : null}
-              </li>
-            ))}
+          <label class="exportSelectAll">
+            <input type="checkbox" checked={allSelected} disabled={busy} onChange={toggleAll} />
+            Select all ({total})
+          </label>
+          <ul class="exportList">
+            {probe.components.map((c) => {
+              const checked = selected.has(c.slug);
+              return (
+                <li key={c.slug}>
+                  <label class="exportOption" data-selected={checked ? 'true' : 'false'}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={busy}
+                      onChange={() => toggle(c.slug)}
+                    />
+                    <code>{`{${c.slug}}`}</code>
+                    {c.skipped ? <span class="importPreviewWarn">exists</span> : null}
+                  </label>
+                </li>
+              );
+            })}
           </ul>
-          {collisions > 0 ? (
-            <fieldset class="importConflict">
-              <legend>
-                {collisions} component{collisions === 1 ? '' : 's'} already exist. On conflict:
-              </legend>
-              {(
-                [
-                  ['skip', 'Skip them (keep existing)'],
-                  ['overwrite', 'Overwrite with the bundle'],
-                  ['rename', 'Keep both (import as -2, -3…)'],
-                ] as [ConflictPolicy, string][]
-              ).map(([value, label]) => (
-                <label key={value} class="importConflictOption">
-                  <input
-                    type="radio"
-                    name="componentImportConflict"
-                    value={value}
-                    checked={onConflict === value}
-                    disabled={busy}
-                    onChange={() => setOnConflict(value)}
-                  />
-                  {label}
-                </label>
-              ))}
-            </fieldset>
-          ) : null}
+          <label class="field importConflictField">
+            <span>Conflict policy</span>
+            <select
+              id="componentImportConflict"
+              value={onConflict}
+              disabled={busy}
+              onChange={(event) =>
+                setOnConflict((event.currentTarget as HTMLSelectElement).value as ConflictPolicy)
+              }
+            >
+              <option value="skip">skip</option>
+              <option value="rename">rename</option>
+              <option value="overwrite">overwrite</option>
+            </select>
+          </label>
         </div>
       ) : null}
 
@@ -193,7 +215,7 @@ export function ComponentImportModal({
         <button
           type="button"
           class="btn"
-          disabled={!probe || busy || probing || total === 0}
+          disabled={!probe || busy || probing || selected.size === 0}
           onClick={() => void commit()}
         >
           {commitLabel}

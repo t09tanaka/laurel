@@ -90,19 +90,18 @@ export function ComponentExportModal({
             Select all ({components.length})
           </label>
           <ul class="exportList">
-            {components.map((c) => (
-              <li key={c.slug}>
-                <label class="exportOption">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(c.slug)}
-                    onChange={() => toggle(c.slug)}
-                  />
-                  <code>{`{${c.slug}}`}</code>
-                  {c.description ? <span class="meta">{c.description}</span> : null}
-                </label>
-              </li>
-            ))}
+            {components.map((c) => {
+              const checked = selected.has(c.slug);
+              return (
+                <li key={c.slug}>
+                  <label class="exportOption" data-selected={checked ? 'true' : 'false'}>
+                    <input type="checkbox" checked={checked} onChange={() => toggle(c.slug)} />
+                    <code>{`{${c.slug}}`}</code>
+                    {c.description ? <span class="meta">{c.description}</span> : null}
+                  </label>
+                </li>
+              );
+            })}
           </ul>
         </>
       ) : (

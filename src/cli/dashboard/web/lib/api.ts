@@ -685,12 +685,14 @@ export interface ImportComponentsResult {
 
 export async function importComponentsBundle(
   file: File,
-  opts: { dryRun: boolean; onConflict: 'skip' | 'overwrite' | 'rename' },
+  opts: { dryRun: boolean; onConflict: 'skip' | 'overwrite' | 'rename'; slugs?: string[] },
 ): Promise<ImportComponentsResult> {
   const form = new FormData();
   form.set('file', file);
   form.set('dryRun', String(opts.dryRun));
   form.set('onConflict', opts.onConflict);
+  // Subset selection from the import preview; omitted means import everything.
+  if (opts.slugs && opts.slugs.length > 0) form.set('slugs', opts.slugs.join(','));
   const res = await fetch('/api/components/bundle/import', {
     method: 'POST',
     headers: { 'x-nectar-dashboard-token': dashboardToken },

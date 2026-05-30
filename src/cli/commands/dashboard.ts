@@ -1827,6 +1827,19 @@ export async function handleDashboardRequest(
       const rawOnConflict = form?.get('onConflict');
       const onConflict: 'skip' | 'overwrite' | 'rename' =
         rawOnConflict === 'overwrite' || rawOnConflict === 'rename' ? rawOnConflict : 'skip';
+      // Optional allowlist: the editor can untick snippets in the preview so
+      // only a subset of the bundle lands. Absent/empty means import everything.
+      const slugsRaw = form?.get('slugs');
+      const slugs =
+        typeof slugsRaw === 'string' && slugsRaw.length > 0
+          ? slugsRaw
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : undefined;
+      if (slugs?.some((s) => !COMPONENT_SLUG_PATTERN.test(s))) {
+        return jsonResponse({ error: 'invalid component slug' }, 400);
+      }
       const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
       try {
         const result = await importComponentsBundle({
@@ -1835,6 +1848,7 @@ export async function handleDashboardRequest(
           zip: new Uint8Array(await file.arrayBuffer()),
           onConflict,
           dryRun,
+          slugs,
         });
         if (result.written > 0) {
           ctx.changeBus.broadcast({ reason: 'components-bundle-import', kind: 'components' });

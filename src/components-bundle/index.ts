@@ -218,19 +218,28 @@ export async function importComponentsBundle({
   zip,
   onConflict,
   dryRun = false,
+  slugs,
 }: {
   cwd: string;
   config: NectarConfig;
   zip: Uint8Array;
   onConflict: ConflictPolicy;
   dryRun?: boolean;
+  /** When provided, only import bundle components whose slug is in this list
+   * (the editor can untick snippets in the import preview). Omit for all. */
+  slugs?: string[];
 }): Promise<ImportComponentsBundleResult> {
   const bundle = parseComponentsBundleZip(zip);
   const root = resolve(cwd, config.content.components_dir);
   if (!dryRun) await mkdir(root, { recursive: true });
 
+  const allow = slugs && slugs.length > 0 ? new Set(slugs) : null;
+  const targets = allow
+    ? bundle.components.filter((component) => allow.has(component.slug))
+    : bundle.components;
+
   const results: ImportComponentResult[] = [];
-  for (const component of bundle.components) {
+  for (const component of targets) {
     const target = resolveImportTarget(root, component.slug, onConflict, {
       validateSlug: (slug) => COMPONENT_SLUG_PATTERN.test(slug),
     });

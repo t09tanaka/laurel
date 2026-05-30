@@ -2455,18 +2455,16 @@
     font-size: 13px;
     color: var(--color-danger, #b42318);
   }
+  /* A neutral summary card, not an alert: a collision under the default
+   * overwrite is an expected outcome, so the preview stays a calm hairline
+   * panel with no caution tint or accent bar. */
   .importPreview {
     display: grid;
-    gap: 6px;
+    gap: 8px;
     padding: 12px 14px;
     border: 1px solid var(--border-default);
-    border-left: 3px solid var(--border-strong);
     border-radius: var(--radius);
     background: var(--surface-raised);
-  }
-  .importPreview[data-collision="true"] {
-    border-left-color: var(--caution, #a86900);
-    background: color-mix(in srgb, var(--warning-subdued, #fff6df) 60%, var(--surface-raised));
   }
   .importPreviewHead {
     display: flex;
@@ -2513,80 +2511,43 @@
     margin: 0;
     font-size: 12.5px;
     font-weight: 500;
-    color: var(--caution, #a86900);
+    color: var(--text-muted);
   }
-  /* Per-snippet list inside the components import preview. Compact, mono
-   * slugs with a faint "exists" flag on collisions — same restraint as the
-   * single-entry preview, just enumerated for the bulk case. */
-  .importPreviewList {
-    margin: 2px 0 0;
-    padding: 0;
-    list-style: none;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 10px;
-  }
-  .importPreviewList li {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 6px;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--text-secondary);
-  }
-  .importPreviewList li[data-collision="true"] {
-    color: var(--text-primary);
-  }
-  .importPreviewList .importPreviewWarn {
+  /* The import preview reuses the export picker list (.exportList /
+   * .exportOption); the only addition is a quiet "exists" flag that trails
+   * each row whose slug already exists locally. */
+  .exportOption .importPreviewWarn {
+    justify-self: end;
     font-family: var(--font-sans);
     font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
+    color: var(--text-muted);
   }
-  /* Conflict-resolution chooser, shown only when the bundle collides with
-   * existing snippets. Skip is the default so a local copy is never clobbered
-   * without an explicit choice. */
-  .importConflict {
-    margin: 8px 0 0;
-    padding: 8px 10px;
-    border: 1px solid var(--border, rgba(0, 0, 0, 0.12));
-    border-radius: 6px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+  /* "Conflict policy" select, matching the Settings > Migration field. */
+  .importConflictField {
+    margin-top: 10px;
   }
-  .importConflict legend {
-    padding: 0 4px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-secondary);
-  }
-  .importConflictOption {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12.5px;
-    color: var(--text-primary);
-    cursor: pointer;
-  }
-  .importConflictOption input {
-    margin: 0;
-  }
-  /* Components export picker: a checklist of every {slug}, all ticked by
-   * default, so the editor can untick what to leave out before downloading. */
+  /* Components export picker — an editorial ledger of the {slug}s being
+   * handed off: a hairline-framed list with hairline row dividers, the slug
+   * as the anchor and the description a quiet trailing note. Unticked rows
+   * recede so the kept selection reads at a glance. */
   .exportSelectAll {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin: 4px 0 2px;
-    font-size: 12.5px;
+    gap: 9px;
+    margin: 6px 0 8px;
+    font-size: 11px;
     font-weight: 600;
-    color: var(--text-secondary);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
     cursor: pointer;
   }
   .exportSelectAll input {
     margin: 0;
+    accent-color: var(--surface-primary);
   }
   .exportList {
     margin: 0;
@@ -2594,34 +2555,53 @@
     list-style: none;
     max-height: 280px;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    background: var(--surface-normal);
   }
   .exportList li {
     margin: 0;
   }
+  .exportList li + li .exportOption {
+    border-top: 1px solid var(--border-weak);
+  }
   .exportOption {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    padding: 4px 6px;
-    border-radius: 5px;
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
     cursor: pointer;
+    transition: background-color 0.12s ease, opacity 0.12s ease;
   }
   .exportOption:hover {
-    background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+    background: var(--surface-raised);
   }
   .exportOption input {
     margin: 0;
+    accent-color: var(--surface-primary);
   }
   .exportOption code {
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: 12.5px;
+    letter-spacing: -0.01em;
     color: var(--text-primary);
   }
   .exportOption .meta {
+    min-width: 0;
     font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Unticked rows fade back without disappearing, so the selection is legible
+   * but the full set stays scannable. */
+  .exportOption[data-selected="false"] {
+    opacity: 0.5;
+  }
+  .exportOption[data-selected="false"] code {
+    color: var(--text-secondary);
   }
   /* Bulk-export affordances on the components list head. The action cluster
    * sits opposite the count and only the export button carries weight; Clear
