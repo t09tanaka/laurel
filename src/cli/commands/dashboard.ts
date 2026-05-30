@@ -39,6 +39,7 @@ import { renderRouteHtml } from '~/build/route-render.ts';
 import { loadRoutesYaml, resolveCollections, resolveRouteEntries } from '~/build/routes-yaml.ts';
 import { planRoutes } from '~/build/routes.ts';
 import { findOutdatedSkills } from '~/cli/skill/check-updates.ts';
+import { exportComponentsBundle, importComponentsBundle } from '~/components-bundle/index.ts';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import {
@@ -48,6 +49,7 @@ import {
   writeApprovalReceipt,
 } from '~/content/approvals.ts';
 import { rewriteComponentSlugInBody, splitFrontmatterRaw } from '~/content/component-references.ts';
+import { COMPONENT_SLUG_PATTERN } from '~/content/components.ts';
 import { formatContentSource } from '~/content/format.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
 import { type MarkdownTransformHook, loadContent } from '~/content/loader.ts';
@@ -1774,6 +1776,94 @@ export async function handleDashboardRequest(
             reason: 'bundle-import',
             kind: result.kind === 'post' ? 'posts' : 'pages',
           });
+        }
+        return jsonResponse(result);
+      } catch (err) {
+        return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 400);
+      }
+    }
+    if (request.method === 'GET' && url.pathname === '/api/components/bundle/export') {
+      // Bulk handoff of reusable component snippets. `slugs` (comma-separated)
+      // selects a subset; omitting it exports every component. Read-only, so a
+      // plain GET (anchor download) is fine — no write gate needed.
+      const slugsRaw = stringParam(url, 'slugs');
+      const slugs = slugsRaw
+        ? slugsRaw
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : undefined;
+      if (slugs?.some((s) => !COMPONENT_SLUG_PATTERN.test(s))) {
+        return jsonResponse({ error: 'invalid component slug' }, 400);
+      }
+      const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
+      try {
+        const { zip, missing, omittedAssets } = await exportComponentsBundle({
+          cwd: ctx.cwd,
+          config,
+          slugs,
+        });
+        const headers: Record<string, string> = {
+          'content-type': 'application/zip',
+          'content-disposition': 'attachment; filename="components.nectar.zip"',
+        };
+        // Surface format-valid-but-nonexistent slugs to programmatic callers:
+        // exportComponentsBundle returns a partial zip (it only throws when
+        // *every* requested slug is missing), so without this header an API
+        // client has no way to learn that a requested component was skipped.
+        if (missing.length > 0) headers['x-nectar-missing-components'] = missing.join(',');
+        // Likewise surface assets that a component references but could not be
+        // bundled (missing / unsafe / symlinked) so the receiver knows an image
+        // will be absent.
+        if (omittedAssets.length > 0) {
+          headers['x-nectar-omitted-assets'] = omittedAssets.join(',');
+        }
+        return new Response(zip, { headers });
+      } catch (err) {
+        return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 404);
+      }
+    }
+    if (request.method === 'POST' && url.pathname === '/api/components/bundle/import') {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const form = await request.formData().catch(() => null);
+      const file = form?.get('file');
+      if (!(file instanceof File)) {
+        return jsonResponse({ error: 'file field is required (multipart/form-data)' }, 400);
+      }
+      const MAX_BYTES = 50 * 1024 * 1024;
+      if (file.size > MAX_BYTES) {
+        return jsonResponse({ error: 'components bundle exceeds 50MB limit' }, 413);
+      }
+      const dryRun = String(form?.get('dryRun') ?? 'true') !== 'false';
+      const rawOnConflict = form?.get('onConflict');
+      const onConflict: 'skip' | 'overwrite' | 'rename' =
+        rawOnConflict === 'overwrite' || rawOnConflict === 'rename' ? rawOnConflict : 'skip';
+      // Optional allowlist: the editor can untick snippets in the preview so
+      // only a subset of the bundle lands. Absent/empty means import everything.
+      const slugsRaw = form?.get('slugs');
+      const slugs =
+        typeof slugsRaw === 'string' && slugsRaw.length > 0
+          ? slugsRaw
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : undefined;
+      if (slugs?.some((s) => !COMPONENT_SLUG_PATTERN.test(s))) {
+        return jsonResponse({ error: 'invalid component slug' }, 400);
+      }
+      const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
+      try {
+        const result = await importComponentsBundle({
+          cwd: ctx.cwd,
+          config,
+          zip: new Uint8Array(await file.arrayBuffer()),
+          onConflict,
+          dryRun,
+          slugs,
+        });
+        if (result.written > 0) {
+          ctx.changeBus.broadcast({ reason: 'components-bundle-import', kind: 'components' });
         }
         return jsonResponse(result);
       } catch (err) {

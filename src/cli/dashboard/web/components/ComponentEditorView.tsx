@@ -5,6 +5,7 @@ import {
   renameContentSlug,
   saveContent,
 } from '../lib/api.ts';
+import { useEditorOpenBodyClass } from '../lib/use-editor-open-body-class.ts';
 import type { DashboardContentItem } from '../types.ts';
 
 const SLUG_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
@@ -59,6 +60,9 @@ interface ComponentEditorViewProps {
 
 export function ComponentEditorView(props: ComponentEditorViewProps): JSX.Element {
   const { current } = props;
+  // Collapse the dashboard sidebar so this detail view owns the viewport,
+  // matching the posts/pages editor.
+  useEditorOpenBodyClass();
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-derive when the file identity changes
   const parsed = useMemo(
     () => extractFences(current.body),

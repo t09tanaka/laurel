@@ -268,3 +268,454 @@ describe('importEntryBundle', () => {
     }
   });
 });
+
+// Builds a fixture whose post references a `release` tag that has a rich
+// definition file (name, description, feature image) plus the image asset.
+async function makeTaggedFixture(): Promise<string> {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-entry-bundle-tags-')));
+  await mkdir(join(dir, 'content/posts'), { recursive: true });
+  await mkdir(join(dir, 'content/tags'), { recursive: true });
+  await mkdir(join(dir, 'content/images'), { recursive: true });
+  await writeFile(
+    join(dir, 'nectar.toml'),
+    ['[site]', 'title = "Bundle Site"', 'url = "https://bundle.test"', ''].join('\n'),
+    'utf8',
+  );
+  await writeFile(
+    join(dir, 'content/posts/hello.md'),
+    [
+      '---',
+      'title: Hello',
+      'slug: hello',
+      'status: draft',
+      'tags: [release]',
+      'primary_tag: release',
+      '---',
+      '',
+      'Body text.',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  await writeFile(
+    join(dir, 'content/tags/release.md'),
+    [
+      '---',
+      'slug: release',
+      'name: "Release Notes"',
+      'description: "What shipped."',
+      'feature_image: "/content/images/release.svg"',
+      '---',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  await writeFile(join(dir, 'content/images/release.svg'), '<svg/>', 'utf8');
+  return dir;
+}
+
+describe('entry bundle tag handoff', () => {
+  test('export carries referenced tag definitions and their assets', async () => {
+    const dir = await makeTaggedFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const { zip, bundledTags } = await exportEntryBundle({
+        cwd: dir,
+        config,
+        kind: 'post',
+        slug: 'hello',
+      });
+      expect(bundledTags).toEqual(['release']);
+      const paths = readZipArchive(zip).map((e) => e.path);
+      expect(paths).toContain('tags/release.md');
+      expect(paths).toContain('assets/release.svg');
+      const parsed = parseEntryBundleZip(zip);
+      expect(parsed.tags).toHaveLength(1);
+      expect(parsed.tags[0]?.slug).toBe('release');
+      expect(parsed.tags[0]?.frontmatter.name).toBe('Release Notes');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('import creates a missing tag definition with metadata intact', async () => {
+    const src = await makeTaggedFixture();
+    const dest = await makeFixture();
+    try {
+      const srcConfig = await loadConfig({ cwd: src });
+      const { zip } = await exportEntryBundle({
+        cwd: src,
+        config: srcConfig,
+        kind: 'post',
+        slug: 'hello',
+      });
+      const destConfig = await loadConfig({ cwd: dest });
+      const result = await importEntryBundle({
+        cwd: dest,
+        config: destConfig,
+        zip,
+        onConflict: 'overwrite',
+      });
+      expect(result.importedTags).toEqual(['release']);
+      const tagFile = await readFile(join(dest, 'content/tags/release.md'), 'utf8');
+      expect(tagFile).toContain('Release Notes');
+      expect(tagFile).toContain('What shipped.');
+    } finally {
+      await rm(src, { recursive: true, force: true });
+      await rm(dest, { recursive: true, force: true });
+    }
+  });
+
+  test('import never overwrites an existing tag definition', async () => {
+    const src = await makeTaggedFixture();
+    const dest = await makeTaggedFixture();
+    try {
+      // Give the destination its own customised `release` tag.
+      await writeFile(
+        join(dest, 'content/tags/release.md'),
+        ['---', 'slug: release', 'name: "Local Release"', '---', ''].join('\n'),
+        'utf8',
+      );
+      const srcConfig = await loadConfig({ cwd: src });
+      const { zip } = await exportEntryBundle({
+        cwd: src,
+        config: srcConfig,
+        kind: 'post',
+        slug: 'hello',
+      });
+      const destConfig = await loadConfig({ cwd: dest });
+      const result = await importEntryBundle({
+        cwd: dest,
+        config: destConfig,
+        zip,
+        onConflict: 'overwrite',
+      });
+      expect(result.importedTags).toEqual([]);
+      const tagFile = await readFile(join(dest, 'content/tags/release.md'), 'utf8');
+      expect(tagFile).toContain('Local Release');
+    } finally {
+      await rm(src, { recursive: true, force: true });
+      await rm(dest, { recursive: true, force: true });
+    }
+  });
+
+  test('dryRun reports tags that would be created without writing them', async () => {
+    const src = await makeTaggedFixture();
+    const dest = await makeFixture();
+    try {
+      const srcConfig = await loadConfig({ cwd: src });
+      const { zip } = await exportEntryBundle({
+        cwd: src,
+        config: srcConfig,
+        kind: 'post',
+        slug: 'hello',
+      });
+      const destConfig = await loadConfig({ cwd: dest });
+      const result = await importEntryBundle({
+        cwd: dest,
+        config: destConfig,
+        zip,
+        onConflict: 'overwrite',
+        dryRun: true,
+      });
+      expect(result.importedTags).toEqual(['release']);
+      expect(result.preview.tagCount).toBe(1);
+      await expect(readFile(join(dest, 'content/tags/release.md'), 'utf8')).rejects.toThrow();
+    } finally {
+      await rm(src, { recursive: true, force: true });
+      await rm(dest, { recursive: true, force: true });
+    }
+  });
+
+  test('warns when a referenced tag has no bundled definition', async () => {
+    const dir = await makeFixture();
+    try {
+      // Post references a tag with no definition file anywhere.
+      await writeFile(
+        join(dir, 'content/posts/hello.md'),
+        ['---', 'title: Hello', 'slug: hello', 'tags: [ghost-tag]', '---', '', 'Body.', ''].join(
+          '\n',
+        ),
+        'utf8',
+      );
+      const config = await loadConfig({ cwd: dir });
+      const { zip, bundledTags } = await exportEntryBundle({
+        cwd: dir,
+        config,
+        kind: 'post',
+        slug: 'hello',
+      });
+      expect(bundledTags).toEqual([]);
+      const result = await importEntryBundle({ cwd: dir, config, zip, onConflict: 'overwrite' });
+      expect(result.importedTags).toEqual([]);
+      expect(result.warnings.some((w) => w.includes('ghost-tag'))).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('parseEntryBundleZip rejects a traversing tag path', () => {
+    const zip = createZipArchive([
+      { path: 'nectar-bundle.json', bytes: manifestEntry() },
+      { path: 'entry.md', bytes: ENTRY_MD },
+      { path: 'tags/../evil.md', bytes: bytes('---\nslug: evil\n---\n') },
+    ]);
+    expect(() => parseEntryBundleZip(zip)).toThrow(/tag path/i);
+  });
+});
+
+// Builds a fixture whose post is authored by `casper`, who has a rich author
+// definition file (name, bio, profile image) plus the image asset.
+async function makeAuthoredFixture(): Promise<string> {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-entry-bundle-authors-')));
+  await mkdir(join(dir, 'content/posts'), { recursive: true });
+  await mkdir(join(dir, 'content/authors'), { recursive: true });
+  await mkdir(join(dir, 'content/images'), { recursive: true });
+  await writeFile(
+    join(dir, 'nectar.toml'),
+    ['[site]', 'title = "Bundle Site"', 'url = "https://bundle.test"', ''].join('\n'),
+    'utf8',
+  );
+  await writeFile(
+    join(dir, 'content/posts/hello.md'),
+    [
+      '---',
+      'title: Hello',
+      'slug: hello',
+      'status: draft',
+      'authors: [casper]',
+      '---',
+      '',
+      'Body text.',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  await writeFile(
+    join(dir, 'content/authors/casper.md'),
+    [
+      '---',
+      'slug: casper',
+      'name: "Casper"',
+      'bio: "Friendly mascot."',
+      'profile_image: "/content/images/casper.svg"',
+      '---',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  await writeFile(join(dir, 'content/images/casper.svg'), '<svg/>', 'utf8');
+  return dir;
+}
+
+describe('entry bundle author handoff', () => {
+  test('export carries referenced author definitions and their assets', async () => {
+    const dir = await makeAuthoredFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const { zip, bundledAuthors } = await exportEntryBundle({
+        cwd: dir,
+        config,
+        kind: 'post',
+        slug: 'hello',
+      });
+      expect(bundledAuthors).toEqual(['casper']);
+      const paths = readZipArchive(zip).map((e) => e.path);
+      expect(paths).toContain('authors/casper.md');
+      expect(paths).toContain('assets/casper.svg');
+      const parsed = parseEntryBundleZip(zip);
+      expect(parsed.authors).toHaveLength(1);
+      expect(parsed.authors[0]?.slug).toBe('casper');
+      expect(parsed.authors[0]?.frontmatter.name).toBe('Casper');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('import creates a missing author definition with metadata intact', async () => {
+    const src = await makeAuthoredFixture();
+    const dest = await makeFixture();
+    try {
+      const srcConfig = await loadConfig({ cwd: src });
+      const { zip } = await exportEntryBundle({
+        cwd: src,
+        config: srcConfig,
+        kind: 'post',
+        slug: 'hello',
+      });
+      const destConfig = await loadConfig({ cwd: dest });
+      const result = await importEntryBundle({
+        cwd: dest,
+        config: destConfig,
+        zip,
+        onConflict: 'overwrite',
+      });
+      expect(result.importedAuthors).toEqual(['casper']);
+      const authorFile = await readFile(join(dest, 'content/authors/casper.md'), 'utf8');
+      expect(authorFile).toContain('Casper');
+      expect(authorFile).toContain('Friendly mascot.');
+    } finally {
+      await rm(src, { recursive: true, force: true });
+      await rm(dest, { recursive: true, force: true });
+    }
+  });
+
+  test('import never overwrites an existing author definition', async () => {
+    const src = await makeAuthoredFixture();
+    const dest = await makeAuthoredFixture();
+    try {
+      // Give the destination its own customised `casper` author.
+      await writeFile(
+        join(dest, 'content/authors/casper.md'),
+        ['---', 'slug: casper', 'name: "Local Casper"', '---', ''].join('\n'),
+        'utf8',
+      );
+      const srcConfig = await loadConfig({ cwd: src });
+      const { zip } = await exportEntryBundle({
+        cwd: src,
+        config: srcConfig,
+        kind: 'post',
+        slug: 'hello',
+      });
+      const destConfig = await loadConfig({ cwd: dest });
+      const result = await importEntryBundle({
+        cwd: dest,
+        config: destConfig,
+        zip,
+        onConflict: 'overwrite',
+      });
+      expect(result.importedAuthors).toEqual([]);
+      const authorFile = await readFile(join(dest, 'content/authors/casper.md'), 'utf8');
+      expect(authorFile).toContain('Local Casper');
+    } finally {
+      await rm(src, { recursive: true, force: true });
+      await rm(dest, { recursive: true, force: true });
+    }
+  });
+
+  test('dryRun reports authors that would be created without writing them', async () => {
+    const src = await makeAuthoredFixture();
+    const dest = await makeFixture();
+    try {
+      const srcConfig = await loadConfig({ cwd: src });
+      const { zip } = await exportEntryBundle({
+        cwd: src,
+        config: srcConfig,
+        kind: 'post',
+        slug: 'hello',
+      });
+      const destConfig = await loadConfig({ cwd: dest });
+      const result = await importEntryBundle({
+        cwd: dest,
+        config: destConfig,
+        zip,
+        onConflict: 'overwrite',
+        dryRun: true,
+      });
+      expect(result.importedAuthors).toEqual(['casper']);
+      expect(result.preview.authorCount).toBe(1);
+      await expect(readFile(join(dest, 'content/authors/casper.md'), 'utf8')).rejects.toThrow();
+    } finally {
+      await rm(src, { recursive: true, force: true });
+      await rm(dest, { recursive: true, force: true });
+    }
+  });
+
+  test('warns when a referenced author has no bundled definition', async () => {
+    const dir = await makeFixture();
+    try {
+      // Post references an author with no definition file anywhere.
+      await writeFile(
+        join(dir, 'content/posts/hello.md'),
+        ['---', 'title: Hello', 'slug: hello', 'authors: [ghost]', '---', '', 'Body.', ''].join(
+          '\n',
+        ),
+        'utf8',
+      );
+      const config = await loadConfig({ cwd: dir });
+      const { zip, bundledAuthors } = await exportEntryBundle({
+        cwd: dir,
+        config,
+        kind: 'post',
+        slug: 'hello',
+      });
+      expect(bundledAuthors).toEqual([]);
+      const result = await importEntryBundle({ cwd: dir, config, zip, onConflict: 'overwrite' });
+      expect(result.importedAuthors).toEqual([]);
+      expect(result.warnings.some((w) => w.includes('ghost'))).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('parseEntryBundleZip rejects a traversing author path', () => {
+    const zip = createZipArchive([
+      { path: 'nectar-bundle.json', bytes: manifestEntry() },
+      { path: 'entry.md', bytes: ENTRY_MD },
+      { path: 'authors/../evil.md', bytes: bytes('---\nslug: evil\n---\n') },
+    ]);
+    expect(() => parseEntryBundleZip(zip)).toThrow(/author path/i);
+  });
+
+  test('export carries an author referenced only via primary_author', async () => {
+    const dir = await makeAuthoredFixture();
+    try {
+      // Reference casper through primary_author alone (no authors/author list).
+      await writeFile(
+        join(dir, 'content/posts/hello.md'),
+        [
+          '---',
+          'title: Hello',
+          'slug: hello',
+          'status: draft',
+          'primary_author: casper',
+          '---',
+          '',
+          'Body text.',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+      const config = await loadConfig({ cwd: dir });
+      const { zip, bundledAuthors } = await exportEntryBundle({
+        cwd: dir,
+        config,
+        kind: 'post',
+        slug: 'hello',
+      });
+      expect(bundledAuthors).toEqual(['casper']);
+      expect(parseEntryBundleZip(zip).authors[0]?.slug).toBe('casper');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('warns once when a primary_author has no bundled definition', async () => {
+    const dir = await makeFixture();
+    try {
+      // Reference the same missing author twice (authors + primary_author).
+      await writeFile(
+        join(dir, 'content/posts/hello.md'),
+        [
+          '---',
+          'title: Hello',
+          'slug: hello',
+          'authors: [ghost]',
+          'primary_author: ghost',
+          '---',
+          '',
+          'Body.',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+      const config = await loadConfig({ cwd: dir });
+      const { zip } = await exportEntryBundle({ cwd: dir, config, kind: 'post', slug: 'hello' });
+      const result = await importEntryBundle({ cwd: dir, config, zip, onConflict: 'overwrite' });
+      const ghostWarnings = result.warnings.filter((w) => w.includes('ghost'));
+      expect(ghostWarnings).toHaveLength(1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

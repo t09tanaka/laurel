@@ -1600,7 +1600,7 @@ export const DEPLOY_SPEC: CommandSpec = {
 export const EXPORT_SPEC: CommandSpec = {
   name: 'export',
   summary:
-    'Dump the loaded content, a single entry bundle, or regenerate the RSS feed without running a full build',
+    'Dump the loaded content, a single entry bundle, a components bundle, or regenerate the RSS feed without running a full build',
   options: {
     config: {
       type: 'string',
@@ -1611,8 +1611,14 @@ export const EXPORT_SPEC: CommandSpec = {
       type: 'string',
       short: 'o',
       description:
-        'Path to write the export to. For `entry` format defaults to `<slug>.nectar.zip` in cwd; for other formats defaults to stdout. Parent directories are created as needed; existing files are overwritten',
+        'Path to write the export to. For `entry` defaults to `<slug>.nectar.zip`; for `components` defaults to `components.nectar.zip`; for other formats defaults to stdout. Parent directories are created as needed; existing files are overwritten',
       placeholder: '<path>',
+    },
+    slugs: {
+      type: 'string',
+      description:
+        'For `components` format: comma-separated component slugs to export. Omit to export every component',
+      placeholder: '<a,b,c>',
     },
     pretty: {
       type: 'boolean',
@@ -1640,7 +1646,7 @@ export const EXPORT_SPEC: CommandSpec = {
     {
       name: 'format',
       description:
-        'Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), or `entry` (zip entry-bundle for a single post or page)',
+        'Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), `entry` (zip entry-bundle for a single post or page), or `components` (zip bundle of reusable component snippets for handoff)',
       required: true,
     },
     {
@@ -1657,12 +1663,14 @@ export const EXPORT_SPEC: CommandSpec = {
     'nectar export entry hello-world',
     'nectar export entry hello-world -o out.nectar.zip',
     'nectar export entry about --kind page -o about.nectar.zip',
+    'nectar export components                       # every component',
+    'nectar export components --slugs callout,cta -o snippets.nectar.zip',
   ],
 };
 
 export const IMPORT_SPEC: CommandSpec = {
   name: 'import',
-  summary: 'Import a Nectar zip entry-bundle (post or page)',
+  summary: 'Import a Nectar zip bundle: an entry (post or page) or a components bundle',
   options: {
     config: {
       type: 'string',
@@ -1688,12 +1696,12 @@ export const IMPORT_SPEC: CommandSpec = {
     {
       name: 'kind',
       description:
-        'Import kind. Only `entry` is supported; the bundle manifest carries the post/page kind, so it is not specified here',
+        'Import kind: `entry` (a single post/page bundle; the manifest carries the post/page kind) or `components` (a bulk components bundle)',
       required: true,
     },
     {
       name: 'file',
-      description: 'Path to a `.nectar.zip` entry bundle (posts or pages)',
+      description: 'Path to a `.nectar.zip` bundle (entry or components)',
       required: true,
     },
   ],
@@ -1702,6 +1710,8 @@ export const IMPORT_SPEC: CommandSpec = {
     'nectar import entry hello-world.nectar.zip --dry-run',
     'nectar import entry hello-world.nectar.zip --on-conflict rename',
     'nectar import entry hello-world.nectar.zip --on-conflict overwrite',
+    'nectar import components components.nectar.zip',
+    'nectar import components components.nectar.zip --on-conflict overwrite',
   ],
 };
 

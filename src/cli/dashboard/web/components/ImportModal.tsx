@@ -66,9 +66,15 @@ export function ImportModal({ onClose, onImported, toast }: ImportModalProps): J
         onConflict: collides ? 'overwrite' : 'skip',
       });
       onImported();
+      const tagNote = result.importedTags.length
+        ? ` · added ${result.importedTags.length} tag(s)`
+        : '';
+      const authorNote = result.importedAuthors.length
+        ? ` · added ${result.importedAuthors.length} author(s)`
+        : '';
       toast.push({
         intent: 'success',
-        message: `Imported ${result.slug} · marked for review`,
+        message: `Imported ${result.slug} · marked for review${tagNote}${authorNote}`,
       });
       if (result.warnings.length) {
         toast.push({ intent: 'info', message: result.warnings.join(' · ') });
@@ -116,7 +122,7 @@ export function ImportModal({ onClose, onImported, toast }: ImportModalProps): J
       {error ? <p class="importError">{error}</p> : null}
 
       {probe ? (
-        <div class="importPreview" data-collision={collides ? 'true' : 'false'}>
+        <div class="importPreview">
           <div class="importPreviewHead">
             <span class="importPreviewKind">{probe.kind}</span>
             <span class="importPreviewSlug">{probe.slug}</span>
@@ -127,8 +133,16 @@ export function ImportModal({ onClose, onImported, toast }: ImportModalProps): J
           ) : null}
           <p class="importPreviewMeta">
             {probe.preview.assetCount} asset(s)
+            {probe.preview.tagCount > 0 ? ` · ${probe.preview.tagCount} tag(s)` : ''}
+            {probe.preview.authorCount > 0 ? ` · ${probe.preview.authorCount} author(s)` : ''}
             {collides ? ' · a matching entry already exists' : ' · new entry'}
           </p>
+          {!collides && probe.importedTags.length > 0 ? (
+            <p class="importPreviewMeta">New tags: {probe.importedTags.join(', ')}</p>
+          ) : null}
+          {!collides && probe.importedAuthors.length > 0 ? (
+            <p class="importPreviewMeta">New authors: {probe.importedAuthors.join(', ')}</p>
+          ) : null}
           {collides ? (
             <p class="importPreviewWarn">Importing will overwrite the existing {probe.kind}.</p>
           ) : null}

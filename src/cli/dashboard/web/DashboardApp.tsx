@@ -3,6 +3,8 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'preact/hoo
 import { BuildPanel, type BuildPhase } from './components/BuildPanel.tsx';
 import { type CommandItem, CommandPalette } from './components/CommandPalette.tsx';
 import { ComponentEditorView } from './components/ComponentEditorView.tsx';
+import { ComponentExportModal } from './components/ComponentExportModal.tsx';
+import { ComponentImportModal } from './components/ComponentImportModal.tsx';
 import { ComponentsView } from './components/ComponentsView.tsx';
 import { useConfirmHost } from './components/ConfirmDialog.tsx';
 import { ContentTable } from './components/ContentTable.tsx';
@@ -104,6 +106,7 @@ export function DashboardApp(): JSX.Element {
   const [siteSettingsDirty, setSiteSettingsDirty] = useState(false);
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [themeSettingsDirty, setThemeSettingsDirty] = useState(false);
   const [codeInjectionSettingsDirty, setCodeInjectionSettingsDirty] = useState(false);
   const [buildPhase, setBuildPhase] = useState<BuildPhase>('idle');
@@ -604,9 +607,14 @@ export function DashboardApp(): JSX.Element {
   // button would dump the user into a post-create flow that has nothing
   // to do with the settings panel they're looking at.
   const showNewButton = !createMode && !editor && !inSettings;
-  // Zip import is entry-only — it lands posts/pages, so offer it alongside
-  // New in the posts/pages list views.
-  const showImportButton = showNewButton && (ui.view === 'posts' || ui.view === 'pages');
+  // Zip import lands posts/pages (entry bundles) or components (bulk bundle),
+  // so offer it alongside New in those list views.
+  const showImportButton =
+    showNewButton && (ui.view === 'posts' || ui.view === 'pages' || ui.view === 'components');
+  // Bulk export is components-only and pointless with nothing to export, so it
+  // appears next to Import on the components list once at least one exists.
+  const showExportButton =
+    showNewButton && ui.view === 'components' && (state?.components.total ?? 0) > 0;
   // Filter input only makes sense when there's actually a list to filter.
   // Editors, the create form, settings, and migration have no view-scoped
   // search target, so hide the input there.
@@ -773,9 +781,11 @@ export function DashboardApp(): JSX.Element {
                 showNew={showNewButton}
                 showFilter={showFilterInput}
                 showImport={showImportButton}
+                showExport={showExportButton}
                 onSearch={handleSearch}
                 onNew={handleNew}
                 onImport={() => setImportOpen(true)}
+                onExport={() => setExportOpen(true)}
               />
             }
           />
@@ -920,9 +930,27 @@ export function DashboardApp(): JSX.Element {
       </main>
       <CommandPalette open={cmdkOpen} items={commandItems} onClose={() => setCmdkOpen(false)} />
       <Modal open={importOpen} onClose={() => setImportOpen(false)}>
-        <ImportModal
-          onClose={() => setImportOpen(false)}
-          onImported={() => void load({ force: true })}
+        {ui.view === 'components' ? (
+          <ComponentImportModal
+            onClose={() => setImportOpen(false)}
+            onImported={() => void load({ force: true })}
+            toast={toastHost.api}
+          />
+        ) : (
+          <ImportModal
+            onClose={() => setImportOpen(false)}
+            onImported={() => void load({ force: true })}
+            toast={toastHost.api}
+          />
+        )}
+      </Modal>
+      <Modal open={exportOpen} onClose={() => setExportOpen(false)}>
+        <ComponentExportModal
+          components={(state?.components.items ?? []).map((c) => ({
+            slug: c.slug,
+            description: c.description,
+          }))}
+          onClose={() => setExportOpen(false)}
           toast={toastHost.api}
         />
       </Modal>

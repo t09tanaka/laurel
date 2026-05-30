@@ -1128,6 +1128,85 @@ describe('dashboard data', () => {
     }
   });
 
+  test('exports and imports components bundles via /api/components/bundle', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await mkdir(join(dir, 'content/components'), { recursive: true });
+      for (const slug of ['callout', 'cta']) {
+        await writeFile(
+          join(dir, `content/components/${slug}.md`),
+          [
+            '---',
+            `slug: ${slug}`,
+            `description: ${slug} snippet`,
+            '---',
+            '',
+            '```html',
+            `<div class="${slug}">{${slug}}</div>`,
+            '```',
+            '',
+          ].join('\n'),
+          'utf8',
+        );
+      }
+
+      // GET export of every component (read-only).
+      const exported = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/components/bundle/export'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(exported.status).toBe(200);
+      expect(exported.headers.get('content-type')).toBe('application/zip');
+      const zipBytes = new Uint8Array(await exported.arrayBuffer());
+      expect(zipBytes.length).toBeGreaterThan(0);
+
+      // Import into a fresh target directory.
+      const target = await realpath(await mkdtemp(join(tmpdir(), 'nectar-comp-import-')));
+      await writeFile(
+        join(target, 'nectar.toml'),
+        ['[site]', 'title = "T"', 'url = "https://t.test"', ''].join('\n'),
+        'utf8',
+      );
+      const form = new FormData();
+      form.append('file', new File([zipBytes], 'components.nectar.zip'));
+      form.append('onConflict', 'overwrite');
+      form.append('dryRun', 'false');
+      const imported = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/components/bundle/import', {
+          method: 'POST',
+          body: form,
+        }),
+        { cwd: target, changeBus: createChangeBus() },
+      );
+      expect(imported.status).toBe(200);
+      const importedBody = (await imported.json()) as { written: number };
+      expect(importedBody.written).toBe(2);
+      expect(await readFile(join(target, 'content/components/callout.md'), 'utf8')).toContain(
+        '```html',
+      );
+      await rm(target, { recursive: true, force: true });
+
+      // Invalid slug filter is rejected.
+      const badSlug = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/components/bundle/export?slugs=1bad'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(badSlug.status).toBe(400);
+
+      // A partial export (one real slug + one that does not exist) still
+      // succeeds but reports the skipped slug via a response header so a
+      // programmatic caller can tell something was omitted.
+      const partial = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/components/bundle/export?slugs=callout,ghost'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(partial.status).toBe(200);
+      expect(partial.headers.get('x-nectar-missing-components')).toBe('ghost');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('writes content only when the source fingerprint still matches', async () => {
     const dir = await makeDashboardFixture();
     try {

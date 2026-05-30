@@ -5,6 +5,7 @@ import {
   buildFrontmatter as buildFrontmatterFor,
   snapshotFromItem as snapshotFromItemFor,
 } from '../lib/editor-snapshot.ts';
+import { useEditorOpenBodyClass } from '../lib/use-editor-open-body-class.ts';
 import type { DashboardContentItem, EditorSnapshot } from '../types.ts';
 import { FeatureImageField } from './FeatureImageField.tsx';
 
@@ -41,6 +42,10 @@ export function TaxonomyEditorView(props: TaxonomyEditorViewProps): JSX.Element 
   const { current } = props;
   const isAuthor = current.kind === 'authors';
   const kindLabel = isAuthor ? 'Author' : 'Tag';
+
+  // Collapse the dashboard sidebar so this detail view owns the viewport,
+  // matching the posts/pages editor.
+  useEditorOpenBodyClass();
 
   const baseline = useMemo(() => snapshotFromItemFor(current.kind, current), [current]);
   const [snapshot, setSnapshot] = useState<EditorSnapshot>(baseline);

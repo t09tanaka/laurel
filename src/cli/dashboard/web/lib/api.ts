@@ -634,8 +634,16 @@ export interface ImportBundleResult {
   slug: string;
   entryPath: string;
   assetPaths: string[];
+  importedTags: string[];
+  importedAuthors: string[];
   warnings: string[];
-  preview: { title: string; excerpt: string; assetCount: number };
+  preview: {
+    title: string;
+    excerpt: string;
+    assetCount: number;
+    tagCount: number;
+    authorCount: number;
+  };
 }
 
 export async function importBundle(
@@ -657,4 +665,55 @@ export async function importBundle(
         `Import failed (${res.status})`,
     );
   return res.json() as Promise<ImportBundleResult>;
+}
+
+export function componentsBundleExportUrl(slugs?: string[]): string {
+  // Omitting `slugs` exports every component; a non-empty list scopes the zip
+  // to the selected snippets.
+  if (slugs && slugs.length > 0) {
+    return `/api/components/bundle/export?slugs=${encodeURIComponent(slugs.join(','))}`;
+  }
+  return '/api/components/bundle/export';
+}
+
+export interface ImportComponentEntry {
+  written: boolean;
+  skipped: boolean;
+  renamed: boolean;
+  slug: string;
+  finalSlug: string;
+  path: string;
+}
+
+export interface ImportComponentsResult {
+  components: ImportComponentEntry[];
+  written: number;
+  skipped: number;
+  renamed: number;
+  /** Asset paths created because the destination lacked them. Existing assets
+   * are never overwritten, so they are absent here. */
+  importedAssets: string[];
+}
+
+export async function importComponentsBundle(
+  file: File,
+  opts: { dryRun: boolean; onConflict: 'skip' | 'overwrite' | 'rename'; slugs?: string[] },
+): Promise<ImportComponentsResult> {
+  const form = new FormData();
+  form.set('file', file);
+  form.set('dryRun', String(opts.dryRun));
+  form.set('onConflict', opts.onConflict);
+  // Subset selection from the import preview; omitted means import everything.
+  if (opts.slugs && opts.slugs.length > 0) form.set('slugs', opts.slugs.join(','));
+  const res = await fetch('/api/components/bundle/import', {
+    method: 'POST',
+    headers: { 'x-nectar-dashboard-token': dashboardToken },
+    body: form,
+  });
+  if (!res.ok)
+    throw new Error(
+      ((await res.json().catch(() => ({}))) as { error?: string }).error ??
+        `Import failed (${res.status})`,
+    );
+  return res.json() as Promise<ImportComponentsResult>;
 }
