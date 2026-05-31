@@ -3091,9 +3091,6 @@
     text-overflow: ellipsis;
     max-width: 220px;
   }
-  .taxAction {
-    font-size: 12.5px;
-  }
   .editor {
     display: none;
   }
