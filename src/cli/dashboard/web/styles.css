@@ -1099,6 +1099,36 @@
   .btn.hidden {
     display: none;
   }
+  /* Header Delete — quiet danger affordance that sits beside Save without
+   * competing with it: outlined in the danger hue, filling solid red only on
+   * hover. Mirrors the .editorDangerDelete treatment in inline button form. */
+  .btn.danger {
+    background: transparent;
+    color: var(--danger);
+    /* Outline via inset shadow rather than a real border so Delete keeps the
+     * exact box metrics of the borderless Save button beside it — a real 1px
+     * border adds layout height and makes Delete sit ~1px taller. */
+    border: 0;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 24%, transparent);
+  }
+  .btn.danger:hover {
+    background: var(--danger);
+    color: #ffffff;
+    box-shadow: var(--elevation-2);
+  }
+  .btn.danger:disabled {
+    background: var(--surface-raised);
+    color: var(--text-muted);
+    box-shadow: inset 0 0 0 1px var(--border-default);
+  }
+  /* Taxonomy editor header action cluster — keep Delete and Save on one row
+   * with the same rhythm as the component editor's focus bar. */
+  .editorTopActions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
   .densityCompact {
     --space: 10px;
     font-size: 13px;
