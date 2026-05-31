@@ -29,6 +29,9 @@ interface TaxonomyEditorViewProps {
   onRenamed?: (kind: DashboardContentItem['kind'], newSlug: string) => Promise<void> | void;
   onConflict: (message: string, current: DashboardContentItem) => void;
   onDirtyChange: (dirty: boolean) => void;
+  // Soft-delete to .nectar/trash (restorable). DashboardApp owns the confirm
+  // dialog, the trash call and the post-delete navigation.
+  onDelete?: () => Promise<void> | void;
 }
 
 // Author / Tag editor — laid out like an editorial colophon page:
@@ -160,6 +163,19 @@ export function TaxonomyEditorView(props: TaxonomyEditorViewProps): JSX.Element 
         </button>
         <div class="editorPathPlaceholder" />
         <div class="editorTopActions">
+          {props.onDelete ? (
+            <button
+              class="btn danger"
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                void props.onDelete?.();
+              }}
+              title={`Move this ${kindLabel.toLowerCase()} to trash`}
+            >
+              Delete
+            </button>
+          ) : null}
           <button
             class="btn"
             type="button"
