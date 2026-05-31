@@ -430,13 +430,15 @@ export function DashboardApp(): JSX.Element {
   async function handleEditorDelete(): Promise<void> {
     if (!editor) return;
     const label = DELETE_LABELS[editor.kind];
-    // Authors / tags can be derived from posts, so deleting only drops the
-    // customization file — the taxonomy reverts to a virtual entry while any
-    // post still references it. Components stop expanding wherever `{slug}`
-    // appears. Spell this out so Delete doesn't read as "purge everywhere".
+    // Authors / tags are also reconstructed from any post that references
+    // them, so dropping just the file would leave a "generated" stub behind.
+    // Delete now also strips the reference from every post/page frontmatter,
+    // and Undo restores both the file and those edits. Components stop
+    // expanding wherever `{slug}` appears. Spell this out so the scope is
+    // clear before confirming.
     const consequence =
       editor.kind === 'authors' || editor.kind === 'tags'
-        ? ` Posts that reference this ${label} keep working — it reverts to a derived entry until you recreate the file.`
+        ? ` Any post or page that references this ${label} has it removed from frontmatter too, so it won't reappear as a generated entry. Undo restores the file and those edits.`
         : editor.kind === 'components'
           ? ` Any \`{${editor.slug}}\` reference in posts or pages stops expanding until you restore it.`
           : '';

@@ -554,6 +554,80 @@ describe('dashboard data', () => {
     }
   });
 
+  test('strips deleted tag from referencing post frontmatter and restores it on undo', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      // A post that references the `news` tag in three shapes so the cascade
+      // is exercised against block list, inline array, and a left-behind
+      // sibling tag that must survive.
+      await writeFile(
+        join(dir, 'content/posts/tagged.md'),
+        [
+          '---',
+          'title: Tagged Post',
+          'date: 2026-01-04T00:00:00Z',
+          'created_at: 2026-01-04T00:00:00Z',
+          'tags: [news, keep-me]',
+          '---',
+          '',
+          'Tagged body',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+      const config = await loadConfig({ cwd: dir });
+      const before = await readFile(join(dir, 'content/posts/tagged.md'), 'utf8');
+      const tag = await readDashboardContentItem({ cwd: dir, config, kind: 'tags', slug: 'news' });
+
+      const trashed = await trashDashboardContentItem({
+        cwd: dir,
+        config,
+        kind: 'tags',
+        slug: 'news',
+        expectedFingerprint: tag.fingerprint,
+        now: new Date('2026-01-10T00:00:00Z'),
+      });
+      expect(trashed.ok).toBe(true);
+      if (!trashed.ok) throw new Error('expected trash result');
+
+      const rewritten = await readFile(join(dir, 'content/posts/tagged.md'), 'utf8');
+      expect(rewritten).not.toContain('news');
+      expect(rewritten).toContain('keep-me');
+
+      const restored = await restoreDashboardTrashEntry({ cwd: dir, id: trashed.entry.id });
+      expect(restored.ok).toBe(true);
+      expect(existsSync(join(dir, 'content/tags/news.md'))).toBe(true);
+      // Undo puts the referencing post back byte-for-byte.
+      expect(await readFile(join(dir, 'content/posts/tagged.md'), 'utf8')).toBe(before);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('deleting an unreferenced tag records no cascade and leaves posts untouched', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const postBefore = await readFile(join(dir, 'content/posts/new.md'), 'utf8');
+      const tag = await readDashboardContentItem({ cwd: dir, config, kind: 'tags', slug: 'news' });
+
+      const trashed = await trashDashboardContentItem({
+        cwd: dir,
+        config,
+        kind: 'tags',
+        slug: 'news',
+        expectedFingerprint: tag.fingerprint,
+        now: new Date('2026-01-10T00:00:00Z'),
+      });
+      expect(trashed.ok).toBe(true);
+      if (!trashed.ok) throw new Error('expected trash result');
+      expect(trashed.entry.affectedFiles ?? []).toHaveLength(0);
+      expect(await readFile(join(dir, 'content/posts/new.md'), 'utf8')).toBe(postBefore);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('rejects a stale-fingerprint taxonomy delete with a conflict', async () => {
     const dir = await makeDashboardFixture();
     try {

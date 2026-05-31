@@ -1105,20 +1105,21 @@
   .btn.danger {
     background: transparent;
     color: var(--danger);
-    border: 1px solid color-mix(in srgb, var(--danger) 24%, transparent);
-    box-shadow: none;
+    /* Outline via inset shadow rather than a real border so Delete keeps the
+     * exact box metrics of the borderless Save button beside it — a real 1px
+     * border adds layout height and makes Delete sit ~1px taller. */
+    border: 0;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 24%, transparent);
   }
   .btn.danger:hover {
     background: var(--danger);
     color: #ffffff;
-    border-color: var(--danger);
     box-shadow: var(--elevation-2);
   }
   .btn.danger:disabled {
     background: var(--surface-raised);
     color: var(--text-muted);
-    border-color: var(--border-default);
-    box-shadow: none;
+    box-shadow: inset 0 0 0 1px var(--border-default);
   }
   /* Taxonomy editor header action cluster — keep Delete and Save on one row
    * with the same rhythm as the component editor's focus bar. */
