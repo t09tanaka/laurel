@@ -39,6 +39,7 @@ import { renderRouteHtml } from '~/build/route-render.ts';
 import { loadRoutesYaml, resolveCollections, resolveRouteEntries } from '~/build/routes-yaml.ts';
 import { planRoutes } from '~/build/routes.ts';
 import { findOutdatedSkills } from '~/cli/skill/check-updates.ts';
+import { exportComponentsBundle, importComponentsBundle } from '~/components-bundle/index.ts';
 import { loadConfig } from '~/config/loader.ts';
 import type { NectarConfig } from '~/config/schema.ts';
 import {
@@ -48,6 +49,7 @@ import {
   writeApprovalReceipt,
 } from '~/content/approvals.ts';
 import { rewriteComponentSlugInBody, splitFrontmatterRaw } from '~/content/component-references.ts';
+import { COMPONENT_SLUG_PATTERN } from '~/content/components.ts';
 import { formatContentSource } from '~/content/format.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
 import { type MarkdownTransformHook, loadContent } from '~/content/loader.ts';
@@ -87,6 +89,10 @@ import {
   enqueueDashboardImageVariantGeneration,
 } from '../dashboard/image-variant-queue.ts';
 import { fetchOgp } from '../dashboard/ogp.ts';
+import {
+  type TaxonomyCascadeSnapshot,
+  cascadeRemoveTaxonomyReferences,
+} from '../dashboard/taxonomy-cascade.ts';
 import { rewriteThemeCss } from '../dashboard/theme-css-rewriter.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
@@ -459,13 +465,18 @@ type DashboardBulkResult =
 interface DashboardTrashEntry {
   id: string;
   slug: string;
-  kind: DashboardContentKind | null;
+  kind: EditableKind | null;
   originalPath: string;
   trashPath: string;
   metadataPath: string;
   trashedAt: string;
   purgeAfter: string;
   restoreBlocked: boolean;
+  // Posts/pages whose frontmatter referenced a deleted tag/author and were
+  // rewritten as part of the cascade. Each carries the pre-edit file text so
+  // Undo can put the reference back verbatim. Empty/absent for posts, pages,
+  // components, and for taxonomies nothing referenced.
+  affectedFiles?: Array<{ path: string; previousText: string }>;
 }
 
 interface DashboardTrashInventory {
@@ -1568,13 +1579,15 @@ export async function handleDashboardRequest(
       });
       return jsonResponse(result);
     }
-    const contentTrashMatch = url.pathname.match(/^\/api\/content\/(posts|pages)\/([^/]+)\/trash$/);
+    const contentTrashMatch = url.pathname.match(/^\/api\/content\/([^/]+)\/([^/]+)\/trash$/);
     if (request.method === 'POST' && contentTrashMatch) {
       const blocked = validateWriteRequest(request, ctx.security);
       if (blocked) return blocked;
-      const kind = contentTrashMatch[1] as DashboardContentKind;
+      const kind = parseEditableKind(contentTrashMatch[1] ?? '');
       const slug = decodeURIComponent(contentTrashMatch[2] ?? '');
-      if (!SLUG_RE.test(slug)) return jsonResponse({ error: 'invalid content path' }, 400);
+      if (kind === undefined || !SLUG_RE.test(slug)) {
+        return jsonResponse({ error: 'invalid content path' }, 400);
+      }
       const payload = await readJsonPayload<{ fingerprint?: ContentSourceFingerprint }>(
         request,
         ctx.maxBodyBytes,
@@ -1778,6 +1791,94 @@ export async function handleDashboardRequest(
             reason: 'bundle-import',
             kind: result.kind === 'post' ? 'posts' : 'pages',
           });
+        }
+        return jsonResponse(result);
+      } catch (err) {
+        return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 400);
+      }
+    }
+    if (request.method === 'GET' && url.pathname === '/api/components/bundle/export') {
+      // Bulk handoff of reusable component snippets. `slugs` (comma-separated)
+      // selects a subset; omitting it exports every component. Read-only, so a
+      // plain GET (anchor download) is fine — no write gate needed.
+      const slugsRaw = stringParam(url, 'slugs');
+      const slugs = slugsRaw
+        ? slugsRaw
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : undefined;
+      if (slugs?.some((s) => !COMPONENT_SLUG_PATTERN.test(s))) {
+        return jsonResponse({ error: 'invalid component slug' }, 400);
+      }
+      const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
+      try {
+        const { zip, missing, omittedAssets } = await exportComponentsBundle({
+          cwd: ctx.cwd,
+          config,
+          slugs,
+        });
+        const headers: Record<string, string> = {
+          'content-type': 'application/zip',
+          'content-disposition': 'attachment; filename="components.nectar.zip"',
+        };
+        // Surface format-valid-but-nonexistent slugs to programmatic callers:
+        // exportComponentsBundle returns a partial zip (it only throws when
+        // *every* requested slug is missing), so without this header an API
+        // client has no way to learn that a requested component was skipped.
+        if (missing.length > 0) headers['x-nectar-missing-components'] = missing.join(',');
+        // Likewise surface assets that a component references but could not be
+        // bundled (missing / unsafe / symlinked) so the receiver knows an image
+        // will be absent.
+        if (omittedAssets.length > 0) {
+          headers['x-nectar-omitted-assets'] = omittedAssets.join(',');
+        }
+        return new Response(zip, { headers });
+      } catch (err) {
+        return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 404);
+      }
+    }
+    if (request.method === 'POST' && url.pathname === '/api/components/bundle/import') {
+      const blocked = validateWriteRequest(request, ctx.security);
+      if (blocked) return blocked;
+      const form = await request.formData().catch(() => null);
+      const file = form?.get('file');
+      if (!(file instanceof File)) {
+        return jsonResponse({ error: 'file field is required (multipart/form-data)' }, 400);
+      }
+      const MAX_BYTES = 50 * 1024 * 1024;
+      if (file.size > MAX_BYTES) {
+        return jsonResponse({ error: 'components bundle exceeds 50MB limit' }, 413);
+      }
+      const dryRun = String(form?.get('dryRun') ?? 'true') !== 'false';
+      const rawOnConflict = form?.get('onConflict');
+      const onConflict: 'skip' | 'overwrite' | 'rename' =
+        rawOnConflict === 'overwrite' || rawOnConflict === 'rename' ? rawOnConflict : 'skip';
+      // Optional allowlist: the editor can untick snippets in the preview so
+      // only a subset of the bundle lands. Absent/empty means import everything.
+      const slugsRaw = form?.get('slugs');
+      const slugs =
+        typeof slugsRaw === 'string' && slugsRaw.length > 0
+          ? slugsRaw
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : undefined;
+      if (slugs?.some((s) => !COMPONENT_SLUG_PATTERN.test(s))) {
+        return jsonResponse({ error: 'invalid component slug' }, 400);
+      }
+      const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
+      try {
+        const result = await importComponentsBundle({
+          cwd: ctx.cwd,
+          config,
+          zip: new Uint8Array(await file.arrayBuffer()),
+          onConflict,
+          dryRun,
+          slugs,
+        });
+        if (result.written > 0) {
+          ctx.changeBus.broadcast({ reason: 'components-bundle-import', kind: 'components' });
         }
         return jsonResponse(result);
       } catch (err) {
@@ -2592,7 +2693,7 @@ export async function trashDashboardContentItem({
 }: {
   cwd: string;
   config: NectarConfig;
-  kind: DashboardContentKind;
+  kind: EditableKind;
   slug: string;
   expectedFingerprint: ContentSourceFingerprint;
   now: Date;
@@ -2616,6 +2717,21 @@ export async function trashDashboardContentItem({
   const metadataPath = join(trashDir, `${slug}.meta.json`);
   await mkdir(trashDir, { recursive: true });
   await rename(source, trashPath);
+  // A tag/author is also reconstructed from any post that references it, so
+  // removing only the file would leave a "generated" stub in the dashboard.
+  // Strip the reference from every post/page frontmatter and remember the
+  // pre-edit text so a later restore can put both the file and the references
+  // back. Posts/pages/components never cascade.
+  const cascadeSnapshots: TaxonomyCascadeSnapshot[] =
+    kind === 'tags' || kind === 'authors'
+      ? await cascadeRemoveTaxonomyReferences({
+          cwd,
+          config,
+          kind,
+          slug,
+          serialize: serializeContentSource,
+        })
+      : [];
   const metadata = {
     slug,
     kind,
@@ -2623,6 +2739,14 @@ export async function trashDashboardContentItem({
     trash_path: relativePath(cwd, trashPath),
     trashed_at: trashedAt,
     purge_after: purgeAfter,
+    ...(cascadeSnapshots.length > 0
+      ? {
+          affected_files: cascadeSnapshots.map((snapshot) => ({
+            path: relativePath(cwd, snapshot.path),
+            previous_text: snapshot.previousText,
+          })),
+        }
+      : {}),
   };
   await writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, 'utf8');
   const entry = trashEntryFromMetadata(cwd, metadataPath, metadata);
@@ -2680,6 +2804,21 @@ export async function restoreDashboardTrashEntry({
   }
   await mkdir(dirname(originalPath), { recursive: true });
   await rename(trashPath, originalPath);
+  // Put back the post/page frontmatter the cascade rewrote. Best-effort: if a
+  // referencing file was since edited or removed we skip it with a warning
+  // rather than failing the whole restore — the taxonomy file is already back.
+  for (const file of entry.affectedFiles ?? []) {
+    const target = resolve(cwd, file.path);
+    if (!isInsidePath(cwd, target)) continue;
+    try {
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, file.previousText, 'utf8');
+    } catch (err) {
+      logger.warn(
+        `Could not restore ${file.path} reference: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
   return { ok: true, entry: { ...entry, restoreBlocked: true } };
 }
 
@@ -4997,7 +5136,7 @@ function trashEntryFromMetadata(
   const trashedAt = stringValue(metadata.trashed_at);
   const purgeAfter = stringValue(metadata.purge_after);
   const kindRaw = metadata.kind;
-  const kind = kindRaw === 'posts' || kindRaw === 'pages' ? kindRaw : null;
+  const kind = (typeof kindRaw === 'string' ? parseEditableKind(kindRaw) : undefined) ?? null;
   if (!slug || !originalPath || !trashPath || !trashedAt || !purgeAfter) return null;
   if (isAbsolute(originalPath) || isAbsolute(trashPath)) return null;
   const trashAbs = resolve(cwd, trashPath);
@@ -5006,6 +5145,7 @@ function trashEntryFromMetadata(
   if (!isInsidePath(cwd, originalAbs)) return null;
   const dirId = basename(dirname(metadataPath));
   const id = `${dirId}--${slug}`;
+  const affectedFiles = parseAffectedFiles(cwd, metadata.affected_files);
   return {
     id,
     slug,
@@ -5016,7 +5156,30 @@ function trashEntryFromMetadata(
     trashedAt,
     purgeAfter,
     restoreBlocked: existsSync(originalAbs),
+    ...(affectedFiles.length > 0 ? { affectedFiles } : {}),
   };
+}
+
+// Validate the `affected_files` block from trash metadata. Each entry must be a
+// cwd-relative path that stays inside the project (defends a hand-edited or
+// tampered metadata file from writing outside the repo on restore).
+function parseAffectedFiles(
+  cwd: string,
+  value: unknown,
+): Array<{ path: string; previousText: string }> {
+  if (!Array.isArray(value)) return [];
+  const result: Array<{ path: string; previousText: string }> = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const record = item as Record<string, unknown>;
+    const path = stringValue(record.path);
+    const previousText = record.previous_text;
+    if (!path || typeof previousText !== 'string') continue;
+    if (isAbsolute(path)) continue;
+    if (!isInsidePath(cwd, resolve(cwd, path))) continue;
+    result.push({ path, previousText });
+  }
+  return result;
 }
 
 async function scaffoldDashboardContent({

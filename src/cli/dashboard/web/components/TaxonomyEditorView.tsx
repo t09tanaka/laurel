@@ -5,6 +5,7 @@ import {
   buildFrontmatter as buildFrontmatterFor,
   snapshotFromItem as snapshotFromItemFor,
 } from '../lib/editor-snapshot.ts';
+import { useEditorOpenBodyClass } from '../lib/use-editor-open-body-class.ts';
 import type { DashboardContentItem, EditorSnapshot } from '../types.ts';
 import { FeatureImageField } from './FeatureImageField.tsx';
 
@@ -28,6 +29,9 @@ interface TaxonomyEditorViewProps {
   onRenamed?: (kind: DashboardContentItem['kind'], newSlug: string) => Promise<void> | void;
   onConflict: (message: string, current: DashboardContentItem) => void;
   onDirtyChange: (dirty: boolean) => void;
+  // Soft-delete to .nectar/trash (restorable). DashboardApp owns the confirm
+  // dialog, the trash call and the post-delete navigation.
+  onDelete?: () => Promise<void> | void;
 }
 
 // Author / Tag editor — laid out like an editorial colophon page:
@@ -38,6 +42,10 @@ export function TaxonomyEditorView(props: TaxonomyEditorViewProps): JSX.Element 
   const { current } = props;
   const isAuthor = current.kind === 'authors';
   const kindLabel = isAuthor ? 'Author' : 'Tag';
+
+  // Collapse the dashboard sidebar so this detail view owns the viewport,
+  // matching the posts/pages editor.
+  useEditorOpenBodyClass();
 
   const baseline = useMemo(() => snapshotFromItemFor(current.kind, current), [current]);
   const [snapshot, setSnapshot] = useState<EditorSnapshot>(baseline);
@@ -155,6 +163,19 @@ export function TaxonomyEditorView(props: TaxonomyEditorViewProps): JSX.Element 
         </button>
         <div class="editorPathPlaceholder" />
         <div class="editorTopActions">
+          {props.onDelete ? (
+            <button
+              class="btn danger"
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                void props.onDelete?.();
+              }}
+              title={`Move this ${kindLabel.toLowerCase()} to trash`}
+            >
+              Delete
+            </button>
+          ) : null}
           <button
             class="btn"
             type="button"

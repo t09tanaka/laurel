@@ -314,12 +314,15 @@ describe('cli export', () => {
     try {
       const { stderr, exitCode } = await runCli(['export', 'entry', 'hello-world'], dir);
       expect(exitCode).toBe(0);
-      expect(stderr).toBe('');
+      // The post references the `release` tag, which has a definition file, so
+      // export carries it along and notes it on stderr.
+      expect(stderr).toContain('Bundled 1 tag definition(s): release');
       const bytes = new Uint8Array(
         await Bun.file(join(dir, 'hello-world.nectar.zip')).arrayBuffer(),
       );
       const bundle = parseEntryBundleZip(bytes);
       expect(bundle.slug).toBe('hello-world');
+      expect(bundle.tags.map((t) => t.slug)).toEqual(['release']);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -348,6 +351,72 @@ describe('cli export', () => {
       const { stderr, exitCode } = await runCli(['export', 'entry'], dir);
       expect(exitCode).toBe(2);
       expect(stderr).toContain('Missing required argument');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  async function seedComponents(dir: string): Promise<void> {
+    await mkdir(join(dir, 'content/components'), { recursive: true });
+    for (const slug of ['callout', 'cta']) {
+      await writeFile(
+        join(dir, `content/components/${slug}.md`),
+        [
+          '---',
+          `slug: ${slug}`,
+          `description: ${slug} snippet`,
+          '---',
+          '',
+          '```html',
+          `<div class="${slug}">{${slug}}</div>`,
+          '```',
+          '',
+        ].join('\n'),
+      );
+    }
+  }
+
+  test('export components writes a zip of every component to --output', async () => {
+    const dir = await makeFixture();
+    await seedComponents(dir);
+    const outPath = join(dir, 'out', 'components.nectar.zip');
+    try {
+      const { stderr, exitCode } = await runCli(['export', 'components', '--output', outPath], dir);
+      expect(exitCode).toBe(0);
+      expect(stderr).toContain('Exported 2 component(s)');
+      const bytes = new Uint8Array(await readFile(outPath));
+      // The zip carries the manifest plus one file per component.
+      expect(bytes.byteLength).toBeGreaterThan(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('export components --slugs selects a subset and warns on unknown', async () => {
+    const dir = await makeFixture();
+    await seedComponents(dir);
+    const outPath = join(dir, 'subset.nectar.zip');
+    try {
+      const { stderr, exitCode } = await runCli(
+        ['export', 'components', '--slugs', 'callout,ghost', '--output', outPath],
+        dir,
+      );
+      expect(exitCode).toBe(0);
+      expect(stderr).toContain('Exported 1 component(s)');
+      expect(stderr).toContain('ghost');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('export components defaults output to components.nectar.zip in cwd', async () => {
+    const dir = await makeFixture();
+    await seedComponents(dir);
+    try {
+      const { exitCode } = await runCli(['export', 'components'], dir);
+      expect(exitCode).toBe(0);
+      const bytes = new Uint8Array(await readFile(join(dir, 'components.nectar.zip')));
+      expect(bytes.byteLength).toBeGreaterThan(0);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

@@ -5,6 +5,7 @@ import {
   renameContentSlug,
   saveContent,
 } from '../lib/api.ts';
+import { useEditorOpenBodyClass } from '../lib/use-editor-open-body-class.ts';
 import type { DashboardContentItem } from '../types.ts';
 
 const SLUG_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
@@ -52,10 +53,16 @@ interface ComponentEditorViewProps {
   onConflict: (message: string, current: DashboardContentItem) => void;
   onDirtyChange: (dirty: boolean) => void;
   onRenamed?: (kind: DashboardContentItem['kind'], newSlug: string) => Promise<void> | void;
+  // Soft-delete to .nectar/trash (restorable). DashboardApp owns the confirm
+  // dialog, the trash call and the post-delete navigation.
+  onDelete?: () => Promise<void> | void;
 }
 
 export function ComponentEditorView(props: ComponentEditorViewProps): JSX.Element {
   const { current } = props;
+  // Collapse the dashboard sidebar so this detail view owns the viewport,
+  // matching the posts/pages editor.
+  useEditorOpenBodyClass();
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-derive when the file identity changes
   const parsed = useMemo(
     () => extractFences(current.body),
@@ -233,6 +240,19 @@ export function ComponentEditorView(props: ComponentEditorViewProps): JSX.Elemen
           >
             {saveLabel[saveState]}
           </span>
+          {props.onDelete ? (
+            <button
+              class="btn danger"
+              type="button"
+              onClick={() => {
+                void props.onDelete?.();
+              }}
+              disabled={saving}
+              title="Move this component to trash"
+            >
+              Delete
+            </button>
+          ) : null}
           <button
             class="btn"
             type="button"

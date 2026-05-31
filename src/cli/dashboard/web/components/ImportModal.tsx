@@ -66,7 +66,16 @@ export function ImportModal({ onClose, onImported, toast }: ImportModalProps): J
 
   function reportSuccess(result: ImportBundleResult): void {
     onImported();
-    toast.push({ intent: 'success', message: `Imported ${result.slug} · marked for review` });
+    const tagNote = result.importedTags.length
+      ? ` · added ${result.importedTags.length} tag(s)`
+      : '';
+    const authorNote = result.importedAuthors.length
+      ? ` · added ${result.importedAuthors.length} author(s)`
+      : '';
+    toast.push({
+      intent: 'success',
+      message: `Imported ${result.slug} · marked for review${tagNote}${authorNote}`,
+    });
     if (result.warnings.length) {
       toast.push({ intent: 'info', message: result.warnings.join(' · ') });
     }
@@ -178,8 +187,16 @@ export function ImportModal({ onClose, onImported, toast }: ImportModalProps): J
               ) : null}
               <p class="importPreviewMeta">
                 {probe.preview.assetCount} asset(s)
+                {probe.preview.tagCount > 0 ? ` · ${probe.preview.tagCount} tag(s)` : ''}
+                {probe.preview.authorCount > 0 ? ` · ${probe.preview.authorCount} author(s)` : ''}
                 {collides ? ' · a matching entry already exists' : ' · new entry'}
               </p>
+              {!collides && probe.importedTags.length > 0 ? (
+                <p class="importPreviewMeta">New tags: {probe.importedTags.join(', ')}</p>
+              ) : null}
+              {!collides && probe.importedAuthors.length > 0 ? (
+                <p class="importPreviewMeta">New authors: {probe.importedAuthors.join(', ')}</p>
+              ) : null}
               {collides ? (
                 <p class="importPreviewWarn">
                   {conflict

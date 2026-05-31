@@ -512,6 +512,150 @@ describe('dashboard data', () => {
     }
   });
 
+  test('soft-deletes authors, tags and components and restores them via trash metadata', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      await mkdir(join(dir, 'content/components'), { recursive: true });
+      await writeFile(
+        join(dir, 'content/components/callout.md'),
+        '---\nslug: callout\ndescription: Inline aside\n---\n\n```css\n.callout {}\n```\n\n```html\n<aside></aside>\n```\n',
+        'utf8',
+      );
+
+      const cases: Array<{ kind: 'authors' | 'tags' | 'components'; slug: string; path: string }> =
+        [
+          { kind: 'authors', slug: 'casper', path: 'content/authors/casper.md' },
+          { kind: 'tags', slug: 'news', path: 'content/tags/news.md' },
+          { kind: 'components', slug: 'callout', path: 'content/components/callout.md' },
+        ];
+
+      for (const { kind, slug, path } of cases) {
+        const item = await readDashboardContentItem({ cwd: dir, config, kind, slug });
+        const trashed = await trashDashboardContentItem({
+          cwd: dir,
+          config,
+          kind,
+          slug,
+          expectedFingerprint: item.fingerprint,
+          now: new Date('2026-01-10T00:00:00Z'),
+        });
+        expect(trashed.ok).toBe(true);
+        if (!trashed.ok) throw new Error(`expected trash result for ${kind}`);
+        expect(trashed.entry.originalPath).toBe(path);
+        expect(existsSync(join(dir, path))).toBe(false);
+
+        const restored = await restoreDashboardTrashEntry({ cwd: dir, id: trashed.entry.id });
+        expect(restored.ok).toBe(true);
+        expect(existsSync(join(dir, path))).toBe(true);
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('strips deleted tag from referencing post frontmatter and restores it on undo', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      // A post that references the `news` tag in three shapes so the cascade
+      // is exercised against block list, inline array, and a left-behind
+      // sibling tag that must survive.
+      await writeFile(
+        join(dir, 'content/posts/tagged.md'),
+        [
+          '---',
+          'title: Tagged Post',
+          'date: 2026-01-04T00:00:00Z',
+          'created_at: 2026-01-04T00:00:00Z',
+          'tags: [news, keep-me]',
+          '---',
+          '',
+          'Tagged body',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+      const config = await loadConfig({ cwd: dir });
+      const before = await readFile(join(dir, 'content/posts/tagged.md'), 'utf8');
+      const tag = await readDashboardContentItem({ cwd: dir, config, kind: 'tags', slug: 'news' });
+
+      const trashed = await trashDashboardContentItem({
+        cwd: dir,
+        config,
+        kind: 'tags',
+        slug: 'news',
+        expectedFingerprint: tag.fingerprint,
+        now: new Date('2026-01-10T00:00:00Z'),
+      });
+      expect(trashed.ok).toBe(true);
+      if (!trashed.ok) throw new Error('expected trash result');
+
+      const rewritten = await readFile(join(dir, 'content/posts/tagged.md'), 'utf8');
+      expect(rewritten).not.toContain('news');
+      expect(rewritten).toContain('keep-me');
+
+      const restored = await restoreDashboardTrashEntry({ cwd: dir, id: trashed.entry.id });
+      expect(restored.ok).toBe(true);
+      expect(existsSync(join(dir, 'content/tags/news.md'))).toBe(true);
+      // Undo puts the referencing post back byte-for-byte.
+      expect(await readFile(join(dir, 'content/posts/tagged.md'), 'utf8')).toBe(before);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('deleting an unreferenced tag records no cascade and leaves posts untouched', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const postBefore = await readFile(join(dir, 'content/posts/new.md'), 'utf8');
+      const tag = await readDashboardContentItem({ cwd: dir, config, kind: 'tags', slug: 'news' });
+
+      const trashed = await trashDashboardContentItem({
+        cwd: dir,
+        config,
+        kind: 'tags',
+        slug: 'news',
+        expectedFingerprint: tag.fingerprint,
+        now: new Date('2026-01-10T00:00:00Z'),
+      });
+      expect(trashed.ok).toBe(true);
+      if (!trashed.ok) throw new Error('expected trash result');
+      expect(trashed.entry.affectedFiles ?? []).toHaveLength(0);
+      expect(await readFile(join(dir, 'content/posts/new.md'), 'utf8')).toBe(postBefore);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects a stale-fingerprint taxonomy delete with a conflict', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      const config = await loadConfig({ cwd: dir });
+      const item = await readDashboardContentItem({
+        cwd: dir,
+        config,
+        kind: 'authors',
+        slug: 'casper',
+      });
+      const result = await trashDashboardContentItem({
+        cwd: dir,
+        config,
+        kind: 'authors',
+        slug: 'casper',
+        expectedFingerprint: { ...item.fingerprint, size: item.fingerprint.size + 1 },
+        now: new Date('2026-01-10T00:00:00Z'),
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error('expected conflict');
+      expect(result.reason).toBe('conflict');
+      // The file must still be on disk — a rejected delete is a no-op.
+      expect(existsSync(join(dir, 'content/authors/casper.md'))).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('renames slugs with fingerprint checks and optional redirect suggestions', async () => {
     const dir = await makeDashboardFixture();
     try {
@@ -1053,6 +1197,85 @@ describe('dashboard data', () => {
         { cwd: dir, changeBus: createChangeBus() },
       );
       expect(badKind.status).toBe(400);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('exports and imports components bundles via /api/components/bundle', async () => {
+    const dir = await makeDashboardFixture();
+    try {
+      await mkdir(join(dir, 'content/components'), { recursive: true });
+      for (const slug of ['callout', 'cta']) {
+        await writeFile(
+          join(dir, `content/components/${slug}.md`),
+          [
+            '---',
+            `slug: ${slug}`,
+            `description: ${slug} snippet`,
+            '---',
+            '',
+            '```html',
+            `<div class="${slug}">{${slug}}</div>`,
+            '```',
+            '',
+          ].join('\n'),
+          'utf8',
+        );
+      }
+
+      // GET export of every component (read-only).
+      const exported = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/components/bundle/export'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(exported.status).toBe(200);
+      expect(exported.headers.get('content-type')).toBe('application/zip');
+      const zipBytes = new Uint8Array(await exported.arrayBuffer());
+      expect(zipBytes.length).toBeGreaterThan(0);
+
+      // Import into a fresh target directory.
+      const target = await realpath(await mkdtemp(join(tmpdir(), 'nectar-comp-import-')));
+      await writeFile(
+        join(target, 'nectar.toml'),
+        ['[site]', 'title = "T"', 'url = "https://t.test"', ''].join('\n'),
+        'utf8',
+      );
+      const form = new FormData();
+      form.append('file', new File([zipBytes], 'components.nectar.zip'));
+      form.append('onConflict', 'overwrite');
+      form.append('dryRun', 'false');
+      const imported = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/components/bundle/import', {
+          method: 'POST',
+          body: form,
+        }),
+        { cwd: target, changeBus: createChangeBus() },
+      );
+      expect(imported.status).toBe(200);
+      const importedBody = (await imported.json()) as { written: number };
+      expect(importedBody.written).toBe(2);
+      expect(await readFile(join(target, 'content/components/callout.md'), 'utf8')).toContain(
+        '```html',
+      );
+      await rm(target, { recursive: true, force: true });
+
+      // Invalid slug filter is rejected.
+      const badSlug = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/components/bundle/export?slugs=1bad'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(badSlug.status).toBe(400);
+
+      // A partial export (one real slug + one that does not exist) still
+      // succeeds but reports the skipped slug via a response header so a
+      // programmatic caller can tell something was omitted.
+      const partial = await handleDashboardRequest(
+        new Request('http://127.0.0.1:4322/api/components/bundle/export?slugs=callout,ghost'),
+        { cwd: dir, changeBus: createChangeBus() },
+      );
+      expect(partial.status).toBe(200);
+      expect(partial.headers.get('x-nectar-missing-components')).toBe('ghost');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

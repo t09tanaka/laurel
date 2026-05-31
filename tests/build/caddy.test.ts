@@ -49,9 +49,13 @@ describe('buildCaddyfile', () => {
     expect(out).toContain(
       '    header @cache_0 Cache-Control "public, max-age=31536000, immutable"',
     );
-    expect(out).toContain('    @cache_1 path /content/images/*');
-    expect(out).toContain('    @cache_2 path *');
-    expect(out).toContain('    header @cache_2 Cache-Control "public, max-age=0, must-revalidate"');
+    expect(out).toContain('    @cache_1 path /_images/*');
+    expect(out).toContain(
+      '    header @cache_1 Cache-Control "public, max-age=31536000, immutable"',
+    );
+    expect(out).toContain('    @cache_2 path /content/images/*');
+    expect(out).toContain('    @cache_3 path *');
+    expect(out).toContain('    header @cache_3 Cache-Control "public, max-age=0, must-revalidate"');
   });
 
   test('attaches baseline and custom security headers globally', () => {

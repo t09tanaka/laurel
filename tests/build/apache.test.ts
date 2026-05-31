@@ -46,12 +46,18 @@ describe('buildApacheHtaccess', () => {
       'RewriteRule ^assets/(.*)$ - [E=NECTAR_CACHE_0:1,E=NECTAR_CACHE_MATCHED:1]',
     );
     expect(out).toContain(
+      'RewriteRule ^_images/(.*)$ - [E=NECTAR_CACHE_1:1,E=NECTAR_CACHE_MATCHED:1]',
+    );
+    expect(out).toContain(
       'Header set Cache-Control "public, max-age=31536000, immutable" env=NECTAR_CACHE_0',
     );
     expect(out).toContain(
-      'Header set Cache-Control "public, max-age=0, must-revalidate" env=NECTAR_CACHE_2',
+      'Header set Cache-Control "public, max-age=31536000, immutable" env=NECTAR_CACHE_1',
     );
-    expect(out.indexOf('NECTAR_CACHE_0')).toBeLessThan(out.indexOf('NECTAR_CACHE_2'));
+    expect(out).toContain(
+      'Header set Cache-Control "public, max-age=0, must-revalidate" env=NECTAR_CACHE_3',
+    );
+    expect(out.indexOf('NECTAR_CACHE_0')).toBeLessThan(out.indexOf('NECTAR_CACHE_3'));
   });
 
   test('resolves clean URLs to slug index files after redirects and cache markers', () => {

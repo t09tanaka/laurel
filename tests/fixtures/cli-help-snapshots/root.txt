@@ -33,8 +33,8 @@
      theme             Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials; `serve` runs a fast fixture-backed theme dev server
      migrate           Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>`
      deploy            Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync
-     export            Dump the loaded content, a single entry bundle, or regenerate the RSS feed without running a full build
-     import            Import a Nectar zip entry-bundle (post or page)
+     export            Dump the loaded content, a single entry bundle, a components bundle, or regenerate the RSS feed without running a full build
+     import            Import a Nectar zip bundle: an entry (post or page) or a components bundle
      upgrade           Upgrade the installed Nectar CLI when the install method supports it
      telemetry         Manage opt-in anonymous usage telemetry
      plugins           Inspect future Nectar plugins

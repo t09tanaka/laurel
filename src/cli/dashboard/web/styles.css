@@ -950,11 +950,19 @@
     display: none;
   }
   .toolbar {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
+    /* Flex (not a fixed grid) so a variable number of action buttons —
+     * Export / Import / New — stays on one line; the filter field flexes to
+     * absorb the remaining width and shrinks before anything wraps. */
+    display: flex;
     gap: 10px;
     align-items: center;
     min-width: 0;
+  }
+  .toolbar .searchWrap {
+    flex: 1 1 auto;
+  }
+  .toolbar .btn {
+    flex: 0 0 auto;
   }
   /* Discoverable ⌘K trigger — small kbd-styled chip next to the New
    * button. Clicking opens the command palette; the kbd itself signals
@@ -1090,6 +1098,36 @@
   }
   .btn.hidden {
     display: none;
+  }
+  /* Header Delete — quiet danger affordance that sits beside Save without
+   * competing with it: outlined in the danger hue, filling solid red only on
+   * hover. Mirrors the .editorDangerDelete treatment in inline button form. */
+  .btn.danger {
+    background: transparent;
+    color: var(--danger);
+    /* Outline via inset shadow rather than a real border so Delete keeps the
+     * exact box metrics of the borderless Save button beside it — a real 1px
+     * border adds layout height and makes Delete sit ~1px taller. */
+    border: 0;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 24%, transparent);
+  }
+  .btn.danger:hover {
+    background: var(--danger);
+    color: #ffffff;
+    box-shadow: var(--elevation-2);
+  }
+  .btn.danger:disabled {
+    background: var(--surface-raised);
+    color: var(--text-muted);
+    box-shadow: inset 0 0 0 1px var(--border-default);
+  }
+  /* Taxonomy editor header action cluster — keep Delete and Save on one row
+   * with the same rhythm as the component editor's focus bar. */
+  .editorTopActions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
   }
   .densityCompact {
     --space: 10px;
@@ -2447,18 +2485,16 @@
     font-size: 13px;
     color: var(--color-danger, #b42318);
   }
+  /* A neutral summary card, not an alert: a collision under the default
+   * overwrite is an expected outcome, so the preview stays a calm hairline
+   * panel with no caution tint or accent bar. */
   .importPreview {
     display: grid;
-    gap: 6px;
+    gap: 8px;
     padding: 12px 14px;
     border: 1px solid var(--border-default);
-    border-left: 3px solid var(--border-strong);
     border-radius: var(--radius);
     background: var(--surface-raised);
-  }
-  .importPreview[data-collision="true"] {
-    border-left-color: var(--caution, #a86900);
-    background: color-mix(in srgb, var(--warning-subdued, #fff6df) 60%, var(--surface-raised));
   }
   .importPreviewHead {
     display: flex;
@@ -2505,7 +2541,104 @@
     margin: 0;
     font-size: 12.5px;
     font-weight: 500;
-    color: var(--caution, #a86900);
+    color: var(--text-muted);
+  }
+  /* The import preview reuses the export picker list (.exportList /
+   * .exportOption); the only addition is a quiet "exists" flag that trails
+   * each row whose slug already exists locally. */
+  .exportOption .importPreviewWarn {
+    justify-self: end;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  /* "Conflict policy" select, matching the Settings > Migration field. */
+  .importConflictField {
+    margin-top: 10px;
+  }
+  /* Components export picker — an editorial ledger of the {slug}s being
+   * handed off: a hairline-framed list with hairline row dividers, the slug
+   * as the anchor and the description a quiet trailing note. Unticked rows
+   * recede so the kept selection reads at a glance. */
+  .exportSelectAll {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 6px 0 8px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .exportSelectAll input {
+    margin: 0;
+    accent-color: var(--surface-primary);
+  }
+  .exportList {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 280px;
+    overflow-y: auto;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    background: var(--surface-normal);
+  }
+  .exportList li {
+    margin: 0;
+  }
+  .exportList li + li .exportOption {
+    border-top: 1px solid var(--border-weak);
+  }
+  .exportOption {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    cursor: pointer;
+    transition: background-color 0.12s ease, opacity 0.12s ease;
+  }
+  .exportOption:hover {
+    background: var(--surface-raised);
+  }
+  .exportOption input {
+    margin: 0;
+    accent-color: var(--surface-primary);
+  }
+  .exportOption code {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+  }
+  .exportOption .meta {
+    min-width: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Unticked rows fade back without disappearing, so the selection is legible
+   * but the full set stays scannable. */
+  .exportOption[data-selected="false"] {
+    opacity: 0.5;
+  }
+  .exportOption[data-selected="false"] code {
+    color: var(--text-secondary);
+  }
+  /* Action cluster on a list head, sitting opposite the count. */
+  .listHeadActions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding-bottom: 10px;
   }
   /* Import conflict diff: a GitHub-style line review wired to per-hunk accept. */
   .modalDialog--diff {
@@ -3083,9 +3216,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 220px;
-  }
-  .taxAction {
-    font-size: 12.5px;
   }
   .editor {
     display: none;
@@ -6233,9 +6363,6 @@
       grid-template-columns: 1fr;
       align-items: start;
       gap: 14px;
-    }
-    .toolbar {
-      grid-template-columns: 1fr auto auto;
     }
     .settingsLayout {
       grid-template-columns: 1fr;
