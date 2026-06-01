@@ -350,9 +350,7 @@ async function main(): Promise<number> {
 
   const units = buildTasks(files);
   const shards = packShards(units, shardCount);
-  const bunArgs = passthrough.some((arg) => arg === '--reporter' || arg.startsWith('--reporter='))
-    ? passthrough
-    : ['--reporter=dots', ...passthrough];
+  const bunArgs = [...passthrough];
   if (!bunArgs.some((arg) => arg === '--timeout' || arg.startsWith('--timeout='))) {
     bunArgs.push('--timeout=15000');
   }
