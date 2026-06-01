@@ -7,6 +7,7 @@ import { build } from '~/build/pipeline.ts';
 const cwd = join(process.cwd(), 'example');
 const distRoot = join(cwd, 'dist');
 const routes = ['/', '/hello-nectar/', '/about/', '/tag/news/', '/author/casper/', '/page/2/'];
+const BROWSER_SMOKE_TIMEOUT_MS = 60_000;
 
 let server: ReturnType<typeof Bun.serve> | undefined;
 let chrome: LaunchedChrome | undefined;
@@ -29,7 +30,7 @@ describe('example browser smoke', () => {
     browser = await puppeteer.connect({
       browserURL: `http://127.0.0.1:${chrome.port}`,
     });
-  });
+  }, BROWSER_SMOKE_TIMEOUT_MS);
 
   afterAll(async () => {
     await browser?.close().catch(() => undefined);
@@ -37,35 +38,41 @@ describe('example browser smoke', () => {
     server?.stop(true);
   });
 
-  test('loads representative built pages without browser runtime errors', async () => {
-    if (!browser || !server) throw new Error('browser smoke test did not initialize');
+  test(
+    'loads representative built pages without browser runtime errors',
+    async () => {
+      if (!browser || !server) throw new Error('browser smoke test did not initialize');
 
-    for (const route of routes) {
-      const page = await browser.newPage();
-      const failures: string[] = [];
-      page.on('pageerror', (error) => failures.push(`pageerror: ${errorMessage(error)}`));
-      page.on('console', (message) => {
-        if (message.type() === 'error') failures.push(`console error: ${message.text()}`);
-      });
-      page.on('response', (response) => {
-        if (!response.ok() && isLocalAssetResponse(response.url())) {
-          failures.push(`HTTP ${response.status()}: ${response.url()}`);
-        }
-      });
-
-      try {
-        const response = await page.goto(`${origin(server)}${route}`, {
-          waitUntil: 'networkidle0',
-          timeout: 15_000,
+      for (const route of routes) {
+        const page = await browser.newPage();
+        const failures: string[] = [];
+        page.on('pageerror', (error) => failures.push(`pageerror: ${errorMessage(error)}`));
+        page.on('console', (message) => {
+          if (message.type() === 'error') failures.push(`console error: ${message.text()}`);
         });
-        expect(response?.ok(), `${route} should return a successful document response`).toBe(true);
-        await expectVisiblePage(page, route);
-        expect(failures, `${route} should load without browser runtime errors`).toEqual([]);
-      } finally {
-        await page.close();
+        page.on('response', (response) => {
+          if (!response.ok() && isLocalAssetResponse(response.url())) {
+            failures.push(`HTTP ${response.status()}: ${response.url()}`);
+          }
+        });
+
+        try {
+          const response = await page.goto(`${origin(server)}${route}`, {
+            waitUntil: 'networkidle0',
+            timeout: 15_000,
+          });
+          expect(response?.ok(), `${route} should return a successful document response`).toBe(
+            true,
+          );
+          await expectVisiblePage(page, route);
+          expect(failures, `${route} should load without browser runtime errors`).toEqual([]);
+        } finally {
+          await page.close();
+        }
       }
-    }
-  }, 60_000);
+    },
+    BROWSER_SMOKE_TIMEOUT_MS,
+  );
 });
 
 function serveDist(): ReturnType<typeof Bun.serve> {

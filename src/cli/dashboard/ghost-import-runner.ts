@@ -116,14 +116,14 @@ export function createGhostImportStreamResponse(opts: GhostImportStreamOptions):
           });
         } finally {
           opts.onComplete?.({ ok: settledOk });
+          if (opts.stagedPath) {
+            await unlink(opts.stagedPath).catch(() => {});
+          }
           closed = true;
           try {
             controller.close();
           } catch {
             // already closed
-          }
-          if (opts.stagedPath) {
-            await unlink(opts.stagedPath).catch(() => {});
           }
         }
       })();
