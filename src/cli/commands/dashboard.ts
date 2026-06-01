@@ -89,6 +89,7 @@ import {
   enqueueDashboardImageVariantGeneration,
 } from '../dashboard/image-variant-queue.ts';
 import { fetchOgp } from '../dashboard/ogp.ts';
+import type { RuntimeBundleAssets } from '../dashboard/source-bundle.ts';
 import {
   type TaxonomyCascadeSnapshot,
   cascadeRemoveTaxonomyReferences,
@@ -786,6 +787,7 @@ interface DashboardRequestContext {
   security?: DashboardSecurityContext;
   maxBodyBytes?: number;
   mode?: DashboardServerMode;
+  runtimeBundleAssets?: RuntimeBundleAssets;
 }
 
 type DashboardTaxonomyFileResult =
@@ -804,6 +806,7 @@ interface StartDashboardServerOptions {
   port: number;
   host: string;
   mode: DashboardServerMode;
+  runtimeBundleAssets?: RuntimeBundleAssets;
 }
 
 interface DashboardServerHandle {
@@ -815,7 +818,7 @@ interface DashboardServerHandle {
 export async function startDashboardServer(
   options: StartDashboardServerOptions,
 ): Promise<DashboardServerHandle> {
-  const { cwd, configPath, port, host, mode } = options;
+  const { cwd, configPath, port, host, mode, runtimeBundleAssets } = options;
   await loadConfig({ cwd, configPath });
   const changeBus = createChangeBus();
   const watchSetup = await watchDashboardFiles({ cwd, configPath, changeBus });
@@ -828,6 +831,7 @@ export async function startDashboardServer(
     changeBus,
     watch: watchSetup,
     mode,
+    runtimeBundleAssets,
     security: {
       origin: new URL(request.url).origin,
       token,
@@ -1414,7 +1418,7 @@ export async function handleDashboardRequest(
       request.method === 'GET' &&
       (url.pathname === '/assets/dashboard.js' || url.pathname === '/assets/dashboard.css')
     ) {
-      return serveDashboardBundleAsset(url.pathname);
+      return serveDashboardBundleAsset(url.pathname, ctx.runtimeBundleAssets);
     }
     if (request.method === 'GET' && url.pathname === '/api/themes/active/css') {
       return serveActiveThemeScopedCss({ cwd: ctx.cwd, configPath: ctx.configPath });
@@ -5344,8 +5348,13 @@ function jsonResponse(data: unknown, status = 200): Response {
   });
 }
 
-async function serveDashboardBundleAsset(pathname: string): Promise<Response> {
-  const asset = DASHBOARD_BUNDLE_ASSETS[pathname as keyof typeof DASHBOARD_BUNDLE_ASSETS];
+async function serveDashboardBundleAsset(
+  pathname: string,
+  override?: RuntimeBundleAssets,
+): Promise<Response> {
+  const asset =
+    override?.[pathname] ??
+    DASHBOARD_BUNDLE_ASSETS[pathname as keyof typeof DASHBOARD_BUNDLE_ASSETS];
   if (!asset) return new Response('Not Found', { status: 404 });
   if (asset.body === '') {
     return new Response(
