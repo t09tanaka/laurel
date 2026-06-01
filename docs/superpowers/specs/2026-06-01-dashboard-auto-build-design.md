@@ -134,3 +134,10 @@ Auto-build must never crash the server:
 - `src/cli/specs.ts` — `--no-build` flag + example.
 - `tests/cli/commands/dashboard*.test.ts` — coverage above.
 - `tests/fixtures/cli-help-snapshots/dashboard.txt` — regenerated snapshot.
+- `CLAUDE.md` — update the "Dashboard frontend development" section to describe
+  the new prod-from-source auto-build (when to rely on it, the mtime fast path,
+  `--no-build`, and that `--dev` remains the live hot-reload path). The existing
+  "rebuild then RESTART the prod server" caveat stays for explicit-bundle /
+  visual-QA workflows but is reframed: a plain `nectar dashboard` from source now
+  rebuilds on launch, so the manual step is only needed when serving the
+  committed `dist/dashboard-bundle/` (e.g. the published CLI path).
