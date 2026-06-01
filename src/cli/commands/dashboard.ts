@@ -89,7 +89,11 @@ import {
   enqueueDashboardImageVariantGeneration,
 } from '../dashboard/image-variant-queue.ts';
 import { fetchOgp } from '../dashboard/ogp.ts';
-import type { RuntimeBundleAssets } from '../dashboard/source-bundle.ts';
+import {
+  type AutoBuildResult,
+  type RuntimeBundleAssets,
+  maybeAutoBuildDashboardBundle,
+} from '../dashboard/source-bundle.ts';
 import {
   type TaxonomyCascadeSnapshot,
   cascadeRemoveTaxonomyReferences,
@@ -962,8 +966,24 @@ export async function runDashboard(args: string[]): Promise<number> {
     tags_dir: bannerConfig.content.tags_dir,
   });
   const modeLabel = mode === 'dev' ? 'dashboard (dev, HMR)' : 'dashboard (prod)';
+  let runtimeBundleAssets: RuntimeBundleAssets | undefined;
+  let autoBuild: AutoBuildResult | undefined;
+  if (mode === 'prod') {
+    autoBuild = await maybeAutoBuildDashboardBundle({
+      noBuild: parsed.values['no-build'] === true,
+    });
+    runtimeBundleAssets = autoBuild.assets;
+  }
   const bundleLabel =
-    mode === 'dev' ? 'bun fullstack dev server (HMR)' : 'dist/dashboard-bundle/ (pre-built)';
+    mode === 'dev'
+      ? 'bun fullstack dev server (HMR)'
+      : autoBuild?.status === 'built'
+        ? 'built from source (web/**)'
+        : autoBuild?.status === 'fresh'
+          ? 'dist/dashboard-bundle/ (embedded; source unchanged)'
+          : autoBuild?.status === 'failed'
+            ? 'dist/dashboard-bundle/ (embedded; auto-build failed)'
+            : 'dist/dashboard-bundle/ (pre-built)';
   const siteDirLabel = cwd.split('/').pop() || cwd;
   writeBlock(
     renderBanner({
@@ -982,7 +1002,7 @@ export async function runDashboard(args: string[]): Promise<number> {
 
   let handle: DashboardServerHandle;
   try {
-    handle = await startDashboardServer({ cwd, configPath, port, host, mode });
+    handle = await startDashboardServer({ cwd, configPath, port, host, mode, runtimeBundleAssets });
   } catch (err) {
     reportError(err, cwd);
     return 1;
@@ -1013,6 +1033,22 @@ export async function runDashboard(args: string[]): Promise<number> {
       renderNotice(
         'warning',
         'Bun 1.3.14 dev server can segfault after many HMR cycles (oven-sh/bun#23617). Restart this command if it happens.',
+      ),
+    );
+  }
+  if (autoBuild?.status === 'failed') {
+    writeBlock(
+      renderNotice(
+        'warning',
+        `Dashboard auto-build from source failed; serving the embedded bundle. ${autoBuild.detail ?? ''}`.trim(),
+      ),
+    );
+  }
+  if (autoBuild?.status === 'built') {
+    writeBlock(
+      renderNotice(
+        'info',
+        'Rebuilt the dashboard frontend from source. Use --dev for live hot reload.',
       ),
     );
   }
