@@ -43,7 +43,7 @@ const SERIAL_GROUP = [
   'tests/packaging.test.ts',
 ];
 
-const ISOLATED_FILES = ['tests/build/pipeline.test.ts'];
+const ISOLATED_FILES = ['tests/build/pipeline.test.ts', 'tests/cli/commands/init.test.ts'];
 
 // Task weights (approx. wall-seconds) used only to balance shards via
 // longest-processing-time-first bin packing. They do not affect correctness:
@@ -68,6 +68,7 @@ const FILE_WEIGHTS: Record<string, number> = {
   'tests/build/generate-og-images.test.ts': 2.4,
   'tests/ghost/import.test.ts': 2,
   'tests/cli/help-snapshots.test.ts': 1.9,
+  'tests/cli/commands/init.test.ts': 1.8,
   'tests/cli/commands/open.test.ts': 1.7,
   'tests/cli/commands/tags.test.ts': 1.6,
   'tests/cli/commands/export.test.ts': 1.6,
