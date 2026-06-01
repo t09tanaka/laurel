@@ -263,12 +263,17 @@ describe('importEntryBundle', () => {
         dryRun: true,
       });
       expect(result.conflict).toBeDefined();
-      // existing reflects the on-disk draft; incoming is what overwrite would write.
-      expect(result.conflict?.existing).toMatch(/title: Hello\b/);
+      // The diff is editorial-only: title + body, no frontmatter/metadata.
+      expect(result.conflict?.existing).toMatch(/Hello/);
       expect(result.conflict?.existing).toMatch(/Body text\./);
-      expect(result.conflict?.incoming).toMatch(/title: Hello \(edited\)/);
-      expect(result.conflict?.incoming).toMatch(/status: needs-review/);
+      expect(result.conflict?.existing).not.toMatch(/title:/);
+      expect(result.conflict?.existing).not.toMatch(/status:/);
+      expect(result.conflict?.existing).not.toMatch(/slug:/);
+      expect(result.conflict?.incoming).toMatch(/Hello \(edited\)/);
       expect(result.conflict?.incoming).toMatch(/New body text\./);
+      expect(result.conflict?.incoming).not.toMatch(/title:/);
+      expect(result.conflict?.incoming).not.toMatch(/status:/);
+      expect(result.conflict?.incoming).not.toMatch(/approved/);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -300,57 +305,67 @@ describe('importEntryBundle', () => {
       { path: 'nectar-bundle.json', bytes: manifestEntry() },
       {
         path: 'entry.md',
-        bytes: bytes('---\ntitle: Incoming\nslug: hello\n---\n\nIncoming body.\n'),
+        bytes: bytes(
+          '---\ntitle: Incoming\nslug: hello\nstatus: approved\ncustom_excerpt: From bundle\n---\n\nIncoming body.\n',
+        ),
       },
     ]);
   }
 
-  test('writes a mergedEntry instead of the bundle entry, keeping its chosen status', async () => {
+  test('writes a merged editorial entry, taking metadata from the bundle and forcing needs-review', async () => {
     const dir = await makeFixture();
     try {
       const config = await loadConfig({ cwd: dir });
-      const merged = '---\nslug: hello\nstatus: draft\ntitle: Merged Title\n---\n\nMerged body.\n';
+      // Editorial merge: title on the first line, body after. No frontmatter.
+      const merged = 'Merged Title\nMerged body.\n';
       const result = await importEntryBundle({
         cwd: dir,
         config,
         zip: mergeZip(),
         onConflict: 'overwrite',
-        mergedEntry: merged,
+        mergedContent: merged,
       });
       expect(result.written).toBe(true);
       const landed = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
       expect(landed).toMatch(/title: Merged Title/);
       expect(landed).toMatch(/Merged body\./);
-      // The merge is authoritative for status: no forced needs-review here.
-      expect(landed).toMatch(/status: draft/);
+      // Metadata comes from the incoming bundle; status is forced to needs-review.
+      expect(landed).toMatch(/status: needs-review/);
+      expect(landed).not.toMatch(/status: approved/);
+      expect(landed).toMatch(/custom_excerpt: From bundle/);
       expect(landed).not.toMatch(/Incoming body\./);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  test('re-pins the slug in a mergedEntry to the target filename', async () => {
+  test('keeps the target slug and ignores frontmatter smuggled through the merge', async () => {
     const dir = await makeFixture();
     try {
       const config = await loadConfig({ cwd: dir });
-      // A merge that smuggles a different slug must not desync filename/content.
-      const merged = '---\nslug: somewhere-else\ntitle: Merged\n---\n\nBody.\n';
+      // The merge is editorial-only, so a "status:" line is just a literal title
+      // and cannot override the server-forced needs-review or the target slug.
+      const merged = 'status: published\nBody.\n';
       await importEntryBundle({
         cwd: dir,
         config,
         zip: mergeZip(),
         onConflict: 'overwrite',
-        mergedEntry: merged,
+        mergedContent: merged,
       });
       const landed = await readFile(join(dir, 'content/posts/hello.md'), 'utf8');
       expect(landed).toMatch(/slug: hello/);
-      expect(landed).not.toMatch(/somewhere-else/);
+      // The `status:` frontmatter key is server-forced, regardless of the merge.
+      expect(landed).toMatch(/^status: needs-review/m);
+      expect(landed).not.toMatch(/^status: published/m);
+      // The smuggled "status: published" survives only as a quoted title value.
+      expect(landed).toMatch(/title: ['"]status: published['"]/);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  test('rejects a mergedEntry when not overwriting a real collision', async () => {
+  test('rejects a mergedContent when not overwriting a real collision', async () => {
     const dir = await makeFixture();
     try {
       const config = await loadConfig({ cwd: dir });
@@ -364,7 +379,7 @@ describe('importEntryBundle', () => {
           config,
           zip,
           onConflict: 'overwrite',
-          mergedEntry: '---\nslug: fresh\n---\n\nInjected.\n',
+          mergedContent: 'Injected\nInjected body.\n',
         }),
       ).rejects.toThrow(/overwriting an existing entry/);
     } finally {
@@ -372,20 +387,20 @@ describe('importEntryBundle', () => {
     }
   });
 
-  test('rejects a stale mergedEntry when the file changed since the diff', async () => {
+  test('rejects a stale mergedContent when the title/body changed since the diff', async () => {
     const dir = await makeFixture();
     try {
       const config = await loadConfig({ cwd: dir });
-      const merged = '---\nslug: hello\ntitle: Merged\n---\n\nMerged body.\n';
+      const merged = 'Merged\nMerged body.\n';
       await expect(
         importEntryBundle({
           cwd: dir,
           config,
           zip: mergeZip(),
           onConflict: 'overwrite',
-          mergedEntry: merged,
-          // A base that does not match the on-disk file (the fixture is a draft).
-          expectedExisting: '---\nslug: hello\ntitle: Something Else\n---\n\nDifferent.\n',
+          mergedContent: merged,
+          // An editorial base that does not match the on-disk title/body.
+          expectedExisting: 'Something Else\nDifferent.\n',
         }),
       ).rejects.toThrow(/changed since the diff was opened/);
       // The original file is left untouched.
@@ -396,11 +411,11 @@ describe('importEntryBundle', () => {
     }
   });
 
-  test('applies a mergedEntry when expectedExisting matches the current file', async () => {
+  test('applies a mergedContent when expectedExisting matches the current title/body', async () => {
     const dir = await makeFixture();
     try {
       const config = await loadConfig({ cwd: dir });
-      // Probe first to get the normalized base the dashboard would diff against.
+      // Probe first to get the editorial base the dashboard would diff against.
       const probe = await importEntryBundle({
         cwd: dir,
         config,
@@ -409,13 +424,13 @@ describe('importEntryBundle', () => {
         dryRun: true,
       });
       expect(probe.conflict).toBeDefined();
-      const merged = '---\nslug: hello\ntitle: Merged\n---\n\nMerged body.\n';
+      const merged = 'Merged\nMerged body.\n';
       const result = await importEntryBundle({
         cwd: dir,
         config,
         zip: mergeZip(),
         onConflict: 'overwrite',
-        mergedEntry: merged,
+        mergedContent: merged,
         expectedExisting: probe.conflict?.existing,
       });
       expect(result.written).toBe(true);

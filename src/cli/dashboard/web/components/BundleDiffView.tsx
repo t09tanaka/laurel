@@ -3,13 +3,13 @@ import { useMemo, useState } from 'preact/hooks';
 import { type DiffRow, applyDiffSelection, diffLines } from '../lib/linediff.ts';
 
 interface BundleDiffViewProps {
-  /** Normalized markdown already on disk. */
+  /** Editorial content (title on the first line, body after) already on disk. */
   existing: string;
-  /** Normalized markdown the bundle would write on overwrite. */
+  /** Editorial content the bundle would bring in on overwrite. */
   incoming: string;
   busy: boolean;
   onBack: () => void;
-  /** Receives the per-line merge of the two sides. */
+  /** Receives the per-line merge of the two editorial sides (title + body). */
   onApply: (merged: string) => void;
 }
 

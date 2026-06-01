@@ -1772,7 +1772,7 @@ export async function handleDashboardRequest(
       const onConflict: 'skip' | 'overwrite' | 'rename' =
         rawOnConflict === 'overwrite' || rawOnConflict === 'rename' ? rawOnConflict : 'skip';
       const rawMerged = form?.get('mergedContent');
-      const mergedEntry = typeof rawMerged === 'string' ? rawMerged : undefined;
+      const mergedContent = typeof rawMerged === 'string' ? rawMerged : undefined;
       const rawExpected = form?.get('expectedExisting');
       const expectedExisting = typeof rawExpected === 'string' ? rawExpected : undefined;
       const config = await loadConfig({ cwd: ctx.cwd, configPath: ctx.configPath });
@@ -1783,7 +1783,7 @@ export async function handleDashboardRequest(
           zip: new Uint8Array(await file.arrayBuffer()),
           onConflict,
           dryRun,
-          mergedEntry,
+          mergedContent,
           expectedExisting,
         });
         if (result.written) {

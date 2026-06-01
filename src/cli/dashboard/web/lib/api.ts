@@ -644,7 +644,11 @@ export interface ImportBundleResult {
     tagCount: number;
     authorCount: number;
   };
-  /** Present on a dry-run slug collision: normalized markdown for both sides. */
+  /**
+   * Present on a dry-run slug collision: the editorial view (title + body) of
+   * both sides, for a content-only diff. Metadata is excluded and taken from
+   * the incoming bundle on overwrite.
+   */
   conflict?: { existing: string; incoming: string };
 }
 
@@ -653,7 +657,7 @@ export async function importBundle(
   opts: {
     dryRun: boolean;
     onConflict: 'skip' | 'overwrite' | 'rename';
-    /** Per-line merge of existing + incoming to write instead of the bundle entry. */
+    /** Per-line merge of the existing + incoming editorial content (title + body). */
     mergedContent?: string;
     /** The dry-run `conflict.existing` the merge was built from; guards stale writes. */
     expectedExisting?: string;
