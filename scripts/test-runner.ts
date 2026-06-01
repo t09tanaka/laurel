@@ -408,13 +408,14 @@ async function main(): Promise<number> {
 
   // Many tests spawn child `bun` processes (CLI integration, full builds), so a
   // shard is not one process but a small process tree. Empirically the suite is
-  // still faster with 6 shards on 2-core CI because slow tasks spend enough time
-  // in child-process/file I/O that CPU-count sharding underutilizes the runner.
-  // Keep the default capped and let NECTAR_TEST_SHARDS override for constrained
-  // local machines or future tuning.
+  // still faster above CPU count because slow tasks spend enough time in
+  // child-process/file I/O that CPU-count sharding underutilizes the runner.
+  // CI Linux starts timing out the browser smoke test at 6 shards, so default to
+  // the fastest stable shard count and leave NECTAR_TEST_SHARDS for tuning.
+  const DEFAULT_SHARDS = 5;
   const SHARD_CAP = 6;
   const override = Number(process.env.NECTAR_TEST_SHARDS);
-  const shardCount = Math.max(1, override || SHARD_CAP);
+  const shardCount = Math.max(1, override || DEFAULT_SHARDS);
 
   const files = await discoverFiles();
   if (files.length === 0) {
