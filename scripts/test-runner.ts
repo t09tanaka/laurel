@@ -8,8 +8,8 @@
 //
 // A handful of tests write to fixed in-repo paths (the real `example/dist`, the
 // CLI bundle) and would corrupt each other if run concurrently. Those are
-// pinned into one shard (see SERIAL_GROUP); every other test isolates under
-// `mkdtemp` and is safe to shard freely.
+// pinned into one shard and kept out of normal file batches (see SERIAL_GROUP);
+// every other test isolates under `mkdtemp` and is safe to shard freely.
 //
 // Usage:
 //   bun run scripts/test-runner.ts                 # shard the whole suite
@@ -27,9 +27,9 @@ const BATCH_FILE_LIMIT = 48;
 
 // Non-hermetic tests: ones that write to a fixed, in-repo path instead of a
 // `mkdtemp` sandbox, so two of them running at once corrupt each other's
-// output. They are pinned into a single shard and run serially there. Every
-// other test isolates under `mkdtemp` and is safe to shard freely, so this
-// pinning is what keeps full sharding race-free.
+// output. They are pinned into a single shard and run in their own child test
+// process there. Every other test isolates under `mkdtemp` and is safe to shard
+// freely, so this pinning is what keeps full sharding race-free.
 //
 //   golden / deploy / example-browser -> build into the real `example/dist`
 //   packaging                          -> bundles the CLI into `REPO_ROOT/.nectar/cache`
@@ -214,6 +214,7 @@ function buildTasks(files: string[]): TestTask[] {
     units.push({
       files: present,
       label: 'serial',
+      isolated: true,
       weight: present.reduce((sum, file) => sum + weightFor(file), 0),
     });
   }
