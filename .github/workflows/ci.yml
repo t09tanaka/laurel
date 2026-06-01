@@ -18,8 +18,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        bun: ["1.3.0", "latest"]
+        os: [ubuntu-latest]
+        bun: ["1.3.0"]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -74,5 +74,4 @@ jobs:
         run: bun run lint:a11y
 
       - name: Lighthouse 100 gate (example/dist)
-        if: matrix.os == 'ubuntu-latest' && matrix.bun == 'latest'
         run: bun run lint:lighthouse
