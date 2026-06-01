@@ -644,16 +644,31 @@ export interface ImportBundleResult {
     tagCount: number;
     authorCount: number;
   };
+  /**
+   * Present on a dry-run slug collision: the editorial view (title + body) of
+   * both sides, for a content-only diff. Metadata is excluded and taken from
+   * the incoming bundle on overwrite.
+   */
+  conflict?: { existing: string; incoming: string };
 }
 
 export async function importBundle(
   file: File,
-  opts: { dryRun: boolean; onConflict: 'skip' | 'overwrite' | 'rename' },
+  opts: {
+    dryRun: boolean;
+    onConflict: 'skip' | 'overwrite' | 'rename';
+    /** Per-line merge of the existing + incoming editorial content (title + body). */
+    mergedContent?: string;
+    /** The dry-run `conflict.existing` the merge was built from; guards stale writes. */
+    expectedExisting?: string;
+  },
 ): Promise<ImportBundleResult> {
   const form = new FormData();
   form.set('file', file);
   form.set('dryRun', String(opts.dryRun));
   form.set('onConflict', opts.onConflict);
+  if (opts.mergedContent !== undefined) form.set('mergedContent', opts.mergedContent);
+  if (opts.expectedExisting !== undefined) form.set('expectedExisting', opts.expectedExisting);
   const res = await fetch('/api/bundles/import', {
     method: 'POST',
     headers: { 'x-nectar-dashboard-token': dashboardToken },
