@@ -43,6 +43,8 @@ const SERIAL_GROUP = [
   'tests/packaging.test.ts',
 ];
 
+const ISOLATED_FILES = ['tests/build/pipeline.test.ts'];
+
 // Task weights (approx. wall-seconds) used only to balance shards via
 // longest-processing-time-first bin packing. They do not affect correctness:
 // a wrong weight just yields slightly uneven shards. Only the long-tail-beating
@@ -162,6 +164,7 @@ interface TestTask {
   files: string[];
   label: string;
   weight: number;
+  isolated?: boolean;
   pattern?: string;
 }
 
@@ -198,6 +201,7 @@ async function discoverFiles(): Promise<string[]> {
 
 function buildTasks(files: string[]): TestTask[] {
   const grouped = new Set(SERIAL_GROUP);
+  const isolated = new Set(ISOLATED_FILES);
   const present = SERIAL_GROUP.filter((file) => files.includes(file));
   const units: TestTask[] = [];
 
@@ -211,6 +215,10 @@ function buildTasks(files: string[]): TestTask[] {
 
   for (const file of files) {
     if (grouped.has(file)) continue;
+    if (isolated.has(file)) {
+      units.push({ files: [file], isolated: true, label: file, weight: weightFor(file) });
+      continue;
+    }
     const splits = SPLIT_GROUPS[file];
     if (splits !== undefined) {
       for (const split of splits) {
@@ -239,6 +247,11 @@ interface ShardResult {
 function childTestEnv(): Record<string, string> {
   const { GITHUB_ACTIONS: _githubActions, ...env } = process.env;
   return env;
+}
+
+function formatTaskFiles(files: string[]): string {
+  if (files.length <= 3) return files.join(', ');
+  return `${files.length} files`;
 }
 
 async function runBunTest(
@@ -271,9 +284,7 @@ async function runBunTest(
     exitCode,
     ms: performance.now() - start,
     // bun test writes its human report to stderr; stdout carries test logs.
-    output: task.pattern
-      ? `\n--- ${task.label} (${task.files.join(', ')}) ---\n${stderr}${stdout}${diagnostics}`
-      : stderr + stdout + diagnostics,
+    output: `\n--- ${task.label} (${formatTaskFiles(task.files)}) ---\n${stderr}${stdout}${diagnostics}`,
   };
 }
 
@@ -285,13 +296,20 @@ async function runShardTasks(
   const start = performance.now();
   const outputs: string[] = [];
   const patterned = tasks.filter((task) => task.pattern !== undefined);
+  const isolated = tasks.filter((task) => task.pattern === undefined && task.isolated);
   const batchChunks = chunkBatchTasks(
-    tasks.filter((task) => task.pattern === undefined),
+    tasks.filter((task) => task.pattern === undefined && !task.isolated),
     BATCH_FILE_LIMIT,
   );
   let exitCode = 0;
 
   for (const task of patterned) {
+    const result = await runBunTest(index, task, extraArgs);
+    outputs.push(result.output);
+    if (result.exitCode !== 0 && exitCode === 0) exitCode = result.exitCode;
+  }
+
+  for (const task of isolated) {
     const result = await runBunTest(index, task, extraArgs);
     outputs.push(result.output);
     if (result.exitCode !== 0 && exitCode === 0) exitCode = result.exitCode;
@@ -426,4 +444,4 @@ async function main(): Promise<number> {
   return failed.length > 0 ? 1 : 0;
 }
 
-process.exit(await main());
+process.exitCode = await main();
