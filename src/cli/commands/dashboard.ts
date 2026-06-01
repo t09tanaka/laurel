@@ -92,6 +92,7 @@ import { fetchOgp } from '../dashboard/ogp.ts';
 import {
   type AutoBuildResult,
   type RuntimeBundleAssets,
+  dashboardSourceBuildContext,
   maybeAutoBuildDashboardBundle,
 } from '../dashboard/source-bundle.ts';
 import {
@@ -968,7 +969,11 @@ export async function runDashboard(args: string[]): Promise<number> {
   const modeLabel = mode === 'dev' ? 'dashboard (dev, HMR)' : 'dashboard (prod)';
   let runtimeBundleAssets: RuntimeBundleAssets | undefined;
   let autoBuild: AutoBuildResult | undefined;
-  if (mode === 'prod' && parsed.values['no-build'] !== true) {
+  if (
+    mode === 'prod' &&
+    parsed.values['no-build'] !== true &&
+    dashboardSourceBuildContext() !== null
+  ) {
     writeBlock(
       renderNotice('info', 'Checking dashboard bundle (auto-build from source if stale)…'),
     );
