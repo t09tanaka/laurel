@@ -215,7 +215,7 @@ Scaffold a new Nectar project in the current (or given) directory
 Usage:
 
 ```
-nectar init [--yes] [--force] [--dir <path>] [--json]
+nectar init [--yes] [--force] [--dir <path>] [--agent <claude|codex|both|none>] [--json]
 ```
 
 Options:
@@ -225,6 +225,7 @@ Options:
 | `-y, --yes` | boolean | `NECTAR_INIT_YES` | Skip prompts and use defaults (non-interactive) |
 | `--force` | boolean | `NECTAR_INIT_FORCE` | Overwrite existing files in the target directory |
 | `--dir <path>` | string | `NECTAR_INIT_DIR` | Target directory to scaffold into (defaults to .) |
+| `--agent <claude\|codex\|both\|none>` | string | `NECTAR_INIT_AGENT` | Wire up AI assistant skills non-interactively: `claude` (CLAUDE.md), `codex` (AGENTS.md), `both`, or `none` (default). Creates the marker file if missing and installs the bundled skills for that format. Overrides the interactive prompt |
 | `-j, --json` | boolean | `NECTAR_INIT_JSON` | Emit the scaffold summary (created paths) as JSON on stdout instead of the human "Scaffolded" log |
 
 Examples:
@@ -233,6 +234,8 @@ Examples:
 nectar init                                  # scaffold in the current dir (interactive)
 nectar init --yes                            # accept defaults; CI-friendly
 nectar init --dir my-blog --yes              # scaffold a new project folder
+nectar init --yes --agent claude             # also create CLAUDE.md + install skills
+nectar init --yes --agent both               # wire up Claude Code and Codex
 ```
 
 ### `nectar build`
