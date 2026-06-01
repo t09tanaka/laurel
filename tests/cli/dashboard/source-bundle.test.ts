@@ -3,9 +3,11 @@ import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  buildDashboardBundleInMemory,
   bundleSourceIsNewer,
   dashboardSourceBuildContext,
   maxMtimeMsUnder,
+  maybeAutoBuildDashboardBundle,
 } from '~/cli/dashboard/source-bundle.ts';
 
 const tmps: string[] = [];
@@ -68,4 +70,43 @@ describe('mtime staleness', () => {
   test('maxMtimeMsUnder returns 0 for a missing directory', async () => {
     expect(await maxMtimeMsUnder(join(tmpdir(), 'nectar-does-not-exist-xyz'))).toBe(0);
   });
+});
+
+describe('buildDashboardBundleInMemory (real repo source)', () => {
+  test('builds non-empty JS and CSS from the actual dashboard source', async () => {
+    const ctx = dashboardSourceBuildContext();
+    expect(ctx).not.toBeNull();
+    if (!ctx) return;
+    const assets = await buildDashboardBundleInMemory(ctx);
+    expect(assets['/assets/dashboard.js']?.body.length ?? 0).toBeGreaterThan(0);
+    expect(assets['/assets/dashboard.js']?.contentType).toContain('javascript');
+    expect(assets['/assets/dashboard.css']?.body.length ?? 0).toBeGreaterThan(0);
+    expect(assets['/assets/dashboard.css']?.contentType).toContain('css');
+  }, 60_000);
+});
+
+describe('maybeAutoBuildDashboardBundle', () => {
+  test('reports unavailable and skips building when --no-build is set', async () => {
+    const result = await maybeAutoBuildDashboardBundle({ noBuild: true });
+    expect(result.status).toBe('unavailable');
+    expect(result.assets).toBeUndefined();
+  });
+
+  test('reports unavailable when there is no source context', async () => {
+    const base = await makeBase({ tailwind: false });
+    const result = await maybeAutoBuildDashboardBundle({ baseDir: base });
+    expect(result.status).toBe('unavailable');
+  });
+
+  test('reports failed (not throw) when the tailwind binary is bogus', async () => {
+    const base = await makeBase({ tailwind: true });
+    const ctx = dashboardSourceBuildContext(base);
+    expect(ctx).not.toBeNull();
+    if (!ctx) return;
+    await utimes(ctx.bundledAssetsPath, new Date(1000), new Date(1000));
+    await utimes(ctx.entry, new Date(5000), new Date(5000));
+    const result = await maybeAutoBuildDashboardBundle({ baseDir: base });
+    expect(result.status).toBe('failed');
+    expect(result.assets).toBeUndefined();
+  }, 60_000);
 });
