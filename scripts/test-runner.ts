@@ -352,7 +352,7 @@ async function main(): Promise<number> {
   const shards = packShards(units, shardCount);
   const bunArgs = [...passthrough];
   if (!bunArgs.some((arg) => arg === '--timeout' || arg.startsWith('--timeout='))) {
-    bunArgs.push('--timeout=15000');
+    bunArgs.push('--timeout=30000');
   }
 
   console.log(
