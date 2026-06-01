@@ -211,6 +211,79 @@ describe('cli init', () => {
     expect(await fileExists(join(dir, 'nectar.toml'))).toBe(true);
   });
 
+  test('--agent claude creates CLAUDE.md and installs Claude skills only', async () => {
+    const { exitCode } = await runCli(['init', '--yes', '--agent', 'claude'], dir);
+    expect(exitCode).toBe(0);
+    expect(await fileExists(join(dir, 'CLAUDE.md'))).toBe(true);
+    expect(await fileExists(join(dir, 'AGENTS.md'))).toBe(false);
+    expect(await fileExists(join(dir, '.claude/skills/frontmatter-authoring/SKILL.md'))).toBe(true);
+    expect(await fileExists(join(dir, '.claude/skills/content-editing-cli/SKILL.md'))).toBe(true);
+    expect(await fileExists(join(dir, '.codex/skills/frontmatter-authoring/SKILL.md'))).toBe(false);
+  });
+
+  test('--agent codex creates AGENTS.md referencing the installed skills', async () => {
+    const { exitCode } = await runCli(['init', '--yes', '--agent', 'codex'], dir);
+    expect(exitCode).toBe(0);
+    expect(await fileExists(join(dir, 'AGENTS.md'))).toBe(true);
+    expect(await fileExists(join(dir, 'CLAUDE.md'))).toBe(false);
+    const agents = await readFile(join(dir, 'AGENTS.md'), 'utf8');
+    expect(agents).toContain('@.codex/skills/content-editing-cli/SKILL.md');
+    expect(agents).toContain('@.codex/skills/frontmatter-authoring/SKILL.md');
+    expect(await fileExists(join(dir, '.codex/skills/content-editing-cli/SKILL.md'))).toBe(true);
+    expect(await fileExists(join(dir, '.claude/skills/content-editing-cli/SKILL.md'))).toBe(false);
+  });
+
+  test('--agent both wires up Claude Code and Codex', async () => {
+    const { exitCode } = await runCli(['init', '--yes', '--agent', 'both'], dir);
+    expect(exitCode).toBe(0);
+    expect(await fileExists(join(dir, 'CLAUDE.md'))).toBe(true);
+    expect(await fileExists(join(dir, 'AGENTS.md'))).toBe(true);
+    expect(await fileExists(join(dir, '.claude/skills/content-editing-cli/SKILL.md'))).toBe(true);
+    expect(await fileExists(join(dir, '.codex/skills/content-editing-cli/SKILL.md'))).toBe(true);
+  });
+
+  test('default (no --agent) creates no marker file or skills', async () => {
+    const { exitCode } = await runCli(['init', '--yes'], dir);
+    expect(exitCode).toBe(0);
+    expect(await fileExists(join(dir, 'CLAUDE.md'))).toBe(false);
+    expect(await fileExists(join(dir, 'AGENTS.md'))).toBe(false);
+    expect(await fileExists(join(dir, '.claude/skills/frontmatter-authoring/SKILL.md'))).toBe(
+      false,
+    );
+  });
+
+  test('--agent rejects an invalid value', async () => {
+    const { stderr, exitCode } = await runCli(['init', '--yes', '--agent', 'bogus'], dir);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Invalid --agent value');
+  });
+
+  test('--agent claude keeps an existing CLAUDE.md but still installs skills', async () => {
+    await writeFile(join(dir, 'CLAUDE.md'), '# my own notes\n');
+    const { exitCode } = await runCli(['init', '--yes', '--agent', 'claude'], dir);
+    expect(exitCode).toBe(0);
+    // The operator's marker file is never clobbered (policy: skip)...
+    expect(await readFile(join(dir, 'CLAUDE.md'), 'utf8')).toBe('# my own notes\n');
+    // ...but the bundled skills are still (re)installed.
+    expect(await fileExists(join(dir, '.claude/skills/content-editing-cli/SKILL.md'))).toBe(true);
+  });
+
+  test('interactive stdin can opt into the codex agent', async () => {
+    const stdin = [
+      'My Blog', // title
+      'https://example.com', // url
+      '1', // theme: source
+      'n', // starter content
+      'n', // rss
+      'codex', // AI assistant skills
+      '',
+    ].join('\n');
+    const { exitCode } = await runCli(['init'], dir, stdin);
+    expect(exitCode).toBe(0);
+    expect(await fileExists(join(dir, 'AGENTS.md'))).toBe(true);
+    expect(await fileExists(join(dir, '.codex/skills/content-editing-cli/SKILL.md'))).toBe(true);
+  });
+
   test('--help prints subcommand help', async () => {
     const { stdout, exitCode } = await runCli(['init', '--help'], dir);
     expect(exitCode).toBe(0);
@@ -218,6 +291,7 @@ describe('cli init', () => {
     expect(stdout).toContain('--yes');
     expect(stdout).toContain('--force');
     expect(stdout).toContain('--dir <path>');
+    expect(stdout).toContain('--agent');
   });
 
   test('appears in top-level usage', async () => {
