@@ -375,6 +375,11 @@ export const DASHBOARD_SPEC: CommandSpec = {
       description:
         "Run the dashboard with Bun's fullstack dev server (HMR for src/cli/dashboard/web/**; no pre-built bundle required)",
     },
+    'no-build': {
+      type: 'boolean',
+      description:
+        'Skip the prod-from-source auto-build and serve the embedded/pre-built bundle as-is (fast restart; no effect on --dev or the published CLI)',
+    },
     port: {
       type: 'string',
       description:
@@ -404,6 +409,7 @@ export const DASHBOARD_SPEC: CommandSpec = {
     'nectar dashboard --port 0                    # pick a free port for smoke tests',
     'nectar dashboard --host 0.0.0.0              # expose on the LAN',
     'nectar dashboard --dev                       # frontend HMR; bundles TSX/CSS on demand',
+    'nectar dashboard --no-build                  # serve the embedded bundle without rebuilding',
   ],
 };
 

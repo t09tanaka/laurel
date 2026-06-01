@@ -118,9 +118,17 @@ real-world themes against static Markdown content. The current explicit scope is
 - Use `bun run src/cli/index.ts dashboard --dev` for iterative work on
   `src/cli/dashboard/web/**`. This launches Bun's fullstack dev server
   with HMR; no pre-build of `dist/dashboard-bundle/` is required.
-- `bun run src/cli/index.ts dashboard` (no flag) continues to serve the
-  pre-built bundle from `dist/dashboard-bundle/` and is the path used by
-  the npm-published CLI and compiled binaries.
+- `bun run src/cli/index.ts dashboard` (no flag), when run from a repo source
+  checkout, auto-builds the frontend bundle into memory at startup if any
+  `src/cli/dashboard/web/**` file is newer than the embedded
+  `src/cli/dashboard/bundled-assets.ts` (an mtime fast path skips the rebuild
+  when the source is unchanged). So a plain `nectar dashboard` reflects your
+  latest `web/**` edits without a manual `build-dashboard-bundle.ts` run. Pass
+  `--no-build` to skip the auto-build and serve the embedded bundle as-is. The
+  npm-published CLI / compiled binary has no `web/**` source or tailwind, so it
+  always serves the embedded `dist/dashboard-bundle/` bundle (unchanged).
+- For live hot reload while editing, `--dev` (Bun fullstack HMR) is still the
+  path; the source auto-build only refreshes once per launch.
 - The dev server bundles `.tsx` and Tailwind CSS on demand via
   `bun-plugin-tailwind` (see `bunfig.toml`). The prod bundle is still
   produced by `scripts/build-dashboard-bundle.ts` and is required before
@@ -132,11 +140,13 @@ real-world themes against static Markdown content. The current explicit scope is
   stylesheet (content-hashed CSS 404s mid-reload), which reads as "styles not
   applied" even though the source is fine. Reserve `--dev` for active code
   iteration; confirm look-and-feel against the prod bundle.
-- **After rebuilding the bundle, RESTART any running prod dashboard.** The prod
-  server loads `dist/dashboard-bundle/` into memory at startup and serves it
-  from there, so a rebuild does not reach an already-running server and a
-  browser reload alone shows stale UI. Kill and relaunch the `dashboard`
-  process after each `build-dashboard-bundle.ts` run.
+- **When you run `scripts/build-dashboard-bundle.ts` and serve the committed
+  `dist/dashboard-bundle/` (the published-CLI path), RESTART any running prod
+  dashboard.** A plain source-run `nectar dashboard` rebuilds on launch, so this
+  only bites the explicit-bundle workflow. The prod server loads its bundle into
+  memory at startup and serves it from there, so a rebuild does not reach an
+  already-running server and a browser reload alone shows stale UI. Kill and
+  relaunch the `dashboard` process after each `build-dashboard-bundle.ts` run.
 
 ## What "done" looks like for the bootstrap milestone
 

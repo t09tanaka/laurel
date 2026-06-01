@@ -90,6 +90,12 @@ import {
 } from '../dashboard/image-variant-queue.ts';
 import { fetchOgp } from '../dashboard/ogp.ts';
 import {
+  type AutoBuildResult,
+  type RuntimeBundleAssets,
+  dashboardSourceBuildContext,
+  maybeAutoBuildDashboardBundle,
+} from '../dashboard/source-bundle.ts';
+import {
   type TaxonomyCascadeSnapshot,
   cascadeRemoveTaxonomyReferences,
 } from '../dashboard/taxonomy-cascade.ts';
@@ -786,6 +792,7 @@ interface DashboardRequestContext {
   security?: DashboardSecurityContext;
   maxBodyBytes?: number;
   mode?: DashboardServerMode;
+  runtimeBundleAssets?: RuntimeBundleAssets;
 }
 
 type DashboardTaxonomyFileResult =
@@ -804,6 +811,7 @@ interface StartDashboardServerOptions {
   port: number;
   host: string;
   mode: DashboardServerMode;
+  runtimeBundleAssets?: RuntimeBundleAssets;
 }
 
 interface DashboardServerHandle {
@@ -815,7 +823,7 @@ interface DashboardServerHandle {
 export async function startDashboardServer(
   options: StartDashboardServerOptions,
 ): Promise<DashboardServerHandle> {
-  const { cwd, configPath, port, host, mode } = options;
+  const { cwd, configPath, port, host, mode, runtimeBundleAssets } = options;
   await loadConfig({ cwd, configPath });
   const changeBus = createChangeBus();
   const watchSetup = await watchDashboardFiles({ cwd, configPath, changeBus });
@@ -828,6 +836,7 @@ export async function startDashboardServer(
     changeBus,
     watch: watchSetup,
     mode,
+    runtimeBundleAssets,
     security: {
       origin: new URL(request.url).origin,
       token,
@@ -958,8 +967,35 @@ export async function runDashboard(args: string[]): Promise<number> {
     tags_dir: bannerConfig.content.tags_dir,
   });
   const modeLabel = mode === 'dev' ? 'dashboard (dev, HMR)' : 'dashboard (prod)';
+  let runtimeBundleAssets: RuntimeBundleAssets | undefined;
+  let autoBuild: AutoBuildResult | undefined;
+  if (
+    mode === 'prod' &&
+    parsed.values['no-build'] !== true &&
+    dashboardSourceBuildContext() !== null
+  ) {
+    writeBlock(
+      renderNotice('info', 'Checking dashboard bundle (auto-build from source if stale)…'),
+    );
+  }
+  if (mode === 'prod') {
+    autoBuild = await maybeAutoBuildDashboardBundle({
+      noBuild: parsed.values['no-build'] === true,
+    });
+    runtimeBundleAssets = autoBuild.assets;
+  }
   const bundleLabel =
-    mode === 'dev' ? 'bun fullstack dev server (HMR)' : 'dist/dashboard-bundle/ (pre-built)';
+    mode === 'dev'
+      ? 'bun fullstack dev server (HMR)'
+      : autoBuild?.status === 'built'
+        ? 'built from source (web/**)'
+        : autoBuild?.status === 'fresh'
+          ? 'dist/dashboard-bundle/ (embedded; source unchanged)'
+          : autoBuild?.status === 'failed'
+            ? 'dist/dashboard-bundle/ (embedded; auto-build failed)'
+            : parsed.values['no-build'] === true
+              ? 'dist/dashboard-bundle/ (embedded; --no-build)'
+              : 'dist/dashboard-bundle/ (pre-built)';
   const siteDirLabel = cwd.split('/').pop() || cwd;
   writeBlock(
     renderBanner({
@@ -978,7 +1014,7 @@ export async function runDashboard(args: string[]): Promise<number> {
 
   let handle: DashboardServerHandle;
   try {
-    handle = await startDashboardServer({ cwd, configPath, port, host, mode });
+    handle = await startDashboardServer({ cwd, configPath, port, host, mode, runtimeBundleAssets });
   } catch (err) {
     reportError(err, cwd);
     return 1;
@@ -1009,6 +1045,22 @@ export async function runDashboard(args: string[]): Promise<number> {
       renderNotice(
         'warning',
         'Bun 1.3.14 dev server can segfault after many HMR cycles (oven-sh/bun#23617). Restart this command if it happens.',
+      ),
+    );
+  }
+  if (autoBuild?.status === 'failed') {
+    writeBlock(
+      renderNotice(
+        'warning',
+        `Dashboard auto-build from source failed; serving the embedded bundle. ${autoBuild.detail ?? ''}`.trim(),
+      ),
+    );
+  }
+  if (autoBuild?.status === 'built') {
+    writeBlock(
+      renderNotice(
+        'info',
+        'Rebuilt the dashboard frontend from source. Use --dev for live hot reload.',
       ),
     );
   }
@@ -1414,7 +1466,7 @@ export async function handleDashboardRequest(
       request.method === 'GET' &&
       (url.pathname === '/assets/dashboard.js' || url.pathname === '/assets/dashboard.css')
     ) {
-      return serveDashboardBundleAsset(url.pathname);
+      return serveDashboardBundleAsset(url.pathname, ctx.runtimeBundleAssets);
     }
     if (request.method === 'GET' && url.pathname === '/api/themes/active/css') {
       return serveActiveThemeScopedCss({ cwd: ctx.cwd, configPath: ctx.configPath });
@@ -5344,8 +5396,13 @@ function jsonResponse(data: unknown, status = 200): Response {
   });
 }
 
-async function serveDashboardBundleAsset(pathname: string): Promise<Response> {
-  const asset = DASHBOARD_BUNDLE_ASSETS[pathname as keyof typeof DASHBOARD_BUNDLE_ASSETS];
+async function serveDashboardBundleAsset(
+  pathname: string,
+  override?: RuntimeBundleAssets,
+): Promise<Response> {
+  const asset =
+    override?.[pathname] ??
+    DASHBOARD_BUNDLE_ASSETS[pathname as keyof typeof DASHBOARD_BUNDLE_ASSETS];
   if (!asset) return new Response('Not Found', { status: 404 });
   if (asset.body === '') {
     return new Response(
