@@ -22,7 +22,13 @@ async function makeBase(opts: { tailwind: boolean }): Promise<string> {
   await writeFile(join(base, 'bundled-assets.ts'), '// generated\n', 'utf8');
   if (opts.tailwind) {
     await mkdir(join(root, 'node_modules', '.bin'), { recursive: true });
-    await writeFile(join(root, 'node_modules', '.bin', 'tailwindcss'), '#!/bin/sh\n', 'utf8');
+    // Executable stub that exits non-zero so buildDashboardBundleInMemory hits
+    // the "CSS build failed" throw deterministically (rather than relying on an
+    // EACCES spawn error from a non-executable file).
+    await writeFile(join(root, 'node_modules', '.bin', 'tailwindcss'), '#!/bin/sh\nexit 1\n', {
+      encoding: 'utf8',
+      mode: 0o755,
+    });
   }
   return base;
 }
