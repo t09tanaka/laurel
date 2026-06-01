@@ -968,6 +968,11 @@ export async function runDashboard(args: string[]): Promise<number> {
   const modeLabel = mode === 'dev' ? 'dashboard (dev, HMR)' : 'dashboard (prod)';
   let runtimeBundleAssets: RuntimeBundleAssets | undefined;
   let autoBuild: AutoBuildResult | undefined;
+  if (mode === 'prod' && parsed.values['no-build'] !== true) {
+    writeBlock(
+      renderNotice('info', 'Checking dashboard bundle (auto-build from source if stale)…'),
+    );
+  }
   if (mode === 'prod') {
     autoBuild = await maybeAutoBuildDashboardBundle({
       noBuild: parsed.values['no-build'] === true,
@@ -983,7 +988,9 @@ export async function runDashboard(args: string[]): Promise<number> {
           ? 'dist/dashboard-bundle/ (embedded; source unchanged)'
           : autoBuild?.status === 'failed'
             ? 'dist/dashboard-bundle/ (embedded; auto-build failed)'
-            : 'dist/dashboard-bundle/ (pre-built)';
+            : parsed.values['no-build'] === true
+              ? 'dist/dashboard-bundle/ (embedded; --no-build)'
+              : 'dist/dashboard-bundle/ (pre-built)';
   const siteDirLabel = cwd.split('/').pop() || cwd;
   writeBlock(
     renderBanner({
