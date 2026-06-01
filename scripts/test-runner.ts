@@ -24,6 +24,7 @@ import { spawn } from 'bun';
 
 const TEST_GLOB = 'tests/**/*.test.ts';
 const BATCH_FILE_LIMIT = 48;
+const BUN_CRASH_EXIT_CODES = new Set([132, 133, 134, 139]);
 
 // Non-hermetic tests: ones that write to a fixed, in-repo path instead of a
 // `mkdtemp` sandbox, so two of them running at once corrupt each other's
@@ -264,7 +265,7 @@ function formatTaskFiles(files: string[]): string {
   return `${files.length} files`;
 }
 
-async function runBunTest(
+async function runBunTestAttempt(
   index: number,
   task: Pick<TestTask, 'files' | 'label' | 'pattern'>,
   extraArgs: string[],
@@ -295,6 +296,23 @@ async function runBunTest(
     ms: performance.now() - start,
     // bun test writes its human report to stderr; stdout carries test logs.
     output: `\n--- ${task.label} (${formatTaskFiles(task.files)}) ---\n${stderr}${stdout}${diagnostics}`,
+  };
+}
+
+async function runBunTest(
+  index: number,
+  task: Pick<TestTask, 'files' | 'label' | 'pattern'>,
+  extraArgs: string[],
+): Promise<ShardResult> {
+  const first = await runBunTestAttempt(index, task, extraArgs);
+  if (!BUN_CRASH_EXIT_CODES.has(first.exitCode)) return first;
+
+  const retry = await runBunTestAttempt(index, task, extraArgs);
+  const retryNotice = `\n[test-runner] task ${task.label} crashed with exit ${first.exitCode}; retried once\n`;
+  return {
+    ...retry,
+    ms: first.ms + retry.ms,
+    output: `${retryNotice}${retry.output}`,
   };
 }
 
