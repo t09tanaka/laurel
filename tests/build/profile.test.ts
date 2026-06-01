@@ -80,13 +80,15 @@ describe('createProfiler', () => {
     expect(stats.slowestRoutes.map((route) => route.url)).toEqual(
       expect.arrayContaining(['/fast/', '/slow/']),
     );
-    expect(stats.helperHotspots[0]).toMatchObject({
+    const contentHotspot = stats.helperHotspots.find((helper) => helper.name === 'content');
+    const urlHotspot = stats.helperHotspots.find((helper) => helper.name === 'url');
+    expect(contentHotspot).toMatchObject({
       name: 'content',
       calls: 2,
       totalDurationMs: expect.any(Number),
       maxDurationMs: expect.any(Number),
     });
-    expect(stats.helperHotspots[1]).toMatchObject({
+    expect(urlHotspot).toMatchObject({
       name: 'url',
       calls: 1,
     });

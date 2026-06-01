@@ -2640,6 +2640,132 @@
     gap: 14px;
     padding-bottom: 10px;
   }
+  /* Import conflict diff: a GitHub-style line review wired to per-hunk accept. */
+  .modalDialog--diff {
+    width: min(920px, 100%);
+  }
+  .bundleDiff {
+    display: grid;
+    gap: 12px;
+    min-height: 0;
+  }
+  .bundleDiffBar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .bundleDiffCount {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .bundleDiffBarActions {
+    display: flex;
+    gap: 14px;
+  }
+  .bundleDiffLink {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .bundleDiffLink:hover:not(:disabled) {
+    color: var(--text-primary);
+    text-decoration: underline;
+  }
+  .bundleDiffLink:disabled {
+    color: var(--text-muted);
+    opacity: 0.5;
+    cursor: default;
+  }
+  .bundleDiffBody {
+    max-height: 52vh;
+    overflow: auto;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    background: var(--surface-normal);
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  .bundleDiffEmpty {
+    margin: 0;
+    padding: 18px;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .diffHunk--change {
+    border-top: 1px solid var(--border-weak);
+    border-bottom: 1px solid var(--border-weak);
+  }
+  .diffHunk--change + .diffHunk--change {
+    border-top: 0;
+  }
+  .diffHunkToggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px;
+    font-family: var(--font-sans);
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    background: var(--surface-raised);
+    border-bottom: 1px solid var(--border-weak);
+    cursor: pointer;
+    user-select: none;
+  }
+  .diffHunkToggle input {
+    margin: 0;
+    cursor: pointer;
+  }
+  .diffLine {
+    display: grid;
+    grid-template-columns: 3.4em 3.4em 1.4em 1fr;
+    align-items: baseline;
+  }
+  .diffGutter {
+    text-align: right;
+    padding: 0 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+    opacity: 0.7;
+    user-select: none;
+  }
+  .diffMark {
+    text-align: center;
+    color: var(--text-muted);
+    user-select: none;
+  }
+  .diffText {
+    white-space: pre-wrap;
+    word-break: break-word;
+    padding-right: 12px;
+  }
+  .diffLine--add {
+    background: var(--success-subdued);
+  }
+  .diffLine--add .diffMark {
+    color: var(--color-success);
+  }
+  .diffLine--del {
+    background: var(--danger-subdued);
+  }
+  .diffLine--del .diffMark {
+    color: var(--color-danger);
+  }
+  /* The chosen side reads as solid; the dropped side dims and strikes through. */
+  .diffHunk--change[data-accepted="true"] .diffLine--del .diffText {
+    opacity: 0.6;
+    text-decoration: line-through;
+  }
+  .diffHunk--change[data-accepted="false"] .diffLine--add .diffText {
+    opacity: 0.6;
+    text-decoration: line-through;
+  }
   .themeUploadDrop {
     display: flex;
     align-items: center;

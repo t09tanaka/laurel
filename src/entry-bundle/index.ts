@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { absolutise, resolveContentSlugPath } from '~/cli/content-paths.ts';
@@ -100,6 +101,15 @@ export interface ImportEntryResult {
     tagCount: number;
     authorCount: number;
   };
+  /**
+   * Populated on a dry-run when the slug collides with an existing entry. Both
+   * sides are the entry's *editorial* view — its title on the first line
+   * followed by the body — so the dashboard renders a line-level diff of just
+   * the content a reviewer can meaningfully merge. Metadata (dates, tags,
+   * authors, status, …) is deliberately excluded from the diff and always taken
+   * from the incoming bundle on overwrite.
+   */
+  conflict?: { existing: string; incoming: string };
 }
 
 export function parseEntryBundleZip(zip: Uint8Array): ParsedEntryBundle {
@@ -302,18 +312,67 @@ export async function exportEntryBundle({
   };
 }
 
+/**
+ * The import diff/merge surface is the entry's *editorial* content only: its
+ * title and body. Metadata (dates, tags, authors, status, …) is never diffed
+ * because a reviewer can't merge it line by line meaningfully; it always comes
+ * from the incoming bundle. The editorial doc is the title on the first line
+ * followed by the body, so a one-line title change and any body change are the
+ * only hunks the reviewer sees.
+ */
+function editorialDoc(title: string, body: string): string {
+  return `${title}\n${body}`;
+}
+
+function titleOf(frontmatter: Record<string, unknown>): string {
+  return typeof frontmatter.title === 'string' ? frontmatter.title : '';
+}
+
+/** Split a merged editorial doc back into its title (first line) and body (rest). */
+function splitEditorialDoc(doc: string): { title: string; body: string } {
+  const nl = doc.indexOf('\n');
+  if (nl === -1) return { title: doc, body: '' };
+  return { title: doc.slice(0, nl), body: doc.slice(nl + 1) };
+}
+
+/** The editorial view of an entry already on disk, for diffing / stale checks. */
+function editorialFromRaw(raw: string, filePath: string): string {
+  const parsed = parseFrontmatter(raw, { filePath });
+  return editorialDoc(titleOf(parsed.data), parsed.body);
+}
+
 export async function importEntryBundle({
   cwd,
   config,
   zip,
   onConflict,
   dryRun = false,
+  mergedContent,
+  expectedExisting,
 }: {
   cwd: string;
   config: NectarConfig;
   zip: Uint8Array;
   onConflict: ConflictPolicy;
   dryRun?: boolean;
+  /**
+   * When provided, this is the dashboard's per-line merge of the *editorial*
+   * content (title on the first line, body after) — not a full entry. Only
+   * honored when overwriting a real collision. The merged title and body are
+   * recombined with the incoming bundle's metadata server-side, so the client
+   * cannot smuggle frontmatter (status, slug, dates, …): status is still forced
+   * to needs-review and the slug stays pinned to the target. Assets are still
+   * taken from the bundle.
+   */
+  mergedContent?: string;
+  /**
+   * The editorial existing content the merge was built against (the dry-run
+   * `conflict.existing`). If the entry's title/body on disk no longer matches,
+   * the merge is stale and the write is rejected rather than silently
+   * clobbering edits made since the diff was opened. A metadata-only change on
+   * disk does not trip this, since metadata is taken from the bundle anyway.
+   */
+  expectedExisting?: string;
 }): Promise<ImportEntryResult> {
   const bundle = parseEntryBundleZip(zip);
   const root = rootForKind(cwd, config, bundle.kind);
@@ -330,6 +389,28 @@ export async function importEntryBundle({
   const requestedSlug = safeSlug(String(bundle.frontmatter.slug ?? bundle.slug));
   const target = resolveImportTarget(root, requestedSlug, onConflict);
   const entryPath = relativePath(cwd, target.path);
+  const collisionPath = join(root, `${requestedSlug}.md`);
+  const collisionExists = existsSync(collisionPath);
+
+  // Importing brings an entry in from outside, so it always lands as
+  // needs-review — a reviewer approves it from there. (Export does not stamp
+  // status; the directional flow lives entirely on the import side.)
+  const frontmatter = { ...bundle.frontmatter, slug: target.slug, status: 'needs-review' };
+
+  // On a dry-run collision, surface both editorial views (title + body) so the
+  // dashboard can render a line-level diff of just the content. Metadata is left
+  // out — on overwrite it always comes from the bundle. Computed against the
+  // requested-slug path (where the collision is), independent of the chosen
+  // policy, so the skip-policy probe still gets the diff.
+  let conflict: { existing: string; incoming: string } | undefined;
+  if (dryRun && collisionExists) {
+    const existingRaw = await readFile(collisionPath, 'utf8');
+    conflict = {
+      existing: editorialFromRaw(existingRaw, collisionPath),
+      incoming: editorialDoc(titleOf(frontmatter), bundle.body),
+    };
+  }
+
   if (target.skipped) {
     // The entry itself is not coming in, so neither are its tags or authors —
     // bringing a definition in for an entry we declined would leave an orphan.
@@ -345,13 +426,28 @@ export async function importEntryBundle({
       importedAuthors: [],
       warnings: [],
       preview,
+      conflict,
     };
   }
 
-  // Importing brings an entry in from outside, so it always lands as
-  // needs-review — a reviewer approves it from there. (Export does not stamp
-  // status; the directional flow lives entirely on the import side.)
-  const frontmatter = { ...bundle.frontmatter, slug: target.slug, status: 'needs-review' };
+  // A hand-merged entry only makes sense when overwriting an entry that really
+  // exists; reject it otherwise so a merge can't ride in on a skip/rename or a
+  // non-colliding import.
+  if (
+    mergedContent !== undefined &&
+    !(onConflict === 'overwrite' && collisionExists && target.path === collisionPath)
+  ) {
+    throw new Error('A merged entry is only valid when overwriting an existing entry');
+  }
+
+  // The merge is editorial-only: the reviewer's merged title + body. Metadata
+  // (slug, status, dates, tags, …) always comes from the incoming `frontmatter`
+  // below, so the client cannot smuggle frontmatter through the merge.
+  const mergedEditorial =
+    mergedContent !== undefined ? splitEditorialDoc(mergedContent) : undefined;
+
+  // Tag/author "not found" warnings are appended below as their definitions are
+  // reconciled against the destination.
   const warnings: string[] = [];
 
   const assetsRoot = absolutise(cwd, config.content.assets_dir);
@@ -440,11 +536,25 @@ export async function importEntryBundle({
   }
 
   if (!dryRun) {
-    await writeFile(
-      target.path,
-      serializeMarkdownSource(frontmatter, bundle.body, entryPath),
-      'utf8',
-    );
+    if (mergedEditorial && expectedExisting !== undefined) {
+      const currentRaw = await readFile(collisionPath, 'utf8');
+      if (editorialFromRaw(currentRaw, collisionPath) !== expectedExisting) {
+        throw new Error(
+          'The existing entry changed since the diff was opened. Reopen the import to review the current content.',
+        );
+      }
+    }
+    // Recombine the merged title/body with the bundle's metadata. `frontmatter`
+    // already pins the slug to the target and forces needs-review, so only the
+    // title is overridden from the merge.
+    const content = mergedEditorial
+      ? serializeMarkdownSource(
+          { ...frontmatter, title: mergedEditorial.title },
+          mergedEditorial.body,
+          entryPath,
+        )
+      : serializeMarkdownSource(frontmatter, bundle.body, entryPath);
+    await writeFile(target.path, content, 'utf8');
     for (const write of [...writes, ...tagWrites, ...authorWrites]) {
       await mkdir(dirname(write.dest), { recursive: true });
       await writeFile(write.dest, write.bytes);
@@ -463,6 +573,7 @@ export async function importEntryBundle({
     importedAuthors,
     warnings,
     preview,
+    conflict,
   };
 }
 

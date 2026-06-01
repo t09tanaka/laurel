@@ -16,10 +16,16 @@ interface RunResult {
 async function runCli(args: string[], cwd: string, stdinInput?: string): Promise<RunResult> {
   const proc = Bun.spawn(['bun', CLI_ENTRY, ...args], {
     cwd,
-    stdin: stdinInput !== undefined ? new Blob([stdinInput]) : 'ignore',
+    stdin: stdinInput !== undefined ? 'pipe' : 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
   });
+  if (stdinInput !== undefined) {
+    const stdin = proc.stdin;
+    if (stdin === undefined) throw new Error('Expected piped stdin to be available');
+    stdin.write(stdinInput);
+    stdin.end();
+  }
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
