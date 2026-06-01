@@ -410,10 +410,9 @@ async function main(): Promise<number> {
   // shard is not one process but a small process tree. Empirically the suite is
   // still faster above CPU count because slow tasks spend enough time in
   // child-process/file I/O that CPU-count sharding underutilizes the runner.
-  // CI Linux starts timing out the browser smoke test at 6 shards, so default to
-  // the fastest stable shard count and leave NECTAR_TEST_SHARDS for tuning.
-  const DEFAULT_SHARDS = 5;
-  const SHARD_CAP = 6;
+  // CI Linux starts timing out the browser smoke test above 4 shards, so default to
+  // the fastest stable shard count and leave NECTAR_TEST_SHARDS for explicit tuning.
+  const DEFAULT_SHARDS = 4;
   const override = Number(process.env.NECTAR_TEST_SHARDS);
   const shardCount = Math.max(1, override || DEFAULT_SHARDS);
 
