@@ -1,17 +1,15 @@
 #!/usr/bin/env bun
 // Parallel test shard runner.
 //
-// `bun test` executes the files it is given sequentially inside one process,
-// so a 200s suite stays 200s no matter how many cores the machine has. This
-// runner splits the suite into N shards and runs one `bun test <files...>`
-// process per shard concurrently, cutting wall-clock to roughly total/N.
+// Nectar has many cheap unit tests plus several expensive CLI integration test
+// files that spawn `bun` dozens of times. File-level sharding alone leaves
+// those large files as the wall-clock floor, so this runner can split selected
+// slow files by top-level describe name with `--test-name-pattern`.
 //
-// Why a custom runner instead of a flag: Bun has no built-in cross-file
-// parallelism, and naive sharding is unsafe here because a handful of tests
-// write to fixed, in-repo paths (the real `example/dist`, the CLI bundle) and
-// would corrupt each other if run concurrently. Those are pinned into one
-// shard (see SERIAL_GROUP); every other test isolates under `mkdtemp` and is
-// safe to shard freely.
+// A handful of tests write to fixed in-repo paths (the real `example/dist`, the
+// CLI bundle) and would corrupt each other if run concurrently. Those are
+// pinned into one shard (see SERIAL_GROUP); every other test isolates under
+// `mkdtemp` and is safe to shard freely.
 //
 // Usage:
 //   bun run scripts/test-runner.ts                 # shard the whole suite
@@ -19,7 +17,7 @@
 //   NECTAR_TEST_SHARDS=6 bun run scripts/test-runner.ts
 //
 // Any explicit path argument, or a flag that needs a single process
-// (--coverage, --watch), bypasses sharding and delegates straight to
+// (--coverage, --watch, -t), bypasses sharding and delegates straight to
 // `bun test` so subset runs and coverage stay correct.
 
 import { spawn } from 'bun';
@@ -44,25 +42,24 @@ const SERIAL_GROUP = [
   'tests/packaging.test.ts',
 ];
 
-// Per-file weights (approx. wall-seconds) used only to balance shards via
+// Task weights (approx. wall-seconds) used only to balance shards via
 // longest-processing-time-first bin packing. They do not affect correctness:
 // a wrong weight just yields slightly uneven shards. Only the long-tail-beating
 // hot spots (>1s, all child-process / build heavy) are listed; everything else
 // is fast and uses DEFAULT_WEIGHT. Re-measure with `--profile` and refresh when
-// the suite shifts. The single slowest file is the hard floor on wall-clock,
-// since one file cannot be split across shards.
+// the suite shifts.
 const DEFAULT_WEIGHT = 0.2;
 const FILE_WEIGHTS: Record<string, number> = {
-  'tests/cli/commands/build.test.ts': 13,
+  'tests/cli/commands/build.test.ts': 26,
   'tests/e2e/example-browser.test.ts': 8.5,
   'tests/build/pipeline.test.ts': 8,
-  'tests/cli/commands/serve.test.ts': 6.5,
-  'tests/cli/commands/deploy.test.ts': 5,
-  'tests/cli/commands/import-ghost.test.ts': 4.3,
+  'tests/cli/commands/import-ghost.test.ts': 20,
+  'tests/cli/commands/serve.test.ts': 17,
+  'tests/cli/commands/new.test.ts': 16,
+  'tests/cli/commands/deploy.test.ts': 12,
   'tests/cli/commands/content.test.ts': 3.8,
   'tests/cli/dispatch.test.ts': 3.6,
   'tests/packaging.test.ts': 2.9,
-  'tests/cli/commands/new.test.ts': 3.2,
   'tests/cli/commands/dev.test.ts': 2.8,
   'tests/cli/commands/check.test.ts': 2.7,
   'tests/build/generate-og-images.test.ts': 2.4,
@@ -82,29 +79,111 @@ function weightFor(file: string): number {
   return FILE_WEIGHTS[file] ?? DEFAULT_WEIGHT;
 }
 
-interface Shard {
+const SPLIT_GROUPS: Record<string, Array<{ label: string; pattern: string; weight: number }>> = {
+  'tests/cli/commands/build.test.ts': [
+    {
+      label: 'build:dry-run',
+      pattern: '^(nectar build exit codes|nectar build --dry-run|formatDryRunRouteTable)',
+      weight: 16,
+    },
+    {
+      label: 'build:base-url',
+      pattern:
+        '^(nectar build base URL precedence|nectar build --config layering|nectar build preview noindex protection)',
+      weight: 28,
+    },
+    {
+      label: 'build:watch-api',
+      pattern: '^(nectar build --watch|nectar build --emit-content-api|isIgnoredChange)',
+      weight: 13,
+    },
+    {
+      label: 'build:misc',
+      pattern:
+        '^(nectar build:email|nectar build --no-clean|nectar build --profile|nectar build --include-drafts)',
+      weight: 13,
+    },
+  ],
+  'tests/cli/commands/import-ghost.test.ts': [
+    {
+      label: 'import-ghost:conflict-assets',
+      pattern: '^(cli import-ghost . (--on-conflict|folder input \\+ --assets|input validation))',
+      weight: 22,
+    },
+    {
+      label: 'import-ghost:filters-output',
+      pattern: '^(cli import-ghost . (--dry-run|partial filters|--output|post progress))',
+      weight: 15,
+    },
+    {
+      label: 'import-ghost:limits',
+      pattern:
+        '^(cli import-ghost . (--max-size|--max-image-size|--max-post-html-size)|parseSizeSpec)',
+      weight: 13,
+    },
+    {
+      label: 'import-ghost:html-code',
+      pattern: '^(cli import-ghost . (--keep-code-injection|--keep-html))',
+      weight: 9,
+    },
+  ],
+  'tests/cli/commands/serve.test.ts': [
+    {
+      label: 'serve:binding',
+      pattern: '^(cli serve . (host binding|proxy and TLS validation|request path confinement))',
+      weight: 14,
+    },
+    {
+      label: 'serve:lifecycle',
+      pattern:
+        '^(cli serve . (watch mode|access logs|compression|dev cache control|file lookup cache|cached 404 fallback headers|auto-build when dist/ is missing|port collision))',
+      weight: 16,
+    },
+    {
+      label: 'serve:misc',
+      pattern:
+        '^(cli serve . (--open|verbose examples|deploy artifact simulation|content types|--port validation|base_path in startup log|--build)|isIgnoredChange|injectLiveReloadScript)',
+      weight: 16,
+    },
+  ],
+  'tests/cli/commands/new.test.ts': [
+    { label: 'new:slug', pattern: '^cli new . slug collision handling', weight: 22 },
+    { label: 'new:frontmatter', pattern: '^cli new . frontmatter flags', weight: 16 },
+    {
+      label: 'new:kinds',
+      pattern: '^cli new . (tag and author kinds|extensible kinds)',
+      weight: 13,
+    },
+  ],
+};
+
+interface TestTask {
   files: string[];
+  label: string;
+  weight: number;
+  pattern?: string;
+}
+
+interface Shard {
+  tasks: TestTask[];
   weight: number;
 }
 
 // Longest-processing-time-first: assign each unit (heaviest first) to the
 // lightest shard so far. Simple, deterministic, and close to optimal for the
 // skewed weight distribution a test suite has.
-function packShards(
-  units: Array<{ files: string[]; weight: number }>,
-  shardCount: number,
-): Shard[] {
-  const shards: Shard[] = Array.from({ length: shardCount }, () => ({ files: [], weight: 0 }));
+function packShards(units: TestTask[], shardCount: number): Shard[] {
+  const shards: Shard[] = Array.from({ length: shardCount }, () => ({ tasks: [], weight: 0 }));
   const ordered = [...units].sort((a, b) => b.weight - a.weight);
   for (const unit of ordered) {
     let lightest = shards[0];
     for (const shard of shards) {
       if (shard.weight < lightest.weight) lightest = shard;
     }
-    lightest.files.push(...unit.files);
+    lightest.tasks.push(unit);
     lightest.weight += unit.weight;
   }
-  return shards.filter((shard) => shard.files.length > 0);
+  return shards.filter((shard) => shard.tasks.length > 0);
 }
 
 async function discoverFiles(): Promise<string[]> {
@@ -116,21 +195,34 @@ async function discoverFiles(): Promise<string[]> {
   return files.sort();
 }
 
-function buildUnits(files: string[]): Array<{ files: string[]; weight: number }> {
+function buildTasks(files: string[]): TestTask[] {
   const grouped = new Set(SERIAL_GROUP);
   const present = SERIAL_GROUP.filter((file) => files.includes(file));
-  const units: Array<{ files: string[]; weight: number }> = [];
+  const units: TestTask[] = [];
 
   if (present.length > 0) {
     units.push({
       files: present,
+      label: 'serial',
       weight: present.reduce((sum, file) => sum + weightFor(file), 0),
     });
   }
 
   for (const file of files) {
     if (grouped.has(file)) continue;
-    units.push({ files: [file], weight: weightFor(file) });
+    const splits = SPLIT_GROUPS[file];
+    if (splits !== undefined) {
+      for (const split of splits) {
+        units.push({
+          files: [file],
+          label: split.label,
+          pattern: split.pattern,
+          weight: split.weight,
+        });
+      }
+      continue;
+    }
+    units.push({ files: [file], label: file, weight: weightFor(file) });
   }
   return units;
 }
@@ -144,8 +236,17 @@ interface ShardResult {
 }
 
 async function runShard(index: number, files: string[], extraArgs: string[]): Promise<ShardResult> {
+  return runBunTest(index, { files, label: 'batch' }, extraArgs);
+}
+
+async function runBunTest(
+  index: number,
+  task: Pick<TestTask, 'files' | 'label' | 'pattern'>,
+  extraArgs: string[],
+): Promise<ShardResult> {
   const start = performance.now();
-  const proc = spawn(['bun', 'test', ...extraArgs, ...files], {
+  const taskArgs = task.pattern ? ['--test-name-pattern', task.pattern, ...task.files] : task.files;
+  const proc = spawn(['bun', 'test', ...extraArgs, ...taskArgs], {
     stdout: 'pipe',
     stderr: 'pipe',
     env: process.env,
@@ -157,18 +258,62 @@ async function runShard(index: number, files: string[], extraArgs: string[]): Pr
   ]);
   return {
     index,
-    fileCount: files.length,
+    fileCount: task.files.length,
     exitCode,
     ms: performance.now() - start,
     // bun test writes its human report to stderr; stdout carries test logs.
-    output: stderr + stdout,
+    output: task.pattern
+      ? `\n--- ${task.label} (${task.files.join(', ')}) ---\n${stderr}${stdout}`
+      : stderr + stdout,
+  };
+}
+
+async function runShardTasks(
+  index: number,
+  tasks: TestTask[],
+  extraArgs: string[],
+): Promise<ShardResult> {
+  const start = performance.now();
+  const outputs: string[] = [];
+  const patterned = tasks.filter((task) => task.pattern !== undefined);
+  const batchFiles = tasks
+    .filter((task) => task.pattern === undefined)
+    .flatMap((task) => task.files);
+  let exitCode = 0;
+
+  for (const task of patterned) {
+    const result = await runBunTest(index, task, extraArgs);
+    outputs.push(result.output);
+    if (result.exitCode !== 0 && exitCode === 0) exitCode = result.exitCode;
+  }
+
+  if (batchFiles.length > 0) {
+    const result = await runShard(index, batchFiles, extraArgs);
+    outputs.push(result.output);
+    if (result.exitCode !== 0 && exitCode === 0) exitCode = result.exitCode;
+  }
+
+  return {
+    index,
+    fileCount: new Set(tasks.flatMap((task) => task.files)).size,
+    exitCode,
+    ms: performance.now() - start,
+    output: outputs.join(''),
   };
 }
 
 function isDelegatingArg(arg: string): boolean {
   // Explicit paths or single-process flags bypass sharding.
   if (!arg.startsWith('-')) return true;
-  return arg === '--coverage' || arg === '--watch';
+  return (
+    arg === '--coverage' ||
+    arg === '--watch' ||
+    arg === '-t' ||
+    arg === '--test-name-pattern' ||
+    arg.startsWith('--test-name-pattern=') ||
+    arg.startsWith('--parallel') ||
+    arg.startsWith('--shard')
+  );
 }
 
 async function delegateToBunTest(args: string[]): Promise<number> {
@@ -187,10 +332,10 @@ async function main(): Promise<number> {
 
   // Many tests spawn child `bun` processes (CLI integration, full builds), so a
   // shard is not one process but a small process tree. Matching shard count to
-  // core count then oversubscribes the CPU and stops paying off past ~6-8 here;
-  // it also risks resource exhaustion on high-core machines. Cap at 8 by
+  // core count then oversubscribes the CPU and stops paying off past ~4-6 here;
+  // it also risks resource exhaustion on high-core machines. Cap at 6 by
   // default and let NECTAR_TEST_SHARDS override for tuning.
-  const SHARD_CAP = 8;
+  const SHARD_CAP = 6;
   const override = Number(process.env.NECTAR_TEST_SHARDS);
   const shardCount = Math.max(
     1,
@@ -203,17 +348,23 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  const units = buildUnits(files);
+  const units = buildTasks(files);
   const shards = packShards(units, shardCount);
+  const bunArgs = passthrough.some((arg) => arg === '--reporter' || arg.startsWith('--reporter='))
+    ? passthrough
+    : ['--reporter=dots', ...passthrough];
+  if (!bunArgs.some((arg) => arg === '--timeout' || arg.startsWith('--timeout='))) {
+    bunArgs.push('--timeout=15000');
+  }
 
   console.log(
-    `test-runner: ${files.length} files across ${shards.length} shards ` +
+    `test-runner: ${files.length} files / ${units.length} tasks across ${shards.length} shards ` +
       `(${shardCount} requested, ${navigator.hardwareConcurrency ?? '?'} cores)`,
   );
 
   const start = performance.now();
   const results = await Promise.all(
-    shards.map((shard, index) => runShard(index, shard.files, passthrough)),
+    shards.map((shard, index) => runShardTasks(index, shard.tasks, bunArgs)),
   );
   const totalMs = performance.now() - start;
 
