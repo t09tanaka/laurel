@@ -3,6 +3,7 @@ import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { agentChoiceFromFormats, agentChoiceToFormats } from '../../../src/cli/commands/init.ts';
 
 const CLI_ENTRY = fileURLToPath(new URL('../../../src/cli/index.ts', import.meta.url));
 
@@ -304,5 +305,29 @@ describe('cli init', () => {
     const { stdout } = await runCli(['--help'], dir);
     expect(stdout).toContain('init');
     expect(stdout).toContain('Scaffold a new Nectar project');
+  });
+});
+
+describe('init agent multiselect mapping', () => {
+  test('agentChoiceFromFormats collapses the selection to a single AgentChoice', () => {
+    expect(agentChoiceFromFormats([])).toBe('none');
+    expect(agentChoiceFromFormats(['claude'])).toBe('claude');
+    expect(agentChoiceFromFormats(['codex'])).toBe('codex');
+    expect(agentChoiceFromFormats(['claude', 'codex'])).toBe('both');
+    // order-independent
+    expect(agentChoiceFromFormats(['codex', 'claude'])).toBe('both');
+  });
+
+  test('agentChoiceToFormats expands an AgentChoice into multiselect initial values', () => {
+    expect(agentChoiceToFormats('none')).toEqual([]);
+    expect(agentChoiceToFormats('claude')).toEqual(['claude']);
+    expect(agentChoiceToFormats('codex')).toEqual(['codex']);
+    expect(agentChoiceToFormats('both')).toEqual(['claude', 'codex']);
+  });
+
+  test('the two helpers round-trip every AgentChoice', () => {
+    for (const choice of ['none', 'claude', 'codex', 'both'] as const) {
+      expect(agentChoiceFromFormats(agentChoiceToFormats(choice))).toBe(choice);
+    }
   });
 });

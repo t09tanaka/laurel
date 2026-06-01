@@ -22,6 +22,35 @@ type KnownTheme = (typeof KNOWN_THEMES)[number];
 const AGENT_CHOICES = ['claude', 'codex', 'both', 'none'] as const;
 type AgentChoice = (typeof AGENT_CHOICES)[number];
 
+// The interactive picker is a multiselect over the individual marker formats
+// (Claude Code, Codex), so an operator can wire up either, both, or neither in
+// one prompt. The rest of init still consumes the single AgentChoice, so these
+// two helpers collapse the selection to/from that shape: `[]` -> none, both
+// selected -> both. Exported for unit testing without driving a TTY.
+type AgentFormatChoice = 'claude' | 'codex';
+
+export function agentChoiceFromFormats(formats: ReadonlyArray<AgentFormatChoice>): AgentChoice {
+  const claude = formats.includes('claude');
+  const codex = formats.includes('codex');
+  if (claude && codex) return 'both';
+  if (claude) return 'claude';
+  if (codex) return 'codex';
+  return 'none';
+}
+
+export function agentChoiceToFormats(choice: AgentChoice): AgentFormatChoice[] {
+  switch (choice) {
+    case 'both':
+      return ['claude', 'codex'];
+    case 'claude':
+      return ['claude'];
+    case 'codex':
+      return ['codex'];
+    default:
+      return [];
+  }
+}
+
 interface InitAnswers {
   title: string;
   url: string;
@@ -723,18 +752,17 @@ async function promptAnswersInteractive(
   if (agentOverride !== undefined) {
     agent = agentOverride;
   } else {
-    const picked = await clack.select<AgentChoice>({
-      message: 'Set up AI assistant skills? (CLAUDE.md / AGENTS.md)',
+    const picked = await clack.multiselect<AgentFormatChoice>({
+      message: 'Set up AI assistant skills? (space to toggle, enter to confirm)',
       options: [
-        { value: 'none', label: 'None' },
         { value: 'claude', label: 'Claude Code (CLAUDE.md)' },
         { value: 'codex', label: 'Codex / agent-neutral (AGENTS.md)' },
-        { value: 'both', label: 'Both' },
       ],
-      initialValue: defaults.agent,
+      initialValues: agentChoiceToFormats(defaults.agent),
+      required: false,
     });
     ensureNotCancelled(picked);
-    agent = picked as AgentChoice;
+    agent = agentChoiceFromFormats(picked as AgentFormatChoice[]);
   }
   clack.outro('Generating files...');
   return {
