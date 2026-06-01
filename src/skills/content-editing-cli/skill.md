@@ -71,8 +71,10 @@ nectar content show about --kind pages --frontmatter   # frontmatter only
 ```sh
 nectar content rename old-slug new-slug --redirect   # rename + leave a redirect so old URLs survive
 nectar content delete old-slug                       # remove a post/page
-nectar content touch hello-world --date 2026-01-02T03:04:05Z   # rewrite the published date
+nectar content touch hello-world --date 2026-01-02T03:04:05Z   # rewrites updated_at (the "last edited" stamp), NOT the publish date
 ```
+
+`content touch --date` only moves `updated_at`. A post's **publish** date is its `date:` frontmatter field (Nectar's alias for `published_at`); to re-date when a post is published, edit `date:` directly. (`content touch --published-at <iso>` sets the `published_at` key, but when `date:` is present the loader resolves the publish date as `date ?? published_at`, so `date:` wins — editing `date:` is the reliable path.)
 
 `tags rename` and `authors rename` exist as separate commands and cascade the rename into every post's frontmatter — prefer them over a manual find-and-replace across `content/`.
 
@@ -82,13 +84,12 @@ nectar content touch hello-world --date 2026-01-02T03:04:05Z   # rewrite the pub
 nectar dev          # build once, watch content/theme/config, live-reload at http://localhost:4321/
 ```
 
-`nectar dev` includes drafts and scheduled posts so you can preview unpublished work. Leave it running in one terminal and edit Markdown in another; saves trigger an incremental rebuild and a browser reload.
+`nectar dev` does a normal build, so by default it excludes drafts and future/scheduled posts — same content as `nectar build`. To preview drafts, run `nectar build --include-drafts` (or set `NECTAR_DRAFTS=1`); to preview scheduled / future-dated posts, set `[build] include_future_posts = true` in `nectar.toml`. Leave `nectar dev` running in one terminal and edit Markdown in another; saves trigger an incremental rebuild and a browser reload.
 
 ## Validate before committing
 
 ```sh
-nectar lint                                   # warn-level table (titles, alt text, broken local links, future dates, dup slugs)
-nectar lint content/posts/hello-world.md      # lint a single file
+nectar lint                                   # warn-level table (titles, alt text, broken local links, future dates, dup slugs); checks all content, takes no file-path argument
 nectar lint --strict                          # exit non-zero on any warning (use in CI / pre-commit)
 nectar fmt                                    # normalise frontmatter formatting in place
 nectar fmt --check                            # CI check: exit 1 when a rewrite is needed, write nothing

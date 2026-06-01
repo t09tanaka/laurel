@@ -25,13 +25,13 @@ Nectar fails fast and tries to embed actionable hints in every error. Before gue
 1. `nectar doctor` — checks Bun version, config, theme presence, content sanity, network. Run this first for any "site won't build" report.
 2. `nectar check` — validates config + theme + content together. More thorough than doctor; takes a few seconds longer.
 3. `nectar diagnostics --json` — dumps a structured snapshot (config resolution, theme summary, content counts, recent build manifest) for sharing or scripting.
-4. `nectar lint content/` — content-only checks (title length, alt text, broken local links, future-date sanity, duplicate slugs).
+4. `nectar lint` — content-only checks (title length, alt text, broken local links, future-date sanity, duplicate slugs). Checks the whole `content/` tree; takes no path argument.
 
 ## Common error → fix recipes
 
-### `Theme directory not found: /path/to/themes/source`
+### `Theme directory not found: <project>/themes/<name>`
 
-Nectar can't find the theme directory referenced by `[theme].name` + `[theme].dir`. The error's hint shows the exact `git clone` command. Most common fix:
+(The `<name>` in the error is whatever `[theme].name` is set to in `nectar.toml` — `source`, `casper`, etc., not literally `source`.) Nectar can't find the theme directory referenced by `[theme].name` + `[theme].dir`. The error's hint shows the exact `git clone` command. Most common fix:
 
 ```sh
 git clone https://github.com/TryGhost/Source themes/source

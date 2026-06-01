@@ -80,8 +80,8 @@ description: "Project milestones and release notes."
 
 ## Drafts and scheduling
 
-- `status: draft` keeps the post out of the production build by default. `nectar dev` includes drafts so authors can preview them.
-- `status: scheduled` + a future `date:` keeps the post out of the build until that timestamp passes. Add `--include-future` to force-include for previews.
+- `status: draft` keeps the post out of the build by default. To preview drafts, run `nectar build --include-drafts` (or set `NECTAR_DRAFTS=1`) — plain `nectar build` and `nectar dev` both exclude drafts.
+- `status: scheduled` + a future `date:` keeps the post out of the build until that timestamp passes. To force-include scheduled / future-dated posts in a preview build, set `[build] include_future_posts = true` in `nectar.toml`. There is no `--include-future` CLI flag.
 
 ## Things to never do
 
@@ -92,4 +92,4 @@ description: "Project milestones and release notes."
 
 ## Verifying a draft
 
-Run `nectar lint content/posts/<slug>.md` for frontmatter / content rule checks (title length, alt text, broken local links, future-date sanity). Run `nectar build` to catch any error the loader rejects.
+Run `nectar lint` for frontmatter / content rule checks across the whole `content/` tree (title length, alt text, broken local links, future-date sanity); `lint` takes no file-path argument. Run `nectar build` to catch any error the loader rejects.
