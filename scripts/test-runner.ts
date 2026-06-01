@@ -235,6 +235,11 @@ interface ShardResult {
   output: string;
 }
 
+function childTestEnv(): Record<string, string> {
+  const { GITHUB_ACTIONS: _githubActions, ...env } = process.env;
+  return env;
+}
+
 async function runShard(index: number, files: string[], extraArgs: string[]): Promise<ShardResult> {
   return runBunTest(index, { files, label: 'batch' }, extraArgs);
 }
@@ -249,13 +254,20 @@ async function runBunTest(
   const proc = spawn(['bun', 'test', ...extraArgs, ...taskArgs], {
     stdout: 'pipe',
     stderr: 'pipe',
-    env: process.env,
+    env: childTestEnv(),
   });
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
     proc.exited,
   ]);
+  const diagnostics =
+    exitCode === 0
+      ? ''
+      : `\n[test-runner] task ${task.label} exited ${exitCode}: bun test ${[
+          ...extraArgs,
+          ...taskArgs,
+        ].join(' ')}\n`;
   return {
     index,
     fileCount: task.files.length,
@@ -263,8 +275,8 @@ async function runBunTest(
     ms: performance.now() - start,
     // bun test writes its human report to stderr; stdout carries test logs.
     output: task.pattern
-      ? `\n--- ${task.label} (${task.files.join(', ')}) ---\n${stderr}${stdout}`
-      : stderr + stdout,
+      ? `\n--- ${task.label} (${task.files.join(', ')}) ---\n${stderr}${stdout}${diagnostics}`
+      : stderr + stdout + diagnostics,
   };
 }
 
