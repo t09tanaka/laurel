@@ -23,6 +23,7 @@
 import { spawn } from 'bun';
 
 const TEST_GLOB = 'tests/**/*.test.ts';
+const BATCH_FILE_LIMIT = 48;
 
 // Non-hermetic tests: ones that write to a fixed, in-repo path instead of a
 // `mkdtemp` sandbox, so two of them running at once corrupt each other's
@@ -240,10 +241,6 @@ function childTestEnv(): Record<string, string> {
   return env;
 }
 
-async function runShard(index: number, files: string[], extraArgs: string[]): Promise<ShardResult> {
-  return runBunTest(index, { files, label: 'batch' }, extraArgs);
-}
-
 async function runBunTest(
   index: number,
   task: Pick<TestTask, 'files' | 'label' | 'pattern'>,
@@ -288,9 +285,10 @@ async function runShardTasks(
   const start = performance.now();
   const outputs: string[] = [];
   const patterned = tasks.filter((task) => task.pattern !== undefined);
-  const batchFiles = tasks
-    .filter((task) => task.pattern === undefined)
-    .flatMap((task) => task.files);
+  const batchChunks = chunkBatchTasks(
+    tasks.filter((task) => task.pattern === undefined),
+    BATCH_FILE_LIMIT,
+  );
   let exitCode = 0;
 
   for (const task of patterned) {
@@ -299,8 +297,12 @@ async function runShardTasks(
     if (result.exitCode !== 0 && exitCode === 0) exitCode = result.exitCode;
   }
 
-  if (batchFiles.length > 0) {
-    const result = await runShard(index, batchFiles, extraArgs);
+  for (const [chunkIndex, files] of batchChunks.entries()) {
+    const result = await runBunTest(
+      index,
+      { files, label: `batch ${chunkIndex + 1}/${batchChunks.length}` },
+      extraArgs,
+    );
     outputs.push(result.output);
     if (result.exitCode !== 0 && exitCode === 0) exitCode = result.exitCode;
   }
@@ -312,6 +314,22 @@ async function runShardTasks(
     ms: performance.now() - start,
     output: outputs.join(''),
   };
+}
+
+function chunkBatchTasks(tasks: TestTask[], limit: number): string[][] {
+  const chunks: string[][] = [];
+  let current: string[] = [];
+
+  for (const task of tasks) {
+    if (current.length > 0 && current.length + task.files.length > limit) {
+      chunks.push(current);
+      current = [];
+    }
+    current.push(...task.files);
+  }
+
+  if (current.length > 0) chunks.push(current);
+  return chunks;
 }
 
 function isDelegatingArg(arg: string): boolean {
