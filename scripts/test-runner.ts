@@ -43,7 +43,9 @@ const SERIAL_GROUP = [
   'tests/packaging.test.ts',
 ];
 
-const ISOLATED_FILES = ['tests/build/pipeline.test.ts', 'tests/cli/commands/init.test.ts'];
+const ISOLATED_FILES = ['tests/build/pipeline.test.ts'];
+
+const EXCLUSIVE_FILES = ['tests/cli/commands/init.test.ts'];
 
 // Task weights (approx. wall-seconds) used only to balance shards via
 // longest-processing-time-first bin packing. They do not affect correctness:
@@ -165,6 +167,7 @@ interface TestTask {
   files: string[];
   label: string;
   weight: number;
+  exclusive?: boolean;
   isolated?: boolean;
   pattern?: string;
 }
@@ -202,6 +205,7 @@ async function discoverFiles(): Promise<string[]> {
 
 function buildTasks(files: string[]): TestTask[] {
   const grouped = new Set(SERIAL_GROUP);
+  const exclusive = new Set(EXCLUSIVE_FILES);
   const isolated = new Set(ISOLATED_FILES);
   const present = SERIAL_GROUP.filter((file) => files.includes(file));
   const units: TestTask[] = [];
@@ -216,6 +220,10 @@ function buildTasks(files: string[]): TestTask[] {
 
   for (const file of files) {
     if (grouped.has(file)) continue;
+    if (exclusive.has(file)) {
+      units.push({ files: [file], exclusive: true, label: file, weight: weightFor(file) });
+      continue;
+    }
     if (isolated.has(file)) {
       units.push({ files: [file], isolated: true, label: file, weight: weightFor(file) });
       continue;
@@ -398,28 +406,33 @@ async function main(): Promise<number> {
   }
 
   const units = buildTasks(files);
-  const shards = packShards(units, shardCount);
+  const exclusiveUnits = units.filter((unit) => unit.exclusive);
+  const shardUnits = units.filter((unit) => !unit.exclusive);
+  const shards = packShards(shardUnits, shardCount);
   const bunArgs = [...passthrough];
   if (!bunArgs.some((arg) => arg === '--timeout' || arg.startsWith('--timeout='))) {
     bunArgs.push('--timeout=30000');
   }
 
   console.log(
-    `test-runner: ${files.length} files / ${units.length} tasks across ${shards.length} shards ` +
-      `(${shardCount} requested, ${navigator.hardwareConcurrency ?? '?'} cores)`,
+    `test-runner: ${files.length} files / ${units.length} tasks across ${shards.length} shards (${shardCount} requested, ${navigator.hardwareConcurrency ?? '?'} cores)${exclusiveUnits.length > 0 ? ` + ${exclusiveUnits.length} exclusive` : ''}`,
   );
 
   const start = performance.now();
-  const results = await Promise.all(
+  const exclusiveResult =
+    exclusiveUnits.length > 0 ? await runShardTasks(-1, exclusiveUnits, bunArgs) : undefined;
+  const shardResults = await Promise.all(
     shards.map((shard, index) => runShardTasks(index, shard.tasks, bunArgs)),
   );
+  const results = exclusiveResult ? [exclusiveResult, ...shardResults] : shardResults;
   const totalMs = performance.now() - start;
 
   const rule = '='.repeat(70);
   for (const result of results.sort((a, b) => a.index - b.index)) {
     const secs = (result.ms / 1000).toFixed(1);
+    const label = result.index === -1 ? 'exclusive' : `shard ${result.index + 1}/${shards.length}`;
     console.log(
-      `\n${rule}\nshard ${result.index + 1}/${results.length}  ${result.fileCount} files  ${secs}s  exit ${result.exitCode}\n${rule}`,
+      `\n${rule}\n${label}  ${result.fileCount} files  ${secs}s  exit ${result.exitCode}\n${rule}`,
     );
     process.stdout.write(result.output);
   }
@@ -427,18 +440,17 @@ async function main(): Promise<number> {
   const failed = results.filter((r) => r.exitCode !== 0);
   const slowest = (Math.max(...results.map((r) => r.ms)) / 1000).toFixed(1);
   const verdict = failed.length
-    ? `FAILED shards: ${failed.map((r) => r.index + 1).join(', ')}`
+    ? `FAILED shards: ${failed.map((r) => (r.index === -1 ? 'exclusive' : r.index + 1)).join(', ')}`
     : 'all green';
   console.log(`\n${'-'.repeat(70)}`);
   console.log(
-    `test-runner: ${results.length} shards in ${(totalMs / 1000).toFixed(1)}s (slowest shard ${slowest}s)  ${verdict}`,
+    `test-runner: ${shards.length} shards${exclusiveUnits.length > 0 ? ' + exclusive' : ''} in ${(totalMs / 1000).toFixed(1)}s (slowest shard ${slowest}s)  ${verdict}`,
   );
 
   if (profile) {
     for (const result of results.sort((a, b) => b.ms - a.ms)) {
-      console.log(
-        `  shard ${result.index + 1}: ${(result.ms / 1000).toFixed(1)}s, ${result.fileCount} files`,
-      );
+      const label = result.index === -1 ? 'exclusive' : `shard ${result.index + 1}`;
+      console.log(`  ${label}: ${(result.ms / 1000).toFixed(1)}s, ${result.fileCount} files`);
     }
   }
 
