@@ -143,7 +143,7 @@ level of trust, and what to look for in a contributor's diff.
 src/        # SSG implementation (cli, content, theme, render, build, ghost, config)
 tests/      # bun test suite mirroring src/
 docs/       # Design notes
-example/    # Reference blog: content + nectar.toml + vendored Casper theme
+example/    # Reference blog: content + nectar.toml + vendored Ghost themes (Source, Casper)
 examples/   # Deploy snippets and (planned) starter site templates — see examples/README.md
 ```
 
@@ -163,4 +163,17 @@ version.
 
 ## License
 
-MIT
+MIT.
+
+### Third-party themes
+
+This repository vendors two official Ghost themes for use as reference
+fixtures and compatibility targets:
+
+- [`example/themes/source/`](./example/themes/source/) — the **Source** theme
+- [`example/themes/casper/`](./example/themes/casper/) — the **Casper** theme
+
+Both are © Ghost Foundation and distributed under the MIT License. Their
+respective `LICENSE` files are retained inside each theme directory, as the
+license requires. Nectar's own MIT license does not extend to these vendored
+themes; they remain under their upstream license.
