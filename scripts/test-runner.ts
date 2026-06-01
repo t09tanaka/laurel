@@ -43,7 +43,7 @@ const SERIAL_GROUP = [
   'tests/packaging.test.ts',
 ];
 
-const ISOLATED_FILES = ['tests/build/pipeline.test.ts'];
+const ISOLATED_FILES = ['tests/build/pipeline.test.ts', 'tests/cli/commands/dashboard.test.ts'];
 
 const EXCLUSIVE_FILES = ['tests/cli/commands/init.test.ts'];
 
