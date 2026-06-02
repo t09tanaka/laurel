@@ -14,7 +14,11 @@ async function stageInstalledSkill(
   slug: string,
   receipt: { version: number; bundledAt?: string } | 'missing-receipt',
 ): Promise<void> {
-  const dir = join(cwd, format === 'claude' ? '.claude' : '.codex', 'skills', slug);
+  const dir = join(
+    cwd,
+    ...(format === 'claude' ? ['.claude', 'skills'] : ['.agents', 'skills']),
+    slug,
+  );
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'SKILL.md'), '# placeholder\n');
   if (receipt === 'missing-receipt') return;

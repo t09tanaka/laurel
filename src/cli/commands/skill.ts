@@ -97,9 +97,7 @@ async function runInstall(cwd: string, slugs: string[], formatArg: unknown): Pro
     return EXIT_CODES.usage;
   }
   if (formats.includes('codex')) {
-    logger.info(
-      'Tip: reference .codex/skills/*/SKILL.md from your project AGENTS.md to load them.',
-    );
+    logger.info('Tip: Codex auto-discovers these skills under .agents/skills/*/SKILL.md.');
   }
   return EXIT_CODES.ok;
 }

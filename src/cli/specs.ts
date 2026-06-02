@@ -722,6 +722,12 @@ export const INIT_SPEC: CommandSpec = {
       description: 'Target directory to scaffold into (defaults to .)',
       placeholder: '<path>',
     },
+    agent: {
+      type: 'string',
+      description:
+        'Wire up AI assistant skills non-interactively: `claude` (CLAUDE.md), `codex` (AGENTS.md), `both`, or `none` (default). Creates the marker file if missing and installs the bundled skills for that format. Overrides the interactive prompt',
+      placeholder: '<claude|codex|both|none>',
+    },
     json: {
       type: 'boolean',
       description:
@@ -733,6 +739,8 @@ export const INIT_SPEC: CommandSpec = {
     'nectar init                                  # scaffold in the current dir (interactive)',
     'nectar init --yes                            # accept defaults; CI-friendly',
     'nectar init --dir my-blog --yes              # scaffold a new project folder',
+    'nectar init --yes --agent claude             # also create CLAUDE.md + install skills',
+    'nectar init --yes --agent both               # wire up Claude Code and Codex',
   ],
 };
 

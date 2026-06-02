@@ -3,19 +3,19 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AgentFormat, BundledSkill, SkillInstallReceipt } from '../types.ts';
 
-// OpenAI Codex (and the broader AGENTS.md ecosystem) does not define an
-// official per-project skill directory yet. Nectar proposes the same shape
-// it uses for Claude Code so contributors who maintain both formats see one
-// consistent layout:
-//   .codex/skills/<slug>/SKILL.md     ← same body as the Claude emit
-//   .codex/skills/<slug>/.nectar.json ← install receipt
-// Codex picks these up when AGENTS.md references them; the install command
-// prints a one-line hint pointing the operator at that wiring step.
+// OpenAI Codex auto-discovers project-scoped skills from `.agents/skills`,
+// scanning that directory from the working dir up to the repo root (plus the
+// user-level `~/.agents/skills`). Files committed there are team-shared — the
+// same role `.claude/skills/` plays for Claude Code:
+//   .agents/skills/<slug>/SKILL.md     ← same body as the Claude emit
+//   .agents/skills/<slug>/.nectar.json ← install receipt
+// See https://developers.openai.com/codex/skills. (Earlier Nectar wrote these
+// under `.codex/skills/`, which Codex does not scan.)
 
 const FORMAT: AgentFormat = 'codex';
 
 export function codexInstallDir(cwd: string): string {
-  return join(cwd, '.codex', 'skills');
+  return join(cwd, '.agents', 'skills');
 }
 
 export function codexSkillDir(cwd: string, slug: string): string {
