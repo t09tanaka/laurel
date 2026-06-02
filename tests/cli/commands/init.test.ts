@@ -224,7 +224,7 @@ describe('cli init', () => {
     expect(await fileExists(join(dir, 'CLAUDE.md'))).toBe(true);
     expect(await fileExists(join(dir, 'AGENTS.md'))).toBe(false);
     expect(await fileExists(join(dir, '.claude/skills/frontmatter-authoring/SKILL.md'))).toBe(true);
-    expect(await fileExists(join(dir, '.claude/skills/content-editing-cli/SKILL.md'))).toBe(true);
+    expect(await fileExists(join(dir, '.claude/skills/writing/SKILL.md'))).toBe(true);
     expect(await fileExists(join(dir, '.agents/skills/frontmatter-authoring/SKILL.md'))).toBe(
       false,
     );
@@ -236,10 +236,10 @@ describe('cli init', () => {
     expect(await fileExists(join(dir, 'AGENTS.md'))).toBe(true);
     expect(await fileExists(join(dir, 'CLAUDE.md'))).toBe(false);
     const agents = await readFile(join(dir, 'AGENTS.md'), 'utf8');
-    expect(agents).toContain('.agents/skills/content-editing-cli/SKILL.md');
+    expect(agents).toContain('.agents/skills/writing/SKILL.md');
     expect(agents).toContain('.agents/skills/frontmatter-authoring/SKILL.md');
-    expect(await fileExists(join(dir, '.agents/skills/content-editing-cli/SKILL.md'))).toBe(true);
-    expect(await fileExists(join(dir, '.claude/skills/content-editing-cli/SKILL.md'))).toBe(false);
+    expect(await fileExists(join(dir, '.agents/skills/writing/SKILL.md'))).toBe(true);
+    expect(await fileExists(join(dir, '.claude/skills/writing/SKILL.md'))).toBe(false);
   });
 
   test('--agent both wires up Claude Code and Codex', async () => {
@@ -247,8 +247,8 @@ describe('cli init', () => {
     expect(exitCode).toBe(0);
     expect(await fileExists(join(dir, 'CLAUDE.md'))).toBe(true);
     expect(await fileExists(join(dir, 'AGENTS.md'))).toBe(true);
-    expect(await fileExists(join(dir, '.claude/skills/content-editing-cli/SKILL.md'))).toBe(true);
-    expect(await fileExists(join(dir, '.agents/skills/content-editing-cli/SKILL.md'))).toBe(true);
+    expect(await fileExists(join(dir, '.claude/skills/writing/SKILL.md'))).toBe(true);
+    expect(await fileExists(join(dir, '.agents/skills/writing/SKILL.md'))).toBe(true);
   });
 
   test('default (no --agent) creates no marker file or skills', async () => {
@@ -274,7 +274,7 @@ describe('cli init', () => {
     // The operator's marker file is never clobbered (policy: skip)...
     expect(await readFile(join(dir, 'CLAUDE.md'), 'utf8')).toBe('# my own notes\n');
     // ...but the bundled skills are still (re)installed.
-    expect(await fileExists(join(dir, '.claude/skills/content-editing-cli/SKILL.md'))).toBe(true);
+    expect(await fileExists(join(dir, '.claude/skills/writing/SKILL.md'))).toBe(true);
   });
 
   test('interactive stdin can opt into the codex agent', async () => {
@@ -290,7 +290,7 @@ describe('cli init', () => {
     const { exitCode } = await runCli(['init'], dir, stdin);
     expect(exitCode).toBe(0);
     expect(await fileExists(join(dir, 'AGENTS.md'))).toBe(true);
-    expect(await fileExists(join(dir, '.agents/skills/content-editing-cli/SKILL.md'))).toBe(true);
+    expect(await fileExists(join(dir, '.agents/skills/writing/SKILL.md'))).toBe(true);
   });
 
   test('--help prints subcommand help', async () => {

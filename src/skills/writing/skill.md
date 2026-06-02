@@ -1,6 +1,6 @@
 ---
-name: nectar-content-editing-cli
-description: Use when editing a Nectar site directly from the CLI and filesystem instead of the dashboard GUI. Covers scaffolding with `nectar new`, editing Markdown files in place, inspecting content with `nectar content`, the `nectar dev` preview loop, and validating with `nectar lint` / `nectar fmt` / `nectar build`. For the YAML frontmatter field reference itself, defer to nectar-frontmatter-authoring.
+name: nectar-writing
+description: Use when writing or editing Nectar content directly from the CLI and filesystem instead of the dashboard GUI. Covers scaffolding with `nectar new`, editing Markdown files in place, inspecting content with `nectar content`, the `nectar dev` preview loop, and validating with `nectar lint` / `nectar fmt` / `nectar build`. For the YAML frontmatter field reference itself, defer to nectar-frontmatter-authoring.
 version: 1
 applies_to:
   - claude
