@@ -101,7 +101,7 @@ describe('codex emitter', () => {
     await rm(cwd, { recursive: true, force: true });
   });
 
-  test('writes SKILL.md under .codex/skills/<slug>/ with a Triggers section', async () => {
+  test('writes SKILL.md under .agents/skills/<slug>/ with a Triggers section', async () => {
     const skill = fixtureSkill();
     const target = await installSkillForCodex(cwd, skill);
     expect(target).toBe(codexSkillDir(cwd, 'test-skill'));

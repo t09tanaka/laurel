@@ -50,14 +50,14 @@ describe('cli skill', () => {
     const { exitCode } = await runCli(['skill', 'install'], cwd);
     expect(exitCode).toBe(0);
     expect(existsSync(join(cwd, '.claude/skills/frontmatter-authoring/SKILL.md'))).toBe(true);
-    expect(existsSync(join(cwd, '.codex/skills/frontmatter-authoring/SKILL.md'))).toBe(false);
+    expect(existsSync(join(cwd, '.agents/skills/frontmatter-authoring/SKILL.md'))).toBe(false);
   });
 
   test('install with AGENTS.md present installs Codex format only', async () => {
     await writeFile(join(cwd, 'AGENTS.md'), '# placeholder\n');
     const { exitCode } = await runCli(['skill', 'install'], cwd);
     expect(exitCode).toBe(0);
-    expect(existsSync(join(cwd, '.codex/skills/frontmatter-authoring/SKILL.md'))).toBe(true);
+    expect(existsSync(join(cwd, '.agents/skills/frontmatter-authoring/SKILL.md'))).toBe(true);
     expect(existsSync(join(cwd, '.claude/skills/frontmatter-authoring/SKILL.md'))).toBe(false);
   });
 
@@ -67,7 +67,7 @@ describe('cli skill', () => {
     const { exitCode } = await runCli(['skill', 'install'], cwd);
     expect(exitCode).toBe(0);
     expect(existsSync(join(cwd, '.claude/skills/frontmatter-authoring/SKILL.md'))).toBe(true);
-    expect(existsSync(join(cwd, '.codex/skills/frontmatter-authoring/SKILL.md'))).toBe(true);
+    expect(existsSync(join(cwd, '.agents/skills/frontmatter-authoring/SKILL.md'))).toBe(true);
   });
 
   test('install without marker files errors out with actionable guidance', async () => {
@@ -81,14 +81,14 @@ describe('cli skill', () => {
   test('install --format codex bypasses the marker-file check', async () => {
     const { exitCode } = await runCli(['skill', 'install', '--format', 'codex'], cwd);
     expect(exitCode).toBe(0);
-    expect(existsSync(join(cwd, '.codex/skills/frontmatter-authoring/SKILL.md'))).toBe(true);
+    expect(existsSync(join(cwd, '.agents/skills/frontmatter-authoring/SKILL.md'))).toBe(true);
   });
 
   test('install --format all writes both formats', async () => {
     const { exitCode } = await runCli(['skill', 'install', '--format', 'all'], cwd);
     expect(exitCode).toBe(0);
     expect(existsSync(join(cwd, '.claude/skills/frontmatter-authoring/SKILL.md'))).toBe(true);
-    expect(existsSync(join(cwd, '.codex/skills/frontmatter-authoring/SKILL.md'))).toBe(true);
+    expect(existsSync(join(cwd, '.agents/skills/frontmatter-authoring/SKILL.md'))).toBe(true);
   });
 
   test('install <slug> installs just that skill', async () => {

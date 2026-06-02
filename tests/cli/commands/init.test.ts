@@ -225,7 +225,9 @@ describe('cli init', () => {
     expect(await fileExists(join(dir, 'AGENTS.md'))).toBe(false);
     expect(await fileExists(join(dir, '.claude/skills/frontmatter-authoring/SKILL.md'))).toBe(true);
     expect(await fileExists(join(dir, '.claude/skills/content-editing-cli/SKILL.md'))).toBe(true);
-    expect(await fileExists(join(dir, '.codex/skills/frontmatter-authoring/SKILL.md'))).toBe(false);
+    expect(await fileExists(join(dir, '.agents/skills/frontmatter-authoring/SKILL.md'))).toBe(
+      false,
+    );
   });
 
   test('--agent codex creates AGENTS.md referencing the installed skills', async () => {
@@ -234,9 +236,9 @@ describe('cli init', () => {
     expect(await fileExists(join(dir, 'AGENTS.md'))).toBe(true);
     expect(await fileExists(join(dir, 'CLAUDE.md'))).toBe(false);
     const agents = await readFile(join(dir, 'AGENTS.md'), 'utf8');
-    expect(agents).toContain('@.codex/skills/content-editing-cli/SKILL.md');
-    expect(agents).toContain('@.codex/skills/frontmatter-authoring/SKILL.md');
-    expect(await fileExists(join(dir, '.codex/skills/content-editing-cli/SKILL.md'))).toBe(true);
+    expect(agents).toContain('.agents/skills/content-editing-cli/SKILL.md');
+    expect(agents).toContain('.agents/skills/frontmatter-authoring/SKILL.md');
+    expect(await fileExists(join(dir, '.agents/skills/content-editing-cli/SKILL.md'))).toBe(true);
     expect(await fileExists(join(dir, '.claude/skills/content-editing-cli/SKILL.md'))).toBe(false);
   });
 
@@ -246,7 +248,7 @@ describe('cli init', () => {
     expect(await fileExists(join(dir, 'CLAUDE.md'))).toBe(true);
     expect(await fileExists(join(dir, 'AGENTS.md'))).toBe(true);
     expect(await fileExists(join(dir, '.claude/skills/content-editing-cli/SKILL.md'))).toBe(true);
-    expect(await fileExists(join(dir, '.codex/skills/content-editing-cli/SKILL.md'))).toBe(true);
+    expect(await fileExists(join(dir, '.agents/skills/content-editing-cli/SKILL.md'))).toBe(true);
   });
 
   test('default (no --agent) creates no marker file or skills', async () => {
@@ -288,7 +290,7 @@ describe('cli init', () => {
     const { exitCode } = await runCli(['init'], dir, stdin);
     expect(exitCode).toBe(0);
     expect(await fileExists(join(dir, 'AGENTS.md'))).toBe(true);
-    expect(await fileExists(join(dir, '.codex/skills/content-editing-cli/SKILL.md'))).toBe(true);
+    expect(await fileExists(join(dir, '.agents/skills/content-editing-cli/SKILL.md'))).toBe(true);
   });
 
   test('--help prints subcommand help', async () => {

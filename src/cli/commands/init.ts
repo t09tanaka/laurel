@@ -220,7 +220,7 @@ export async function runInit(args: string[]): Promise<number> {
   // with a 'skip' policy, so an existing one is never clobbered. The skills
   // themselves are installed here regardless, so re-running `nectar init`
   // against a project that already has the marker still refreshes the
-  // bundled skills under .claude/skills or .codex/skills.
+  // bundled skills under .claude/skills or .agents/skills.
   const installedSkills = await installAgentSkills(targetDir, answers.agent);
 
   writeNextSteps({
@@ -355,9 +355,7 @@ function writeNextSteps(opts: NextStepsOptions): void {
     const count = new Set(opts.installedSkills.map((s) => s.slug)).size;
     out.push(`       ${dim(`Installed ${count} skill(s) for ${agentLabel(opts.agent)}.`)}`);
     if (opts.agent === 'codex' || opts.agent === 'both') {
-      out.push(
-        `       ${dim('AGENTS.md references .codex/skills/*/SKILL.md so Codex loads them.')}`,
-      );
+      out.push(`       ${dim('Codex auto-discovers skills under .agents/skills/*/SKILL.md.')}`);
     }
     out.push(`       ${dim('Refresh later with `nectar skill install`.')}`);
   } else {
@@ -528,9 +526,12 @@ function renderClaudeMd(a: InitAnswers): string {
   return lines.join('\n');
 }
 
-// Codex / AGENTS.md ecosystems do not auto-discover a skills directory, so the
-// marker file explicitly references each installed SKILL.md. The list is
-// derived from the bundled skills that apply to the codex format, so it stays
+// Codex auto-discovers project skills from `.agents/skills/` (see
+// installSkillForCodex) and loads each on demand when the task matches its
+// description, so AGENTS.md does not need to `@`-include them — doing so would
+// force every body into context on every turn and defeat that progressive
+// disclosure. We still list them here as a human-facing pointer; the list is
+// derived from the bundled skills that apply to the codex format so it stays
 // accurate as skills are added or removed.
 function renderAgentsMd(a: InitAnswers): string {
   const lines: string[] = [];
@@ -543,11 +544,12 @@ function renderAgentsMd(a: InitAnswers): string {
   lines.push('');
   lines.push('## Nectar skills');
   lines.push('');
-  lines.push('Load these project skills before working on content or builds:');
+  lines.push('Codex auto-discovers these project skills under `.agents/skills/` and loads');
+  lines.push('each on demand when your task matches its description:');
   lines.push('');
   const codexSkills = BUNDLED_SKILLS.filter((s) => s.frontmatter.applies_to.includes('codex'));
   for (const skill of codexSkills) {
-    lines.push(`- @.codex/skills/${skill.slug}/SKILL.md`);
+    lines.push(`- \`.agents/skills/${skill.slug}/SKILL.md\``);
   }
   lines.push('');
   lines.push('Refresh them with `nectar skill install --format codex`.');
