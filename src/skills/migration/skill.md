@@ -1,6 +1,6 @@
 ---
 name: nectar-migration
-description: Use when importing an existing site into Nectar from Ghost, WordPress, Hugo, or Jekyll. Covers `nectar import-ghost` (Ghost JSON/zip export), `nectar import-wordpress` (WXR XML), `nectar import-hugo`, and `nectar import-jekyll`, the dry-run-first workflow, image and asset handling, conflict policies, and validating the result. For the frontmatter fields an import produces, defer to nectar-frontmatter-authoring; for editing imported content afterward, nectar-content-editing-cli.
+description: Use when importing an existing site into Nectar from Ghost, WordPress, Hugo, or Jekyll. Covers `nectar import-ghost` (Ghost JSON/zip export), `nectar import-wordpress` (WXR XML), `nectar import-hugo`, and `nectar import-jekyll`, the dry-run-first workflow, image and asset handling, conflict policies, and validating the result. For the frontmatter fields an import produces, defer to nectar-frontmatter-authoring; for editing imported content afterward, nectar-writing.
 version: 1
 applies_to:
   - claude
@@ -98,7 +98,7 @@ nectar build                 # ground truth — exits 0 only if the content is s
 ```
 
 If `nectar build` fails after an import, switch to the `nectar-build-troubleshoot`
-skill. To edit or re-slug imported content, use `nectar-content-editing-cli`; for
+skill. To edit or re-slug imported content, use `nectar-writing`; for
 the frontmatter field meanings, `nectar-frontmatter-authoring`.
 
 ## Common mistakes this workflow avoids
