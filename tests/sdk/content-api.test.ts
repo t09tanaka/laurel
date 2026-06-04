@@ -2,7 +2,7 @@
 // with `Bun.serve`, and drive `@tryghost/content-api` against it the way a
 // real consumer would. This proves that the canonical `meta.pagination`
 // projector and the `*/index.json` duo emit interop with the upstream SDK
-// without any Nectar-specific shim.
+// without any Laurel-specific shim.
 
 import { describe, expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
@@ -15,7 +15,7 @@ import { extname, join, normalize } from 'node:path';
 import GhostContentAPI from '@tryghost/content-api';
 import { emitContentApiShadows } from '~/build/api.ts';
 import { emitContentApiStubs } from '~/build/content-api.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/model.ts';
 
 const MIME: Record<string, string> = {
@@ -217,13 +217,13 @@ function makeGraph(): ContentGraph {
   } as unknown as ContentGraph;
 }
 
-function makeConfig(): NectarConfig {
+function makeConfig(): LaurelConfig {
   // Pull a real defaults-only config via the schema's `.parse({...})` is
   // overkill for this smoke test. We only access `config.build.base_path`
   // in `emitContentApiShadows`, so a minimal stub is sufficient.
   return {
     build: { base_path: '/' },
-  } as unknown as NectarConfig;
+  } as unknown as LaurelConfig;
 }
 
 interface ServerHandle {
@@ -255,7 +255,7 @@ async function serveDir(outputDir: string): Promise<ServerHandle> {
 
 describe('@tryghost/content-api SDK smoke (#213)', () => {
   test('drives the SDK against a built shadow tree end-to-end', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sdk-smoke-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-sdk-smoke-'));
     const content = makeGraph();
     const config = makeConfig();
 

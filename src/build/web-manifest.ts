@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { joinPath } from '~/theme/assets.ts';
 import type { FaviconLink, FaviconSet } from './favicons.ts';
 
@@ -7,7 +7,7 @@ export const GENERATED_WEB_MANIFEST_PATH = 'site.webmanifest';
 
 export async function emitWebManifest(opts: {
   outputDir: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   favicons: FaviconSet;
 }): Promise<boolean> {
   if (hasManifestLink(opts.favicons.links)) return false;
@@ -20,7 +20,7 @@ export async function emitWebManifest(opts: {
 }
 
 export function buildWebManifest(
-  config: NectarConfig,
+  config: LaurelConfig,
   faviconLinks: readonly FaviconLink[] = [],
 ): Record<string, unknown> {
   const basePath = config.build.base_path;

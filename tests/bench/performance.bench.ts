@@ -5,8 +5,8 @@ import { type BuildSummary, build } from '~/build/pipeline.ts';
 import type { BuildStats } from '~/build/profile.ts';
 
 const DEFAULT_POST_COUNT = 1000;
-const postCount = readPositiveInt(Bun.env.NECTAR_BENCH_POSTS, DEFAULT_POST_COUNT);
-const keepSite = Bun.env.NECTAR_BENCH_KEEP === '1';
+const postCount = readPositiveInt(Bun.env.LAUREL_BENCH_POSTS, DEFAULT_POST_COUNT);
+const keepSite = Bun.env.LAUREL_BENCH_KEEP === '1';
 
 interface BenchResult {
   name: string;
@@ -56,13 +56,13 @@ async function measure(name: string, run: () => Promise<BuildSummary>): Promise<
 }
 
 async function makeBenchSite(count: number): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'nectar-performance-bench-'));
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-performance-bench-'));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
   await mkdir(join(dir, 'content/tags'), { recursive: true });
 
-  await writeFile(join(dir, 'nectar.toml'), configToml(), 'utf8');
+  await writeFile(join(dir, 'laurel.toml'), configToml(), 'utf8');
   await writeFile(
     join(dir, 'content/authors/casper.md'),
     ['---', 'name: Casper', 'slug: casper', '---', ''].join('\n'),
@@ -88,7 +88,7 @@ async function makeBenchSite(count: number): Promise<string> {
 function configToml(): string {
   return [
     '[site]',
-    'title = "Nectar Performance Bench"',
+    'title = "Laurel Performance Bench"',
     'url = "https://bench.example.com"',
     'locale = "en"',
     'timezone = "UTC"',
@@ -146,7 +146,7 @@ function postMarkdown(
 }
 
 function printResults(results: BenchResult[]): void {
-  console.log(`Nectar performance benchmark (${postCount} posts)`);
+  console.log(`Laurel performance benchmark (${postCount} posts)`);
   console.log('Target: full build 1k posts <3s, render <0.5ms/route average');
   console.log('');
   console.log(

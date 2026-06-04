@@ -3,9 +3,9 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkFrontmatterSchemas } from '~/cli/check-frontmatter.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 
-function fakeConfig(): NectarConfig {
+function fakeConfig(): LaurelConfig {
   return {
     content: {
       posts_dir: 'content/posts',
@@ -13,7 +13,7 @@ function fakeConfig(): NectarConfig {
       authors_dir: 'content/authors',
       tags_dir: 'content/tags',
     },
-  } as unknown as NectarConfig;
+  } as unknown as LaurelConfig;
 }
 
 describe('checkFrontmatterSchemas', () => {
@@ -25,7 +25,7 @@ describe('checkFrontmatterSchemas', () => {
   });
 
   test('reports missing required title as an error', async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-cfs-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-cfs-')));
     await Bun.write(
       join(dir, 'content/posts/no-title.md'),
       ['---', 'slug: no-title', '---', 'body'].join('\n'),
@@ -39,7 +39,7 @@ describe('checkFrontmatterSchemas', () => {
   });
 
   test('reports invalid status enum value', async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-cfs-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-cfs-')));
     await Bun.write(
       join(dir, 'content/posts/bad-status.md'),
       ['---', 'title: Bad', 'status: weird', '---', 'body'].join('\n'),
@@ -52,7 +52,7 @@ describe('checkFrontmatterSchemas', () => {
   });
 
   test('warns on non-kebab slug', async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-cfs-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-cfs-')));
     await Bun.write(
       join(dir, 'content/posts/p.md'),
       ['---', 'title: P', 'slug: WithCaps', '---', 'body'].join('\n'),
@@ -64,7 +64,7 @@ describe('checkFrontmatterSchemas', () => {
   });
 
   test('accepts a clean post', async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-cfs-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-cfs-')));
     await Bun.write(
       join(dir, 'content/posts/ok.md'),
       [
@@ -83,7 +83,7 @@ describe('checkFrontmatterSchemas', () => {
   });
 
   test('returns empty array when content/posts is missing', async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-cfs-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-cfs-')));
     const issues = await checkFrontmatterSchemas({ cwd: dir, config: fakeConfig() });
     expect(issues).toEqual([]);
   });

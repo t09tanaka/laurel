@@ -15,9 +15,9 @@ import {
   resolveCollections,
   resolveTaxonomies,
 } from '~/build/routes-yaml.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { computePostClass } from '~/render/class-names.ts';
-import { NectarError, formatNectarError, toNectarError } from '~/util/errors.ts';
+import { LaurelError, formatLaurelError, toLaurelError } from '~/util/errors.ts';
 import { pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { readImageDimensions } from '~/util/image-size.ts';
 import { directionForLocale } from '~/util/locale.ts';
@@ -105,7 +105,7 @@ interface LocaleFields {
 
 interface LoadContentOptions {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   // Resolved `routes.yaml`, when available. Used to pick the URL template for
   // tag/author archives so `tag.url` / `author.url` reflect any custom paths
   // (and become `''` when the taxonomy is disabled via routes.yaml).
@@ -132,7 +132,7 @@ interface LoadContentOptions {
   // `Plugin.transformMarkdown` declarations and passes them through. Compose
   // in registration order so each transform sees the previous output.
   markdownTransforms?: readonly MarkdownTransformHook[];
-  // When enabled, pages are loaded through `.nectar/approvals/pages`.
+  // When enabled, pages are loaded through `.laurel/approvals/pages`.
   // Approved pages use the current Markdown only when its fingerprint still
   // matches the receipt; stale pages render the approved snapshot instead.
   pageApprovalGate?: boolean;
@@ -234,7 +234,7 @@ export async function loadContent({
   const pool = createMarkdownPool({ estimatedJobs: postCount * 2 + pageCount });
 
   // Explicit option wins; otherwise fall back to the config flag so a
-  // `nectar.toml` opt-in propagates without every caller having to plumb it.
+  // `laurel.toml` opt-in propagates without every caller having to plumb it.
   const futureFromConfig = config.build.include_future_posts === true;
   const includeFuture = includeFuturePosts === true || futureFromConfig;
 
@@ -549,7 +549,7 @@ function deterministicUuidV5(namespace: string, name: string): string {
 }
 
 function deterministicContentUuid(siteUrl: string, kind: 'post' | 'page', path: string): string {
-  const namespace = deterministicUuidV5('nectar:site', siteUrl.replace(/\/+$/, ''));
+  const namespace = deterministicUuidV5('laurel:site', siteUrl.replace(/\/+$/, ''));
   return deterministicUuidV5(namespace, `${kind}:${path}`);
 }
 
@@ -649,7 +649,7 @@ function resolveLocaleRouting(
 // that iterate `{{#get "tiers"}}` see the same `type` / `active` / `visibility`
 // fields they expect from Ghost. Slug derivation falls back to a positional
 // `tier-N` so two entries with the same display name still get unique ids.
-function buildTiers(config: NectarConfig): Tier[] {
+function buildTiers(config: LaurelConfig): Tier[] {
   if (config.tiers.length === 0) return [];
   const usedSlugs = new Set<string>();
   return config.tiers.map((entry, index) => {
@@ -718,9 +718,9 @@ function tierStub(slug: string): Tier {
   };
 }
 
-function buildSite(config: NectarConfig): SiteData {
+function buildSite(config: LaurelConfig): SiteData {
   // Ghost's Source theme branches sidebar/footer/CTA/navigation on these flags.
-  // They drive UI rendering only — Nectar is static-only, so the actual
+  // They drive UI rendering only — Laurel is static-only, so the actual
   // sign-in/signup/account hrefs (#/portal/*) are inert without a Portal
   // script. Tying `members_enabled` to `[components.portal].provider != "none"`
   // lets operators opt-in to the UI shell when they wire their own
@@ -744,7 +744,7 @@ function buildSite(config: NectarConfig): SiteData {
     Object.keys(config.build.metadata).length > 0 ? config.build.metadata : undefined;
   if (!allowInjection && (config.site.codeinjection_head || config.site.codeinjection_foot)) {
     logger.warn(
-      'Ignoring [site].codeinjection_head / [site].codeinjection_foot: set build.allow_code_injection = true in nectar.toml to enable site-wide raw HTML/JS injection.',
+      'Ignoring [site].codeinjection_head / [site].codeinjection_foot: set build.allow_code_injection = true in laurel.toml to enable site-wide raw HTML/JS injection.',
     );
   }
   return {
@@ -948,7 +948,7 @@ interface RawTag extends LocaleFields {
 
 async function loadPosts(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
   dirs: readonly MarkdownDirFiles[],
@@ -981,7 +981,7 @@ async function loadPosts(
 
 async function loadPages(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
   approvalGate: boolean,
@@ -1033,7 +1033,7 @@ async function loadPages(
 
 async function loadAuthors(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   rawContentCache: RawContentCache | undefined,
 ): Promise<RawAuthor[]> {
   const dirs = await discoverContentDirs(cwd, config.content.authors_dir);
@@ -1048,7 +1048,7 @@ async function loadAuthors(
 
 async function loadTags(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   rawContentCache: RawContentCache | undefined,
 ): Promise<RawTag[]> {
   const dirs = await discoverContentDirs(cwd, config.content.tags_dir);
@@ -1182,7 +1182,7 @@ interface RawContentCacheContext {
 
 function rawContentCacheContext(
   namespace: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   cache: RawContentCache | undefined,
 ): RawContentCacheContext | undefined {
   if (!cache) return undefined;
@@ -1260,7 +1260,7 @@ async function loadMarkdownFiles<T>(
           }
           return normalized;
         } catch (err) {
-          throw toNectarError(err, { file });
+          throw toLaurelError(err, { file });
         }
       }),
     );
@@ -1305,10 +1305,10 @@ async function enforceMarkdownSizeLimit(file: string, maxBytes: number): Promise
   const info = await stat(file);
   if (maxBytes <= 0) return info;
   if (info.size <= maxBytes) return info;
-  throw new NectarError({
+  throw new LaurelError({
     file,
     message: `Markdown file is ${formatBytes(info.size)}, exceeding the configured limit of ${formatBytes(maxBytes)}.`,
-    hint: 'Split the file into smaller documents, raise `content.max_markdown_bytes` in nectar.toml, or set it to 0 to disable the cap.',
+    hint: 'Split the file into smaller documents, raise `content.max_markdown_bytes` in laurel.toml, or set it to 0 to disable the cap.',
     code: 'content',
   });
 }
@@ -1389,7 +1389,7 @@ function slugFromPath(filePath: string, rootDir: string): string {
   // or supplies an explicit `slug:` in frontmatter.
   const slug = slugify(segment, { lower: true, strict: true });
   if (slug.length === 0) {
-    throw new NectarError({
+    throw new LaurelError({
       file: filePath,
       message: `Cannot derive a slug from filename ${JSON.stringify(segment)}: produces empty value after sanitization.`,
       hint: 'Rename the file to use ASCII letters/digits (e.g. `my-draft.md`) or add an explicit `slug:` in the frontmatter.',
@@ -1489,7 +1489,7 @@ async function normalizePost(
   sourceStat: Stats,
   cwd: string,
   rootDir: string,
-  config: NectarConfig | undefined,
+  config: LaurelConfig | undefined,
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
   kind: 'post' | 'page' = 'post',
@@ -1763,7 +1763,7 @@ function nonNegativeInt(value: unknown): number | undefined {
 
 // Frontmatter `visibility:` accepts Ghost's full vocabulary, not just the
 // public/members/paid tri-state. Ghost also gates a post to specific tiers
-// (`tiers`) or via a NQL filter expression (`filter`). Nectar's static runtime
+// (`tiers`) or via a NQL filter expression (`filter`). Laurel's static runtime
 // has no tier-aware viewer, so `tiers` and `filter` render identically to
 // `members` (paywall stub in feeds, optional truncation in body) — but we keep
 // the exact value on `post.visibility` so themes that branch on it see the
@@ -1821,14 +1821,14 @@ function isPaywallVisibility(visibility: PostVisibility): visibility is PaywallV
 function resolveCodeInjection(
   data: Record<string, unknown>,
   filePath: string,
-  config: NectarConfig | undefined,
+  config: LaurelConfig | undefined,
 ): { codeinjection_head: string | undefined; codeinjection_foot: string | undefined } {
   const head = asString(data.codeinjection_head);
   const foot = asString(data.codeinjection_foot);
   const allow = config?.build?.allow_code_injection ?? false;
   if (!allow && (head !== undefined || foot !== undefined)) {
     logger.warn(
-      `Ignoring codeinjection_head/codeinjection_foot in ${filePath}: set build.allow_code_injection = true in nectar.toml to enable raw HTML/JS injection from frontmatter.`,
+      `Ignoring codeinjection_head/codeinjection_foot in ${filePath}: set build.allow_code_injection = true in laurel.toml to enable raw HTML/JS injection from frontmatter.`,
     );
     return { codeinjection_head: undefined, codeinjection_foot: undefined };
   }
@@ -1841,7 +1841,7 @@ async function normalizePage(
   sourceStat: Stats,
   cwd: string,
   rootDir: string,
-  config: NectarConfig | undefined,
+  config: LaurelConfig | undefined,
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
   pathLocale?: string,
@@ -1886,8 +1886,8 @@ function warnAndSkipInvalidKoenigShortcode(opts: {
     const malformed = findMalformedKoenigShortcode(opts.body);
     if (malformed) {
       logger.warn(
-        formatNectarError(
-          new NectarError({
+        formatLaurelError(
+          new LaurelError({
             file: opts.filePath,
             line: opts.bodyStartLine + malformed.line - 1,
             col: malformed.col,
@@ -1904,8 +1904,8 @@ function warnAndSkipInvalidKoenigShortcode(opts: {
     const invalid = findInvalidKoenigShortcode(opts.body);
     if (invalid) {
       logger.warn(
-        formatNectarError(
-          new NectarError({
+        formatLaurelError(
+          new LaurelError({
             file: opts.filePath,
             line: opts.bodyStartLine + invalid.line - 1,
             col: invalid.col,
@@ -1921,7 +1921,7 @@ function warnAndSkipInvalidKoenigShortcode(opts: {
 
     return false;
   } catch (err) {
-    throw toNectarError(err, { file: opts.filePath });
+    throw toLaurelError(err, { file: opts.filePath });
   }
 }
 
@@ -1958,7 +1958,7 @@ function sanitizeCustomTemplate(value: string | undefined, filePath: string): st
 async function normalizeRawAuthor(
   filePath: string,
   raw: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   pathLocale: string | undefined,
   source?: ContentSourceFingerprint,
 ): Promise<RawAuthor> {
@@ -2006,7 +2006,7 @@ async function normalizeRawAuthor(
 
 function normalizeAuthor(
   raw: RawAuthor,
-  config: NectarConfig,
+  config: LaurelConfig,
   taxonomies: ResolvedTaxonomies,
   basePath: string,
   routePrefix: string,
@@ -2057,7 +2057,7 @@ function normalizeAuthor(
 async function normalizeRawTag(
   filePath: string,
   raw: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   pathLocale: string | undefined,
   source?: ContentSourceFingerprint,
 ): Promise<RawTag> {
@@ -2093,7 +2093,7 @@ async function normalizeRawTag(
 
 function normalizeTag(
   raw: RawTag,
-  config: NectarConfig,
+  config: LaurelConfig,
   taxonomies: ResolvedTaxonomies,
   basePath: string,
   routePrefix: string,
@@ -2137,7 +2137,7 @@ function normalizeTag(
 function resolveLocalImageDimensions(
   featureImage: string | undefined,
   cwd: string,
-  config: NectarConfig | undefined,
+  config: LaurelConfig | undefined,
 ): { width: number; height: number } | undefined {
   if (!featureImage || !config) return undefined;
   if (/^[a-z][a-z0-9+.-]*:/i.test(featureImage)) return undefined;
@@ -2364,7 +2364,7 @@ function resolvePageRelations(
 
 // Module-level dedupe sets so a tag/author referenced by ten posts only
 // produces one warning per build (#860). Cleared at the start of every
-// `loadContent` call so back-to-back builds (e.g. `nectar dev` watch mode)
+// `loadContent` call so back-to-back builds (e.g. `laurel dev` watch mode)
 // re-emit the warning if the offending content is still present.
 const warnedAutoTagSlugs = new Set<string>();
 const warnedAutoAuthorSlugs = new Set<string>();

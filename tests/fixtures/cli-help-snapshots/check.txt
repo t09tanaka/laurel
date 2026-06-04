@@ -1,7 +1,7 @@
 Validate config, theme, and content
 
 Usage:
-  nectar check [--config <path>] [--strict] [--check-links] [--check-external] [--check-frontmatter] [--check-templates] [--json]
+  laurel check [--config <path>] [--strict] [--check-links] [--check-external] [--check-frontmatter] [--check-templates] [--json]
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -14,9 +14,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --config → NECTAR_CHECK_CONFIG
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → LAUREL_CHECK_CONFIG
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -24,8 +24,8 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar check                                 # config + theme + content validation
-  nectar check --strict                        # fail on any warning (use in CI)
-  nectar check --check-frontmatter --check-templates
-  nectar check --check-links                   # also resolve relative markdown links
-  nectar check --json | jq                     # machine-readable findings
+  laurel check                                 # config + theme + content validation
+  laurel check --strict                        # fail on any warning (use in CI)
+  laurel check --check-frontmatter --check-templates
+  laurel check --check-links                   # also resolve relative markdown links
+  laurel check --json | jq                     # machine-readable findings

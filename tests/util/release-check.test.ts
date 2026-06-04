@@ -11,7 +11,7 @@ afterEach(async () => {
 });
 
 async function tempCachePath(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'nectar-release-check-'));
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-release-check-'));
   tempDirs.push(dir);
   return join(dir, 'release.json');
 }
@@ -24,13 +24,13 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
 }
 
 describe('release check', () => {
-  test('NECTAR_NO_UPDATE_CHECK disables fetch and cache reads', async () => {
+  test('LAUREL_NO_UPDATE_CHECK disables fetch and cache reads', async () => {
     const cachePath = await tempCachePath();
     let calls = 0;
     const result = await checkLatestRelease({
       currentVersion: '1.0.0',
       cachePath,
-      env: { NECTAR_NO_UPDATE_CHECK: '1' },
+      env: { LAUREL_NO_UPDATE_CHECK: '1' },
       fetchFn: async () => {
         calls += 1;
         return jsonResponse({ version: '9.9.9' });
@@ -50,7 +50,7 @@ describe('release check', () => {
       cachePath,
       env: {},
       fetchFn: async (url) => {
-        expect(String(url)).toBe('https://registry.npmjs.org/nectar/latest');
+        expect(String(url)).toBe('https://registry.npmjs.org/laurel/latest');
         return jsonResponse({ version: '1.2.0' });
       },
     });
@@ -113,8 +113,8 @@ describe('release check', () => {
     });
 
     expect(urls).toEqual([
-      'https://registry.npmjs.org/nectar/latest',
-      'https://api.github.com/repos/t09tanaka/nectar/releases/latest',
+      'https://registry.npmjs.org/laurel/latest',
+      'https://api.github.com/repos/t09tanaka/laurel/releases/latest',
     ]);
     expect(result.status).toBe('update-available');
     expect(result.latestVersion).toBe('1.0.1');

@@ -5,7 +5,7 @@ import type { AgentFormat, BundledSkill, SkillInstallReceipt } from '../types.ts
 
 // Claude Code per-project skill format:
 //   .claude/skills/<slug>/SKILL.md   ← markdown with {name, description} frontmatter
-//   .claude/skills/<slug>/.nectar.json ← install receipt so update checks can
+//   .claude/skills/<slug>/.laurel.json ← install receipt so update checks can
 //                                        compare bundled vs installed version
 //                                        without parsing the agent's own
 //                                        frontmatter shape
@@ -33,7 +33,7 @@ export async function installSkillForClaude(cwd: string, skill: BundledSkill): P
     format: FORMAT,
     bundledAt: new Date().toISOString(),
   };
-  await writeFile(join(targetDir, '.nectar.json'), `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
+  await writeFile(join(targetDir, '.laurel.json'), `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
   return targetDir;
 }
 
@@ -46,7 +46,7 @@ export async function removeSkillForClaude(cwd: string, slug: string): Promise<b
 
 // Render the SKILL.md body that Anthropic's loader expects: a frontmatter
 // block containing `name` and `description`, followed by the skill body
-// verbatim. We strip Nectar-internal fields (version, applies_to, triggers)
+// verbatim. We strip Laurel-internal fields (version, applies_to, triggers)
 // from the emitted frontmatter — they're useful in source-of-truth but
 // Anthropic's matcher only looks at `description`.
 function renderClaudeSkillMd(skill: BundledSkill): string {

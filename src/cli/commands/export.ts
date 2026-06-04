@@ -3,7 +3,7 @@ import { dirname, isAbsolute, resolve } from 'node:path';
 import { renderFeedSafeHtml } from '~/build/feed-safe-html.ts';
 import { exportComponentsBundle } from '~/components-bundle/index.ts';
 import { loadConfig } from '~/config/loader.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { loadContent } from '~/content/loader.ts';
 import { htmlToPlaintext } from '~/content/markdown.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
@@ -66,7 +66,7 @@ export async function runExport(args: string[], options: RunExportOptions = {}):
   const pretty = parsed.values.pretty === true;
   const includeDrafts = parsed.values['include-drafts'] === true;
 
-  let config: NectarConfig;
+  let config: LaurelConfig;
   let content: ContentGraph;
   try {
     config = await loadConfig({ cwd, configPath });
@@ -93,7 +93,7 @@ export async function runExport(args: string[], options: RunExportOptions = {}):
       return EXIT_CODES.usage;
     }
     const kind: EntryKind = kindRaw;
-    const defaultOut = `${slug}.nectar.zip`;
+    const defaultOut = `${slug}.laurel.zip`;
     const outRel = outputPath ?? defaultOut;
     const abs = isAbsolute(outRel) ? outRel : resolve(cwd, outRel);
     try {
@@ -138,7 +138,7 @@ export async function runExport(args: string[], options: RunExportOptions = {}):
           .map((s) => s.trim())
           .filter(Boolean)
       : undefined;
-    const outRel = outputPath ?? 'components.nectar.zip';
+    const outRel = outputPath ?? 'components.laurel.zip';
     const abs = isAbsolute(outRel) ? outRel : resolve(cwd, outRel);
     try {
       const { zip, exportedSlugs, missing, omittedAssets } = await exportComponentsBundle({
@@ -204,10 +204,10 @@ interface JsonOptions {
   pretty: boolean;
 }
 
-export function renderJson(content: ContentGraph, config: NectarConfig, opts: JsonOptions): string {
+export function renderJson(content: ContentGraph, config: LaurelConfig, opts: JsonOptions): string {
   const body = {
-    nectar: {
-      schema: 'nectar.export.v1',
+    laurel: {
+      schema: 'laurel.export.v1',
       generated_at: new Date().toISOString(),
     },
     site: serializeSite(config),
@@ -221,7 +221,7 @@ export function renderJson(content: ContentGraph, config: NectarConfig, opts: Js
 
 export function renderGhostJson(
   content: ContentGraph,
-  config: NectarConfig,
+  config: LaurelConfig,
   opts: JsonOptions,
 ): string {
   // Ghost backup shape: top-level `db: [{ meta, data }]` where `data` carries
@@ -280,12 +280,12 @@ export function renderGhostJson(
   return JSON.stringify(body, null, opts.pretty ? 2 : 0);
 }
 
-// Standalone RSS renderer used by `nectar export rss`. We deliberately avoid
+// Standalone RSS renderer used by `laurel export rss`. We deliberately avoid
 // calling `emitRss` from `~/build/feeds.ts` because that writer is filesystem-
 // bound (writes XML to dist/), and the export command needs to stream the
 // document to stdout or a single file. Shape matches the Ghost-compatible
 // feed: minimal channel metadata plus one `<item>` per published post.
-export function renderRss(content: ContentGraph, config: NectarConfig): string {
+export function renderRss(content: ContentGraph, config: LaurelConfig): string {
   const limit = Math.max(1, config.components.rss.items);
   const fullContent = config.components.rss.full_content;
   const base = config.site.url.replace(/\/$/, '');
@@ -302,7 +302,7 @@ export function renderRss(content: ContentGraph, config: NectarConfig): string {
     `<description>${escapeXml(config.site.description)}</description>`,
     `<language>${escapeXml(config.site.locale)}</language>`,
     `<lastBuildDate>${lastBuildDate}</lastBuildDate>`,
-    '<generator>Nectar</generator>',
+    '<generator>Laurel</generator>',
     items.join(''),
     '</channel>',
     '</rss>',
@@ -353,7 +353,7 @@ function computeLastBuildDate(posts: Post[]): string {
   return new Date(latest > 0 ? latest : Date.now()).toUTCString();
 }
 
-function serializeSite(config: NectarConfig): Record<string, unknown> {
+function serializeSite(config: LaurelConfig): Record<string, unknown> {
   return {
     title: config.site.title,
     description: config.site.description,
@@ -553,7 +553,7 @@ function serializeGhostUser(author: Author): Record<string, unknown> {
   };
 }
 
-function serializeGhostSettings(config: NectarConfig): Array<Record<string, unknown>> {
+function serializeGhostSettings(config: LaurelConfig): Array<Record<string, unknown>> {
   // Ghost stores settings as a flat key/value list with a `group` tag; only
   // a handful are required by importers. Covering site core, theme, and feed
   // identifiers keeps round-trip tooling (Ghost Admin Import) from crashing.

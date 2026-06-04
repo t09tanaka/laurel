@@ -1,6 +1,6 @@
-# Copy this sample to the root of a Nectar site that is deployed with
+# Copy this sample to the root of a Laurel site that is deployed with
 # Cloudflare Workers Static Assets.
-name = "nectar-static-assets"
+name = "laurel-static-assets"
 main = "index.ts"
 compatibility_date = "2025-04-01"
 

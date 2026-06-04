@@ -1,4 +1,4 @@
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 import type {
   PortalAdapter,
   ResolvedSubscribeForm,
@@ -12,9 +12,9 @@ export const customFormActionAdapter: PortalAdapter = {
   provider: 'customformaction',
   resolve(cfg: SubscribeAdapterConfig): ResolvedSubscribeForm {
     if (!cfg.action) {
-      throw new NectarError({
+      throw new LaurelError({
         message: 'components.subscribe.action is required when provider is "customformaction"',
-        hint: 'Set components.subscribe.action in nectar.toml to the endpoint that should receive the form POST',
+        hint: 'Set components.subscribe.action in laurel.toml to the endpoint that should receive the form POST',
         code: 'config',
       });
     }

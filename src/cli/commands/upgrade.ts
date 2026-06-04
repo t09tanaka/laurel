@@ -22,7 +22,7 @@ interface UpgradeRuntime {
   exists?: (path: string) => boolean;
 }
 
-const PACKAGE_NAME = 'nectar';
+const PACKAGE_NAME = 'laurel';
 
 export async function runUpgrade(args: string[], runtime: UpgradeRuntime = {}): Promise<number> {
   let parsed: ParsedCommand;
@@ -46,10 +46,10 @@ export async function runUpgrade(args: string[], runtime: UpgradeRuntime = {}): 
   const stderr = runtime.stderr ?? process.stderr;
   const json = parsed.values.json === true;
 
-  if (env.NECTAR_NO_UPDATE_CHECK === '1') {
-    const message = 'Upgrade skipped because NECTAR_NO_UPDATE_CHECK=1 is set.';
+  if (env.LAUREL_NO_UPDATE_CHECK === '1') {
+    const message = 'Upgrade skipped because LAUREL_NO_UPDATE_CHECK=1 is set.';
     if (json) {
-      stdout.write(`${JSON.stringify({ skipped: true, reason: 'NECTAR_NO_UPDATE_CHECK' })}\n`);
+      stdout.write(`${JSON.stringify({ skipped: true, reason: 'LAUREL_NO_UPDATE_CHECK' })}\n`);
     } else {
       stdout.write(`${message}\n`);
     }
@@ -115,7 +115,7 @@ export function detectUpgradePlan(runtime: UpgradeRuntime = {}): UpgradePlan {
   const userAgent = env.npm_config_user_agent?.toLowerCase() ?? '';
   const execPath = env.npm_execpath?.toLowerCase() ?? '';
 
-  if (lower.includes('/homebrew/cellar/') || lower.includes('/cellar/nectar/')) {
+  if (lower.includes('/homebrew/cellar/') || lower.includes('/cellar/laurel/')) {
     return {
       method: 'homebrew',
       command: ['brew', 'upgrade', PACKAGE_NAME],
@@ -133,7 +133,7 @@ export function detectUpgradePlan(runtime: UpgradeRuntime = {}): UpgradePlan {
     };
   }
 
-  if (lower.includes('/.bun/install/global/') || lower.includes('/.bun/bin/nectar')) {
+  if (lower.includes('/.bun/install/global/') || lower.includes('/.bun/bin/laurel')) {
     return {
       method: 'bun-global',
       command: ['bun', 'install', '-g', `${PACKAGE_NAME}@latest`],
@@ -142,7 +142,7 @@ export function detectUpgradePlan(runtime: UpgradeRuntime = {}): UpgradePlan {
     };
   }
 
-  if (lower.includes('/node_modules/nectar/') || lower.includes('/node_modules/.bin/nectar')) {
+  if (lower.includes('/node_modules/laurel/') || lower.includes('/node_modules/.bin/laurel')) {
     return {
       method: 'npm-global',
       command: ['npm', 'install', '-g', `${PACKAGE_NAME}@latest`],
@@ -183,7 +183,7 @@ export function detectUpgradePlan(runtime: UpgradeRuntime = {}): UpgradePlan {
     command: ['npm', 'install', '-g', `${PACKAGE_NAME}@latest`],
     selfUpdatable: false,
     reason:
-      'Could not determine how Nectar was installed, so no self-update command was run automatically.',
+      'Could not determine how Laurel was installed, so no self-update command was run automatically.',
   };
 }
 

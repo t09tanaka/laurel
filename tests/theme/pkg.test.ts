@@ -5,14 +5,14 @@ import { join } from 'node:path';
 import { loadThemePackage } from '~/theme/pkg.ts';
 
 async function makeThemeDir(pkg: unknown): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'nectar-pkg-'));
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-pkg-'));
   await writeFile(join(dir, 'package.json'), JSON.stringify(pkg), 'utf8');
   return dir;
 }
 
 describe('loadThemePackage schema validation', () => {
   test('returns default package when no package.json exists', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-pkg-empty-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-pkg-empty-'));
     const pkg = await loadThemePackage(dir);
     expect(pkg.name).toBe('theme');
     expect(pkg.custom).toEqual({});
@@ -20,7 +20,7 @@ describe('loadThemePackage schema validation', () => {
   });
 
   test('throws on malformed JSON', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-pkg-bad-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-pkg-bad-'));
     await writeFile(join(dir, 'package.json'), '{ not json', 'utf8');
     await expect(loadThemePackage(dir)).rejects.toThrow(/invalid theme package.json/);
   });
@@ -277,7 +277,7 @@ describe('loadThemePackage schema validation', () => {
   });
 
   test('falls back to defaults when the root package.json is not a JSON object', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-pkg-arr-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-pkg-arr-'));
     await writeFile(join(dir, 'package.json'), '"a string"', 'utf8');
     const pkg = await loadThemePackage(dir);
     expect(pkg.name).toBe('theme');

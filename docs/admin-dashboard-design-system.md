@@ -1,7 +1,7 @@
-# Nectar Admin Dashboard Design System
+# Laurel Admin Dashboard Design System
 
-This document defines the visual design system for the Nectar local Admin
-dashboard. It translates the note.com design research into Nectar's
+This document defines the visual design system for the Laurel local Admin
+dashboard. It translates the note.com design research into Laurel's
 file-first, Markdown-first, static publishing context.
 
 Source reference: note (https://note.com/) design research based on production
@@ -10,7 +10,7 @@ custom properties.
 
 ## 1. Visual Theme and Atmosphere
 
-Nectar Admin should feel like a calm editorial workbench: readable, warm,
+Laurel Admin should feel like a calm editorial workbench: readable, warm,
 minimal, content-first, and focused on the writer's work rather than on the
 interface itself.
 
@@ -167,7 +167,7 @@ Card baseline:
 
 - Background: `#ffffff`
 - Border: `rgba(8, 19, 26, 0.14)`
-- Border radius: 8px for Nectar dashboard components; 12px only when matching
+- Border radius: 8px for Laurel dashboard components; 12px only when matching
   a note-inspired content card is intentional.
 - Shadow: use elevation tokens sparingly and only to express layering.
 

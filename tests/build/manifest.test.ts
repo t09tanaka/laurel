@@ -28,7 +28,7 @@ describe('build manifest serialization', () => {
   });
 
   test('computeGeneratorSourceFingerprint reuses cached hashes until source stats change', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-generator-fp-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-generator-fp-'));
     try {
       await mkdir(join(dir, 'build'), { recursive: true });
       await mkdir(join(dir, 'content'), { recursive: true });
@@ -62,7 +62,7 @@ describe('build manifest serialization', () => {
 
   test('computeGeneratorSourceFingerprint keeps source-unavailable fallback outside the cache', async () => {
     const cache = createGeneratorSourceFingerprintCache();
-    const missing = join(tmpdir(), `nectar-missing-src-${Date.now()}`);
+    const missing = join(tmpdir(), `laurel-missing-src-${Date.now()}`);
 
     expect(await computeGeneratorSourceFingerprint(missing, cache)).toBe('source-unavailable');
     expect(cache.stats()).toEqual({ hits: 0, misses: 0, sets: 0 });
@@ -77,7 +77,7 @@ describe('build manifest serialization', () => {
   });
 
   test('loadManifest returns undefined for missing, malformed, and wrong-version files', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-manifest-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-manifest-'));
     try {
       expect(await loadManifest(dir)).toBeUndefined();
 
@@ -98,7 +98,7 @@ describe('build manifest serialization', () => {
   });
 
   test('saveManifest round-trips through loadManifest', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-manifest-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-manifest-'));
     try {
       const manifest = {
         version: MANIFEST_VERSION,

@@ -15,7 +15,7 @@ interface ImageAltLintOptions {
 }
 
 const DECORATIVE_ROLES = new Set(['none', 'presentation']);
-const DECORATIVE_CLASS_NAMES = new Set(['kg-bookmark-icon', 'nectar-decorative']);
+const DECORATIVE_CLASS_NAMES = new Set(['kg-bookmark-icon', 'laurel-decorative']);
 
 export function collectImageAltWarnings(
   html: string,

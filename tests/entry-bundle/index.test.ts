@@ -13,10 +13,10 @@ import {
 import { readZipArchive } from '~/entry-bundle/zip';
 
 async function makeFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-entry-bundle-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-entry-bundle-')));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     ['[site]', 'title = "Bundle Site"', 'url = "https://bundle.test"', ''].join('\n'),
     'utf8',
   );
@@ -36,7 +36,7 @@ function rawEntryMd(zip: Uint8Array): string {
 }
 
 function hasManifest(zip: Uint8Array): boolean {
-  return readZipArchive(zip).some((e) => e.path === 'nectar-bundle.json');
+  return readZipArchive(zip).some((e) => e.path === 'laurel-bundle.json');
 }
 
 const encoder = new TextEncoder();
@@ -62,7 +62,7 @@ const ENTRY_MD = bytes('---\ntitle: Hello\nstatus: draft\n---\n\nBody text.\n');
 describe('parseEntryBundleZip', () => {
   test('parses a valid post bundle', () => {
     const zip = createZipArchive([
-      { path: 'nectar-bundle.json', bytes: manifestEntry() },
+      { path: 'laurel-bundle.json', bytes: manifestEntry() },
       { path: 'entry.md', bytes: ENTRY_MD },
       { path: 'assets/images/a.png', bytes: new Uint8Array([1, 2, 3]) },
     ]);
@@ -82,7 +82,7 @@ describe('parseEntryBundleZip', () => {
 
   test('throws on a zip-slip asset path', () => {
     const zip = createZipArchive([
-      { path: 'nectar-bundle.json', bytes: manifestEntry() },
+      { path: 'laurel-bundle.json', bytes: manifestEntry() },
       { path: 'entry.md', bytes: ENTRY_MD },
       { path: 'assets/../../etc/evil', bytes: new Uint8Array([0]) },
     ]);
@@ -91,7 +91,7 @@ describe('parseEntryBundleZip', () => {
 
   test('throws on an unknown schema', () => {
     const zip = createZipArchive([
-      { path: 'nectar-bundle.json', bytes: manifestEntry({ schema: 'nectar.page.v1' }) },
+      { path: 'laurel-bundle.json', bytes: manifestEntry({ schema: 'laurel.page.v1' }) },
       { path: 'entry.md', bytes: ENTRY_MD },
     ]);
     expect(() => parseEntryBundleZip(zip)).toThrow(/schema/i);
@@ -247,7 +247,7 @@ describe('importEntryBundle', () => {
     try {
       const config = await loadConfig({ cwd: dir });
       const zip = createZipArchive([
-        { path: 'nectar-bundle.json', bytes: manifestEntry() },
+        { path: 'laurel-bundle.json', bytes: manifestEntry() },
         {
           path: 'entry.md',
           bytes: bytes(
@@ -284,7 +284,7 @@ describe('importEntryBundle', () => {
     try {
       const config = await loadConfig({ cwd: dir });
       const zip = createZipArchive([
-        { path: 'nectar-bundle.json', bytes: manifestEntry({ slug: 'fresh' }) },
+        { path: 'laurel-bundle.json', bytes: manifestEntry({ slug: 'fresh' }) },
         { path: 'entry.md', bytes: bytes('---\ntitle: Fresh\nslug: fresh\n---\n\nBrand new.\n') },
       ]);
       const result = await importEntryBundle({
@@ -302,7 +302,7 @@ describe('importEntryBundle', () => {
 
   function mergeZip(): Uint8Array {
     return createZipArchive([
-      { path: 'nectar-bundle.json', bytes: manifestEntry() },
+      { path: 'laurel-bundle.json', bytes: manifestEntry() },
       {
         path: 'entry.md',
         bytes: bytes(
@@ -370,7 +370,7 @@ describe('importEntryBundle', () => {
     try {
       const config = await loadConfig({ cwd: dir });
       const zip = createZipArchive([
-        { path: 'nectar-bundle.json', bytes: manifestEntry({ slug: 'fresh' }) },
+        { path: 'laurel-bundle.json', bytes: manifestEntry({ slug: 'fresh' }) },
         { path: 'entry.md', bytes: bytes('---\ntitle: Fresh\nslug: fresh\n---\n\nNew.\n') },
       ]);
       await expect(
@@ -471,12 +471,12 @@ describe('importEntryBundle', () => {
 // Builds a fixture whose post references a `release` tag that has a rich
 // definition file (name, description, feature image) plus the image asset.
 async function makeTaggedFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-entry-bundle-tags-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-entry-bundle-tags-')));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/tags'), { recursive: true });
   await mkdir(join(dir, 'content/images'), { recursive: true });
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     ['[site]', 'title = "Bundle Site"', 'url = "https://bundle.test"', ''].join('\n'),
     'utf8',
   );
@@ -655,7 +655,7 @@ describe('entry bundle tag handoff', () => {
 
   test('parseEntryBundleZip rejects a traversing tag path', () => {
     const zip = createZipArchive([
-      { path: 'nectar-bundle.json', bytes: manifestEntry() },
+      { path: 'laurel-bundle.json', bytes: manifestEntry() },
       { path: 'entry.md', bytes: ENTRY_MD },
       { path: 'tags/../evil.md', bytes: bytes('---\nslug: evil\n---\n') },
     ]);
@@ -666,12 +666,12 @@ describe('entry bundle tag handoff', () => {
 // Builds a fixture whose post is authored by `casper`, who has a rich author
 // definition file (name, bio, profile image) plus the image asset.
 async function makeAuthoredFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-entry-bundle-authors-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-entry-bundle-authors-')));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
   await mkdir(join(dir, 'content/images'), { recursive: true });
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     ['[site]', 'title = "Bundle Site"', 'url = "https://bundle.test"', ''].join('\n'),
     'utf8',
   );
@@ -849,7 +849,7 @@ describe('entry bundle author handoff', () => {
 
   test('parseEntryBundleZip rejects a traversing author path', () => {
     const zip = createZipArchive([
-      { path: 'nectar-bundle.json', bytes: manifestEntry() },
+      { path: 'laurel-bundle.json', bytes: manifestEntry() },
       { path: 'entry.md', bytes: ENTRY_MD },
       { path: 'authors/../evil.md', bytes: bytes('---\nslug: evil\n---\n') },
     ]);

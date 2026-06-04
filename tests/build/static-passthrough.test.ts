@@ -6,11 +6,11 @@ import { join } from 'node:path';
 import { copyStaticDir, resolveStaticPassthroughDirs } from '~/build/static-passthrough.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-static-out-'));
+  return mkdtemp(join(tmpdir(), 'laurel-static-out-'));
 }
 
 async function makeCwd(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-static-cwd-'));
+  return mkdtemp(join(tmpdir(), 'laurel-static-cwd-'));
 }
 
 describe('copyStaticDir', () => {
@@ -228,7 +228,7 @@ describe('copyStaticDir', () => {
   test('skips symlinked files so they cannot escape the static directory', async () => {
     const outputDir = await makeOutputDir();
     const cwd = await makeCwd();
-    const secret = await mkdtemp(join(tmpdir(), 'nectar-static-secret-'));
+    const secret = await mkdtemp(join(tmpdir(), 'laurel-static-secret-'));
     await writeFile(join(secret, 'leak.txt'), 'shhh', 'utf8');
     await mkdir(join(cwd, 'static'), { recursive: true });
     await writeFile(join(cwd, 'static', 'safe.txt'), 'safe', 'utf8');

@@ -16,7 +16,7 @@ const GOLDEN_FILES = [
   'index.html',
   // Additional post bodies catch regressions in markdown rendering, code
   // blocks, embeds, and `post.html` ↔ `feed_html` divergence (#175).
-  'hello-nectar/index.html',
+  'hello-laurel/index.html',
   'markdown-meets-git/index.html',
   'ghost-theme-compatibility/index.html',
   // Tag archives (canonical + a second tag) ensure tag layout, post-card

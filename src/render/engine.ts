@@ -1,13 +1,13 @@
 import Handlebars from 'handlebars';
 import { EMPTY_FAVICON_SET, type FaviconSet } from '~/build/favicons.ts';
 import type { Profiler } from '~/build/profile.ts';
-import type { NavigationItem, NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig, NavigationItem } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import { assetPublicUrl } from '~/theme/assets.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { sanitizeThemeCustomValues } from '~/theme/validate-custom.ts';
 import { type TextColorClass, textColorClassFor } from '~/util/color.ts';
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 import { directionForLocale } from '~/util/locale.ts';
 import { logger } from '~/util/logger.ts';
 import { bodyClassToken } from './class-names.ts';
@@ -38,9 +38,9 @@ import type { RouteContext } from './types.ts';
 const MISSING_PARTIAL_FALLBACK_NAME = 'missing-partial';
 const MAX_PARTIAL_RENDER_DEPTH = 64;
 const RESERVED_ROOT_CONTEXT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-const customDataCache = new WeakMap<NectarEngine, Record<string, unknown>>();
-const rootDataBaseCache = new WeakMap<NectarEngine, RootDataBase>();
-const bodyClassCache = new WeakMap<NectarEngine, WeakMap<RouteContext, string>>();
+const customDataCache = new WeakMap<LaurelEngine, Record<string, unknown>>();
+const rootDataBaseCache = new WeakMap<LaurelEngine, RootDataBase>();
+const bodyClassCache = new WeakMap<LaurelEngine, WeakMap<RouteContext, string>>();
 
 interface RootDataBase {
   custom: Record<string, unknown>;
@@ -49,9 +49,9 @@ interface RootDataBase {
   text_color_class: TextColorClass;
 }
 
-export interface NectarEngine {
+export interface LaurelEngine {
   hb: typeof Handlebars;
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   theme: ThemeBundle;
   // Project root used by helpers that need filesystem access (image_dimensions
@@ -99,13 +99,13 @@ export interface NectarEngine {
 }
 
 export function createEngine(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   theme: ThemeBundle;
   favicons?: FaviconSet;
   cwd?: string;
   profiler?: Profiler | null;
-}): NectarEngine {
+}): LaurelEngine {
   const hb = Handlebars.create();
   installHelperProfiling(hb, opts.profiler ?? null);
   installSourceAwareHelperErrors(hb);
@@ -157,7 +157,7 @@ export function createEngine(opts: {
   }
   registerPartials(hb, opts.theme, templateBodies, templateBodyOffsets);
 
-  const engine: NectarEngine = {
+  const engine: LaurelEngine = {
     hb,
     config: opts.config,
     content: opts.content,
@@ -234,7 +234,7 @@ function registerPartials(
 ): void {
   // Defaults go in first so a theme's same-named partial overrides cleanly via
   // the subsequent `theme.partials` loop. Without this ordering, a theme that
-  // ships `partials/search.hbs` would lose to Nectar's built-in markup (issue
+  // ships `partials/search.hbs` would lose to Laurel's built-in markup (issue
   // #1135).
   for (const [name, source] of Object.entries(DEFAULT_PARTIALS)) {
     hb.registerPartial(name, source);
@@ -451,9 +451,9 @@ function installMissingPartialFallback(hb: typeof Handlebars, themeName: string)
     try {
       if (partialRenderDepth > MAX_PARTIAL_RENDER_DEPTH) {
         const name = partialNameFromOptions(options);
-        throw new NectarError({
+        throw new LaurelError({
           message: `Partial render depth exceeded while rendering${name ? ` '${name}'` : ''}`,
-          hint: `Check theme partials for cyclic includes. Nectar stops partial rendering after ${MAX_PARTIAL_RENDER_DEPTH} nested partial calls to prevent unbounded recursion.`,
+          hint: `Check theme partials for cyclic includes. Laurel stops partial rendering after ${MAX_PARTIAL_RENDER_DEPTH} nested partial calls to prevent unbounded recursion.`,
           docsUrl: 'docs/THEME_DEV.md#3-partials',
           code: 'theme',
         });
@@ -517,10 +517,10 @@ function partialLayoutCandidateNames(name: string): string[] {
   return [...new Set(names)];
 }
 
-function renderRoute(engine: NectarEngine, route: RouteContext): string {
+function renderRoute(engine: LaurelEngine, route: RouteContext): string {
   const innerCompiled = engine.templates[route.template];
   if (!innerCompiled) {
-    throw new NectarError({
+    throw new LaurelError({
       message: `Template '${route.template}' not found in theme '${engine.theme.name}'`,
       code: 'theme',
     });
@@ -538,7 +538,7 @@ function renderRoute(engine: NectarEngine, route: RouteContext): string {
   }
   const layoutCompiled = engine.layouts[layout];
   if (!layoutCompiled) {
-    throw new NectarError({
+    throw new LaurelError({
       message: `Layout '${layout}' referenced by '${route.template}' not found`,
       code: 'theme',
     });
@@ -563,7 +563,7 @@ function renderCompiled(
   } catch (err) {
     const partialName = unsupportedParentPartialName(err);
     if (partialName !== undefined) {
-      throw new NectarError({
+      throw new LaurelError({
         message: `Unsupported partial include '${partialName}': partial names are rooted at partials/ and cannot use ../ parent segments`,
         hint: 'Partial includes are rooted at the active theme partials/ directory and cannot use ../ parent segments. Move shared files under partials/ and include them by name, for example {{> "components/header"}}.',
         docsUrl: 'docs/THEME_DEV.md#3-partials',
@@ -587,7 +587,7 @@ function hasParentPathSegment(name: string): boolean {
   return name.split(/[\\/]+/).includes('..');
 }
 
-export function buildContext(engine: NectarEngine, route: RouteContext): Record<string, unknown> {
+export function buildContext(engine: LaurelEngine, route: RouteContext): Record<string, unknown> {
   const ctx: Record<string, unknown> = {};
   const data = route.data;
   if (route.locale) {
@@ -661,12 +661,12 @@ export function buildContext(engine: NectarEngine, route: RouteContext): Record<
   // inline for icon paths). Handlebars resolves the bare `access` token as a
   // context lookup before falling through to the helper registry, so the
   // `access` helper alone wouldn't make `{{#unless access}}` evaluate truthy.
-  // Nectar is members-out-of-scope (see CLAUDE.md), so seed `access: true` on
+  // Laurel is members-out-of-scope (see CLAUDE.md), so seed `access: true` on
   // every route's root context. The dedicated `access` helper still handles
   // inline / block invocations and stays the canonical entry point.
   ctx.access = true;
   // Ghost sets `is_popup` only while rendering the subscribe iframe popup.
-  // Nectar has no popup iframe renderer, so keep the root context explicitly
+  // Laurel has no popup iframe renderer, so keep the root context explicitly
   // false instead of undefined. Themes such as Wave guard `.popup` classes
   // with `{{#if is_popup}}` and should deterministically take the static path.
   ctx.is_popup = false;
@@ -686,7 +686,7 @@ function defaultPaginationContext(): { page: number; pages: number; total: numbe
   return { page: 1, pages: 1, total: 0 };
 }
 
-export function buildRootData(engine: NectarEngine, route: RouteContext): Record<string, unknown> {
+export function buildRootData(engine: LaurelEngine, route: RouteContext): Record<string, unknown> {
   const base = rootDataBase(engine);
   const routeLocale = normalizeLocale(route.locale ?? engine.content.site.locale);
   const siteUrl = normalizeThemeSiteUrl(engine.content.site.url);
@@ -746,7 +746,7 @@ export function buildRootData(engine: NectarEngine, route: RouteContext): Record
   };
 }
 
-function rootDataBase(engine: NectarEngine): RootDataBase {
+function rootDataBase(engine: LaurelEngine): RootDataBase {
   const cached = rootDataBaseCache.get(engine);
   if (cached) return cached;
   const custom = buildCustom(engine);
@@ -760,7 +760,7 @@ function rootDataBase(engine: NectarEngine): RootDataBase {
   return resolved;
 }
 
-function cachedBodyClass(engine: NectarEngine, route: RouteContext): string {
+function cachedBodyClass(engine: LaurelEngine, route: RouteContext): string {
   let perEngine = bodyClassCache.get(engine);
   if (!perEngine) {
     perEngine = new WeakMap();
@@ -792,7 +792,7 @@ function adminUrl(siteUrl: string): string {
 // that probe `{{@member.email}}` see "missing" (Handlebars-empty) rather than
 // the literal string "undefined". Static builds never authenticate anyone, so
 // this is a designer-preview affordance, not a delivery gate.
-function buildPreviewMember(engine: NectarEngine): Member | undefined {
+function buildPreviewMember(engine: LaurelEngine): Member | undefined {
   const preview = engine.config.components?.preview;
   const member = preview?.member;
   if (!member) return undefined;
@@ -839,10 +839,10 @@ function normalizePreviewSubscription(subscription: {
 }
 
 // Ghost themes read `@config.posts_per_page` (flat keys from the theme's
-// `package.json` `config` block), not Nectar's nested `[build]` config. Source
+// `package.json` `config` block), not Laurel's nested `[build]` config. Source
 // theme's `{{#get "posts" limit=@config.posts_per_page}}` would silently fall
-// back to the helper's default if we exposed the raw NectarConfig here.
-function buildGhostConfig(engine: NectarEngine): Record<string, unknown> {
+// back to the helper's default if we exposed the raw LaurelConfig here.
+function buildGhostConfig(engine: LaurelEngine): Record<string, unknown> {
   return {
     posts_per_page: engine.theme.pkg.posts_per_page,
     image_sizes: engine.theme.pkg.image_sizes,
@@ -910,7 +910,7 @@ function normalizeThemeSiteUrl(url: string | undefined): string {
   return typeof url === 'string' ? url.replace(/\/+$/, '') : '';
 }
 
-function buildCustom(engine: NectarEngine): Record<string, unknown> {
+function buildCustom(engine: LaurelEngine): Record<string, unknown> {
   const cached = customDataCache.get(engine);
   if (cached) return cached;
   const merged = {
@@ -931,7 +931,7 @@ function buildLegacyLabs(site: ContentGraph['site']): Record<string, boolean> {
 }
 
 function resolveCustomImageValues(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   custom: Record<string, unknown>,
 ): Record<string, unknown> {
   const defs = engine.theme?.pkg?.custom ?? {};
@@ -950,14 +950,14 @@ function resolveCustomImageValues(
 }
 
 function resolveTextColorClass(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   custom: Record<string, unknown> = buildCustom(engine),
 ): TextColorClass {
   return textColorClassFor(resolveTextColorSource(engine, custom));
 }
 
 function resolveTextColorSource(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   custom: Record<string, unknown>,
 ): string | undefined {
   if (Object.prototype.hasOwnProperty.call(custom, 'site_background_color')) {
@@ -975,7 +975,7 @@ function pickString(value: unknown): string | undefined {
 }
 
 function computeBodyClass(route: RouteContext, textColorClass: TextColorClass): string {
-  const tokens = [`nectar-route-${route.kind}`, textColorClass];
+  const tokens = [`laurel-route-${route.kind}`, textColorClass];
   const paginationPage = route.data.pagination?.page ?? 1;
   // Ghost limits `home-template` to the actual home root (page 1 of the home
   // index). Paginated home archives switch to `paged` + `archive-template`

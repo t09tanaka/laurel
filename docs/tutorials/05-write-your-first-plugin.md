@@ -1,21 +1,21 @@
 # 5. Write your first plugin
 
-**Goal:** understand Nectar's extension model — what's wired today, what's
+**Goal:** understand Laurel's extension model — what's wired today, what's
 typed but not yet loaded — and add a concrete extension to your site.
 
 ---
 
-## How extension works in Nectar today
+## How extension works in Laurel today
 
 > **Status note.** The plugin runtime is wired: list modules under
-> `plugins = […]` in `nectar.toml` and Nectar will load and invoke them at
+> `plugins = […]` in `laurel.toml` and Laurel will load and invoke them at
 > the start of every build. Hook coverage is the full `Plugin` shape
-> exported from `nectar/plugin` (`beforeBuild`, `afterContentLoad`,
+> exported from `laurel/plugin` (`beforeBuild`, `afterContentLoad`,
 > `beforeRender`, `afterRender`, `afterEmit`, `routes`, `transformMarkdown`).
-> The legacy `NectarPlugin { setup }` shape still works as an alias so
+> The legacy `LaurelPlugin { setup }` shape still works as an alias so
 > older modules keep loading without changes. Set
 > `plugin_auto_detect = true` to also pick up packages named
-> `nectar-plugin-*` (or `@scope/nectar-plugin-*`) from `node_modules/`.
+> `laurel-plugin-*` (or `@scope/laurel-plugin-*`) from `node_modules/`.
 
 The five extension surfaces, ranked by how much code you touch:
 
@@ -35,16 +35,16 @@ This is the most "plugin-like" thing you can do today. You'll add a
 `{{word_count post}}` helper that themes can call. The pattern matches how
 all built-in Ghost helpers are registered.
 
-### Step 1 — Clone Nectar locally
+### Step 1 — Clone Laurel locally
 
 The helper registration lives in `src/render/helpers/`. To add one you
-fork Nectar, register your helper, and depend on your fork in your blog
+fork Laurel, register your helper, and depend on your fork in your blog
 project. (When the plugin runtime ships, this same code moves into a
 standalone module — see "Future-proofing" below.)
 
 ```bash
-git clone https://github.com/t09tanaka/nectar
-cd nectar
+git clone https://github.com/t09tanaka/laurel
+cd laurel
 bun install
 ```
 
@@ -53,14 +53,14 @@ bun install
 Create `src/render/helpers/word-count.ts`:
 
 ```ts
-import type { NectarHelper } from '~/plugin.ts';
+import type { LaurelHelper } from '~/plugin.ts';
 
 interface PostLike {
   html?: string;
   plaintext?: string;
 }
 
-export const wordCount: NectarHelper = function (this: unknown, post: unknown) {
+export const wordCount: LaurelHelper = function (this: unknown, post: unknown) {
   const p = (post ?? this) as PostLike;
   const text = p.plaintext ?? p.html?.replace(/<[^>]+>/g, '') ?? '';
   return text.trim().split(/\s+/).filter(Boolean).length;
@@ -133,23 +133,23 @@ the runtime ships.
 
 ### The shape
 
-From `nectar/types`:
+From `laurel/types`:
 
 ```ts
 export interface BuildContext {
   readonly cwd: string;
   readonly outputDir: string;
-  readonly config: NectarConfig;
+  readonly config: LaurelConfig;
   readonly content: ContentGraph;
   readonly theme: ThemeBundle;
 }
 
-export interface NectarPlugin {
+export interface LaurelPlugin {
   readonly name: string;
   setup?: (ctx: BuildContext) => void | Promise<void>;
 }
 
-export type NectarHelper = (this: unknown, ...args: unknown[]) => unknown;
+export type LaurelHelper = (this: unknown, ...args: unknown[]) => unknown;
 ```
 
 ### A worked example: a build-time reading-list emitter
@@ -158,9 +158,9 @@ export type NectarHelper = (this: unknown, ...args: unknown[]) => unknown;
 // plugins/reading-list.ts
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { NectarPlugin } from 'nectar/types';
+import type { LaurelPlugin } from 'laurel/types';
 
-export const readingListPlugin: NectarPlugin = {
+export const readingListPlugin: LaurelPlugin = {
   name: 'reading-list',
 
   async setup(ctx) {
@@ -179,10 +179,10 @@ export const readingListPlugin: NectarPlugin = {
 export default readingListPlugin;
 ```
 
-`bun add nectar` in your blog project, and the import path `nectar/types`
+`bun add laurel` in your blog project, and the import path `laurel/types`
 resolves to the published type definitions. The module type-checks today
 and will plug into the runtime when loader support ships — at which point
-you'll add to `nectar.toml`:
+you'll add to `laurel.toml`:
 
 ```toml
 # Not yet wired; pre-stage the config when you author plugins today.
@@ -277,7 +277,7 @@ so one bad plugin can't take the whole build down.
 
 ```ts
 // plugins/callout-shortcode.ts
-import type { Plugin } from 'nectar/plugin';
+import type { Plugin } from 'laurel/plugin';
 
 // Match block-form shortcodes like:
 //   {{<callout type="warn">}}
@@ -313,7 +313,7 @@ const calloutPlugin: Plugin = {
 export default calloutPlugin;
 ```
 
-Wire it from `nectar.toml`:
+Wire it from `laurel.toml`:
 
 ```toml
 plugins = ["./plugins/callout-shortcode.ts"]
@@ -335,7 +335,7 @@ Heads up: this is a warning. **Bold text** still works.
 Outro.
 ```
 
-After the next `bunx nectar build`, the rendered HTML contains a
+After the next `bunx laurel build`, the rendered HTML contains a
 `kg-callout-card kg-callout-card-warn` block your theme styles.
 
 ### Picking the right hook
@@ -383,9 +383,9 @@ describe('callout shortcode', () => {
 ## Verifying any extension
 
 ```bash
-bunx nectar check          # config / theme / content validation
-bunx nectar build --strict # fail the build on warnings
-bun test                   # run the test suite (if you forked Nectar)
+bunx laurel check          # config / theme / content validation
+bunx laurel build --strict # fail the build on warnings
+bun test                   # run the test suite (if you forked Laurel)
 ```
 
 If you added a helper but it shows up as literal text in the output, you
@@ -399,7 +399,7 @@ helper threw — re-run with `-VV` to see the trace.
 The plugin runtime is wired and the loader sequence is stable:
 
 1. Read `plugins = […]` (and optionally auto-detect
-   `nectar-plugin-*` packages) from `nectar.toml`.
+   `laurel-plugin-*` packages) from `laurel.toml`.
 2. Resolve each entry as a TypeScript / JavaScript module exporting a
    `Plugin` (or a `PluginFactory` returning one) via `default` or named
    `plugin` export.
@@ -410,6 +410,6 @@ The plugin runtime is wired and the loader sequence is stable:
    because of a buggy plugin).
 
 The published types are stable: `Plugin`, `BuildContext`,
-`MarkdownTransformContext`, `PluginRoute`, and `NectarHelper` live in
-`nectar/plugin`. The legacy `NectarPlugin { setup }` shape stays
+`MarkdownTransformContext`, `PluginRoute`, and `LaurelHelper` live in
+`laurel/plugin`. The legacy `LaurelPlugin { setup }` shape stays
 resolvable as an alias for `Plugin { beforeBuild }`.

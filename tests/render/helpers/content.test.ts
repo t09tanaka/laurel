@@ -1,37 +1,37 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
 import type { HelperDelegate, HelperOptions } from 'handlebars';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import { registerContentHelpers } from '~/render/helpers/content.ts';
 import { registerI18nHelpers } from '~/render/helpers/i18n.ts';
 
-function makeEngine(overrides: Partial<NectarEngine> = {}): NectarEngine {
+function makeEngine(overrides: Partial<LaurelEngine> = {}): LaurelEngine {
   const hb = Handlebars.create();
   return {
     hb,
-    config: {} as NectarEngine['config'],
-    content: {} as NectarEngine['content'],
-    theme: {} as NectarEngine['theme'],
+    config: {} as LaurelEngine['config'],
+    content: {} as LaurelEngine['content'],
+    theme: {} as LaurelEngine['theme'],
     templates: {},
     layouts: {},
     render() {
       throw new Error('not used');
     },
     ...overrides,
-  } as unknown as NectarEngine;
+  } as unknown as LaurelEngine;
 }
 
 function makeEngineWithComments(
   comments: Record<string, unknown>,
   siteUrl = 'https://example.com',
   build: Record<string, unknown> = {},
-): NectarEngine {
+): LaurelEngine {
   return makeEngine({
     config: {
       components: { comments },
       build,
-    } as unknown as NectarEngine['config'],
-    content: { site: { url: siteUrl } } as unknown as NectarEngine['content'],
+    } as unknown as LaurelEngine['config'],
+    content: { site: { url: siteUrl } } as unknown as LaurelEngine['content'],
   });
 }
 
@@ -72,18 +72,18 @@ describe('recommendations helper', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
     expect(engine.hb.compile('{{recommendations}}')({})).toBe(
-      '<ul class="recommendations" data-nectar-recommendations></ul>',
+      '<ul class="recommendations" data-laurel-recommendations></ul>',
     );
   });
 
-  test('renders configured recommendations from [[recommendations]] in nectar.toml', () => {
+  test('renders configured recommendations from [[recommendations]] in laurel.toml', () => {
     const engine = makeEngine({
       config: {
         recommendations: [
           { title: 'First', url: 'https://a.example', description: 'desc A' },
           { title: 'Second', url: 'https://b.example' },
         ],
-      } as unknown as NectarEngine['config'],
+      } as unknown as LaurelEngine['config'],
     });
     registerContentHelpers(engine);
     const html = engine.hb.compile('{{recommendations}}')({});
@@ -101,7 +101,7 @@ describe('recommendations helper', () => {
           title: `Site ${i}`,
           url: `https://${i}.example`,
         })),
-      } as unknown as NectarEngine['config'],
+      } as unknown as LaurelEngine['config'],
     });
     registerContentHelpers(engine);
     const html = engine.hb.compile('{{recommendations}}')({});
@@ -119,7 +119,7 @@ describe('recommendations helper', () => {
           title: `Site ${i}`,
           url: `https://${i}.example`,
         })),
-      } as unknown as NectarEngine['config'],
+      } as unknown as LaurelEngine['config'],
     });
     registerContentHelpers(engine);
     const html = engine.hb.compile('{{recommendations limit=0}}')({});
@@ -133,7 +133,7 @@ describe('recommendations helper', () => {
         recommendations: [
           { title: '<script>', url: 'https://x.example/?a=1&b=2', description: 'a & b' },
         ],
-      } as unknown as NectarEngine['config'],
+      } as unknown as LaurelEngine['config'],
     });
     registerContentHelpers(engine);
     const html = engine.hb.compile('{{recommendations}}')({});
@@ -151,10 +151,10 @@ describe('subscribe_form helper', () => {
     const html = engine.hb.compile('{{subscribe_form}}')({});
     expect(html).toContain('data-members-form="subscribe"');
     expect(html).toContain('data-members-email');
-    // The `data-nectar-subscribe` marker lets optional client-side scripts
+    // The `data-laurel-subscribe` marker lets optional client-side scripts
     // hook onto the form without disturbing the Ghost `data-members-form`
     // contract.
-    expect(html).toContain('data-nectar-subscribe');
+    expect(html).toContain('data-laurel-subscribe');
     expect(html).toContain('data-members-submit');
   });
 
@@ -230,8 +230,8 @@ describe('search helper', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
     const html = engine.hb.compile('{{search}}')({});
-    expect(html).toContain('<search class="nectar-search" data-nectar-search-root>');
-    expect(html).toContain('data-nectar-search-results');
+    expect(html).toContain('<search class="laurel-search" data-laurel-search-root>');
+    expect(html).toContain('data-laurel-search-results');
   });
 });
 
@@ -261,9 +261,9 @@ describe('content helper', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{{content}}}')({
-      html: '<h1 id="what-is-nectar">What is Nectar?</h1>',
+      html: '<h1 id="what-is-laurel">What is Laurel?</h1>',
     });
-    expect(out).toBe('<h2 id="what-is-nectar">What is Nectar?</h2>');
+    expect(out).toBe('<h2 id="what-is-laurel">What is Laurel?</h2>');
   });
 
   test('leaves h2 and deeper headings untouched so the outline does not skip levels', () => {
@@ -367,7 +367,7 @@ describe('content helper', () => {
         partials: {
           paywall: '<aside class="theme-paywall" data-vis="{{visibility}}">THEME CTA</aside>',
         },
-      } as unknown as NectarEngine['theme'],
+      } as unknown as LaurelEngine['theme'],
     });
     engine.hb.registerPartial(
       'paywall',
@@ -387,7 +387,7 @@ describe('content helper', () => {
 
   test('leaves the loader stub untouched when the theme has no paywall partial', () => {
     const engine = makeEngine({
-      theme: { partials: {} } as unknown as NectarEngine['theme'],
+      theme: { partials: {} } as unknown as LaurelEngine['theme'],
     });
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{{content}}}')({
@@ -481,7 +481,7 @@ describe('reading_time helper', () => {
 
   test('localizes default strings through the t helper when registered', () => {
     const engine = makeEngine({
-      content: { site: { locale: 'ja' } } as unknown as NectarEngine['content'],
+      content: { site: { locale: 'ja' } } as unknown as LaurelEngine['content'],
       theme: {
         locales: {
           ja: {
@@ -489,7 +489,7 @@ describe('reading_time helper', () => {
             '% min read': '%分で読めます',
           },
         },
-      } as unknown as NectarEngine['theme'],
+      } as unknown as LaurelEngine['theme'],
     });
     registerI18nHelpers(engine);
     registerContentHelpers(engine);
@@ -498,7 +498,7 @@ describe('reading_time helper', () => {
 
   test('falls back to Ghost default labels when nested t helper labels are empty', () => {
     const engine = makeEngine({
-      content: { site: { locale: 'en' } } as unknown as NectarEngine['content'],
+      content: { site: { locale: 'en' } } as unknown as LaurelEngine['content'],
       theme: {
         locales: {
           en: {
@@ -506,7 +506,7 @@ describe('reading_time helper', () => {
             '% min read': '',
           },
         },
-      } as unknown as NectarEngine['theme'],
+      } as unknown as LaurelEngine['theme'],
     });
     registerI18nHelpers(engine);
     registerContentHelpers(engine);
@@ -524,10 +524,10 @@ describe('meta_title helper pagination', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{meta_title page=" (Page %)"}}')(
-      { meta_title: 'Hello, Nectar', title: 'Hello, Nectar' },
+      { meta_title: 'Hello, Laurel', title: 'Hello, Laurel' },
       { data: { route: { kind: 'post' }, site: { title: 'Site' } } },
     );
-    expect(out).toBe('Hello, Nectar');
+    expect(out).toBe('Hello, Laurel');
   });
 
   test('static page route returns the explicit title without a page suffix', () => {
@@ -725,13 +725,13 @@ describe('meta_title helper pagination', () => {
   // integration is end-to-end rather than asserting on the helper alone.
   test('`{{meta_title page=(t " (Page %)")}}` resolves to the translated suffix (issue #869)', () => {
     const engine = makeEngine({
-      content: { site: { locale: 'ja' } } as unknown as NectarEngine['content'],
+      content: { site: { locale: 'ja' } } as unknown as LaurelEngine['content'],
       theme: {
         locales: {
           en: { ' (Page %)': ' (Page %)' },
           ja: { ' (Page %)': '（%ページ目）' },
         },
-      } as unknown as NectarEngine['theme'],
+      } as unknown as LaurelEngine['theme'],
     });
     registerContentHelpers(engine);
     // Hand-register a minimal `t` helper mirroring the production lookup so
@@ -819,7 +819,7 @@ describe('comments helper', () => {
       '<div id="ghost-comments-root" class="gh-comments" data-ghost-comments></div>',
     );
     expect(out).not.toContain('<script');
-    expect(out).not.toContain('data-nectar-comments');
+    expect(out).not.toContain('data-laurel-comments');
   });
 
   test('hash params are HTML-escaped when rendered as comments data attributes', () => {
@@ -888,7 +888,7 @@ describe('comments helper', () => {
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{comments}}')({});
     expect(out).toContain(
-      '<!-- nectar comments: giscus provider requires components.comments.repo -->',
+      '<!-- laurel comments: giscus provider requires components.comments.repo -->',
     );
     expect(out).not.toContain('giscus.app/client.js');
   });
@@ -924,7 +924,7 @@ describe('comments helper', () => {
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{comments}}')({});
     expect(out).toContain(
-      '<!-- nectar comments: utterances provider requires components.comments.repo -->',
+      '<!-- laurel comments: utterances provider requires components.comments.repo -->',
     );
   });
 
@@ -982,7 +982,7 @@ describe('comments helper', () => {
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{comments}}')({});
     expect(out).toContain(
-      '<!-- nectar comments: disqus provider requires components.comments.shortname -->',
+      '<!-- laurel comments: disqus provider requires components.comments.shortname -->',
     );
   });
 
@@ -1020,7 +1020,7 @@ describe('comments helper', () => {
     const out = engine.hb.compile('{{comments}}')({}, { data: { route: { url: '/post/' } } });
     expect(out).toContain('class="webmentions"');
     expect(out).toContain('data-ghost-comments');
-    expect(out).toContain('data-nectar-webmentions');
+    expect(out).toContain('data-laurel-webmentions');
     expect(out).toContain('data-target="https://example.com/post/"');
     expect(out).toContain('data-username="me.example.com"');
   });
@@ -1192,10 +1192,10 @@ describe('authors helper', () => {
 
   test('supports Liebling-style translated prefix with string from= hash', () => {
     const engine = makeEngine({
-      content: { site: { locale: 'en' } } as unknown as NectarEngine['content'],
+      content: { site: { locale: 'en' } } as unknown as LaurelEngine['content'],
       theme: {
         locales: { en: { 'Among with...': 'Among with ' } },
-      } as unknown as NectarEngine['theme'],
+      } as unknown as LaurelEngine['theme'],
     });
     registerI18nHelpers(engine);
     registerContentHelpers(engine);
@@ -1269,7 +1269,7 @@ describe('authors helper', () => {
   test('visibility="public" mirrors the tags helper: keeps authors without an explicit visibility', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
-    // Nectar's loader does not stamp visibility on authors today, so the
+    // Laurel's loader does not stamp visibility on authors today, so the
     // default `public` filter must accept missing fields rather than wipe the
     // list — same convention as tags.
     const out = engine.hb.compile('{{authors visibility="public" autolink=false}}')({
@@ -1589,7 +1589,7 @@ describe('body_class helper', () => {
     const engine = makeEngine();
     registerContentHelpers(engine);
     const out = engine.hb.compile('{{body_class}}')({}, { data: { route: { kind: 'post' } } });
-    expect(out).toBe('nectar-route-post');
+    expect(out).toBe('laurel-route-post');
   });
 
   test('ctx.body_class overrides the route-kind default', () => {
@@ -1610,7 +1610,7 @@ describe('body_class helper', () => {
       { data: { route: { kind: 'post' } } },
     );
     const tokens = out.split(' ');
-    expect(tokens).toContain('nectar-route-post');
+    expect(tokens).toContain('laurel-route-post');
     expect(tokens).toContain('tag-news');
     expect(tokens).toContain('tag-sport');
   });

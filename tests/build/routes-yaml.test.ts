@@ -18,12 +18,12 @@ async function makeTmp(prefix: string): Promise<string> {
 
 describe('loadRoutesYaml', () => {
   test('returns an empty config when neither routes.yaml nor routes.yml exists', async () => {
-    const cwd = await makeTmp('nectar-ry-missing-');
+    const cwd = await makeTmp('laurel-ry-missing-');
     expect(await loadRoutesYaml(cwd)).toEqual(emptyRoutesYaml());
   });
 
   test('parses routes / collections / taxonomies sections', async () => {
-    const cwd = await makeTmp('nectar-ry-full-');
+    const cwd = await makeTmp('laurel-ry-full-');
     await writeFile(
       join(cwd, 'routes.yaml'),
       [
@@ -72,14 +72,14 @@ describe('loadRoutesYaml', () => {
   });
 
   test('accepts routes.yml as a fallback extension', async () => {
-    const cwd = await makeTmp('nectar-ry-yml-');
+    const cwd = await makeTmp('laurel-ry-yml-');
     await writeFile(join(cwd, 'routes.yml'), 'routes:\n  /featured/: featured\n');
     const yaml = await loadRoutesYaml(cwd);
     expect(yaml.routes['/featured/']).toBe('featured');
   });
 
   test('prefers routes.yaml over routes.yml when both exist', async () => {
-    const cwd = await makeTmp('nectar-ry-both-');
+    const cwd = await makeTmp('laurel-ry-both-');
     await writeFile(join(cwd, 'routes.yaml'), 'routes:\n  /a/: from-yaml\n');
     await writeFile(join(cwd, 'routes.yml'), 'routes:\n  /a/: from-yml\n');
     const yaml = await loadRoutesYaml(cwd);
@@ -87,56 +87,56 @@ describe('loadRoutesYaml', () => {
   });
 
   test('treats an empty or comment-only file as an empty config', async () => {
-    const cwd = await makeTmp('nectar-ry-empty-');
+    const cwd = await makeTmp('laurel-ry-empty-');
     await writeFile(join(cwd, 'routes.yaml'), '# nothing yet\n');
     expect(await loadRoutesYaml(cwd)).toEqual(emptyRoutesYaml());
   });
 
   test('wraps malformed YAML errors with the filename', async () => {
-    const cwd = await makeTmp('nectar-ry-bad-yaml-');
+    const cwd = await makeTmp('laurel-ry-bad-yaml-');
     await writeFile(join(cwd, 'routes.yaml'), 'routes:\n  /x/: : :\n');
     await expect(loadRoutesYaml(cwd)).rejects.toThrow(/routes\.yaml/);
   });
 
   test('rejects unknown top-level keys', async () => {
-    const cwd = await makeTmp('nectar-ry-unknown-key-');
+    const cwd = await makeTmp('laurel-ry-unknown-key-');
     await writeFile(join(cwd, 'routes.yaml'), 'whatever:\n  foo: bar\n');
     await expect(loadRoutesYaml(cwd)).rejects.toThrow(/Invalid routes\.yaml/);
   });
 
   test('rejects route entries missing a template field', async () => {
-    const cwd = await makeTmp('nectar-ry-no-tpl-');
+    const cwd = await makeTmp('laurel-ry-no-tpl-');
     await writeFile(join(cwd, 'routes.yaml'), 'routes:\n  /x/:\n    content_type: html\n');
     await expect(loadRoutesYaml(cwd)).rejects.toThrow(/Invalid routes\.yaml/);
   });
 
   test('rejects taxonomy permalinks that do not start with /', async () => {
-    const cwd = await makeTmp('nectar-ry-tax-bad-');
+    const cwd = await makeTmp('laurel-ry-tax-bad-');
     await writeFile(join(cwd, 'routes.yaml'), 'taxonomies:\n  tag: tag/{slug}/\n');
     await expect(loadRoutesYaml(cwd)).rejects.toThrow(/Invalid routes\.yaml/);
   });
 
   test('rejects taxonomy permalinks that do not end with /', async () => {
-    const cwd = await makeTmp('nectar-ry-tax-noslash-');
+    const cwd = await makeTmp('laurel-ry-tax-noslash-');
     await writeFile(join(cwd, 'routes.yaml'), 'taxonomies:\n  tag: /tag/{slug}\n');
     await expect(loadRoutesYaml(cwd)).rejects.toThrow(/Invalid routes\.yaml/);
   });
 
   test('rejects taxonomy permalinks missing the {slug} placeholder', async () => {
-    const cwd = await makeTmp('nectar-ry-tax-noslug-');
+    const cwd = await makeTmp('laurel-ry-tax-noslug-');
     await writeFile(join(cwd, 'routes.yaml'), 'taxonomies:\n  tag: /tag/all/\n');
     await expect(loadRoutesYaml(cwd)).rejects.toThrow(/Invalid routes\.yaml/);
   });
 
   test('accepts null as a taxonomy value to mean "disabled"', async () => {
-    const cwd = await makeTmp('nectar-ry-tax-null-');
+    const cwd = await makeTmp('laurel-ry-tax-null-');
     await writeFile(join(cwd, 'routes.yaml'), 'taxonomies:\n  tag: ~\n  author: /author/{slug}/\n');
     const yaml = await loadRoutesYaml(cwd);
     expect(yaml.taxonomies).toEqual({ tag: null, author: '/author/{slug}/' });
   });
 
   test('rejects unsupported content_type values', async () => {
-    const cwd = await makeTmp('nectar-ry-bad-ct-');
+    const cwd = await makeTmp('laurel-ry-bad-ct-');
     await writeFile(
       join(cwd, 'routes.yaml'),
       'routes:\n  /x/:\n    template: x\n    content_type: pdf\n',

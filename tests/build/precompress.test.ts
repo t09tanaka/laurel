@@ -7,7 +7,7 @@ import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 import { precompressOutput } from '~/build/precompress.ts';
 
 async function makeTempOutputDir(): Promise<string> {
-  return await mkdtemp(join(tmpdir(), 'nectar-precompress-'));
+  return await mkdtemp(join(tmpdir(), 'laurel-precompress-'));
 }
 
 // A 1 KiB string sits comfortably above the 256 B floor, well past the point

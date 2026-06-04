@@ -1,12 +1,12 @@
-# Members in Nectar
+# Members in Laurel
 
-Nectar is a **static site generator**. It has no user database, no session
+Laurel is a **static site generator**. It has no user database, no session
 cookies, no payment integration, and no server runtime that could issue or
 validate a JWT. Anything Ghost's "Members" feature does *server-side* —
 authentication, paywalls keyed to identity, paid-tier checks, account
 management — does not exist here and cannot.
 
-What Nectar *does* support is the **UI surface** Ghost themes expect when they
+What Laurel *does* support is the **UI surface** Ghost themes expect when they
 branch on members-related flags. If you wire an external membership / newsletter
 provider for the dynamic parts, themes like Source render cleanly without HTML
 edits.
@@ -14,7 +14,7 @@ edits.
 This document covers:
 
 1. [Migration paths off Ghost members](#1-migration-paths-off-ghost-members)
-2. [What the Nectar members surface actually exposes](#2-what-the-nectar-members-surface-actually-exposes)
+2. [What the Laurel members surface actually exposes](#2-what-the-laurel-members-surface-actually-exposes)
 3. [How the portal adapter rewrites buttons and forms](#3-how-the-portal-adapter-rewrites-buttons-and-forms)
 4. [Wiring examples per provider](#4-wiring-examples-per-provider)
 5. [Member analytics and dashboards](#5-member-analytics-and-dashboards)
@@ -31,13 +31,13 @@ build time), see [`docs/config.md` § `content`](./config.md#content).
 ## 1. Migration paths off Ghost members
 
 Ghost couples three things into one product: content authoring, a Members
-database, and a Portal UI. Migrating to Nectar splits those out:
+database, and a Portal UI. Migrating to Laurel splits those out:
 
-| Ghost component                       | Where it goes in Nectar                                                            |
+| Ghost component                       | Where it goes in Laurel                                                            |
 |---------------------------------------|------------------------------------------------------------------------------------|
-| Posts / pages / tags / authors        | `content/**/*.md` via `nectar import-ghost` (see [`docs/migration/ghost.md`](./migration/ghost.md)). |
+| Posts / pages / tags / authors        | `content/**/*.md` via `laurel import-ghost` (see [`docs/migration/ghost.md`](./migration/ghost.md)). |
 | Members database (emails, tiers)      | Export from Ghost Admin → import into your newsletter / membership provider.       |
-| Portal UI (sign in, subscribe modals) | Provider's hosted form / embed, gated by `[components.portal]` in `nectar.toml`.    |
+| Portal UI (sign in, subscribe modals) | Provider's hosted form / embed, gated by `[components.portal]` in `laurel.toml`.    |
 | Paid-only / members-only posts        | Build-time paywall: body truncated, stub CTA emitted. See `[content].visibility_policy`. |
 
 ### Picking a provider
@@ -57,19 +57,19 @@ names differ — check the provider's import docs.
 
 > **What about self-hosting members?**
 > If you want to run your own member database, you are no longer in
-> "static site" territory: you need a server. Nectar will happily render the
+> "static site" territory: you need a server. Laurel will happily render the
 > public surface, but the auth / subscribe API is yours to build and host
 > elsewhere. The `provider = "custom"` mode (below) is the integration point.
 
 ---
 
-## 2. What the Nectar members surface actually exposes
+## 2. What the Laurel members surface actually exposes
 
 ### `@site.members_enabled`, `@site.paid_members_enabled`, `@site.members_invite_only`
 
 These three flags drive every Source-style theme's "should I show the sign-in
 button / subscribe CTA / upgrade pill" decision. They are *derived from
-`[components.portal]`* in `nectar.toml`:
+`[components.portal]`* in `laurel.toml`:
 
 | Config                                                | `@site.members_enabled` | `@site.paid_members_enabled` | `@site.members_invite_only` |
 |-------------------------------------------------------|-------------------------|------------------------------|------------------------------|
@@ -111,7 +111,7 @@ member context.
 
 The practical fallout for Source-style themes:
 
-| Template idiom                              | Result in Nectar                                                                                  |
+| Template idiom                              | Result in Laurel                                                                                  |
 |---------------------------------------------|---------------------------------------------------------------------------------------------------|
 | `{{#unless @member}} … {{/unless}}`         | Always renders the body (the visitor is never a member).                                          |
 | `{{#if @member}} … {{/if}}`                 | Never renders the body.                                                                           |
@@ -123,7 +123,7 @@ Templates that read `@member.*` won't crash, but they also won't render
 anything useful per-visitor.
 
 Themes that need to greet a logged-in user (`Welcome back, {{@member.name}}`)
-can't get that data from Nectar. You have two options:
+can't get that data from Laurel. You have two options:
 
 - Hide the personalised block server-side: edit the theme to drop the greeting.
 - Hide it client-side: keep the greeting in markup, then have your provider's
@@ -142,7 +142,7 @@ builds:
 {{#access}}
   This shows to logged-in members in Ghost.
 {{else}}
-  This shows to everyone in Nectar.
+  This shows to everyone in Laurel.
 {{/access}}
 
 {{!-- unless: always renders the body --}}
@@ -154,7 +154,7 @@ builds:
 The practical implication: Ghost themes that hide content behind
 `{{#access}}...{{/access}}` will show the **`{{else}}` branch only**. If a
 theme uses `{{#unless access}}` to render a "subscribe to read more" CTA, that
-CTA will render on every page in Nectar. That is intentional — the static page
+CTA will render on every page in Laurel. That is intentional — the static page
 cannot prove the visitor has access, so the safe default is "treat everyone as
 public, surface the upsell".
 
@@ -172,7 +172,7 @@ your provider's snippet:
 
 | Helper                     | Output                                                                                   |
 |----------------------------|------------------------------------------------------------------------------------------|
-| `{{comments}}`             | `<div data-nectar-comments></div>` — wire Giscus / Disqus / Utterances here.             |
+| `{{comments}}`             | `<div data-laurel-comments></div>` — wire Giscus / Disqus / Utterances here.             |
 | `{{subscribe_form}}`       | `<form data-members-form="subscribe" action="#"><input data-members-email …></form>`     |
 | `{{input_email …}}`        | `<input data-members-email type="email" required …>` (just the input).                   |
 
@@ -182,13 +182,13 @@ or a small `assets/js/*.js` shim.
 Themes may also ship the same hooks by hand. Dawn's `partials/cover.hbs`, for
 example, includes a hand-written `data-members-form` / `data-members-email`
 subscribe form with `data-members-success` and `data-members-error` message
-elements. Nectar preserves that HTML shape as static markup, but it does not
+elements. Laurel preserves that HTML shape as static markup, but it does not
 ship Ghost's members runtime JavaScript. Without a configured
 `[components.subscribe]` provider or your own JS handler, the form remains
 inert.
 
 If you have a public form endpoint configured through `[components.subscribe]`
-but do not load the provider's JavaScript, opt into Nectar's small inline
+but do not load the provider's JavaScript, opt into Laurel's small inline
 submit handler:
 
 ```toml
@@ -206,26 +206,26 @@ submission behavior unless you explicitly opt in.
 
 ## 3. How the portal adapter rewrites buttons and forms
 
-When `@site.members_enabled` is true, Nectar emits a small static runtime at
-`assets/nectar-portal.js` and injects it through `{{ghost_foot}}`. It listens
+When `@site.members_enabled` is true, Laurel emits a small static runtime at
+`assets/laurel-portal.js` and injects it through `{{ghost_foot}}`. It listens
 for `[data-portal]` clicks so Ghost themes do not ship visible buttons that are
 silent no-ops. The runtime uses the same URLs resolved from
 `[components.portal]` as the build-time portal adapter; actions without a real
 provider URL are documented stubs that log a browser-console warning.
 
-Nectar also keeps the no-JavaScript path for things it can resolve at build
+Laurel also keeps the no-JavaScript path for things it can resolve at build
 time: `src/build/portal-shim.ts` rewrites configured signup/signin/account/
 upgrade buttons to anchors, and rewrites Source theme's recommendations button
 to the generated `/recommendations/#all-recommendations` page.
 
 The full picture:
 
-| `data-portal` value | Source theme uses it for      | Nectar behaviour                                                                                  |
+| `data-portal` value | Source theme uses it for      | Laurel behaviour                                                                                  |
 |---------------------|-------------------------------|---------------------------------------------------------------------------------------------------|
 | `recommendations`   | Sidebar "See all" button      | Rewritten to `/recommendations/#all-recommendations` when recommendations are configured; otherwise the runtime warns. |
 | `signin`            | Header "Sign in" button       | Opens the configured/inferred sign-in URL when available; otherwise the runtime warns.            |
 | `signup` / `subscribe` | Sidebar Subscribe CTA      | Opens the configured/inferred signup URL when available; otherwise the runtime warns.             |
-| `upgrade`           | Paid-only Upgrade button      | Opens `upgrade_url` when configured; otherwise the runtime warns because Nectar has no checkout backend. |
+| `upgrade`           | Paid-only Upgrade button      | Opens `upgrade_url` when configured; otherwise the runtime warns because Laurel has no checkout backend. |
 | `account`           | Footer "Account" link         | Opens the configured/inferred account URL when available; otherwise the runtime warns.            |
 
 Anchors using `href="#/portal/signin"`, `href="#/portal/signup"`, etc., are
@@ -234,7 +234,7 @@ script has already supplied a normal non-Portal `href`, the runtime leaves the
 browser's default navigation alone.
 
 `{{subscribe_form}}`, `{{input_email}}`, and hand-written Dawn-style subscribe
-forms emit `data-members-form` / `data-members-email` attributes. Nectar's
+forms emit `data-members-form` / `data-members-email` attributes. Laurel's
 existing subscribe-form transform only targets those explicit hooks:
 
 | `[components.subscribe].provider` | Behaviour |
@@ -244,16 +244,16 @@ existing subscribe-form transform only targets those explicit hooks:
 | `listmonk`                             | Patch the form `action`, email/name fields, and inject `l` hidden fields from `list_id` / `list_ids`. |
 | `customformaction` / `custom`          | Patch the form `action` and optional field mapping you configure. |
 
-When Nectar rewrites a members form to a real provider action, it also injects
+When Laurel rewrites a members form to a real provider action, it also injects
 a hidden honeypot input named `website` with `tabindex="-1"` and
 `autocomplete="off"`. Buttondown, Beehiiv, and the other built-in providers
 keep their normal email/name field names. For `customformaction` and `custom`,
 your server-side endpoint should treat a non-empty `website` value as spam and
-reject or silently drop the submission. Nectar skips the injection when a form
+reject or silently drop the submission. Laurel skips the injection when a form
 already contains an input named `website`, so theme authors can provide their
 own equivalent field without duplication.
 
-Nectar does not rewrite arbitrary forms that lack these members-form markers,
+Laurel does not rewrite arbitrary forms that lack these members-form markers,
 and it does not implement Ghost's runtime success / error state machine unless
 `[components.portal].inline_submit = true` is set. Without that opt-in,
 `data-members-success` and `data-members-error` are static presentation hooks
@@ -267,7 +267,7 @@ plus `list_id` / `list_ids`, or a `customformaction` / `custom` `action`. If a
 provider workflow needs an API key, keep it behind the configured server-side
 form action instead of shipping it in the static site.
 
-The runtime dispatches a cancelable `nectar:portal` event before taking its
+The runtime dispatches a cancelable `laurel:portal` event before taking its
 fallback action. Custom provider code can listen for that event, call
 `preventDefault()`, and run its own modal or checkout flow without forking the
 theme markup.
@@ -279,13 +279,13 @@ theme markup.
 All examples assume a Source-derived theme. They use
 `[site].codeinjection_head` (or `codeinjection_foot`) to ship the provider's
 snippet without forking the theme. Set
-`build.allow_code_injection = true` in `nectar.toml` to enable code injection;
+`build.allow_code_injection = true` in `laurel.toml` to enable code injection;
 see [`docs/security/threat-model.md`](./security/threat-model.md) for the
 trust implications.
 
 ### 4.1 Buttondown
 
-`nectar.toml`:
+`laurel.toml`:
 
 ```toml
 [components.subscribe]
@@ -299,7 +299,7 @@ paid = false
 invite_only = false
 ```
 
-Nectar rewrites `data-members-form` to Buttondown's browser-safe embed
+Laurel rewrites `data-members-form` to Buttondown's browser-safe embed
 endpoint. No environment variables or API keys are required; keep Buttondown
 API keys in Buttondown or behind your own server-side proxy.
 
@@ -327,7 +327,7 @@ provider = "convertkit"
 form_id = "<your-form-id>"
 ```
 
-Nectar posts to Kit's hosted form endpoint and uses `email_address` plus
+Laurel posts to Kit's hosted form endpoint and uses `email_address` plus
 `fields[first_name]` by default. No Kit API key is read from environment
 variables.
 
@@ -339,7 +339,7 @@ provider = "mailchimp"
 action = "https://example.us1.list-manage.com/subscribe/post?u=...&id=..."
 ```
 
-Paste the public embedded-form action URL from Mailchimp. Nectar does not need
+Paste the public embedded-form action URL from Mailchimp. Laurel does not need
 or read a Mailchimp API key.
 
 ### 4.5 MailerLite
@@ -350,7 +350,7 @@ provider = "mailerlite"
 action = "https://app.mailerlite.com/webforms/submit/<form-code>"
 ```
 
-Paste the public action URL from MailerLite's embedded form HTML. Nectar maps
+Paste the public action URL from MailerLite's embedded form HTML. Laurel maps
 the email input to `fields[email]`, the optional name input to `fields[name]`,
 and includes MailerLite's `ml-submit=1` hidden field.
 
@@ -362,7 +362,7 @@ provider = "emailoctopus"
 list_id = "<your-list-id>"
 ```
 
-Nectar builds EmailOctopus' embedded form endpoint from `list_id` and maps the
+Laurel builds EmailOctopus' embedded form endpoint from `list_id` and maps the
 email input to `field_0`. If you prefer to paste the full embed action, set
 `action` instead.
 
@@ -375,7 +375,7 @@ action = "https://lists.example.com/api/public/subscription"
 list_id = "<public-list-uuid>"
 ```
 
-For multiple lists, use `list_ids = ["<uuid-a>", "<uuid-b>"]`. Nectar submits
+For multiple lists, use `list_ids = ["<uuid-a>", "<uuid-b>"]`. Laurel submits
 the list UUIDs as repeated `l` hidden fields to listmonk's public subscription
 endpoint, so no listmonk API token is required in the static build.
 
@@ -389,7 +389,7 @@ field_map = { email = "subscriber_email", name = "subscriber_name" }
 ```
 
 Use this when a provider gives you a public HTML form endpoint or when your
-own serverless function owns the secrets. Nectar only rewrites the static
+own serverless function owns the secrets. Laurel only rewrites the static
 form; any required API keys stay outside the generated site.
 
 ### 4.9 Substack
@@ -434,8 +434,8 @@ untouched; Ghost's Portal script binds them at load.
 ## 5. Member analytics and dashboards
 
 Ghost ships `/ghost/#/dashboard` with live member growth, MRR, subscription,
-and newsletter engagement charts. Nectar does not provide an equivalent
-built-in member analytics dashboard because Nectar emits static files: there
+and newsletter engagement charts. Laurel does not provide an equivalent
+built-in member analytics dashboard because Laurel emits static files: there
 is no database, event stream, email sender, checkout system, or authenticated
 admin runtime for it to query after deploy.
 
@@ -449,7 +449,7 @@ membership provider instead:
 | Substack | Substack dashboard for subscribers, subscriptions, posts, opens, clicks, and revenue. |
 | Custom / self-hosted | Your own member backend, payment provider, ESP, or product analytics stack. |
 
-Nectar can still emit normal web analytics snippets through
+Laurel can still emit normal web analytics snippets through
 [`components.analytics`](./config.md#componentsanalytics), but those track page
 views on the public static site. They do not replace ESP-side subscriber
 counts, MRR, open rates, paid-tier churn, or per-email campaign reporting.
@@ -458,7 +458,7 @@ counts, MRR, open rates, paid-tier churn, or per-email campaign reporting.
 
 ## 6. Known parity gaps
 
-Nectar matches Ghost's members **shape** but not its **behaviour**. The
+Laurel matches Ghost's members **shape** but not its **behaviour**. The
 following do not work, and there is no plan to make them work without a
 server:
 
@@ -468,7 +468,7 @@ server:
 - **No tier checks.** A post with `visibility: paid` is truncated for
   *everyone*. The static page cannot test "did this visitor pay" — that's a
   server query. If your provider supports JS-side gating, you can re-reveal
-  the body client-side after auth; Nectar does not ship that runtime.
+  the body client-side after auth; Laurel does not ship that runtime.
 - **No built-in sign-in / account / upgrade pages.** The static runtime can
   route `#/portal/signin`, `#/portal/account`, and `#/portal/upgrade` clicks
   to configured provider URLs, but it does not implement Ghost's account UI.
@@ -479,12 +479,12 @@ server:
   identity. Use frontmatter `visibility` for content gating (truncates the
   body at build time) instead.
 - **No paywall reveal after payment.** Buttondown / Beehiiv / Substack handle
-  payment on their own hosted pages. Nectar's paywall stub
+  payment on their own hosted pages. Laurel's paywall stub
   (`<div class="gh-paywall-stub">…</div>`) is a static CTA, not a reveal.
 - **No comments tied to membership.** `{{comments}}` is an empty stable hook.
   Wire Giscus / Disqus / Utterances client-side; none of them check Ghost
   member identity.
-- **No built-in member analytics dashboard.** Nectar's static output cannot
+- **No built-in member analytics dashboard.** Laurel's static output cannot
   reproduce Ghost's live `/ghost/#/dashboard` member growth, MRR, or open-rate
   charts. Use your ESP / hosted newsletter provider dashboard instead.
 - **Newsletter sending is out of scope.** Ghost's email newsletter feature
@@ -494,14 +494,14 @@ server:
 
 If you need any of the above on the static side itself, you are likely
 better served by running Ghost or a Ghost-compatible backend in parallel and
-using Nectar only for the public reading surface.
+using Laurel only for the public reading surface.
 
 ---
 
 ## 7. Sending newsletters after a build
 
 Ghost can emit webhooks such as `post.published` from Admin because Ghost owns
-the database and publishing event. Nectar's equivalent lifecycle point is build
+the database and publishing event. Laurel's equivalent lifecycle point is build
 completion: Markdown has rendered, assets and manifests are on disk, and the
 output directory is ready for deploy or follow-up automation.
 
@@ -513,17 +513,17 @@ post_build = "./scripts/newsletter-send.sh"
 ```
 
 The command runs from the project root after a successful non-dry-run build.
-Nectar sets `NECTAR_OUTPUT_DIR` to the final output directory, so the script can
-inspect emitted HTML, feeds, or `.nectar/manifest.json` before deciding
+Laurel sets `LAUREL_OUTPUT_DIR` to the final output directory, so the script can
+inspect emitted HTML, feeds, or `.laurel/manifest.json` before deciding
 what to send.
 
-If your active theme includes a root `email.hbs` or `email-template.hbs`, Nectar
+If your active theme includes a root `email.hbs` or `email-template.hbs`, Laurel
 keeps that file out of normal web route planning and exposes it only for
 newsletter rendering. Generate a provider-ready HTML file for a single post
 with:
 
 ```bash
-nectar build:email --post=weekly-update
+laurel build:email --post=weekly-update
 ```
 
 The output is written to `dist/email/weekly-update.html` by default. Review or
@@ -531,7 +531,7 @@ inline CSS as needed, then hand that HTML to your sender. For Postmark, Resend,
 or Amazon SES, keep credentials and API calls in your own script, for example:
 
 ```bash
-nectar build:email --post=weekly-update
+laurel build:email --post=weekly-update
 bun run newsletter-send -- dist/email/weekly-update.html
 ```
 
@@ -543,6 +543,6 @@ own command and call it from the hook:
 post_build = "bun run newsletter-send"
 ```
 
-That keeps content publication explicit in CI: `nectar build` produces the
+That keeps content publication explicit in CI: `laurel build` produces the
 site, then `newsletter-send` can publish through Buttondown, Beehiiv, Substack,
 or a custom members backend using the freshly built artifacts.

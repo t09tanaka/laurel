@@ -1,6 +1,6 @@
 import { describe, expect, spyOn, test } from 'bun:test';
 import Handlebars from 'handlebars';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import { registerBlockHelpers } from '~/render/helpers/blocks.ts';
 import { registerUrlHelpers } from '~/render/helpers/urls.ts';
 import { logger } from '~/util/logger.ts';
@@ -12,11 +12,11 @@ function buildEngine(content: {
   pages?: unknown[];
   tiers?: unknown[];
   postsByAuthor?: Map<string, unknown[]>;
-}): NectarEngine {
+}): LaurelEngine {
   const hb = Handlebars.create();
   const engine = {
     hb,
-    config: {} as NectarEngine['config'],
+    config: {} as LaurelEngine['config'],
     content: {
       site: { url: 'https://example.com' },
       posts: content.posts ?? [],
@@ -25,13 +25,13 @@ function buildEngine(content: {
       pages: content.pages ?? [],
       tiers: content.tiers ?? [],
       postsByAuthor: content.postsByAuthor ?? new Map<string, unknown[]>(),
-    } as unknown as NectarEngine['content'],
-    theme: {} as NectarEngine['theme'],
+    } as unknown as LaurelEngine['content'],
+    theme: {} as LaurelEngine['theme'],
     templates: {},
     layouts: {},
     sortedCache: new Map<string, readonly unknown[]>(),
     render: () => '',
-  } as NectarEngine;
+  } as LaurelEngine;
   registerBlockHelpers(engine);
   registerUrlHelpers(engine);
   return engine;

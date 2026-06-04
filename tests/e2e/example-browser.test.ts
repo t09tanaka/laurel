@@ -6,7 +6,7 @@ import { build } from '~/build/pipeline.ts';
 
 const cwd = join(process.cwd(), 'example');
 const distRoot = join(cwd, 'dist');
-const routes = ['/', '/hello-nectar/', '/about/', '/tag/news/', '/author/casper/', '/page/2/'];
+const routes = ['/', '/hello-laurel/', '/about/', '/tag/news/', '/author/casper/', '/page/2/'];
 const BROWSER_SMOKE_TIMEOUT_MS = 60_000;
 
 let server: ReturnType<typeof Bun.serve> | undefined;

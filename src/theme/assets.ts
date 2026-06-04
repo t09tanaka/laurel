@@ -7,7 +7,7 @@ import { logger } from '~/util/logger.ts';
 import type { ThemeAsset } from './types.ts';
 
 interface LoadThemeAssetsOptions {
-  // Directory (typically `<cwd>/.nectar/cache`) where the asset fingerprint
+  // Directory (typically `<cwd>/.laurel/cache`) where the asset fingerprint
   // cache lives. When unset, caching is disabled and every asset is re-hashed
   // (useful for tests that work in throwaway temp dirs).
   cacheDir?: string;

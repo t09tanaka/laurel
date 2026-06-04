@@ -1,12 +1,12 @@
-import { formatNectarError, isNectarError } from '~/util/errors.ts';
+import { formatLaurelError, isLaurelError } from '~/util/errors.ts';
 import { getOutputMode, logger } from '~/util/logger.ts';
 
 // Centralised error renderer for CLI commands. Three modes:
-//   1. json (NECTAR_JSON=1 / --json): one JSON object on stderr via
+//   1. json (LAUREL_JSON=1 / --json): one JSON object on stderr via
 //      logger.error, so machine consumers can `jq` it. Includes the
 //      structured fields ({ file, line, col, hint, docsUrl, code }) when
-//      they're present on a NectarError.
-//   2. text + NECTAR_DEBUG=1 / --debug: print the full stack so library
+//      they're present on a LaurelError.
+//   2. text + LAUREL_DEBUG=1 / --debug: print the full stack so library
 //      authors / contributors can pinpoint the throw site.
 //   3. text default: print a short pointer line (`---- file:line - msg`)
 //      with optional `hint:` / `docs:` follow-up lines. No stack trace,
@@ -22,8 +22,8 @@ export function reportError(err: unknown, cwd: string = process.cwd()): void {
     return;
   }
 
-  if (isNectarError(err)) {
-    logger.error(formatNectarError(err, { cwd }));
+  if (isLaurelError(err)) {
+    logger.error(formatLaurelError(err, { cwd }));
     if (debug && err.stack) {
       logger.error(err.stack);
     }
@@ -41,7 +41,7 @@ export function reportError(err: unknown, cwd: string = process.cwd()): void {
 }
 
 function isDebugMode(): boolean {
-  const raw = process.env.NECTAR_DEBUG;
+  const raw = process.env.LAUREL_DEBUG;
   if (raw === undefined || raw === '') return false;
   return /^(1|true|yes|on)$/i.test(raw.trim());
 }
@@ -64,7 +64,7 @@ interface SerialisedError {
 }
 
 function serialiseError(err: unknown, opts: SerialiseOpts): SerialisedError {
-  if (isNectarError(err)) {
+  if (isLaurelError(err)) {
     const out: SerialisedError = {
       name: err.name,
       message: err.message,

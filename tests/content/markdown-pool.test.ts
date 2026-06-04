@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { createMarkdownPool } from '~/content/markdown-pool.ts';
 import { renderMarkdown } from '~/content/markdown.ts';
 
-const originalEnv = process.env.NECTAR_NO_WORKERS;
+const originalEnv = process.env.LAUREL_NO_WORKERS;
 
 afterEach(() => {
   if (originalEnv === undefined) {
-    process.env.NECTAR_NO_WORKERS = undefined;
+    process.env.LAUREL_NO_WORKERS = undefined;
   } else {
-    process.env.NECTAR_NO_WORKERS = originalEnv;
+    process.env.LAUREL_NO_WORKERS = originalEnv;
   }
 });
 
@@ -16,7 +16,7 @@ describe('createMarkdownPool — in-process mode', () => {
   beforeEach(() => {
     // Small estimatedJobs already routes through in-process, but force it via
     // env too so the assertion holds regardless of how the threshold tunes.
-    process.env.NECTAR_NO_WORKERS = '1';
+    process.env.LAUREL_NO_WORKERS = '1';
   });
 
   test('renders markdown matching the direct call', async () => {
@@ -64,7 +64,7 @@ describe('createMarkdownPool — in-process mode', () => {
 
 describe('createMarkdownPool — worker mode', () => {
   beforeEach(() => {
-    process.env.NECTAR_NO_WORKERS = undefined;
+    process.env.LAUREL_NO_WORKERS = undefined;
   });
 
   test('renders markdown via Bun Workers and matches direct output', async () => {

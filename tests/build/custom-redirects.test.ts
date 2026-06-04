@@ -15,19 +15,19 @@ async function makeTmp(prefix: string): Promise<string> {
 }
 
 async function makeCwdAndOutput(): Promise<{ cwd: string; outputDir: string }> {
-  const cwd = await makeTmp('nectar-custom-redirects-cwd-');
-  const outputDir = await makeTmp('nectar-custom-redirects-out-');
+  const cwd = await makeTmp('laurel-custom-redirects-cwd-');
+  const outputDir = await makeTmp('laurel-custom-redirects-out-');
   return { cwd, outputDir };
 }
 
 describe('loadCustomRedirects', () => {
   test('returns [] when neither redirects.yaml nor redirects.yml exists', async () => {
-    const cwd = await makeTmp('nectar-cr-load-missing-');
+    const cwd = await makeTmp('laurel-cr-load-missing-');
     expect(await loadCustomRedirects(cwd)).toEqual([]);
   });
 
   test('parses redirects.yaml as a flat list of rules', async () => {
-    const cwd = await makeTmp('nectar-cr-load-yaml-');
+    const cwd = await makeTmp('laurel-cr-load-yaml-');
     await writeFile(
       join(cwd, 'redirects.yaml'),
       ['- from: /old', '  to: /new', '  status: 301'].join('\n'),
@@ -38,7 +38,7 @@ describe('loadCustomRedirects', () => {
   });
 
   test('also accepts redirects.yml as a fallback extension', async () => {
-    const cwd = await makeTmp('nectar-cr-load-yml-');
+    const cwd = await makeTmp('laurel-cr-load-yml-');
     await writeFile(join(cwd, 'redirects.yml'), ['- from: /a', '  to: /b'].join('\n'));
     expect(await loadCustomRedirects(cwd)).toEqual([
       { from: '/a', to: '/b', status: 301, force: false },
@@ -46,14 +46,14 @@ describe('loadCustomRedirects', () => {
   });
 
   test('defaults missing status to 301', async () => {
-    const cwd = await makeTmp('nectar-cr-load-default-');
+    const cwd = await makeTmp('laurel-cr-load-default-');
     await writeFile(join(cwd, 'redirects.yaml'), '- from: /x\n  to: /y\n');
     const rules = await loadCustomRedirects(cwd);
     expect(rules[0]?.status).toBe(301);
   });
 
   test('accepts 302, 307, and 308 status codes verbatim', async () => {
-    const cwd = await makeTmp('nectar-cr-load-status-');
+    const cwd = await makeTmp('laurel-cr-load-status-');
     await writeFile(
       join(cwd, 'redirects.yaml'),
       [
@@ -73,25 +73,25 @@ describe('loadCustomRedirects', () => {
   });
 
   test('rejects unsupported status codes', async () => {
-    const cwd = await makeTmp('nectar-cr-load-bad-status-');
+    const cwd = await makeTmp('laurel-cr-load-bad-status-');
     await writeFile(join(cwd, 'redirects.yaml'), '- from: /x\n  to: /y\n  status: 200\n');
     await expect(loadCustomRedirects(cwd)).rejects.toThrow(/Invalid redirects\.yaml/);
   });
 
   test('rejects rules missing from or to', async () => {
-    const cwd = await makeTmp('nectar-cr-load-missing-fields-');
+    const cwd = await makeTmp('laurel-cr-load-missing-fields-');
     await writeFile(join(cwd, 'redirects.yaml'), '- from: /x\n');
     await expect(loadCustomRedirects(cwd)).rejects.toThrow(/Invalid redirects\.yaml/);
   });
 
   test('treats an empty or comment-only file as no rules', async () => {
-    const cwd = await makeTmp('nectar-cr-load-empty-');
+    const cwd = await makeTmp('laurel-cr-load-empty-');
     await writeFile(join(cwd, 'redirects.yaml'), '# nothing here yet\n');
     expect(await loadCustomRedirects(cwd)).toEqual([]);
   });
 
   test('wraps YAML parse errors with the filename', async () => {
-    const cwd = await makeTmp('nectar-cr-load-bad-yaml-');
+    const cwd = await makeTmp('laurel-cr-load-bad-yaml-');
     await writeFile(join(cwd, 'redirects.yaml'), '- from: /x\n  to: : :\n');
     await expect(loadCustomRedirects(cwd)).rejects.toThrow(/redirects\.yaml/);
   });
@@ -258,8 +258,8 @@ describe('emitCustomRedirects', () => {
   });
 
   test('creates the output directory when it does not yet exist', async () => {
-    const cwd = await makeTmp('nectar-cr-emit-mkdir-cwd-');
-    const outputRoot = await makeTmp('nectar-cr-emit-mkdir-out-');
+    const cwd = await makeTmp('laurel-cr-emit-mkdir-cwd-');
+    const outputRoot = await makeTmp('laurel-cr-emit-mkdir-out-');
     const outputDir = join(outputRoot, 'nested', 'dist');
     await writeFile(join(cwd, 'redirects.yaml'), '- from: /a\n  to: /b\n');
 

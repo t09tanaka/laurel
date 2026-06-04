@@ -33,7 +33,7 @@ async function runOpenCli(
 
 async function setupProject(dir: string): Promise<void> {
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     ['[site]', 'title = "T"', 'url = "https://example.com"', ''].join('\n'),
     'utf8',
   );
@@ -45,7 +45,7 @@ describe('cli open', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-open-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-open-')));
     await setupProject(dir);
   });
 

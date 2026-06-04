@@ -7,7 +7,7 @@ import { THEME_MEMBERS_REQUIRED_WITHOUT_PORTAL_WARNING, loadTheme } from '~/them
 import { logger } from '~/util/logger.ts';
 
 async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
-  const dir = await mkdtemp(join(tmpdir(), 'nectar-theme-loader-'));
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-theme-loader-'));
   return await fn(dir);
 }
 
@@ -152,7 +152,7 @@ describe('loadTheme', () => {
       try {
         await loadTheme({ cwd, config });
         expect(warn).toHaveBeenCalledWith(
-          'Theme package.json declares engines.ghost = "^6.0.0", which does not include Ghost 5.x; Nectar targets Ghost 5 theme compatibility.',
+          'Theme package.json declares engines.ghost = "^6.0.0", which does not include Ghost 5.x; Laurel targets Ghost 5 theme compatibility.',
         );
       } finally {
         warn.mockRestore();
@@ -241,9 +241,9 @@ describe('loadTheme', () => {
   // location.
   test('resolves theme.dir as an npm package name when local dir is missing', async () => {
     await withTempDir(async (cwd) => {
-      const pkgRoot = join(cwd, 'node_modules', 'nectar-theme-mini');
+      const pkgRoot = join(cwd, 'node_modules', 'laurel-theme-mini');
       await mkdir(pkgRoot, { recursive: true });
-      await writeFile(join(pkgRoot, 'package.json'), JSON.stringify({ name: 'nectar-theme-mini' }));
+      await writeFile(join(pkgRoot, 'package.json'), JSON.stringify({ name: 'laurel-theme-mini' }));
       await writeFile(
         join(pkgRoot, 'default.hbs'),
         '<!doctype html><html><body>{{{body}}}</body></html>',
@@ -251,7 +251,7 @@ describe('loadTheme', () => {
       );
       const config = configSchema.parse({
         site: { title: 'X', url: 'https://x.test' },
-        theme: { name: 'mini', dir: 'nectar-theme-mini' },
+        theme: { name: 'mini', dir: 'laurel-theme-mini' },
       });
       const theme = await loadTheme({ cwd, config });
       expect(theme.templates.default).toBeDefined();
@@ -260,16 +260,16 @@ describe('loadTheme', () => {
 
   test('resolves @scope/name npm package specs', async () => {
     await withTempDir(async (cwd) => {
-      const pkgRoot = join(cwd, 'node_modules', '@nectar', 'theme-scoped');
+      const pkgRoot = join(cwd, 'node_modules', '@laurel', 'theme-scoped');
       await mkdir(pkgRoot, { recursive: true });
       await writeFile(
         join(pkgRoot, 'package.json'),
-        JSON.stringify({ name: '@nectar/theme-scoped' }),
+        JSON.stringify({ name: '@laurel/theme-scoped' }),
       );
       await writeFile(join(pkgRoot, 'default.hbs'), 'hi', 'utf8');
       const config = configSchema.parse({
         site: { title: 'X', url: 'https://x.test' },
-        theme: { name: 'scoped', dir: '@nectar/theme-scoped' },
+        theme: { name: 'scoped', dir: '@laurel/theme-scoped' },
       });
       const theme = await loadTheme({ cwd, config });
       expect(theme.templates.default).toBe('hi');
@@ -354,7 +354,7 @@ describe('loadTheme', () => {
   });
 
   // First-time onboarding error: when no theme has been vendored yet, the
-  // NectarError hint must include the canonical `git clone` command pointed
+  // LaurelError hint must include the canonical `git clone` command pointed
   // at the expected directory so a fresh contributor knows what to run.
   test('missing theme directory error embeds a git clone hint', async () => {
     await withTempDir(async (cwd) => {

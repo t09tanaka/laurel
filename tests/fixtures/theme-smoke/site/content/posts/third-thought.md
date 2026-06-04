@@ -2,7 +2,7 @@
 title: "Third thought"
 slug: third-thought
 date: 2026-01-05T11:00:00Z
-authors: [nectar-bot]
+authors: [laurel-bot]
 tags: [general]
 feature_image: "/content/images/cover.svg"
 ---

@@ -8,7 +8,7 @@ import { build } from '~/build/pipeline.ts';
 import { configSchema } from '~/config/schema.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-github-pages-'));
+  return mkdtemp(join(tmpdir(), 'laurel-github-pages-'));
 }
 
 describe('config.deploy.github_pages', () => {
@@ -113,11 +113,11 @@ describe('emitGithubPagesRedirects', () => {
 
 describe('build pipeline GitHub Pages redirects', () => {
   test('emits Pages redirect stubs from redirects.yaml when deploy.github_pages.redirects is enabled', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-pipeline-gh-pages-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-pipeline-gh-pages-'));
     await mkdir(join(cwd, 'content', 'posts'), { recursive: true });
     await mkdir(join(cwd, 'content', 'authors'), { recursive: true });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '[site]',
         'title = "Pages Test"',

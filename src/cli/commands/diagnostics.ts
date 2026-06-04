@@ -5,11 +5,11 @@ import { gzipSync } from 'node:zlib';
 import { BUILD_MANIFEST_DIR, BUILD_MANIFEST_FILENAME } from '~/build/build-manifest.ts';
 import { MANIFEST_FILENAME } from '~/build/manifest.ts';
 import { loadConfig } from '~/config/loader.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { loadTheme } from '~/theme/loader.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { ensureDir, pathContainsSymlink, scanGlob } from '~/util/fs.ts';
-import { getNectarVersion } from '~/util/nectar-version.ts';
+import { getLaurelVersion } from '~/util/laurel-version.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { DIAGNOSTICS_SPEC } from '../specs.ts';
@@ -128,7 +128,7 @@ export async function createDiagnosticsBundle(
 
 async function buildDiagnosticEntries(options: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   configPath?: string | undefined;
   output: string;
   logLines: number;
@@ -143,7 +143,7 @@ async function buildDiagnosticEntries(options: {
       value: {
         schema_version: 1,
         generated_at: options.now.toISOString(),
-        nectar: { version: await getNectarVersion() },
+        laurel: { version: await getLaurelVersion() },
         cwd: options.cwd,
         output: options.output,
         config_path: options.configPath ?? null,
@@ -189,7 +189,7 @@ async function buildDiagnosticEntries(options: {
 
 async function loadThemeSafely(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
 ): Promise<ThemeBundle | undefined> {
   try {
     return await loadTheme({ cwd, config });
@@ -200,7 +200,7 @@ async function loadThemeSafely(
 
 async function collectContentFileList(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
 ): Promise<{
   roots: Array<{ kind: string; path: string; exists: boolean }>;
   files: FileEntry[];
@@ -301,7 +301,7 @@ async function collectBuildManifests(outputDir: string): Promise<{
   const candidates = [
     join(outputDir, BUILD_MANIFEST_DIR, BUILD_MANIFEST_FILENAME),
     join(outputDir, MANIFEST_FILENAME),
-    join(outputDir, '.nectar-build-stats.json'),
+    join(outputDir, '.laurel-build-stats.json'),
   ];
   const files = [];
   for (const path of candidates) {
@@ -325,14 +325,14 @@ async function collectLogLines(
   sources: Array<{ path: string; exists: boolean; lines?: string[] }>;
 }> {
   const candidates = uniqueStrings([
-    env.NECTAR_LOG_FILE,
-    join(cwd, 'nectar.log'),
-    join(cwd, '.nectar', 'nectar.log'),
-    join(cwd, '.nectar', 'logs', 'nectar.log'),
-    join(cwd, '.nectar', 'logs', 'latest.log'),
-    join(outputDir, '.nectar', 'nectar.log'),
-    join(outputDir, '.nectar', 'logs', 'nectar.log'),
-    join(outputDir, '.nectar', 'logs', 'latest.log'),
+    env.LAUREL_LOG_FILE,
+    join(cwd, 'laurel.log'),
+    join(cwd, '.laurel', 'laurel.log'),
+    join(cwd, '.laurel', 'logs', 'laurel.log'),
+    join(cwd, '.laurel', 'logs', 'latest.log'),
+    join(outputDir, '.laurel', 'laurel.log'),
+    join(outputDir, '.laurel', 'logs', 'laurel.log'),
+    join(outputDir, '.laurel', 'logs', 'latest.log'),
   ]);
   const sources: Array<{ path: string; exists: boolean; lines?: string[] }> = [];
   for (const path of candidates) {
@@ -474,7 +474,7 @@ function normalizeTarPath(path: string): string {
 }
 
 function resolveOutputPath(cwd: string, output: string | undefined, now: Date): string {
-  const target = output ?? `nectar-diagnostics-${formatTimestamp(now)}.tar.gz`;
+  const target = output ?? `laurel-diagnostics-${formatTimestamp(now)}.tar.gz`;
   return isAbsolute(target) ? target : resolve(cwd, target);
 }
 

@@ -7,7 +7,7 @@ import { buildCaddyfile, emitCaddyfile } from '~/build/caddy.ts';
 import { configSchema } from '~/config/schema.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-caddy-'));
+  return mkdtemp(join(tmpdir(), 'laurel-caddy-'));
 }
 
 const DEFAULT_HEADERS_CONFIG = configSchema.parse({ site: { title: 'x' } }).deploy.headers;
@@ -26,11 +26,11 @@ describe('buildCaddyfile', () => {
     expect(out.endsWith('\n')).toBe(true);
   });
 
-  test('defaults to a portable :80 site address and /var/www/nectar root', () => {
+  test('defaults to a portable :80 site address and /var/www/laurel root', () => {
     const out = buildCaddyfile({ headers: DEFAULT_HEADERS_CONFIG, rules: [] });
 
     expect(out).toContain(':80 {');
-    expect(out).toContain('    root * /var/www/nectar');
+    expect(out).toContain('    root * /var/www/laurel');
   });
 
   test('serves pre-compressed static files with try_files fallback', () => {
@@ -120,10 +120,10 @@ describe('emitCaddyfile', () => {
       rules: [],
     });
 
-    expect(existsSync(join(outputDir, '.nectar', 'Caddyfile'))).toBe(false);
+    expect(existsSync(join(outputDir, '.laurel', 'Caddyfile'))).toBe(false);
   });
 
-  test('writes Caddyfile under `.nectar/` rather than the publish root when enabled', async () => {
+  test('writes Caddyfile under `.laurel/` rather than the publish root when enabled', async () => {
     const outputDir = await makeOutputDir();
 
     await emitCaddyfile({
@@ -133,7 +133,7 @@ describe('emitCaddyfile', () => {
       rules: [],
     });
 
-    expect(existsSync(join(outputDir, '.nectar', 'Caddyfile'))).toBe(true);
+    expect(existsSync(join(outputDir, '.laurel', 'Caddyfile'))).toBe(true);
     expect(existsSync(join(outputDir, 'Caddyfile'))).toBe(false);
   });
 
@@ -147,7 +147,7 @@ describe('emitCaddyfile', () => {
       rules: [{ from: '/old', to: '/new', status: 301, force: false }],
     });
 
-    const body = await readFile(join(outputDir, '.nectar', 'Caddyfile'), 'utf8');
+    const body = await readFile(join(outputDir, '.laurel', 'Caddyfile'), 'utf8');
     expect(body.endsWith('\n')).toBe(true);
     expect(body).toContain(':80 {');
     expect(body).toContain('redir @redirect_0 /new 301');

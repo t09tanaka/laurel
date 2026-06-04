@@ -1,4 +1,4 @@
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 import type {
   PortalAdapter,
   ResolvedSubscribeForm,
@@ -21,9 +21,9 @@ export const beehiivAdapter: PortalAdapter = {
   resolve(cfg: SubscribeAdapterConfig): ResolvedSubscribeForm {
     const publicationId = cfg.publication_id ?? cfg.username;
     if (!publicationId) {
-      throw new NectarError({
+      throw new LaurelError({
         message: 'components.subscribe.publication_id is required when provider is "beehiiv"',
-        hint: 'Set components.subscribe.publication_id in nectar.toml to your Beehiiv publication id (UUID)',
+        hint: 'Set components.subscribe.publication_id in laurel.toml to your Beehiiv publication id (UUID)',
         code: 'config',
       });
     }

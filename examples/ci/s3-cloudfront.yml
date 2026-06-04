@@ -1,4 +1,4 @@
-# Deploy a Nectar site to S3 + CloudFront.
+# Deploy a Laurel site to S3 + CloudFront.
 #
 # Copy this file to .github/workflows/s3-cloudfront.yml in your repo, then set:
 #   - secret AWS_ROLE_TO_ASSUME      (IAM role ARN trusting GitHub OIDC)
@@ -48,12 +48,12 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build site
-        run: bunx nectar build
+        run: bunx laurel build
 
       - name: Verify build artifact
         run: |
-          test -f dist/.nectar-manifest.json
-          test -f dist/.nectar/changed-paths.txt
+          test -f dist/.laurel-manifest.json
+          test -f dist/.laurel/changed-paths.txt
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -80,8 +80,8 @@ jobs:
 
       - name: Invalidate CloudFront cache
         run: |
-          if [ -s dist/.nectar/changed-paths.txt ]; then
+          if [ -s dist/.laurel/changed-paths.txt ]; then
             aws cloudfront create-invalidation \
               --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
-              --paths $(cat dist/.nectar/changed-paths.txt)
+              --paths $(cat dist/.laurel/changed-paths.txt)
           fi

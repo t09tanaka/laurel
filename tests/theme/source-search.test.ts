@@ -12,7 +12,7 @@ describe('Source theme — search trigger classes', () => {
   test('search partial does not reuse the broad gh-search class', async () => {
     const partial = await read('partials/search-toggle.hbs');
 
-    expect(partial).toContain('class="nectar-search-toggle gh-icon-button"');
+    expect(partial).toContain('class="laurel-search-toggle gh-icon-button"');
     expect(partial).not.toContain('class="gh-search ');
   });
 
@@ -20,9 +20,9 @@ describe('Source theme — search trigger classes', () => {
     const css = await read('assets/css/screen.css');
     const built = await read('assets/built/screen.css');
 
-    expect(css).toContain('.nectar-search-toggle');
+    expect(css).toContain('.laurel-search-toggle');
     expect(css).not.toContain('.gh-search {');
-    expect(built).toContain('.nectar-search-toggle');
+    expect(built).toContain('.laurel-search-toggle');
     expect(built).not.toContain('.gh-search{');
   });
 });

@@ -1,10 +1,10 @@
 // Defensive Proxy wrapper for the @member data frame.
 //
-// Nectar is members-out-of-scope: a static build has no logged-in viewer.
+// Laurel is members-out-of-scope: a static build has no logged-in viewer.
 // Source-style themes idiomatically branch with
 // `{{#unless @member}}signin{{/unless}}` / `{{@member.paid}}`. The default
 // unauthenticated member is therefore a safe falsy stub: path access never
-// throws, direct rendering stays empty, and Nectar's flow helpers treat it as
+// throws, direct rendering stays empty, and Laurel's flow helpers treat it as
 // falsy so the unauthenticated render remains what every visitor sees.
 //
 // `[components.preview].member` is the opt-in escape hatch that injects a
@@ -38,7 +38,7 @@
 //   under Handlebars' `Utils.isEmpty` because the proxy reports `length: 0`
 //   and serialises to `""`.
 
-const STUB_SENTINEL = Symbol('nectar.memberStubSentinel');
+const STUB_SENTINEL = Symbol('laurel.memberStubSentinel');
 
 export interface MemberPlan {
   [key: string]: unknown;

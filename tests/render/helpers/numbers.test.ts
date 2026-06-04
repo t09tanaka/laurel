@@ -1,22 +1,22 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import { registerNumberHelpers } from '~/render/helpers/numbers.ts';
 
-function makeEngine(locale = 'en'): NectarEngine {
+function makeEngine(locale = 'en'): LaurelEngine {
   const hb = Handlebars.create();
   return {
     hb,
-    config: {} as NectarEngine['config'],
-    content: { site: { locale } } as NectarEngine['content'],
-    theme: {} as NectarEngine['theme'],
+    config: {} as LaurelEngine['config'],
+    content: { site: { locale } } as LaurelEngine['content'],
+    theme: {} as LaurelEngine['theme'],
     templates: {},
     layouts: {},
     sortedCache: new Map(),
     render() {
       throw new Error('not used');
     },
-  } as unknown as NectarEngine;
+  } as unknown as LaurelEngine;
 }
 
 // Intl format output contains locale-specific separators (commas, narrow no-break

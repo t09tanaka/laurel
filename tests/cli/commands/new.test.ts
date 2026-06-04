@@ -50,7 +50,7 @@ describe('cli new — slug collision handling', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-new-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-new-')));
   });
 
   afterEach(async () => {
@@ -60,7 +60,7 @@ describe('cli new — slug collision handling', () => {
   test('creates a new post when the destination does not exist', async () => {
     const { stdout, exitCode } = await runCli(['new', 'post', 'Hello World'], dir);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain('Next: nectar build && nectar serve');
+    expect(stdout).toContain('Next: laurel build && laurel serve');
     const dest = join(dir, 'content/posts/hello-world.md');
     const body = await readFile(dest, 'utf8');
     expect(body).toContain('title: "Hello World"');
@@ -222,9 +222,9 @@ describe('cli new — slug collision handling', () => {
     expect(stderr).toContain(`Refusing to overwrite ${dest}.`);
   });
 
-  test('honors content.posts_dir / pages_dir overrides from nectar.toml', async () => {
+  test('honors content.posts_dir / pages_dir overrides from laurel.toml', async () => {
     await Bun.write(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       [
         '[site]',
         'title = "T"',
@@ -276,7 +276,7 @@ describe('cli new — frontmatter flags', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-new-flags-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-new-flags-')));
   });
 
   afterEach(async () => {
@@ -302,7 +302,7 @@ describe('cli new — frontmatter flags', () => {
 
   test('default post date uses configured site timezone offset', async () => {
     await Bun.write(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       ['[site]', 'title = "Timezone Site"', 'timezone = "Asia/Tokyo"', ''].join('\n'),
     );
     const { exitCode } = await runCli(['new', 'post', 'Timezone Post'], dir);
@@ -418,7 +418,7 @@ describe('cli new — tag and author kinds', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-new-meta-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-new-meta-')));
   });
 
   afterEach(async () => {
@@ -460,7 +460,7 @@ describe('cli new — tag and author kinds', () => {
 
   test('"new author" honors content.authors_dir override', async () => {
     await Bun.write(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       ['[site]', 'title = "T"', '', '[content]', 'authors_dir = "team"', ''].join('\n'),
     );
     const { exitCode } = await runCli(['new', 'author', 'jane'], dir);
@@ -481,7 +481,7 @@ describe('cli new — tag and author kinds', () => {
     expect(exitCode).toBe(2);
     expect(stderr).toContain('Missing kind.');
     expect(stderr).toContain('Usage:');
-    expect(stderr).toContain('nectar new');
+    expect(stderr).toContain('laurel new');
   });
 });
 
@@ -489,7 +489,7 @@ describe('cli new — extensible kinds', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-new-kinds-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-new-kinds-')));
   });
 
   afterEach(async () => {
@@ -498,7 +498,7 @@ describe('cli new — extensible kinds', () => {
 
   test('accepts custom kinds declared in the loaded config', async () => {
     await Bun.write(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       [
         '[site]',
         'title = "T"',
@@ -521,7 +521,7 @@ describe('cli new — extensible kinds', () => {
 
   test('accepts custom kinds declared in the active theme package manifest', async () => {
     await Bun.write(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       ['[site]', 'title = "T"', '', '[theme]', 'name = "custom"', 'dir = "themes"', ''].join('\n'),
     );
     await Bun.write(
@@ -549,7 +549,7 @@ describe('cli new — extensible kinds', () => {
 
   test('config kind definitions override theme manifest kind definitions', async () => {
     await Bun.write(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       [
         '[site]',
         'title = "T"',

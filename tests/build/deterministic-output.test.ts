@@ -35,13 +35,13 @@ function sha256File(path: string): string {
 }
 
 async function makeSite(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'nectar-determ-'));
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-determ-'));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
 
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Determ"',
@@ -60,7 +60,7 @@ async function makeSite(): Promise<string> {
       // search.json carries its own intentional `meta.generated_at` timestamp,
       // which is a separate determinism concern from glob iteration order.
       // Disable it here so the only timestamped file in the build is
-      // .nectar/manifest.json, which the test allow-lists explicitly.
+      // .laurel/manifest.json, which the test allow-lists explicitly.
       '[components.search]',
       'enabled = false',
       '',

@@ -1,8 +1,8 @@
-# Deploying Nectar to GitHub Pages
+# Deploying Laurel to GitHub Pages
 
 GitHub Pages hosts the already-built `dist/` directory. It does not run Bun
 itself, so the recommended path is a GitHub Actions workflow that installs Bun,
-runs `nectar build`, uploads `dist/` as a Pages artifact, and deploys that
+runs `laurel build`, uploads `dist/` as a Pages artifact, and deploys that
 artifact with `actions/deploy-pages`.
 
 ## Quickstart
@@ -18,7 +18,7 @@ artifact with `actions/deploy-pages`.
    set **Source** to **GitHub Actions**.
 
 3. If this is a project site at `https://<user>.github.io/<repo>/`, set the
-   deployed URL in `nectar.toml`:
+   deployed URL in `laurel.toml`:
 
    ```toml
    [site]
@@ -26,7 +26,7 @@ artifact with `actions/deploy-pages`.
    ```
 
    In GitHub Actions, when `GITHUB_PAGES=true` and `GITHUB_REPOSITORY` is
-   available, Nectar derives `[build].base_path = "/<repo>/"` automatically for
+   available, Laurel derives `[build].base_path = "/<repo>/"` automatically for
    project sites. Set `[build].base_path` yourself only when you need to
    override the repository-derived path. User / organization sites such as
    `https://<user>.github.io/`, and custom domains served from `/`, keep
@@ -35,23 +35,23 @@ artifact with `actions/deploy-pages`.
 4. Build locally before the first push:
 
    ```sh
-   GITHUB_PAGES=true GITHUB_REPOSITORY=<owner>/<repo> bunx nectar build
+   GITHUB_PAGES=true GITHUB_REPOSITORY=<owner>/<repo> bunx laurel build
    test -f dist/.nojekyll
    ```
 
-   For user / organization sites or custom domains, plain `bunx nectar build`
+   For user / organization sites or custom domains, plain `bunx laurel build`
    is enough because the site is served from `/`.
 
 5. Commit and push to `main`. The workflow publishes `dist/` to Pages.
 
-## What Nectar emits for Pages
+## What Laurel emits for Pages
 
-Every `nectar build` writes an empty `.nojekyll` file at the output root.
+Every `laurel build` writes an empty `.nojekyll` file at the output root.
 GitHub Pages runs Jekyll by default, and Jekyll ignores files or directories
-that start with `_`; `.nojekyll` disables that behavior so Nectar's generated
+that start with `_`; `.nojekyll` disables that behavior so Laurel's generated
 assets are served verbatim.
 
-Nectar writes the not-found page as `dist/404.html`, even when
+Laurel writes the not-found page as `dist/404.html`, even when
 `[build].base_path` is set for a project site. This matches GitHub Pages'
 publishing convention: the `404.html` file belongs at the root of the uploaded
 artifact / publishing source. For a project site, Pages exposes that file at
@@ -59,7 +59,7 @@ artifact / publishing source. For a project site, Pages exposes that file at
 `dist/<repo>/404.html`. `base_path` only changes generated URLs and links, not
 the physical `dist/` layout.
 
-GitHub Pages does **not** support arbitrary response headers. Nectar therefore
+GitHub Pages does **not** support arbitrary response headers. Laurel therefore
 does not emit a Pages-specific `_headers`, `vercel.json`, or equivalent header
 configuration for this target: Pages ignores those files and serves a
 platform-controlled header set. In particular, you cannot set
@@ -96,7 +96,7 @@ stubs:
 redirects = true
 ```
 
-Nectar writes one meta-refresh page for each supported `from` path. Clean URLs
+Laurel writes one meta-refresh page for each supported `from` path. Clean URLs
 such as `/old-post/` become `dist/old-post/index.html`; file-like paths such as
 `/old.html` become `dist/old.html`. Each stub points both
 `<meta http-equiv="refresh">` and `<link rel="canonical">` at the redirect
@@ -107,7 +107,7 @@ rooted at `dist/`, but root-relative destinations are prefixed with the base
 path in the generated HTML. For example, `from: /old` and `to: /new` writes
 `dist/old/index.html` with a browser redirect to `/repo/new`.
 
-Nectar skips redirects whose source is `/` or `/404.html` so the home page and
+Laurel skips redirects whose source is `/` or `/404.html` so the home page and
 GitHub Pages not-found fallback keep working. Pattern redirects such as
 `/old/*` cannot be represented as static files on Pages; use a host with native
 redirect rules for those.
@@ -128,7 +128,7 @@ custom_domain = "blog.example.com"
 ```
 
 Then configure the domain in **Settings -> Pages -> Custom domain** and point
-DNS at GitHub Pages. Nectar writes the matching `CNAME` file during the build,
+DNS at GitHub Pages. Laurel writes the matching `CNAME` file during the build,
 so the Actions artifact keeps the binding in place.
 
 ## Optional gh-pages branch deploy
@@ -137,11 +137,11 @@ The Actions artifact workflow above is the preferred GitHub Pages setup. It
 does not need a separate `gh-pages` branch and uses GitHub's current Pages
 deployment API.
 
-Nectar also exposes a `github-pages` deploy target for branch-based publishing:
+Laurel also exposes a `github-pages` deploy target for branch-based publishing:
 
 ```sh
-nectar deploy github-pages --dry-run
-nectar deploy github-pages --branch gh-pages --remote origin
+laurel deploy github-pages --dry-run
+laurel deploy github-pages --branch gh-pages --remote origin
 ```
 
 The dry run prints the git push plan and reads defaults from:
@@ -168,7 +168,7 @@ artifact workflow.
 - **The deployed site shows old content:** confirm **Source = GitHub Actions**
   and inspect the latest `Deploy to GitHub Pages` workflow run.
 - **Files or directories beginning with `_` are missing:** rebuild and confirm
-  `dist/.nojekyll` exists. Nectar emits it automatically on successful builds.
+  `dist/.nojekyll` exists. Laurel emits it automatically on successful builds.
 - **Custom domain does not stick:** set `[deploy.github_pages].custom_domain`
   to only the hostname and verify `dist/CNAME` contains that hostname exactly.
 - **Need custom security headers:** GitHub Pages does not support custom

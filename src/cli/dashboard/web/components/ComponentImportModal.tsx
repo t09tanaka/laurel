@@ -141,7 +141,7 @@ export function ComponentImportModal({
         </button>
       </header>
       <p class="meta">
-        Drop a Nectar components bundle <code>.zip</code> to bring a set of reusable{' '}
+        Drop a Laurel components bundle <code>.zip</code> to bring a set of reusable{' '}
         <code>{'{slug}'}</code> snippets in from another editor.
       </p>
 

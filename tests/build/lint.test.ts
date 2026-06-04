@@ -12,11 +12,11 @@ interface Fixture {
 }
 
 async function makeFixture(files: Record<string, string>): Promise<Fixture> {
-  const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-lint-')));
+  const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-lint-')));
   const baseConfig = ['[site]', 'title = "Lint Test"'].join('\n');
-  await Bun.write(join(cwd, 'nectar.toml'), files['nectar.toml'] ?? baseConfig);
+  await Bun.write(join(cwd, 'laurel.toml'), files['laurel.toml'] ?? baseConfig);
   for (const [path, contents] of Object.entries(files)) {
-    if (path === 'nectar.toml') continue;
+    if (path === 'laurel.toml') continue;
     await Bun.write(join(cwd, path), contents);
   }
   return { cwd, files };
@@ -79,7 +79,7 @@ describe('lintContent', () => {
 
   test('accepts tag social and code injection frontmatter keys', async () => {
     const fx = await makeFixture({
-      'nectar.toml': [
+      'laurel.toml': [
         '[site]',
         'title = "Lint Test"',
         '[build]',
@@ -252,7 +252,7 @@ describe('lintContent', () => {
 
   test('flags navigation pointing at missing page', async () => {
     const fx = await makeFixture({
-      'nectar.toml': [
+      'laurel.toml': [
         '[site]',
         'title = "Nav Test"',
         '',
@@ -274,7 +274,7 @@ describe('lintContent', () => {
 
   test('navigation matching an existing page passes', async () => {
     const fx = await makeFixture({
-      'nectar.toml': [
+      'laurel.toml': [
         '[site]',
         'title = "Nav Test"',
         '',
@@ -292,7 +292,7 @@ describe('lintContent', () => {
 
   test('navigation pointing at missing tag is flagged', async () => {
     const fx = await makeFixture({
-      'nectar.toml': [
+      'laurel.toml': [
         '[site]',
         'title = "Nav Test"',
         '',
@@ -379,7 +379,7 @@ describe('lintContent', () => {
 
   test('checkExternal: probes navigation URLs with the injected fetch', async () => {
     const fx = await makeFixture({
-      'nectar.toml': [
+      'laurel.toml': [
         '[site]',
         'title = "External"',
         '',
@@ -413,7 +413,7 @@ describe('lintContent', () => {
 
   test('checkExternal: stays silent when not opted in', async () => {
     const fx = await makeFixture({
-      'nectar.toml': [
+      'laurel.toml': [
         '[site]',
         'title = "External"',
         '',
@@ -440,7 +440,7 @@ describe('lintContent', () => {
 
   test('navigation absolute URLs and anchors are ignored', async () => {
     const fx = await makeFixture({
-      'nectar.toml': [
+      'laurel.toml': [
         '[site]',
         'title = "Nav Test"',
         '',

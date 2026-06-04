@@ -65,7 +65,7 @@ describe('ci supply-chain', () => {
     expect(devDependencies['@cyclonedx/cdxgen']).toMatch(/^\d+\.\d+\.\d+$/);
     expect(sbomScript).toContain('cdxgen');
     expect(sbomScript).toContain('--no-install-deps');
-    expect(sbomScript).toContain('dist-sbom/nectar.cyclonedx.json');
+    expect(sbomScript).toContain('dist-sbom/laurel.cyclonedx.json');
   });
 
   test('release workflow uploads CycloneDX SBOM and keeps npm provenance enabled', () => {
@@ -74,7 +74,7 @@ describe('ci supply-chain', () => {
 
     const content = release?.content ?? '';
     expect(content).toContain('bun run sbom:cyclonedx');
-    expect(content).toContain('release/nectar.cyclonedx.json');
+    expect(content).toContain('release/laurel.cyclonedx.json');
     expect(content).toContain('if: ${{ !github.event.repository.private }}');
     expect(content).toContain('npm publish --provenance --access public');
   });

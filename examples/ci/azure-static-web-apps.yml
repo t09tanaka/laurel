@@ -1,11 +1,11 @@
-# Deploy a Nectar site to Azure Static Web Apps.
+# Deploy a Laurel site to Azure Static Web Apps.
 #
 # Copy this file to .github/workflows/azure-static-web-apps.yml in your repo.
 # In Azure, create a Static Web App resource (preset "Other"), copy its
 # deployment token, and add it to GitHub Actions secrets as:
 #   - AZURE_STATIC_WEB_APPS_API_TOKEN
 #
-# Push to main and the workflow runs `nectar build`, then uploads dist/ via
+# Push to main and the workflow runs `laurel build`, then uploads dist/ via
 # the official Azure/static-web-apps-deploy action. Pull requests deploy to a
 # named preview slot automatically; closing the PR tears the slot down.
 
@@ -48,7 +48,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build site
-        run: bunx nectar build
+        run: bunx laurel build
 
       - name: Deploy to Azure Static Web Apps
         id: deploy

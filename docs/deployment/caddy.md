@@ -1,15 +1,15 @@
 # Caddy deployment recipe
 
-Use this target when you self-host Nectar behind Caddy and want generated Caddy
+Use this target when you self-host Laurel behind Caddy and want generated Caddy
 config for static files, redirects, cache headers, and security headers.
 
 ## Recipe
 
-1. Set the production `site.url` in `nectar.toml`.
+1. Set the production `site.url` in `laurel.toml`.
 2. Enable Caddy output with `[deploy.caddy]` and the target document root.
-3. Run `bunx nectar build`.
+3. Run `bunx laurel build`.
 4. Sync `dist/` to the server document root.
-5. Import the generated `dist/.nectar/Caddyfile` from your main Caddyfile.
+5. Import the generated `dist/.laurel/Caddyfile` from your main Caddyfile.
 6. Reload Caddy, then test a page, 404, and migrated redirect.
 
 ## Source docs

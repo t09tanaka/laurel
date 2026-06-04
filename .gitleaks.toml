@@ -1,4 +1,4 @@
-# gitleaks configuration for Nectar.
+# gitleaks configuration for Laurel.
 #
 # Extends the upstream default ruleset (see
 # https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml) and

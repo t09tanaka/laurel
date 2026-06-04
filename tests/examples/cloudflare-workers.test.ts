@@ -39,7 +39,7 @@ function makeEnv(): { ASSETS: Fetcher } {
 }
 
 describe('examples/cloudflare-workers Static Assets sample', () => {
-  test('configures Wrangler to serve the Nectar dist directory through Static Assets', async () => {
+  test('configures Wrangler to serve the Laurel dist directory through Static Assets', async () => {
     const body = await readFile(join(sampleDir, 'wrangler.toml'), 'utf8');
 
     expect(body).toContain('main = "index.ts"');
@@ -50,7 +50,7 @@ describe('examples/cloudflare-workers Static Assets sample', () => {
     expect(body).toContain('run_worker_first = true');
   });
 
-  test('loads Nectar routes manifest before delegating to the Static Assets binding', async () => {
+  test('loads Laurel routes manifest before delegating to the Static Assets binding', async () => {
     const body = await readFile(join(sampleDir, 'index.ts'), 'utf8');
 
     expect(body).toContain('ASSETS: Fetcher');

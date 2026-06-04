@@ -32,7 +32,7 @@ describe('cli integration — build (#663/#692)', () => {
     const { stdout, exitCode } = await runCli(['build', '--help']);
     expect(exitCode).toBe(0);
     expect(stdout).toContain('Usage:');
-    expect(stdout).toContain('nectar build');
+    expect(stdout).toContain('laurel build');
     for (const flag of [
       '--config',
       '--output',
@@ -71,8 +71,8 @@ describe('cli integration — build (#663/#692)', () => {
     expect(stderr).toContain('--concurrency');
   });
 
-  test('build without a nectar.toml at the cwd exits 1 (runtime error, not a parse error)', async () => {
-    // Run from a directory that genuinely has no nectar.toml; the CLI loader
+  test('build without a laurel.toml at the cwd exits 1 (runtime error, not a parse error)', async () => {
+    // Run from a directory that genuinely has no laurel.toml; the CLI loader
     // should report a missing-config error with a non-2 (runtime) exit code so
     // CI can distinguish "user typed a bad flag" (exit 2) from "the project is
     // misconfigured" (exit 1).

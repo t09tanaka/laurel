@@ -1,5 +1,5 @@
 import slugify from 'slugify';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
 import { loadContent } from '~/content/loader.ts';
 import type { Page, Post } from '~/content/model.ts';
@@ -94,7 +94,7 @@ function referencesSlug(record: Post | Page, kind: TaxonomyKind, slug: string): 
 // re-serialized via `serialize` so it matches the dashboard's own write format.
 export async function cascadeRemoveTaxonomyReferences(options: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   kind: TaxonomyKind;
   slug: string;
   serialize: (frontmatter: Record<string, unknown>, body: string) => string;

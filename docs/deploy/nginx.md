@@ -1,17 +1,17 @@
-# Deploying Nectar to nginx
+# Deploying Laurel to nginx
 
-Nectar builds a fully static site. nginx serves it as plain files, while the
-generated `dist/.nectar/nginx.conf` captures Nectar's cache headers, security
+Laurel builds a fully static site. nginx serves it as plain files, while the
+generated `dist/.laurel/nginx.conf` captures Laurel's cache headers, security
 headers, pretty URL fallback, and `redirects.yaml` rules in one `server` block.
 
 ## Quickstart
 
-1. Enable the nginx deploy target in `nectar.toml`:
+1. Enable the nginx deploy target in `laurel.toml`:
 
    ```toml
    [deploy.nginx]
    enabled = true
-   root = "/var/www/nectar"
+   root = "/var/www/laurel"
    server_name = "example.com"
    ```
 
@@ -22,37 +22,37 @@ headers, pretty URL fallback, and `redirects.yaml` rules in one `server` block.
 2. Build locally:
 
    ```sh
-   bunx nectar build
-   test -f dist/.nectar/nginx.conf
+   bunx laurel build
+   test -f dist/.laurel/nginx.conf
    ```
 
 3. Sync the complete `dist/` directory to the configured root:
 
    ```sh
-   rsync -avz --delete dist/ user@host:/var/www/nectar/
+   rsync -avz --delete dist/ user@host:/var/www/laurel/
    ```
 
-   Nectar's `[deploy.rsync]` target can wrap the same copy step:
+   Laurel's `[deploy.rsync]` target can wrap the same copy step:
 
    ```toml
    [deploy.rsync]
-   destination = "user@host:/var/www/nectar/"
+   destination = "user@host:/var/www/laurel/"
    ```
 
    Then run:
 
    ```sh
-   bunx nectar deploy rsync --build
+   bunx laurel deploy rsync --build
    ```
 
 4. Include the generated server block from nginx's main config:
 
    ```nginx
-   include /var/www/nectar/.nectar/nginx.conf;
+   include /var/www/laurel/.laurel/nginx.conf;
    ```
 
    Place that include under the top-level `http { ... }` context, not inside
-   another `server { ... }` block, because Nectar emits the full `server`
+   another `server { ... }` block, because Laurel emits the full `server`
    block.
 
 5. Test and reload nginx:
@@ -62,10 +62,10 @@ headers, pretty URL fallback, and `redirects.yaml` rules in one `server` block.
    sudo systemctl reload nginx
    ```
 
-## What Nectar Generates
+## What Laurel Generates
 
 With `[deploy.nginx].enabled = true`, every build writes
-`dist/.nectar/nginx.conf`. The file is under `.nectar/` instead of the publish
+`dist/.laurel/nginx.conf`. The file is under `.laurel/` instead of the publish
 root so nginx never serves it as public content.
 
 The generated server block:
@@ -79,9 +79,9 @@ The generated server block:
 - repeats the configured security headers inside every `location`, because
   nginx `add_header` directives are not inherited once a child block declares
   its own headers;
-- serves Nectar's `slug/index.html` output with
+- serves Laurel's `slug/index.html` output with
   `try_files $uri $uri/ $uri/index.html =404;`;
-- maps nginx 404 errors to Nectar's generated `dist/404.html` body with
+- maps nginx 404 errors to Laurel's generated `dist/404.html` body with
   `error_page 404 /404.html;` and an internal exact-match 404 location;
 - translates `redirects.yaml` rules into `location { return <status> <to>; }`
   directives.
@@ -98,11 +98,11 @@ headers:
 | `/*` | `public, max-age=0, must-revalidate` |
 
 The long-lived rules are for fingerprinted build output: when the asset
-content changes, Nectar changes the URL, so nginx can serve those paths with
+content changes, Laurel changes the URL, so nginx can serve those paths with
 `immutable` caching. The catch-all rule covers HTML and other stable URLs and
 forces browsers to revalidate before reuse.
 
-Nectar does not emit nginx `expires` directives. `Cache-Control` is the
+Laurel does not emit nginx `expires` directives. `Cache-Control` is the
 authoritative freshness policy across the generated deploy targets, and
 emitting both would make custom cache rules harder to reason about. The
 generated `etag on;` directive keeps nginx validators enabled for revalidation
@@ -110,9 +110,9 @@ responses.
 
 Customize those rules, plus security headers such as
 `X-Content-Type-Options`, `Referrer-Policy`, and
-`Content-Security-Policy`, under `[deploy.headers]` in `nectar.toml`.
+`Content-Security-Policy`, under `[deploy.headers]` in `laurel.toml`.
 
-If a browser client will fetch Nectar's emitted `/content/*` JSON from another
+If a browser client will fetch Laurel's emitted `/content/*` JSON from another
 origin and you are not using the generated nginx server block, copy the
 Content API CORS snippet from [`cors-nginx.md`](./cors-nginx.md).
 
@@ -136,7 +136,7 @@ are not interpolated into the destination, so use explicit destination paths.
 
 ## Pre-compressed Assets
 
-Set `[build].precompress = true` in `nectar.toml` to emit `.br` and `.gz`
+Set `[build].precompress = true` in `laurel.toml` to emit `.br` and `.gz`
 sidecars next to text files:
 
 ```toml
@@ -151,19 +151,19 @@ ships the module. `gzip_static` is available in standard nginx builds.
 
 ## TLS
 
-Nectar's generated file listens on port 80 only. Terminate HTTPS in your main
+Laurel's generated file listens on port 80 only. Terminate HTTPS in your main
 nginx config, a load balancer, or a companion Certbot-managed server block.
-If nginx owns TLS directly, treat `dist/.nectar/nginx.conf` as the generated
+If nginx owns TLS directly, treat `dist/.laurel/nginx.conf` as the generated
 HTTP baseline and keep certificate paths, port 443 listeners, and
 HTTP-to-HTTPS redirects in operator-managed config. Do not hand-edit the
-generated file in place; the next `nectar build` rewrites it.
+generated file in place; the next `laurel build` rewrites it.
 
 ## Troubleshooting
 
 - **`nginx -t` fails on `brotli_static`:** the Brotli module is not installed
   or not loaded. Install an nginx package with Brotli support, load the module,
   or remove `brotli_static on;` from the deployed config.
-- **`dist/.nectar/nginx.conf` is missing:** confirm
+- **`dist/.laurel/nginx.conf` is missing:** confirm
   `[deploy.nginx].enabled = true` and rebuild.
 - **Headers are missing on assets:** ensure nginx is using the generated
   include. The headers are repeated per `location`; a separate hand-written
@@ -172,4 +172,4 @@ generated file in place; the next `nectar build` rewrites it.
   `[deploy.nginx].root` and contains each page's `index.html`.
 - **404s show nginx's default body:** rebuild with `[deploy.nginx].enabled =
   true`, confirm `dist/404.html` exists, and ensure nginx includes the
-  generated `dist/.nectar/nginx.conf`.
+  generated `dist/.laurel/nginx.conf`.

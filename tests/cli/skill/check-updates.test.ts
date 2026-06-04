@@ -23,7 +23,7 @@ async function stageInstalledSkill(
   await writeFile(join(dir, 'SKILL.md'), '# placeholder\n');
   if (receipt === 'missing-receipt') return;
   await writeFile(
-    join(dir, '.nectar.json'),
+    join(dir, '.laurel.json'),
     JSON.stringify(
       {
         slug,
@@ -41,7 +41,7 @@ describe('findOutdatedSkills', () => {
   let cwd: string;
 
   beforeEach(async () => {
-    cwd = await mkdtemp(join(tmpdir(), 'nectar-skill-updates-'));
+    cwd = await mkdtemp(join(tmpdir(), 'laurel-skill-updates-'));
   });
 
   afterEach(async () => {

@@ -162,7 +162,7 @@ async function makeAssetsFixture(svgFiles: Record<string, string>): Promise<{
   cwd: string;
   outputDir: string;
 }> {
-  const cwd = await mkdtemp(join(tmpdir(), 'nectar-og-raster-'));
+  const cwd = await mkdtemp(join(tmpdir(), 'laurel-og-raster-'));
   await mkdir(join(cwd, 'content/images'), { recursive: true });
   const outputDir = join(cwd, 'dist');
   await mkdir(outputDir, { recursive: true });

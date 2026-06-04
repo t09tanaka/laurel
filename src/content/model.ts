@@ -32,7 +32,7 @@ export interface SiteData {
   icon: string | undefined;
   accent_color: string;
   referrer_policy?: string | undefined;
-  // Ghost marks password-protected publications as "private". Nectar is
+  // Ghost marks password-protected publications as "private". Laurel is
   // static-only and cannot enforce that access control itself, but operators
   // can set `[site].private = true` when their host handles protection so
   // themes using `{{#is "private"}}` / `@site.private` take the same branch.
@@ -186,7 +186,7 @@ export interface Post {
   comment_id: string;
   count: PostEngagementCount;
   // Ghost exposes additional visibility states beyond the simple public/members/paid
-  // tri-state when a post is gated to specific tiers or via a NQL filter. Nectar's
+  // tri-state when a post is gated to specific tiers or via a NQL filter. Laurel's
   // static runtime has no tier-aware viewer, so `tiers` and `filter` are rendered
   // and indexed the same as `members` (non-public, paywall-eligible). They are
   // still typed distinctly so themes that branch on `post.visibility` get the
@@ -219,7 +219,7 @@ export interface Post {
   custom_template: string | undefined;
   comments: boolean;
   // Ghost exposes `post.access` as a boolean telling the theme whether the
-  // *current viewer* may read the gated body. Nectar's static build has no
+  // *current viewer* may read the gated body. Laurel's static build has no
   // signed-in viewer, so every render targets an anonymous reader and
   // `access` is always `false`. Themes that branch on `{{#if this.access}}` /
   // `{{#unless this.access}}` (Source's lock-icon flow, members-only badges)
@@ -324,7 +324,7 @@ export interface Page {
   show_title_and_feature_image: boolean;
   custom_template: string | undefined;
   post_class: string;
-  // Pages are always public in Nectar (no gated pages), but Ghost still
+  // Pages are always public in Laurel (no gated pages), but Ghost still
   // exposes `page.access` so themes can branch uniformly across posts/pages.
   // The anonymous-viewer rule from `Post.access` applies; see #208.
   access: false;
@@ -332,7 +332,7 @@ export interface Page {
 
 // Shape that mirrors Ghost's `Tier` resource closely enough for themes that
 // iterate `{{#get "tiers"}}` and branch on `type` / `monthly_price`. Stripe
-// price ids and `currency_symbol` are intentionally omitted — Nectar is
+// price ids and `currency_symbol` are intentionally omitted — Laurel is
 // static and never settles payments, so those fields would be cosmetic
 // noise. `trial_days` is always `0` for the same reason.
 export interface Tier {

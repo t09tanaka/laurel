@@ -1,5 +1,5 @@
 output "bucket_name" {
-  description = "S3 bucket that receives the Nectar dist/ upload."
+  description = "S3 bucket that receives the Laurel dist/ upload."
   value       = aws_s3_bucket.site.bucket
 }
 

@@ -1,4 +1,4 @@
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 import { registerAssetHelpers } from './assets.ts';
 import { registerBlockHelpers } from './blocks.ts';
 import { registerColorHelpers } from './color.ts';
@@ -18,7 +18,7 @@ import { registerPriceHelpers } from './price.ts';
 import { registerStringHelpers } from './strings.ts';
 import { registerUrlHelpers } from './urls.ts';
 
-export function registerHelpers(engine: NectarEngine): void {
+export function registerHelpers(engine: LaurelEngine): void {
   registerAssetHelpers(engine);
   registerBlockHelpers(engine);
   registerColorHelpers(engine);

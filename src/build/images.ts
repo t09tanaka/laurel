@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { GALLERY_IMAGE_SIZES } from '~/content/gallery-images.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import type { ThemeImageSize } from '~/theme/types.ts';
@@ -61,7 +61,7 @@ export function injectImageLoadingHints(html: string): string {
 interface InjectIntoContentOptions {
   content: ContentGraph;
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
 }
 
 // Mutates `post.html` / `page.html` in-place. Sharing one cache across the
@@ -206,7 +206,7 @@ function isFormatVariantSource(rel: string): boolean {
 
 interface PlanImageVariantsOptions {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   widths?: readonly number[];
 }
 
@@ -245,7 +245,7 @@ export async function planImageVariants(opts: PlanImageVariantsOptions): Promise
 
 interface GenerateImageVariantsOptions {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   outputDir: string;
   plan: ImageVariantPlan;
   stripMetadata?: boolean;
@@ -615,7 +615,7 @@ export type ImageFormat = 'webp' | 'avif';
 
 interface GenerateImageFormatVariantsOptions {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   outputDir: string;
   plan: ImageVariantPlan;
 }
@@ -643,7 +643,7 @@ export function resolveCacheDir(cwd: string, cacheDir: string): string {
   return isAbsolute(cacheDir) ? cacheDir : join(cwd, cacheDir);
 }
 
-function configuredImageCacheDir(config: NectarConfig): string | undefined {
+function configuredImageCacheDir(config: LaurelConfig): string | undefined {
   const images = (config as { components?: { images?: { cache_dir?: string } } }).components
     ?.images;
   const cacheDir = images?.cache_dir;
@@ -836,7 +836,7 @@ export function buildThemeImageSizeSegment(size: ThemeImageSize): string {
 
 interface GenerateThemeImageSizeVariantsOptions {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   outputDir: string;
   themeImageSizes: Record<string, ThemeImageSize>;
   // When provided, sharp-encoded variants are cached here keyed by source

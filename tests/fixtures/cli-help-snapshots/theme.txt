@@ -1,13 +1,13 @@
 Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials; `serve` runs a fast fixture-backed theme dev server
 
 Usage:
-  nectar theme [--config <path>] [--from <theme-name>] [--output <path>] [--force] [--json] [--port <n>] [--host <host>] <subcommand...>
+  laurel theme [--config <path>] [--from <theme-name>] [--output <path>] [--force] [--json] [--port <n>] [--host <host>] <subcommand...>
 
 Arguments:
   subcommand          `list` (show themes under theme.dir), `new <name>` (scaffold themes/<name>/), `zip` (archive the active theme into a gscan-compatible .zip), `lint <path>` (audit a theme directory), or `serve` (fast theme dev server)
 
 End of options:
-  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+  Use `--` before positional values that start with `-`, for example `laurel new post -- --config`.
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -20,9 +20,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --config → NECTAR_THEME_CONFIG
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → LAUREL_THEME_CONFIG
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -30,12 +30,12 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar theme list                            # show themes under theme.dir
-  nectar theme list --json                     # machine-readable theme list
-  nectar theme new my-theme                    # scaffold themes/my-theme/
-  nectar theme new my-fork --from source       # fork the active theme
-  nectar theme zip                             # ship-ready zip in cwd
-  nectar theme lint themes/my-theme            # audit before shipping
-  nectar theme serve                           # fast theme dev server using fixture content
-  nectar theme serve --port 8080               # pick a different port
-  nectar theme:lint themes/my-theme            # colon-style alias
+  laurel theme list                            # show themes under theme.dir
+  laurel theme list --json                     # machine-readable theme list
+  laurel theme new my-theme                    # scaffold themes/my-theme/
+  laurel theme new my-fork --from source       # fork the active theme
+  laurel theme zip                             # ship-ready zip in cwd
+  laurel theme lint themes/my-theme            # audit before shipping
+  laurel theme serve                           # fast theme dev server using fixture content
+  laurel theme serve --port 8080               # pick a different port
+  laurel theme:lint themes/my-theme            # colon-style alias

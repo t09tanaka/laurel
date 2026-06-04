@@ -1,14 +1,14 @@
 # Render deployment recipe
 
-Use this target when Render Static Sites should build Nectar from Git and serve
+Use this target when Render Static Sites should build Laurel from Git and serve
 `dist/` as the publish directory.
 
 ## Recipe
 
 1. Set `site.url` to the Render URL or custom domain.
-2. Build locally once with `bunx nectar build`.
+2. Build locally once with `bunx laurel build`.
 3. Create a Render Static Site.
-4. Use build command `bunx nectar build` and publish directory `dist`.
+4. Use build command `bunx laurel build` and publish directory `dist`.
 5. For generated redirects and headers, enable the Netlify deploy emitter:
 
    ```toml
@@ -17,7 +17,7 @@ Use this target when Render Static Sites should build Nectar from Git and serve
    ```
 
    Render Static Sites read Netlify-style `_redirects` and `_headers` files
-   from the publish directory, so Nectar intentionally reuses the Netlify
+   from the publish directory, so Laurel intentionally reuses the Netlify
    emitter instead of maintaining a separate Render-specific format.
 6. Add the optional deploy hook workflow only when CI should trigger deploys.
 7. Verify custom domain, `_redirects`, `_headers`, RSS, sitemap, and the

@@ -4,7 +4,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RSS_MAX_ITEMS_PER_PAGE } from '~/build/feeds.ts';
 import { loadConfig } from '~/config/loader.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
 import { loadTheme } from '~/theme/loader.ts';
 import { scanGlob } from '~/util/fs.ts';
@@ -68,7 +68,7 @@ export async function runChecks(opts: RunOptions): Promise<CheckResult[]> {
   results.push(await checkBunVersion(opts.cwd));
   results.push(checkEditor());
 
-  let config: NectarConfig | undefined;
+  let config: LaurelConfig | undefined;
   const configResult = await checkConfig(opts.cwd, opts.configPath);
   results.push(configResult.result);
   config = configResult.config;
@@ -102,7 +102,7 @@ async function checkBunVersion(cwd: string): Promise<CheckResult> {
       name: 'bun-version',
       status: 'FAIL',
       message: 'Bun runtime not detected (running under Node?)',
-      fix: 'Install Bun (https://bun.sh) and run `nectar` via Bun.',
+      fix: 'Install Bun (https://bun.sh) and run `laurel` via Bun.',
     };
   }
   if (!required) {
@@ -147,7 +147,7 @@ function checkEditor(): CheckResult {
 async function checkConfig(
   cwd: string,
   configPath: string | undefined,
-): Promise<{ result: CheckResult; config?: NectarConfig }> {
+): Promise<{ result: CheckResult; config?: LaurelConfig }> {
   try {
     const config = await loadConfig({ cwd, configPath });
     return {
@@ -165,13 +165,13 @@ async function checkConfig(
         name: 'config-valid',
         status: 'FAIL',
         message: `config schema invalid: ${msg}`,
-        fix: 'Edit nectar.toml to match the schema (see docs/DESIGN.md or `nectar check`).',
+        fix: 'Edit laurel.toml to match the schema (see docs/DESIGN.md or `laurel check`).',
       },
     };
   }
 }
 
-async function checkTheme(cwd: string, config: NectarConfig): Promise<CheckResult> {
+async function checkTheme(cwd: string, config: LaurelConfig): Promise<CheckResult> {
   try {
     const theme = await loadTheme({ cwd, config });
     return {
@@ -185,12 +185,12 @@ async function checkTheme(cwd: string, config: NectarConfig): Promise<CheckResul
       name: 'theme-present',
       status: 'FAIL',
       message: `theme load failed: ${msg}`,
-      fix: `Place a theme at \`${config.theme.dir}/${config.theme.name}\` or update [theme] in nectar.toml.`,
+      fix: `Place a theme at \`${config.theme.dir}/${config.theme.name}\` or update [theme] in laurel.toml.`,
     };
   }
 }
 
-function checkContentDirs(cwd: string, config: NectarConfig): CheckResult {
+function checkContentDirs(cwd: string, config: LaurelConfig): CheckResult {
   const dirs = [
     { key: 'posts_dir', path: config.content.posts_dir },
     { key: 'pages_dir', path: config.content.pages_dir },
@@ -212,7 +212,7 @@ function checkContentDirs(cwd: string, config: NectarConfig): CheckResult {
   };
 }
 
-async function checkOrphanedDrafts(cwd: string, config: NectarConfig): Promise<CheckResult> {
+async function checkOrphanedDrafts(cwd: string, config: LaurelConfig): Promise<CheckResult> {
   const dirs = [config.content.posts_dir, config.content.pages_dir];
   const cutoff = Date.now() - ORPHAN_DRAFT_DAYS * 24 * 60 * 60 * 1000;
   const orphans: string[] = [];
@@ -280,7 +280,7 @@ function pickTimestamp(data: Record<string, unknown>): number | undefined {
   return undefined;
 }
 
-function checkRssSitemap(config: NectarConfig): CheckResult {
+function checkRssSitemap(config: LaurelConfig): CheckResult {
   const issues: string[] = [];
   if (config.components.rss.enabled && config.components.rss.items <= 0) {
     issues.push('components.rss.items must be > 0 when rss is enabled');
@@ -303,7 +303,7 @@ function checkRssSitemap(config: NectarConfig): CheckResult {
     name: 'rss-sitemap-config',
     status: 'WARN',
     message: issues.join('; '),
-    fix: 'Adjust [components.rss] / [components.sitemap] in nectar.toml.',
+    fix: 'Adjust [components.rss] / [components.sitemap] in laurel.toml.',
   };
 }
 
@@ -320,7 +320,7 @@ async function checkNetwork(): Promise<CheckResult> {
         name: 'network',
         status: 'WARN',
         message: `probe returned HTTP ${res.status}`,
-        fix: 'Check connectivity if you rely on `nectar version --check` or remote assets.',
+        fix: 'Check connectivity if you rely on `laurel version --check` or remote assets.',
       };
     }
     return {

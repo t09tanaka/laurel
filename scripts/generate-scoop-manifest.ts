@@ -4,10 +4,10 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const DEFAULT_TEMPLATE = fileURLToPath(
-  new URL('../packaging/scoop/bucket/nectar.json.template', import.meta.url),
+  new URL('../packaging/scoop/bucket/laurel.json.template', import.meta.url),
 );
-const DEFAULT_OUTPUT = 'packaging/scoop/bucket/nectar.json';
-const WINDOWS_ARTIFACT = 'nectar-windows-x64.exe';
+const DEFAULT_OUTPUT = 'packaging/scoop/bucket/laurel.json';
+const WINDOWS_ARTIFACT = 'laurel-windows-x64.exe';
 const WINDOWS_SHA_TOKEN = '{{WINDOWS_X64_SHA256}}';
 
 interface CliOptions {
@@ -126,7 +126,7 @@ function requireValue(name: string, value: string | undefined): string {
 }
 
 function printUsage(): void {
-  console.log(`Usage: bun run scripts/generate-scoop-manifest.ts --version v1.2.3 --shasums dist-bin/SHASUMS256.txt [--output bucket/nectar.json]
+  console.log(`Usage: bun run scripts/generate-scoop-manifest.ts --version v1.2.3 --shasums dist-bin/SHASUMS256.txt [--output bucket/laurel.json]
 
 Generates a Scoop bucket manifest from the checked-in template and Windows release checksum.
 Use --stdout instead of --output to print the manifest.`);

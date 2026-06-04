@@ -14,7 +14,7 @@ export function setDashboardToken(token: string): void {
 function writeHeaders(): Record<string, string> {
   return {
     'content-type': 'application/json',
-    'x-nectar-dashboard-token': dashboardToken,
+    'x-laurel-dashboard-token': dashboardToken,
   };
 }
 
@@ -88,7 +88,7 @@ export async function uploadImage(
   fd.append('file', file);
   const res = await fetch('/api/images', {
     method: 'POST',
-    headers: { 'x-nectar-dashboard-token': dashboardToken },
+    headers: { 'x-laurel-dashboard-token': dashboardToken },
     body: fd,
   });
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -145,7 +145,7 @@ function isOgpKnownError(v: unknown): v is OgpKnownError {
 export async function fetchOgp(url: string): Promise<OgpFetchResult> {
   const res = await fetch('/api/ogp', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-nectar-dashboard-token': dashboardToken },
+    headers: { 'content-type': 'application/json', 'x-laurel-dashboard-token': dashboardToken },
     body: JSON.stringify({ url }),
   });
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -167,7 +167,7 @@ export async function uploadTheme(
   if (name) fd.append('name', name);
   const res = await fetch('/api/themes/upload', {
     method: 'POST',
-    headers: { 'x-nectar-dashboard-token': dashboardToken },
+    headers: { 'x-laurel-dashboard-token': dashboardToken },
     body: fd,
   });
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -266,7 +266,7 @@ export async function restoreTrash(
   return { status: response.status, data: (await response.json()) as RestoreTrashResult };
 }
 
-/** Move a post / page / author / tag / component to `.nectar/trash` (soft
+/** Move a post / page / author / tag / component to `.laurel/trash` (soft
  * delete). The server gates on `fingerprint` so a stale tab can't clobber a
  * file edited elsewhere — a mismatch comes back as a 409 conflict carrying the
  * on-disk `current`. Restorable via {@link restoreTrash} until purged. */
@@ -460,7 +460,7 @@ export async function streamGhostImport(
   try {
     response = await fetch('/api/import/ghost', {
       method: 'POST',
-      headers: { 'x-nectar-dashboard-token': dashboardToken },
+      headers: { 'x-laurel-dashboard-token': dashboardToken },
       body: fd,
       signal,
     });
@@ -566,7 +566,7 @@ export async function streamBuild(onEvent: (event: BuildStreamEvent) => void): P
   try {
     response = await fetch('/api/build', {
       method: 'POST',
-      headers: { 'x-nectar-dashboard-token': dashboardToken },
+      headers: { 'x-laurel-dashboard-token': dashboardToken },
     });
   } catch (err) {
     onEvent({ type: 'error', message: err instanceof Error ? err.message : 'Network error' });
@@ -671,7 +671,7 @@ export async function importBundle(
   if (opts.expectedExisting !== undefined) form.set('expectedExisting', opts.expectedExisting);
   const res = await fetch('/api/bundles/import', {
     method: 'POST',
-    headers: { 'x-nectar-dashboard-token': dashboardToken },
+    headers: { 'x-laurel-dashboard-token': dashboardToken },
     body: form,
   });
   if (!res.ok)
@@ -722,7 +722,7 @@ export async function importComponentsBundle(
   if (opts.slugs && opts.slugs.length > 0) form.set('slugs', opts.slugs.join(','));
   const res = await fetch('/api/components/bundle/import', {
     method: 'POST',
-    headers: { 'x-nectar-dashboard-token': dashboardToken },
+    headers: { 'x-laurel-dashboard-token': dashboardToken },
     body: form,
   });
   if (!res.ok)

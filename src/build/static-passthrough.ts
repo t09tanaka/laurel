@@ -2,7 +2,7 @@ import { existsSync, statSync } from 'node:fs';
 import { copyFile, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { pLimit } from '~/util/concurrency.ts';
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 import { ensureDir, pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 
@@ -74,7 +74,7 @@ export async function copyStaticDir(opts: {
           await mergeDeployArtifact(t.src, t.dst, rel);
           return;
         }
-        throw new NectarError({
+        throw new LaurelError({
           code: 'emit',
           message: `${join(staticDir, rel)} conflicts with a generated deploy artifact at ${rel}.`,
           hint: 'Remove the hand-written static file, pass --force to overwrite the generated artifact, or set deploy.merge = true to merge supported deploy artifacts.',
@@ -168,13 +168,13 @@ function parseVercelConfig(body: string, file: string): Record<string, unknown> 
       return parsed as Record<string, unknown>;
     }
   } catch (err) {
-    throw new NectarError({
+    throw new LaurelError({
       code: 'emit',
       message: `Invalid vercel.json while merging deploy artifacts: ${file}`,
       cause: err,
     });
   }
-  throw new NectarError({
+  throw new LaurelError({
     code: 'emit',
     message: `Invalid vercel.json while merging deploy artifacts: ${file}`,
   });

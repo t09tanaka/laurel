@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import { registerAssetHelpers } from '~/render/helpers/assets.ts';
 import { registerStringHelpers } from '~/render/helpers/strings.ts';
 import type { ThemeImageSize } from '~/theme/types.ts';
@@ -10,26 +10,26 @@ function makeEngine(opts: {
   siteUrl?: string;
   cdnUrl?: string;
   basePath?: string;
-}): NectarEngine {
+}): LaurelEngine {
   const hb = Handlebars.create();
   return {
     hb,
     config: {
       build: { base_path: opts.basePath ?? '/' },
-    } as NectarEngine['config'],
+    } as LaurelEngine['config'],
     content: {
       site: { url: opts.siteUrl ?? 'https://example.com', cdn_url: opts.cdnUrl },
-    } as unknown as NectarEngine['content'],
+    } as unknown as LaurelEngine['content'],
     theme: {
       assets: new Map(),
       pkg: { image_sizes: opts.imageSizes ?? {} },
-    } as unknown as NectarEngine['theme'],
+    } as unknown as LaurelEngine['theme'],
     templates: {},
     layouts: {},
     render() {
       throw new Error('not used');
     },
-  } as unknown as NectarEngine;
+  } as unknown as LaurelEngine;
 }
 
 describe('img_url helper', () => {

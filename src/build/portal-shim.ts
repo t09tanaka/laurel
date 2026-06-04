@@ -4,7 +4,7 @@ import type { PortalTrigger, ResolvedPortalUrls } from './portal-urls.ts';
 // Source theme's sidebar "See all" recommendations button is rendered as
 // `<button data-portal="recommendations">` — in Ghost this attribute binds the
 // Portal modal that lists every recommendation. Without a Portal runtime the
-// button is dead in Nectar. This transform finds the button in already-rendered
+// button is dead in Laurel. This transform finds the button in already-rendered
 // HTML and rewrites it to an `<a>` deep-linking to the
 // `<section id="all-recommendations">` block on the auto-emitted
 // `/recommendations/` page. Other `data-portal` values (signin, signup,
@@ -45,7 +45,7 @@ export function rewriteRecommendationsButton(opts: {
       break;
     }
     out += html.slice(cursor, start);
-    out += `<a${before}${after} href="${escapeAttr(href)}" role="button" data-nectar-recommendations-link>`;
+    out += `<a${before}${after} href="${escapeAttr(href)}" role="button" data-laurel-recommendations-link>`;
     out += html.slice(openEnd, closeIdx);
     out += '</a>';
     cursor = closeIdx + CLOSE_BUTTON.length;
@@ -59,7 +59,7 @@ const PORTAL_TRIGGERS: readonly PortalTrigger[] = ['signup', 'signin', 'account'
 
 // Ghost themes ship `<a href="#/portal/signup" data-portal="signup">…</a>` and
 // `<button data-portal="signup">…</button>` markers that the Ghost Portal
-// script intercepts at runtime. Nectar is static-only, so when the operator
+// script intercepts at runtime. Laurel is static-only, so when the operator
 // has named an external provider in `[components.portal]`, we rewrite those
 // buttons to point at the provider's hosted page (signup form, sign-in page,
 // account page, upgrade checkout). Anchors get their `href` patched in place;

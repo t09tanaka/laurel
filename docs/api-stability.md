@@ -1,13 +1,13 @@
 # Content API stability
 
-Nectar's emitted Content API JSON follows **semver** at the field level. This
-document is the contract between Nectar and downstream consumers (themes,
+Laurel's emitted Content API JSON follows **semver** at the field level. This
+document is the contract between Laurel and downstream consumers (themes,
 widgets, custom scripts, server-side rewriters) that read `/content/*.json`
 or `/ghost/api/content/*.json`.
 
 ## What is covered
 
-The shape of every JSON payload emitted by `nectar build` under
+The shape of every JSON payload emitted by `laurel build` under
 `/content/*` and `/ghost/api/content/*`. Specifically:
 
 - Field names on `posts[]`, `pages[]`, `tags[]`, `authors[]`, and
@@ -31,7 +31,7 @@ The shape of every JSON payload emitted by `nectar build` under
   are platform-tuned artifacts and may evolve (e.g. cache TTLs).
 - Endpoints under `/ghost/api/admin/*` — there is no Admin API; see
   [api.md](./api.md).
-- Resources Nectar does not implement (members, newsletters, webhooks,
+- Resources Laurel does not implement (members, newsletters, webhooks,
   Stripe, etc.) — they are out of scope and adding stubs is not
   guaranteed to keep their shape stable.
 
@@ -106,9 +106,9 @@ The shape of every JSON payload emitted by `nectar build` under
 | `next`  | stable    | Number when navigable, `null` otherwise|
 | `prev`  | stable    | Number when navigable, `null` otherwise|
 
-## What changes between Nectar versions
+## What changes between Laurel versions
 
-Each release of Nectar that touches the Content API surface MUST:
+Each release of Laurel that touches the Content API surface MUST:
 
 1. Note any added field in the changelog.
 2. Note any deprecated field at least one minor release before removal.

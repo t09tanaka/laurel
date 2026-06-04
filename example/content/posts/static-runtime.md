@@ -6,10 +6,10 @@ authors: [casper]
 tags: [news]
 feature_image: "/content/images/static-cover.svg"
 feature_image_alt: "Static files flowing from a build box to a browser"
-custom_excerpt: "Why Nectar emits plain files and nothing else."
+custom_excerpt: "Why Laurel emits plain files and nothing else."
 ---
 
-A Nectar build produces a tree of plain HTML, CSS, JS, and image assets in
+A Laurel build produces a tree of plain HTML, CSS, JS, and image assets in
 `dist/`. There is no Node server, no edge function, no database. You can:
 
 - Drop `dist/` into S3 or R2 behind any CDN.

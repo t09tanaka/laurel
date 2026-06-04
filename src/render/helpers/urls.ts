@@ -1,5 +1,5 @@
 import type Handlebars from 'handlebars';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 
 const SOCIAL_PATTERNS: Record<string, (handle: string) => string> = {
   x: (h) => `https://twitter.com/${stripAt(h)}`,
@@ -37,7 +37,7 @@ interface SocialAccount {
   name: string;
 }
 
-export function registerUrlHelpers(engine: NectarEngine): void {
+export function registerUrlHelpers(engine: LaurelEngine): void {
   engine.hb.registerHelper('url', function urlHelper(this: unknown, ...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
     // Ghost's {{url}} accepts an optional positional argument so themes can

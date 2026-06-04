@@ -1,16 +1,16 @@
-# Dashboard dev mode (`nectar dashboard --dev`)
+# Dashboard dev mode (`laurel dashboard --dev`)
 
 Date: 2026-05-26
 Status: Approved, ready for implementation plan
 
 ## Problem
 
-The Nectar dashboard frontend (`src/cli/dashboard/web/**`) currently requires
-a manual pre-build before `nectar dashboard` can serve it. The workflow is:
+The Laurel dashboard frontend (`src/cli/dashboard/web/**`) currently requires
+a manual pre-build before `laurel dashboard` can serve it. The workflow is:
 
 1. `bun run build:dashboard-bundle` — bundles `entry.tsx` and runs
    `tailwindcss` against `styles.css`, emitting `dist/dashboard-bundle/dashboard.{js,css}`
-2. `nectar dashboard` — `Bun.serve()` reads those files via `Bun.file()` and
+2. `laurel dashboard` — `Bun.serve()` reads those files via `Bun.file()` and
    serves them as `/assets/dashboard.{js,css}`. If the bundle is missing,
    the response is `503: "Run \`bun run build:dashboard-bundle\` before starting the dashboard."`
 
@@ -21,7 +21,7 @@ collapse this into "one command launches the dashboard with hot reload."
 
 ## Approach
 
-Add a `--dev` flag to `nectar dashboard` that switches the underlying
+Add a `--dev` flag to `laurel dashboard` that switches the underlying
 `Bun.serve()` call from the existing "serve pre-built bundle" path to Bun's
 built-in fullstack dev server (HTML imports + on-demand bundling + HMR + console
 forwarding). The flag-less invocation continues to serve the pre-built bundle
@@ -41,7 +41,7 @@ The following are explicitly out of scope for this change:
   and the prod-mode `/assets/dashboard.{js,css}` route remain as-is. They are
   still required for `bun run build:cli`, `bun publish`, compiled binaries,
   and npm-installed users.
-- HMR for `nectar serve` (the static-site preview server). Different command,
+- HMR for `laurel serve` (the static-site preview server). Different command,
   different concern.
 - HBS theme hot reload. Theme changes already round-trip through the dashboard
   content watcher and the build runner; that is not affected by this work.
@@ -53,7 +53,7 @@ The following are explicitly out of scope for this change:
 
 ### Command surface
 
-`nectar dashboard --dev` enables dev mode. All other flags (`--port`, `--host`,
+`laurel dashboard --dev` enables dev mode. All other flags (`--port`, `--host`,
 `--open`, `--config`) work identically in both modes.
 
 - Prod (default): serves `dist/dashboard-bundle/dashboard.{js,css}` via
@@ -134,7 +134,7 @@ New file: `src/cli/dashboard/web/dashboard.html`
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nectar Dashboard</title>
+<title>Laurel Dashboard</title>
 <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -164,7 +164,7 @@ fundamentally between the two modes.
 
 The dashboard process generates a per-session CSRF-style token in
 `createDashboardToken()` and currently embeds it via
-`<meta name="nectar-dashboard-token" content="${token}">` in the prod shell.
+`<meta name="laurel-dashboard-token" content="${token}">` in the prod shell.
 That works because the prod shell is rendered at request time, so the token
 can be string-interpolated.
 
@@ -234,7 +234,7 @@ SSE) is orthogonal to Bun's HMR:
 - **Bun HMR** — frontend asset changes (`*.tsx`, `styles.css`) → module-level
   hot patch via WS
 - **`/api/events`** — content / config / theme changes
-  (`content/posts/*.md`, `nectar.toml`, theme files) → notifies the SPA to
+  (`content/posts/*.md`, `laurel.toml`, theme files) → notifies the SPA to
   re-fetch `/api/state`
 
 These cannot collide. Bun's HMR client uses its own internal WS path
@@ -275,7 +275,7 @@ Three thin layers, no end-to-end HMR verification (Bun runtime responsibility):
    - Server shuts down cleanly on SIGTERM
 
 2. **Existing prod-mode tests under `tests/cli/dashboard/`** — kept passing.
-   The prod shell no longer contains the `<meta name="nectar-dashboard-token">`
+   The prod shell no longer contains the `<meta name="laurel-dashboard-token">`
    tag (token moved to bootstrap), so any test that asserts on the meta tag
    gets updated to assert against `/api/dashboard/bootstrap` instead.
 
@@ -283,7 +283,7 @@ Three thin layers, no end-to-end HMR verification (Bun runtime responsibility):
    - Returns `{ token, mode }` for both dev and prod modes
    - Token is non-empty and unique per process
 
-Manual verification before merge: launch `nectar dashboard --dev` against
+Manual verification before merge: launch `laurel dashboard --dev` against
 `example/`, edit a `.tsx` file, confirm browser updates without full reload.
 
 ## Implementation notes

@@ -28,12 +28,12 @@ async function runCli(args: string[], cwd?: string): Promise<RunResult> {
 }
 
 async function makeFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-content-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-content-')));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "x"',
@@ -317,7 +317,7 @@ describe('cli content rename', () => {
 });
 
 describe('cli content delete', () => {
-  test('moves a post to .nectar/trash and writes restore metadata', async () => {
+  test('moves a post to .laurel/trash and writes restore metadata', async () => {
     const dir = await makeFixture();
     try {
       const { stdout, exitCode } = await runCli(['content', 'delete', 'hello', '--json'], dir);
@@ -345,7 +345,7 @@ describe('cli content delete', () => {
         slug: 'hello',
         original_path: 'content/posts/hello.md',
       });
-      expect(metadata.trash_path).toMatch(/^\.nectar\/trash\/.+\/hello\.md$/);
+      expect(metadata.trash_path).toMatch(/^\.laurel\/trash\/.+\/hello\.md$/);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -392,8 +392,8 @@ describe('cli content delete', () => {
   test('--purge only deletes matching aged trash entries and keeps current content', async () => {
     const dir = await makeFixture();
     try {
-      const oldTrash = join(dir, '.nectar/trash/2000-01-01T00-00-00-000Z');
-      const freshTrash = join(dir, '.nectar/trash/2999-01-01T00-00-00-000Z');
+      const oldTrash = join(dir, '.laurel/trash/2000-01-01T00-00-00-000Z');
+      const freshTrash = join(dir, '.laurel/trash/2999-01-01T00-00-00-000Z');
       await mkdir(oldTrash, { recursive: true });
       await mkdir(freshTrash, { recursive: true });
       await writeFile(join(oldTrash, 'hello.md'), 'old');
@@ -425,7 +425,7 @@ describe('cli content delete', () => {
   test('--purge without a slug purges all aged trash entries', async () => {
     const dir = await makeFixture();
     try {
-      const oldTrash = join(dir, '.nectar/trash/2000-01-01T00-00-00-000Z');
+      const oldTrash = join(dir, '.laurel/trash/2000-01-01T00-00-00-000Z');
       await mkdir(oldTrash, { recursive: true });
       await writeFile(join(oldTrash, 'about.md'), 'old');
 
@@ -433,7 +433,7 @@ describe('cli content delete', () => {
       expect(exitCode).toBe(0);
       const parsed = JSON.parse(stdout) as { purged: number };
       expect(parsed.purged).toBe(1);
-      expect((await readdir(join(dir, '.nectar/trash'))).length).toBe(0);
+      expect((await readdir(join(dir, '.laurel/trash'))).length).toBe(0);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

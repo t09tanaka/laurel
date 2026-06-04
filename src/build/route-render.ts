@@ -1,11 +1,11 @@
 import { resolve } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import type { BuildContext, Plugin } from '~/plugin/types.ts';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import type { RouteContext } from '~/render/types.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
-import { NectarError, isNectarError } from '~/util/errors.ts';
+import { LaurelError, isLaurelError } from '~/util/errors.ts';
 import { injectSkipLink } from './a11y.ts';
 import { rewriteBasePathUrls } from './base-path-urls.ts';
 import { rewriteContentImageUrls } from './content-image-urls.ts';
@@ -25,16 +25,16 @@ import { rewritePortalLinks, rewriteRecommendationsButton } from './portal-shim.
 import {
   injectPagefindSkipMeta,
   injectSearchShimScript,
-  searchEngineUsesNectarGhostSearchShim,
+  searchEngineUsesLaurelGhostSearchShim,
 } from './search.ts';
 import { transformSubscribeForms } from './subscribe-forms.ts';
 
 interface RouteRenderOptions {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   theme: ThemeBundle;
-  engine: NectarEngine;
+  engine: LaurelEngine;
   route: RouteContext;
   plugins: readonly Plugin[];
   pluginCtx: BuildContext;
@@ -88,7 +88,7 @@ export async function renderRouteHtml(opts: RouteRenderOptions): Promise<string>
       }
       if (
         config.components.search.enabled &&
-        searchEngineUsesNectarGhostSearchShim(config.components.search.engine)
+        searchEngineUsesLaurelGhostSearchShim(config.components.search.engine)
       ) {
         html = injectSearchShimScript(html, config.build.base_path, config.build.csp_nonce);
         if (
@@ -133,10 +133,10 @@ export async function renderRouteHtml(opts: RouteRenderOptions): Promise<string>
   }
 }
 
-function wrapRenderError(err: unknown, url: string, template: string): NectarError {
+function wrapRenderError(err: unknown, url: string, template: string): LaurelError {
   const prefix = `failed to render ${url} (${template})`;
-  if (isNectarError(err)) {
-    return new NectarError({
+  if (isLaurelError(err)) {
+    return new LaurelError({
       message: `${prefix}: ${err.message}`,
       file: err.file,
       line: err.line,
@@ -146,7 +146,7 @@ function wrapRenderError(err: unknown, url: string, template: string): NectarErr
       code: err.code ?? 'render',
     });
   }
-  return new NectarError({
+  return new LaurelError({
     message: err instanceof Error ? `${prefix}: ${err.message}` : `${prefix}: ${String(err)}`,
     cause: err,
     code: 'render',

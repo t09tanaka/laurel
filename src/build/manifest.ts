@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ContentGraph, ContentSourceFingerprint, SiteData } from '~/content/model.ts';
 import { resolveLayoutName, splitLayout } from '~/render/layouts.ts';
 import type { RouteContext } from '~/render/types.ts';
@@ -12,11 +12,11 @@ import { scanGlob } from '~/util/fs.ts';
 // Bump when render pipeline changes in a way that requires invalidating
 // previously emitted HTML even though config, content, and theme inputs are
 // unchanged. The manifest is keyed on `MANIFEST_VERSION` rather than the
-// nectar package version so that ordinary patch releases (e.g. asset emitter
+// laurel package version so that ordinary patch releases (e.g. asset emitter
 // tweaks that do not affect HTML) keep their incremental cache.
 export const MANIFEST_VERSION = 3 as const;
 
-export const MANIFEST_FILENAME = '.nectar-manifest.json';
+export const MANIFEST_FILENAME = '.laurel-manifest.json';
 
 interface GeneratorSourceFingerprintCacheStats {
   hits: number;
@@ -111,7 +111,7 @@ export async function saveManifest(outputDir: string, manifest: BuildManifest): 
 // theme's partial sources, and the theme package fields (custom defaults,
 // posts_per_page, image_sizes) that propagate into render or routing.
 export function computeGlobalHash(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   site: SiteData;
   theme: ThemeBundle;
   themeFingerprint?: string;

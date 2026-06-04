@@ -32,9 +32,9 @@ async function runCli(
 }
 
 async function makeFixtureWithDist(extraConfig: string[] = []): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-deploy-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-deploy-')));
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Deploy Test"',
@@ -54,21 +54,21 @@ async function makeFixtureWithDist(extraConfig: string[] = []): Promise<string> 
   await mkdir(join(dir, 'dist'), { recursive: true });
   await writeFile(join(dir, 'dist/index.html'), '<!doctype html><title>x</title>');
   await writeFile(
-    join(dir, 'dist/.nectar-manifest.json'),
+    join(dir, 'dist/.laurel-manifest.json'),
     JSON.stringify({ version: 1, routes: [] }),
   );
   return dir;
 }
 
 async function writeDeployBuildManifest(dir: string): Promise<void> {
-  await mkdir(join(dir, 'dist/.nectar'), { recursive: true });
+  await mkdir(join(dir, 'dist/.laurel'), { recursive: true });
   await writeFile(
-    join(dir, 'dist/.nectar/manifest.json'),
+    join(dir, 'dist/.laurel/manifest.json'),
     `${JSON.stringify(
       {
         schema_version: 2,
         generated_at: '2026-05-21T00:00:00.000Z',
-        nectar: { version: '0.1.0' },
+        laurel: { version: '0.1.0' },
         theme: {
           name: 'test-theme',
           version: '1.0.0',
@@ -89,7 +89,7 @@ async function writeDeployBuildManifest(dir: string): Promise<void> {
       2,
     )}\n`,
   );
-  await writeFile(join(dir, 'dist/.nectar/changed-paths.txt'), '/\n/index.html\n/assets/app.css\n');
+  await writeFile(join(dir, 'dist/.laurel/changed-paths.txt'), '/\n/index.html\n/assets/app.css\n');
 }
 
 describe('cli deploy', () => {
@@ -134,10 +134,10 @@ describe('cli deploy', () => {
   });
 
   test('refuses to deploy when dist/ does not exist', async () => {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-deploy-empty-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-deploy-empty-')));
     try {
       await writeFile(
-        join(dir, 'nectar.toml'),
+        join(dir, 'laurel.toml'),
         ['[site]', 'title = "x"', 'url = "https://example.test"', ''].join('\n'),
       );
       const { stderr, exitCode } = await runCli(
@@ -152,10 +152,10 @@ describe('cli deploy', () => {
   });
 
   test('refuses to deploy when manifest is missing even if dist/ exists', async () => {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-deploy-nomani-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-deploy-nomani-')));
     try {
       await writeFile(
-        join(dir, 'nectar.toml'),
+        join(dir, 'laurel.toml'),
         ['[site]', 'title = "x"', 'url = "https://example.test"', ''].join('\n'),
       );
       await mkdir(join(dir, 'dist'), { recursive: true });
@@ -338,7 +338,7 @@ describe('cli deploy', () => {
         awsPath,
         [
           '#!/bin/sh',
-          'printf "%s\\n" "$*" >> "$NECTAR_AWS_CALLS"',
+          'printf "%s\\n" "$*" >> "$LAUREL_AWS_CALLS"',
           'if [ "$1" = "s3api" ]; then',
           '  printf \'{"PolicyStatus":{"IsPublic":true}}\\n\'',
           '  exit 0',
@@ -356,7 +356,7 @@ describe('cli deploy', () => {
         dir,
         {
           AWS_PROFILE: 'test',
-          NECTAR_AWS_CALLS: callsPath,
+          LAUREL_AWS_CALLS: callsPath,
           PATH: `${binDir}:${process.env.PATH ?? ''}`,
         },
       );

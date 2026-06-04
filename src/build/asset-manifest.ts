@@ -3,7 +3,7 @@ import type { ThemeBundle } from '~/theme/types.ts';
 import { ensureDir } from '~/util/fs.ts';
 
 export const ASSET_MANIFEST_FILENAME = 'asset-manifest.json';
-export const ASSET_MANIFEST_DIR = '.nectar';
+export const ASSET_MANIFEST_DIR = '.laurel';
 
 interface AssetManifestEntry {
   path: string;

@@ -1,6 +1,6 @@
 # 2. Migrate from Ghost in 10 minutes
 
-**Goal:** an existing Ghost blog rendered as a static Nectar site, with all
+**Goal:** an existing Ghost blog rendered as a static Laurel site, with all
 posts, pages, tags, authors, and images preserved.
 
 This is the speed-run. The exhaustive version with screenshots and edge cases
@@ -27,11 +27,11 @@ You should end up with two things on your laptop:
 └── ghost-content/         # optional, holds images/ files/ media/
 ```
 
-## Step 2 — Scaffold a Nectar project (1 min)
+## Step 2 — Scaffold a Laurel project (1 min)
 
 ```bash
 mkdir my-blog && cd my-blog
-bunx nectar init --yes
+bunx laurel init --yes
 mkdir -p themes
 git clone --depth 1 https://github.com/TryGhost/Source themes/source
 ```
@@ -39,12 +39,12 @@ git clone --depth 1 https://github.com/TryGhost/Source themes/source
 > Already using a custom Ghost theme? Download it from
 > **Settings → Design → Change theme → Advanced → Download** and unzip into
 > `themes/<your-theme-name>/`. Then set `[theme] name = "<your-theme-name>"`
-> in `nectar.toml`.
+> in `laurel.toml`.
 
 ## Step 3 — Import the JSON (2 min)
 
 ```bash
-bunx nectar import-ghost ~/Downloads/my-site.ghost.2026-05-20.json \
+bunx laurel import-ghost ~/Downloads/my-site.ghost.2026-05-20.json \
   --assets ~/Downloads/ghost-content
 ```
 
@@ -71,14 +71,14 @@ If you exported the whole content folder (not just the JSON), point the
 importer at the folder — it auto-detects the JSON and assets:
 
 ```bash
-bunx nectar import-ghost ~/Downloads/ghost-content
+bunx laurel import-ghost ~/Downloads/ghost-content
 ```
 
 ## Step 4 — Build and inspect (1 min)
 
 ```bash
-bunx nectar build
-bunx nectar serve
+bunx laurel build
+bunx laurel serve
 ```
 
 Open `http://localhost:4321`. You should see your home feed, individual posts,
@@ -86,7 +86,7 @@ tag archives, author pages, RSS at `/rss.xml`, and a sitemap at `/sitemap.xml`.
 
 ## Step 5 — Fix the small things (4 min)
 
-Update `nectar.toml` to match your old Ghost setup:
+Update `laurel.toml` to match your old Ghost setup:
 
 ```toml
 [site]
@@ -120,10 +120,10 @@ Things to double-check, in priority order:
    injection from Ghost admin is **not** imported — paste trusted snippets into
    your theme's `default.hbs` instead.
 3. **Members / paid posts.** Static sites cannot enforce paywalls. By default
-   Nectar strips `members`/`paid` post bodies down to a paywall stub so
+   Laurel strips `members`/`paid` post bodies down to a paywall stub so
    anonymous readers never see the real content; add a `<!-- members -->`
    marker in the Markdown body to keep an explicit free preview above it.
-   Override in `nectar.toml`:
+   Override in `laurel.toml`:
    ```toml
    [content]
    visibility_policy = "skip"           # omit entirely, or
@@ -152,9 +152,9 @@ Continue with [Tutorial 4 — Deploy](./04-deploy.md) to push `dist/` live.
 ### When things go wrong
 
 ```bash
-bunx nectar check       # validates config, theme, content; non-zero on errors
-bunx nectar doctor      # runs the full health check (bun, theme, content, network)
-bunx nectar build -VV   # crank verbosity to trace
+bunx laurel check       # validates config, theme, content; non-zero on errors
+bunx laurel doctor      # runs the full health check (bun, theme, content, network)
+bunx laurel build -VV   # crank verbosity to trace
 ```
 
 `check` is the fast pre-flight; `doctor` is the deep one. If `doctor --json`

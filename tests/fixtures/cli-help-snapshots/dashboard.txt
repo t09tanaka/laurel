@@ -1,7 +1,7 @@
 Run the local file-backed editorial dashboard
 
 Usage:
-  nectar dashboard [--config <path>] [--dev] [--no-build] [--port <n>] [--host <host>] [--open] [--json]
+  laurel dashboard [--config <path>] [--dev] [--no-build] [--port <n>] [--host <host>] [--open] [--json]
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -14,9 +14,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --config → NECTAR_DASHBOARD_CONFIG
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → LAUREL_DASHBOARD_CONFIG
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -24,9 +24,9 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar dashboard                             # http://127.0.0.1:4322 local dashboard
-  nectar dashboard --open                      # launch the browser after startup
-  nectar dashboard --port 0                    # pick a free port for smoke tests
-  nectar dashboard --host 0.0.0.0              # expose on the LAN
-  nectar dashboard --dev                       # frontend HMR; bundles TSX/CSS on demand
-  nectar dashboard --no-build                  # serve the embedded bundle without rebuilding
+  laurel dashboard                             # http://127.0.0.1:4322 local dashboard
+  laurel dashboard --open                      # launch the browser after startup
+  laurel dashboard --port 0                    # pick a free port for smoke tests
+  laurel dashboard --host 0.0.0.0              # expose on the LAN
+  laurel dashboard --dev                       # frontend HMR; bundles TSX/CSS on demand
+  laurel dashboard --no-build                  # serve the embedded bundle without rebuilding

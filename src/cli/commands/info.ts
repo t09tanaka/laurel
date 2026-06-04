@@ -4,12 +4,12 @@ import { join, resolve } from 'node:path';
 import { loadConfig } from '~/config/loader.ts';
 import { loadContent } from '~/content/loader.ts';
 import { loadTheme } from '~/theme/loader.ts';
-import { getNectarVersion } from '~/util/nectar-version.ts';
+import { getLaurelVersion } from '~/util/laurel-version.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { INFO_SPEC } from '../specs.ts';
 
 interface InfoReport {
-  nectar: { version: string };
+  laurel: { version: string };
   runtime: { bun: string | null; node: string };
   os: { platform: string; release: string; arch: string };
   project: {
@@ -34,12 +34,12 @@ interface InfoReport {
 }
 
 const TRACKED_ENV = [
-  'NECTAR_QUIET',
-  'NECTAR_VERBOSE',
-  'NECTAR_BUILD_INCLUDE_DRAFTS',
-  'NECTAR_DRAFTS',
-  'NECTAR_SERVE_PORT',
-  'NECTAR_SERVE_HOST',
+  'LAUREL_QUIET',
+  'LAUREL_VERBOSE',
+  'LAUREL_BUILD_INCLUDE_DRAFTS',
+  'LAUREL_DRAFTS',
+  'LAUREL_SERVE_PORT',
+  'LAUREL_SERVE_HOST',
   'EDITOR',
   'VISUAL',
   'NO_COLOR',
@@ -82,7 +82,7 @@ interface CollectOptions {
 }
 
 async function collectReport(opts: CollectOptions): Promise<InfoReport> {
-  const version = await getNectarVersion();
+  const version = await getLaurelVersion();
   const bunVersion = typeof Bun !== 'undefined' ? Bun.version : null;
 
   const env: Record<string, string> = {};
@@ -92,7 +92,7 @@ async function collectReport(opts: CollectOptions): Promise<InfoReport> {
   }
 
   const report: InfoReport = {
-    nectar: { version },
+    laurel: { version },
     runtime: { bun: bunVersion, node: process.version },
     os: { platform: platform(), release: release(), arch: arch() },
     project: {
@@ -112,7 +112,7 @@ async function collectReport(opts: CollectOptions): Promise<InfoReport> {
 
   const candidateConfig = opts.configPath
     ? resolve(opts.cwd, opts.configPath)
-    : findFirstExisting([join(opts.cwd, 'nectar.toml'), join(opts.cwd, 'nectar.config.toml')]);
+    : findFirstExisting([join(opts.cwd, 'laurel.toml'), join(opts.cwd, 'laurel.config.toml')]);
   if (candidateConfig) report.project.config_path = candidateConfig;
 
   try {
@@ -140,7 +140,7 @@ async function collectReport(opts: CollectOptions): Promise<InfoReport> {
       report.content.tags = graph.tags.length;
       report.content.authors = graph.authors.length;
     } catch {
-      // content errors are surfaced by `nectar check`; leave nulls.
+      // content errors are surfaced by `laurel check`; leave nulls.
     }
   } catch (err) {
     report.project.config_error = err instanceof Error ? err.message : String(err);
@@ -156,7 +156,7 @@ function findFirstExisting(paths: string[]): string | null {
 
 function renderText(r: InfoReport): string {
   const lines: string[] = [];
-  lines.push(`Nectar    ${r.nectar.version}`);
+  lines.push(`Laurel    ${r.laurel.version}`);
   lines.push(`Bun       ${r.runtime.bun ?? '(not detected)'}`);
   lines.push(`Node      ${r.runtime.node}`);
   lines.push(`OS        ${r.os.platform} ${r.os.release} (${r.os.arch})`);

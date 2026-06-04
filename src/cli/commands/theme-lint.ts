@@ -3,9 +3,9 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { logger } from '~/util/logger.ts';
 
-// `nectar theme:lint <path>` is a lightweight, Ghost-flavoured theme audit.
+// `laurel theme:lint <path>` is a lightweight, Ghost-flavoured theme audit.
 // It is *not* a port of gscan — gscan validates against Ghost API contracts
-// we don't host. Instead, this checks the bare-minimum subset a Nectar build
+// we don't host. Instead, this checks the bare-minimum subset a Laurel build
 // will trip over: missing templates, missing canonical helpers in
 // `default.hbs`, and recommended partials that themes-in-the-wild assume.
 //
@@ -27,7 +27,7 @@ interface LintReport {
   warnings: number;
 }
 
-// Ghost themes only strictly need `default.hbs` + `index.hbs`, but Nectar's
+// Ghost themes only strictly need `default.hbs` + `index.hbs`, but Laurel's
 // router emits post and page routes unconditionally, so missing `post.hbs` /
 // `page.hbs` is also an error here. `home.hbs` is treated as a valid
 // substitute for `index.hbs` (Ghost looks up `home.hbs` first when present).
@@ -44,7 +44,7 @@ const REQUIRED_TEMPLATES: Array<{ name: string; alt?: string }> = [
 // them breaks anything that depends on canonical URLs, OG tags, etc.
 const REQUIRED_DEFAULT_HELPERS = ['ghost_head', 'ghost_foot', 'body_class'];
 
-// Per-template helpers Nectar leans on for the right HTML class hooks. We
+// Per-template helpers Laurel leans on for the right HTML class hooks. We
 // check these on the matching template only (so a theme that uses partials
 // to compose post.hbs still passes if the helper lives in the partial — we
 // scan the partials directory too).
@@ -53,7 +53,7 @@ const POST_CLASS_TARGETS = ['post.hbs', 'page.hbs'];
 const RECOMMENDED_PARTIALS = ['partials/navigation.hbs', 'partials/pagination.hbs'];
 
 // Ghost retired these helper names; they used to work on older Ghost versions
-// and still appear in old themes. They are silently ignored by Nectar, which
+// and still appear in old themes. They are silently ignored by Laurel, which
 // usually surfaces as visual regressions rather than build errors, so warn.
 const DEPRECATED_HELPERS = ['amp_components', 'amp_content', 'amp_ghost_head'];
 
@@ -153,7 +153,7 @@ export async function lintTheme(themePath: string): Promise<LintReport> {
       findings.push({
         level: 'warn',
         code: 'gscan-members-static-runtime',
-        message: `Member-related theme marker '${marker.label}' requires a configured static Portal or external provider in Nectar.`,
+        message: `Member-related theme marker '${marker.label}' requires a configured static Portal or external provider in Laurel.`,
         file,
       });
     }
@@ -192,8 +192,8 @@ async function listFiles(root: string): Promise<string[]> {
     'dist',
     'build',
     '.cache',
-    '.nectar',
-    '.nectar-cache',
+    '.laurel',
+    '.laurel-cache',
   ]);
   async function walk(dir: string): Promise<void> {
     const entries = await readdir(dir, { withFileTypes: true });

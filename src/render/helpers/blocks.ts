@@ -1,6 +1,6 @@
 import type Handlebars from 'handlebars';
 import { logger } from '~/util/logger.ts';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 import { withTrustedCaptionHtml, withTrustedCaptionHtmlArray } from '../safe-context.ts';
 import { applyGetFilter } from './get-filter.ts';
 
@@ -36,9 +36,9 @@ interface CachedGetResult {
   pagination: GetPagination;
 }
 
-const warnedTiersGetHelpers = new WeakSet<NectarEngine>();
+const warnedTiersGetHelpers = new WeakSet<LaurelEngine>();
 
-export function registerBlockHelpers(engine: NectarEngine): void {
+export function registerBlockHelpers(engine: LaurelEngine): void {
   engine.hb.registerHelper('foreach', function foreachHelper(this: unknown, ...args: unknown[]) {
     const options = args[args.length - 1] as HelperOptions;
     const raw = args[0];
@@ -305,11 +305,11 @@ function isSubscriber(member: unknown): boolean {
   return typeof record.email === 'string' && record.email.length > 0;
 }
 
-function warnTiersGetHelper(engine: NectarEngine): void {
+function warnTiersGetHelper(engine: LaurelEngine): void {
   if (warnedTiersGetHelpers.has(engine)) return;
   warnedTiersGetHelpers.add(engine);
   logger.warn(
-    'Ghost membership tiers are not backed by a live members backend in Nectar; {{#get "tiers"}} exposes configured static tiers only, or an empty list when none are configured.',
+    'Ghost membership tiers are not backed by a live members backend in Laurel; {{#get "tiers"}} exposes configured static tiers only, or an empty list when none are configured.',
   );
 }
 
@@ -324,7 +324,7 @@ function exposeGetResource(resource: string, results: unknown[]): unknown[] {
 }
 
 function getPreparedGetResult(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   query: GetQuery,
   build: () => CachedGetResult,
 ): CachedGetResult {
@@ -391,7 +391,7 @@ const DEFAULT_ORDERS: Record<string, string> = {
 };
 
 function getSortedResource(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   resource: string,
   order: string,
 ): readonly unknown[] {
@@ -407,7 +407,7 @@ function getSortedResource(
 }
 
 function presentGetResource(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   resource: string,
   results: readonly unknown[],
 ): readonly unknown[] {
@@ -510,13 +510,13 @@ function cloneGetValue(value: unknown, seen: WeakMap<object, unknown>): unknown 
 }
 
 // Ghost's `include=` query string surfaces relations / counts that aren't part
-// of the default resource shape. Nectar pre-hydrates `authors` and `tags` on
+// of the default resource shape. Laurel pre-hydrates `authors` and `tags` on
 // posts/pages at load time, so those tokens are no-ops. `count.posts` is the
 // one that actually needs work on the way out: tags already carry the count
 // from the loader, but author objects don't — wrap them with the count from
 // the inverse `postsByAuthor` index so themes can render `{{count.posts}}`.
 function applyGetIncludes(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   resource: string,
   results: readonly unknown[],
   include: readonly string[],
@@ -547,7 +547,7 @@ function attachAuthorPostCount(
   return { ...(author as Record<string, unknown>), count: { posts: count } };
 }
 
-function baseResource(engine: NectarEngine, resource: string): readonly unknown[] {
+function baseResource(engine: LaurelEngine, resource: string): readonly unknown[] {
   switch (resource) {
     case 'posts':
       return engine.content.posts;
@@ -577,7 +577,7 @@ function pickFromRoute(
 }
 
 function registerContextBlock(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   name: 'post' | 'page' | 'tag' | 'author',
   pick: (route: Record<string, unknown> | undefined) => unknown,
 ): void {
@@ -597,7 +597,7 @@ function registerContextBlock(
 // `post.next` (newer) when sorting by `published_at desc`, so the helpers just
 // hand that reference to the block body and fall through to inverse otherwise.
 function registerAdjacentPostBlock(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   name: 'prev_post' | 'next_post',
   key: 'prev' | 'next',
 ): void {
@@ -617,14 +617,14 @@ function registerAdjacentPostBlock(
   );
 }
 
-function isPrivatePublication(engine: NectarEngine, options: Handlebars.HelperOptions): boolean {
+function isPrivatePublication(engine: LaurelEngine, options: Handlebars.HelperOptions): boolean {
   const data = (options.data ?? {}) as {
     site?: { private?: unknown };
     blog?: { private?: unknown };
     setting?: { private?: unknown };
   };
   // Ghost's `private` context is a publication-wide password-protection flag,
-  // not a route kind. Nectar has no runtime auth gate, so unset data stays
+  // not a route kind. Laurel has no runtime auth gate, so unset data stays
   // false; `[site].private = true` lets static deployments whose host enforces
   // protection render the matching theme branch.
   return (
@@ -672,12 +672,12 @@ function parseColumns(value: unknown): number {
 // `visibility` field, which means the filter is polymorphic across resources:
 //   - Posts carry `'public' | 'members' | 'paid' | 'tiers' | 'filter'`, so
 //     `visibility="public"` drops anything gated behind membership or tiers.
-//   - Tags carry `'public' | 'internal'` (Nectar's loader marks `hash-`-prefixed
+//   - Tags carry `'public' | 'internal'` (Laurel's loader marks `hash-`-prefixed
 //     slugs as `'internal'` to mirror Ghost's `#`-prefix convention), so
 //     `visibility="public"` drops internal tags via the `tag.visibility ===
 //     'public'` comparison.
 //   - Authors, Pages, and Tiers have no per-row visibility variation in
-//     Nectar's content graph. Authors omit the field entirely; Pages/Tiers
+//     Laurel's content graph. Authors omit the field entirely; Pages/Tiers
 //     always materialise as `'public'`. The `?? 'public'` fallback below treats
 //     a missing field as public so iterating those resources with
 //     `visibility="public"` is a no-op rather than a wipeout.
@@ -725,7 +725,7 @@ function evaluateTagOrAuthorAttr(raw: unknown, value: string): boolean {
   if (trimmed.startsWith('count:')) {
     const tail = trimmed.slice('count:'.length);
     const length = Array.isArray(raw) ? raw.length : 0;
-    return evaluateCountAttr({ __nectar_collection: length }, '__nectar_collection', tail);
+    return evaluateCountAttr({ __laurel_collection: length }, '__laurel_collection', tail);
   }
   const list = (raw as { slug?: string; name?: string }[] | undefined) ?? [];
   return value

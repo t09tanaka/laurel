@@ -1,13 +1,13 @@
 Inspect or modify tags in the project
 
 Usage:
-  nectar tags [--config <path>] [--orphaned] [--unused] [--json] [--dry-run] <subcommand...>
+  laurel tags [--config <path>] [--orphaned] [--unused] [--json] [--dry-run] <subcommand...>
 
 Arguments:
   subcommand          `list` (show tags), `rename <old-slug> <new-slug>`, or `merge <from> [from...] <into>` (rewrite post/page tag references and safely handle tag files)
 
 End of options:
-  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+  Use `--` before positional values that start with `-`, for example `laurel new post -- --config`.
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -18,9 +18,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --config → NECTAR_TAGS_CONFIG
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → LAUREL_TAGS_CONFIG
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -28,8 +28,8 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar tags list                             # all tags + post counts
-  nectar tags list --orphaned                  # tags defined but unused
-  nectar tags rename old-tag new-tag
-  nectar tags rename old new --dry-run         # preview files that would change
-  nectar tags merge draft old canonical --dry-run
+  laurel tags list                             # all tags + post counts
+  laurel tags list --orphaned                  # tags defined but unused
+  laurel tags rename old-tag new-tag
+  laurel tags rename old new --dry-run         # preview files that would change
+  laurel tags merge draft old canonical --dry-run

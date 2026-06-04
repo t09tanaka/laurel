@@ -1,14 +1,14 @@
-Import a Nectar zip bundle: an entry (post or page) or a components bundle
+Import a Laurel zip bundle: an entry (post or page) or a components bundle
 
 Usage:
-  nectar import [--config <path>] [--on-conflict <skip|overwrite|rename>] [--dry-run] [--json] <kind> <file>
+  laurel import [--config <path>] [--on-conflict <skip|overwrite|rename>] [--dry-run] [--json] <kind> <file>
 
 Arguments:
   kind                Import kind: `entry` (a single post/page bundle; the manifest carries the post/page kind) or `components` (a bulk components bundle)
-  file                Path to a `.nectar.zip` bundle (entry or components)
+  file                Path to a `.laurel.zip` bundle (entry or components)
 
 End of options:
-  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+  Use `--` before positional values that start with `-`, for example `laurel new post -- --config`.
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -18,9 +18,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --config → NECTAR_IMPORT_CONFIG
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → LAUREL_IMPORT_CONFIG
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -28,9 +28,9 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar import entry hello-world.nectar.zip
-  nectar import entry hello-world.nectar.zip --dry-run
-  nectar import entry hello-world.nectar.zip --on-conflict rename
-  nectar import entry hello-world.nectar.zip --on-conflict overwrite
-  nectar import components components.nectar.zip
-  nectar import components components.nectar.zip --on-conflict overwrite
+  laurel import entry hello-world.laurel.zip
+  laurel import entry hello-world.laurel.zip --dry-run
+  laurel import entry hello-world.laurel.zip --on-conflict rename
+  laurel import entry hello-world.laurel.zip --on-conflict overwrite
+  laurel import components components.laurel.zip
+  laurel import components components.laurel.zip --on-conflict overwrite

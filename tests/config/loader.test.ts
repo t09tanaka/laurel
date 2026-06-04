@@ -4,10 +4,10 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { findProjectRoot, loadConfig } from '~/config/loader.ts';
 import { configSchema } from '~/config/schema.ts';
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 
 async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
-  const dir = await mkdtemp(join(tmpdir(), 'nectar-test-'));
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-test-'));
   return await fn(dir);
 }
 
@@ -15,7 +15,7 @@ describe('loadConfig', () => {
   test('returns defaults when no config is present', async () => {
     await withTempDir(async (cwd) => {
       const config = await loadConfig({ cwd });
-      expect(config.site.title).toBe('Nectar Site');
+      expect(config.site.title).toBe('Laurel Site');
       expect(config.build.posts_per_page).toBe(12);
       expect(config.theme.name).toBe('source');
     });
@@ -41,7 +41,7 @@ describe('loadConfig', () => {
   test('allows opting out of image metadata stripping', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         ['[components.images]', 'strip_metadata = false', ''].join('\n'),
         'utf8',
       );
@@ -54,7 +54,7 @@ describe('loadConfig', () => {
   test('parses image_cdn adapter config', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[image_cdn]
 enabled = true
 adapter = "cloudflare"
@@ -81,7 +81,7 @@ path_prefixes = ["/content/images/", "/uploads/"]
   test('requires image_cdn.base_url for fetch-proxy adapters', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[image_cdn]
 enabled = true
 adapter = "imgproxy"
@@ -93,10 +93,10 @@ adapter = "imgproxy"
     });
   });
 
-  test('parses nectar.toml', async () => {
+  test('parses laurel.toml', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]
 title = "My Blog"
 url = "https://example.com"
@@ -120,7 +120,7 @@ url = "/"
 
   test('reuses schema parsing for unchanged config inputs without sharing mutable results', async () => {
     await withTempDir(async (cwd) => {
-      await writeFile(join(cwd, 'nectar.toml'), '[site]\ntitle = "Cached"\n', 'utf8');
+      await writeFile(join(cwd, 'laurel.toml'), '[site]\ntitle = "Cached"\n', 'utf8');
       const parseSpy = spyOn(configSchema, 'parse');
       try {
         const first = await loadConfig({ cwd, env: {} });
@@ -137,7 +137,7 @@ url = "/"
 
   test('invalidates reused schema parsing when a config layer changes', async () => {
     await withTempDir(async (cwd) => {
-      const file = join(cwd, 'nectar.toml');
+      const file = join(cwd, 'laurel.toml');
       await writeFile(file, '[site]\ntitle = "Cached"\n', 'utf8');
       const parseSpy = spyOn(configSchema, 'parse');
       try {
@@ -157,16 +157,16 @@ url = "/"
 
   test('rejects oversized TOML config before parsing', async () => {
     await withTempDir(async (cwd) => {
-      await writeFile(join(cwd, 'nectar.toml'), `# ${'x'.repeat(1024 * 1024 + 1)}\n`, 'utf8');
+      await writeFile(join(cwd, 'laurel.toml'), `# ${'x'.repeat(1024 * 1024 + 1)}\n`, 'utf8');
 
-      await expect(loadConfig({ cwd })).rejects.toThrow(/nectar\.toml is too large/);
+      await expect(loadConfig({ cwd })).rejects.toThrow(/laurel\.toml is too large/);
     });
   });
 
   test('parses optional navigation metadata', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[[navigation]]
 label = "Docs"
 url = "https://docs.example.com"
@@ -187,10 +187,10 @@ target = "_blank"
     });
   });
 
-  test('parses nectar.config.json during default discovery', async () => {
+  test('parses laurel.config.json during default discovery', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.config.json'),
+        join(cwd, 'laurel.config.json'),
         `${JSON.stringify({ site: { title: 'JSON Site', url: 'https://json.example' } })}\n`,
         'utf8',
       );
@@ -200,12 +200,12 @@ target = "_blank"
     });
   });
 
-  test('applies .nectar.local.toml after base and environment config layers', async () => {
+  test('applies .laurel.local.toml after base and environment config layers', async () => {
     await withTempDir(async (cwd) => {
-      await writeFile(join(cwd, 'nectar.toml'), `[site]\ntitle = "Base"\n`, 'utf8');
-      await writeFile(join(cwd, 'nectar.production.toml'), `[site]\ntitle = "Env"\n`, 'utf8');
-      await writeFile(join(cwd, '.nectar.local.toml'), `[site]\ntitle = "Local"\n`, 'utf8');
-      const config = await loadConfig({ cwd, env: { NECTAR_ENV: 'production' } });
+      await writeFile(join(cwd, 'laurel.toml'), `[site]\ntitle = "Base"\n`, 'utf8');
+      await writeFile(join(cwd, 'laurel.production.toml'), `[site]\ntitle = "Env"\n`, 'utf8');
+      await writeFile(join(cwd, '.laurel.local.toml'), `[site]\ntitle = "Local"\n`, 'utf8');
+      const config = await loadConfig({ cwd, env: { LAUREL_ENV: 'production' } });
       expect(config.site.title).toBe('Local');
     });
   });
@@ -262,10 +262,10 @@ feed_layout = "List"
     });
   });
 
-  test('NECTAR_ENV appends nectar.<env>.toml after the discovered base config', async () => {
+  test('LAUREL_ENV appends laurel.<env>.toml after the discovered base config', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]
 title = "Base"
 description = "Base description"
@@ -273,24 +273,24 @@ description = "Base description"
         'utf8',
       );
       await writeFile(
-        join(cwd, 'nectar.production.toml'),
+        join(cwd, 'laurel.production.toml'),
         `[site]
 title = "Production"
 `,
         'utf8',
       );
 
-      const config = await loadConfig({ cwd, env: { NECTAR_ENV: 'production' } });
+      const config = await loadConfig({ cwd, env: { LAUREL_ENV: 'production' } });
       expect(config.site.title).toBe('Production');
       expect(config.site.description).toBe('Base description');
     });
   });
 
-  test('explicit config paths disable NECTAR_ENV config discovery', async () => {
+  test('explicit config paths disable LAUREL_ENV config discovery', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(join(cwd, 'base.toml'), `[site]\ntitle = "Explicit"\n`, 'utf8');
       await writeFile(
-        join(cwd, 'nectar.production.toml'),
+        join(cwd, 'laurel.production.toml'),
         `[site]\ntitle = "Production"\n`,
         'utf8',
       );
@@ -298,16 +298,16 @@ title = "Production"
       const config = await loadConfig({
         cwd,
         configPath: 'base.toml',
-        env: { NECTAR_ENV: 'production' },
+        env: { LAUREL_ENV: 'production' },
       });
       expect(config.site.title).toBe('Explicit');
     });
   });
 
-  test('parses post-build hook command from nectar.toml', async () => {
+  test('parses post-build hook command from laurel.toml', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[hooks]
 post_build = "./scripts/notify-discord.sh"
 `,
@@ -322,7 +322,7 @@ post_build = "./scripts/notify-discord.sh"
   test('parses subscribe provider config for static signup forms', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[components.subscribe]
 provider = "convertkit"
 form_id = "12345"
@@ -345,7 +345,7 @@ name_field_name = "fields[first_name]"
   test('parses listmonk subscribe provider config', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[components.subscribe]
 provider = "listmonk"
 action = "https://lists.example.com/api/public/subscription"
@@ -366,7 +366,7 @@ list_ids = ["list-a", "list-b"]
   test('parses MailerLite and EmailOctopus subscribe provider configs', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[components.subscribe]
 provider = "emailoctopus"
 list_id = "72d84316-1496-11eb-a3d0-06b4694bee2a"
@@ -381,7 +381,7 @@ list_id = "72d84316-1496-11eb-a3d0-06b4694bee2a"
       );
 
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[components.subscribe]
 provider = "mailerlite"
 action = "https://app.mailerlite.com/webforms/submit/abc123"
@@ -400,7 +400,7 @@ action = "https://app.mailerlite.com/webforms/submit/abc123"
   test('parses Mailchimp and EmailOctopus portal provider configs', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[components.portal]
 provider = "mailchimp"
 signup_url = "https://example.us1.list-manage.com/subscribe/post?u=abc&id=xyz"
@@ -415,7 +415,7 @@ signup_url = "https://example.us1.list-manage.com/subscribe/post?u=abc&id=xyz"
       );
 
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[components.portal]
 provider = "emailoctopus"
 signup_url = "https://eocampaign1.com/form/abc.js"
@@ -437,7 +437,7 @@ signup_url = "https://eocampaign1.com/form/abc.js"
       expect(config.components.portal.inline_submit).toBe(false);
 
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[components.portal]
 inline_submit = true
 `,
@@ -449,10 +449,10 @@ inline_submit = true
     });
   });
 
-  test('parses site.icon from nectar.toml', async () => {
+  test('parses site.icon from laurel.toml', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]
 title = "Icon Blog"
 url = "https://example.com"
@@ -474,10 +474,10 @@ icon = "/content/images/site-icon.svg"
     });
   });
 
-  test('parses site.referrer_policy from nectar.toml', async () => {
+  test('parses site.referrer_policy from laurel.toml', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]
 title = "Private Blog"
 referrer_policy = "no-referrer"
@@ -493,7 +493,7 @@ referrer_policy = "no-referrer"
   test('preserves theme custom select strings exactly', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]
 title = "Bulletin"
 
@@ -508,16 +508,16 @@ feature_image_width = "Wide"
     });
   });
 
-  test('throws NectarError with file:line:col on malformed TOML', async () => {
+  test('throws LaurelError with file:line:col on malformed TOML', async () => {
     await withTempDir(async (cwd) => {
-      const file = join(cwd, 'nectar.toml');
+      const file = join(cwd, 'laurel.toml');
       await writeFile(file, `[site]\ntitle = "abc"\nno_equals_here\n`, 'utf8');
       try {
         await loadConfig({ cwd });
         throw new Error('expected loadConfig to throw');
       } catch (err) {
-        expect(err).toBeInstanceOf(NectarError);
-        const ne = err as NectarError;
+        expect(err).toBeInstanceOf(LaurelError);
+        const ne = err as LaurelError;
         expect(ne.file).toBe(file);
         expect(ne.line).toBe(3);
         expect(ne.message).toMatch(/invalid TOML/);
@@ -525,16 +525,16 @@ feature_image_width = "Wide"
     });
   });
 
-  test('throws NectarError with field path hint on schema mismatch', async () => {
+  test('throws LaurelError with field path hint on schema mismatch', async () => {
     await withTempDir(async (cwd) => {
-      const file = join(cwd, 'nectar.toml');
+      const file = join(cwd, 'laurel.toml');
       await writeFile(file, '[site]\ntitle = 123\n', 'utf8');
       try {
         await loadConfig({ cwd });
         throw new Error('expected loadConfig to throw');
       } catch (err) {
-        expect(err).toBeInstanceOf(NectarError);
-        const ne = err as NectarError;
+        expect(err).toBeInstanceOf(LaurelError);
+        const ne = err as LaurelError;
         expect(ne.file).toBe(file);
         expect(ne.message).toMatch(/site\.title/);
         expect(ne.message).toMatch(/string/);
@@ -544,14 +544,14 @@ feature_image_width = "Wide"
 
   test('rejects unknown top-level keys with did-you-mean hint', async () => {
     await withTempDir(async (cwd) => {
-      const file = join(cwd, 'nectar.toml');
+      const file = join(cwd, 'laurel.toml');
       await writeFile(file, '[sites]\ntitle = "Typo"\n', 'utf8');
       try {
         await loadConfig({ cwd });
         throw new Error('expected loadConfig to throw');
       } catch (err) {
-        expect(err).toBeInstanceOf(NectarError);
-        const ne = err as NectarError;
+        expect(err).toBeInstanceOf(LaurelError);
+        const ne = err as LaurelError;
         expect(ne.file).toBe(file);
         expect(ne.message).toMatch(/unknown key/);
         expect(ne.message).toMatch(/`sites`/);
@@ -562,14 +562,14 @@ feature_image_width = "Wide"
 
   test('rejects unknown nested keys with dotted path and suggestion', async () => {
     await withTempDir(async (cwd) => {
-      const file = join(cwd, 'nectar.toml');
+      const file = join(cwd, 'laurel.toml');
       await writeFile(file, '[site]\ntitle = "Blog"\ndescriptio = "typo"\n', 'utf8');
       try {
         await loadConfig({ cwd });
         throw new Error('expected loadConfig to throw');
       } catch (err) {
-        expect(err).toBeInstanceOf(NectarError);
-        const ne = err as NectarError;
+        expect(err).toBeInstanceOf(LaurelError);
+        const ne = err as LaurelError;
         expect(ne.message).toMatch(/unknown key/);
         expect(ne.message).toMatch(/`site\.descriptio`/);
         expect(ne.hint).toBe('did you mean `site.description`?');
@@ -579,7 +579,7 @@ feature_image_width = "Wide"
 
   test('rejects unknown keys inside navigation array entries', async () => {
     await withTempDir(async (cwd) => {
-      const file = join(cwd, 'nectar.toml');
+      const file = join(cwd, 'laurel.toml');
       await writeFile(
         file,
         `[[navigation]]
@@ -593,8 +593,8 @@ rel = "noopener"
         await loadConfig({ cwd });
         throw new Error('expected loadConfig to throw');
       } catch (err) {
-        expect(err).toBeInstanceOf(NectarError);
-        const ne = err as NectarError;
+        expect(err).toBeInstanceOf(LaurelError);
+        const ne = err as LaurelError;
         expect(ne.message).toMatch(/unknown key/);
         expect(ne.message).toMatch(/`navigation\.0\.rel`/);
       }
@@ -604,7 +604,7 @@ rel = "noopener"
   test('still accepts arbitrary keys under theme.custom', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]
 title = "Custom"
 
@@ -623,7 +623,7 @@ some_brand_new_setting = "ok"
   test('preserves theme custom select values with package.json casing and spaces', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]
 title = "Edition"
 
@@ -643,7 +643,7 @@ feed_layout = "Right thumbnail"
   test('preserves Solo header section layout override casing and spaces', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]
 title = "Solo"
 
@@ -664,7 +664,7 @@ header_section_layout = "Typographic profile"
   test('accepts a base64 build.csp_nonce so CSP-aware deploys can opt in', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[build]
 csp_nonce = "rAnd0m+Nonce/=="
 `,
@@ -688,14 +688,14 @@ csp_nonce = "rAnd0m+Nonce/=="
     // `"><img src=x>` would otherwise reach the output verbatim, so the schema
     // must hard-reject anything that does not parse as an absolute URL.
     await withTempDir(async (cwd) => {
-      const file = join(cwd, 'nectar.toml');
+      const file = join(cwd, 'laurel.toml');
       await writeFile(file, `[site]\ntitle = "Blog"\nurl = "not a url"\n`, 'utf8');
       try {
         await loadConfig({ cwd });
         throw new Error('expected loadConfig to throw');
       } catch (err) {
-        expect(err).toBeInstanceOf(NectarError);
-        const ne = err as NectarError;
+        expect(err).toBeInstanceOf(LaurelError);
+        const ne = err as LaurelError;
         expect(ne.message).toMatch(/site\.url/);
         expect(ne.message).toMatch(/url/i);
       }
@@ -705,7 +705,7 @@ csp_nonce = "rAnd0m+Nonce/=="
   test('accepts a valid absolute https URL for site.url', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://example.com"\n`,
         'utf8',
       );
@@ -716,14 +716,14 @@ csp_nonce = "rAnd0m+Nonce/=="
 
   test('rejects site.url values that use non-http schemes', async () => {
     await withTempDir(async (cwd) => {
-      const file = join(cwd, 'nectar.toml');
+      const file = join(cwd, 'laurel.toml');
       await writeFile(file, `[site]\ntitle = "Blog"\nurl = "file:///etc/passwd"\n`, 'utf8');
       try {
         await loadConfig({ cwd });
         throw new Error('expected loadConfig to throw');
       } catch (err) {
-        expect(err).toBeInstanceOf(NectarError);
-        const ne = err as NectarError;
+        expect(err).toBeInstanceOf(LaurelError);
+        const ne = err as LaurelError;
         expect(ne.message).toMatch(/site\.url/);
         expect(ne.message).toMatch(/http or https/);
       }
@@ -736,7 +736,7 @@ csp_nonce = "rAnd0m+Nonce/=="
     // `red; background: url(//evil)` would inject arbitrary CSS, so the schema
     // restricts it to a literal `#RGB` / `#RRGGBB` / `#RRGGBBAA` hex triplet.
     await withTempDir(async (cwd) => {
-      const file = join(cwd, 'nectar.toml');
+      const file = join(cwd, 'laurel.toml');
       await writeFile(
         file,
         `[site]\ntitle = "Blog"\naccent_color = "red; background: url(//evil)"\n`,
@@ -746,8 +746,8 @@ csp_nonce = "rAnd0m+Nonce/=="
         await loadConfig({ cwd });
         throw new Error('expected loadConfig to throw');
       } catch (err) {
-        expect(err).toBeInstanceOf(NectarError);
-        const ne = err as NectarError;
+        expect(err).toBeInstanceOf(LaurelError);
+        const ne = err as LaurelError;
         expect(ne.message).toMatch(/accent_color/);
       }
     });
@@ -757,7 +757,7 @@ csp_nonce = "rAnd0m+Nonce/=="
     for (const value of ['#abc', '#abcdef', '#abcdef80']) {
       await withTempDir(async (cwd) => {
         await writeFile(
-          join(cwd, 'nectar.toml'),
+          join(cwd, 'laurel.toml'),
           `[site]\ntitle = "Blog"\naccent_color = "${value}"\n`,
           'utf8',
         );
@@ -772,14 +772,14 @@ csp_nonce = "rAnd0m+Nonce/=="
     // so a value containing `"` or `>` would break out of the attribute. The
     // schema restricts it to a BCP 47-shaped tag.
     await withTempDir(async (cwd) => {
-      const file = join(cwd, 'nectar.toml');
+      const file = join(cwd, 'laurel.toml');
       await writeFile(file, `[site]\ntitle = "Blog"\nlocale = "en_US"\n`, 'utf8');
       try {
         await loadConfig({ cwd });
         throw new Error('expected loadConfig to throw');
       } catch (err) {
-        expect(err).toBeInstanceOf(NectarError);
-        const ne = err as NectarError;
+        expect(err).toBeInstanceOf(LaurelError);
+        const ne = err as LaurelError;
         expect(ne.message).toMatch(/site\.locale/);
       }
     });
@@ -789,7 +789,7 @@ csp_nonce = "rAnd0m+Nonce/=="
     for (const locale of ['en', 'en-US', 'zh-Hant-TW', 'ar-EG', 'pt-BR']) {
       await withTempDir(async (cwd) => {
         await writeFile(
-          join(cwd, 'nectar.toml'),
+          join(cwd, 'laurel.toml'),
           `[site]\ntitle = "Blog"\nlocale = "${locale}"\n`,
           'utf8',
         );
@@ -804,14 +804,14 @@ csp_nonce = "rAnd0m+Nonce/=="
     // schema is the trust boundary). A value like `"><script>...` must be
     // rejected at config-load time, not emitted into <script nonce="...">.
     await withTempDir(async (cwd) => {
-      const file = join(cwd, 'nectar.toml');
+      const file = join(cwd, 'laurel.toml');
       await writeFile(file, `[build]\ncsp_nonce = "\\"><script>"\n`, 'utf8');
       try {
         await loadConfig({ cwd });
         throw new Error('expected loadConfig to throw');
       } catch (err) {
-        expect(err).toBeInstanceOf(NectarError);
-        const ne = err as NectarError;
+        expect(err).toBeInstanceOf(LaurelError);
+        const ne = err as LaurelError;
         expect(ne.message).toMatch(/csp_nonce|base64/);
       }
     });
@@ -821,7 +821,7 @@ csp_nonce = "rAnd0m+Nonce/=="
     for (const policy of ['always', 'never', 'preserve'] as const) {
       await withTempDir(async (cwd) => {
         await writeFile(
-          join(cwd, 'nectar.toml'),
+          join(cwd, 'laurel.toml'),
           `[build]\ntrailing_slash = "${policy}"\n`,
           'utf8',
         );
@@ -833,7 +833,7 @@ csp_nonce = "rAnd0m+Nonce/=="
 
   test('rejects unknown build.trailing_slash policy values', async () => {
     await withTempDir(async (cwd) => {
-      await writeFile(join(cwd, 'nectar.toml'), '[build]\ntrailing_slash = "sometimes"\n', 'utf8');
+      await writeFile(join(cwd, 'laurel.toml'), '[build]\ntrailing_slash = "sometimes"\n', 'utf8');
       await expect(loadConfig({ cwd })).rejects.toThrow(/trailing_slash/);
     });
   });
@@ -849,7 +849,7 @@ csp_nonce = "rAnd0m+Nonce/=="
     ] as const) {
       await withTempDir(async (cwd) => {
         await writeFile(
-          join(cwd, 'nectar.toml'),
+          join(cwd, 'laurel.toml'),
           `[site]\ntitle = "Blog"\nurl = "${input}"\n`,
           'utf8',
         );
@@ -862,35 +862,35 @@ csp_nonce = "rAnd0m+Nonce/=="
   test('strips trailing slashes from env-overridden site.url', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         '[site]\ntitle = "Blog"\nurl = "https://from-toml.example"\n',
         'utf8',
       );
       const config = await loadConfig({
         cwd,
-        env: { NECTAR_SITE_URL: 'https://from-env.example/blog//' },
+        env: { LAUREL_SITE_URL: 'https://from-env.example/blog//' },
       });
 
       expect(config.site.url).toBe('https://from-env.example/blog');
     });
   });
 
-  // #852: NECTAR_<SECTION>_<KEY> overrides any scalar config key. Useful for
-  // staging vs prod builds where the same nectar.toml ships everywhere but
+  // #852: LAUREL_<SECTION>_<KEY> overrides any scalar config key. Useful for
+  // staging vs prod builds where the same laurel.toml ships everywhere but
   // a deploy hook flips `[site].url` per environment.
-  test('applies NECTAR_* env overrides on top of parsed TOML', async () => {
+  test('applies LAUREL_* env overrides on top of parsed TOML', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "From TOML"\nurl = "https://from-toml.example"\n[build]\nposts_per_page = 5\n`,
         'utf8',
       );
       const config = await loadConfig({
         cwd,
         env: {
-          NECTAR_SITE_URL: 'https://from-env.example',
-          NECTAR_SITE_TITLE: 'From Env',
-          NECTAR_BUILD_POSTS_PER_PAGE: '20',
+          LAUREL_SITE_URL: 'https://from-env.example',
+          LAUREL_SITE_TITLE: 'From Env',
+          LAUREL_BUILD_POSTS_PER_PAGE: '20',
         },
       });
       expect(config.site.url).toBe('https://from-env.example');
@@ -902,7 +902,7 @@ csp_nonce = "rAnd0m+Nonce/=="
   test('uses Netlify DEPLOY_PRIME_URL for preview deploy site.url', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
         'utf8',
       );
@@ -923,7 +923,7 @@ csp_nonce = "rAnd0m+Nonce/=="
   test('falls back to Netlify DEPLOY_URL and URL for branch deploy site.url', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
         'utf8',
       );
@@ -950,10 +950,10 @@ csp_nonce = "rAnd0m+Nonce/=="
     });
   });
 
-  test('keeps explicit NECTAR_SITE_URL ahead of the Netlify deploy URL fallback', async () => {
+  test('keeps explicit LAUREL_SITE_URL ahead of the Netlify deploy URL fallback', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
         'utf8',
       );
@@ -963,7 +963,7 @@ csp_nonce = "rAnd0m+Nonce/=="
           NETLIFY: 'true',
           CONTEXT: 'deploy-preview',
           DEPLOY_PRIME_URL: 'https://deploy-preview-42--site.netlify.app',
-          NECTAR_SITE_URL: 'https://explicit-env.example',
+          LAUREL_SITE_URL: 'https://explicit-env.example',
         },
       });
       expect(config.site.url).toBe('https://explicit-env.example');
@@ -973,7 +973,7 @@ csp_nonce = "rAnd0m+Nonce/=="
   test('uses Cloudflare Pages deployment URL and metadata when present', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
         'utf8',
       );
@@ -996,10 +996,10 @@ csp_nonce = "rAnd0m+Nonce/=="
     });
   });
 
-  test('keeps explicit NECTAR_SITE_URL ahead of the Cloudflare Pages URL fallback', async () => {
+  test('keeps explicit LAUREL_SITE_URL ahead of the Cloudflare Pages URL fallback', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
         'utf8',
       );
@@ -1008,7 +1008,7 @@ csp_nonce = "rAnd0m+Nonce/=="
         env: {
           CF_PAGES: '1',
           CF_PAGES_URL: 'https://feature-docs.example.pages.dev',
-          NECTAR_SITE_URL: 'https://explicit-env.example',
+          LAUREL_SITE_URL: 'https://explicit-env.example',
         },
       });
       expect(config.site.url).toBe('https://explicit-env.example');
@@ -1018,7 +1018,7 @@ csp_nonce = "rAnd0m+Nonce/=="
   test('derives GitHub Pages project-site base_path from GITHUB_REPOSITORY', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://octo.github.io/project-site/"\n`,
         'utf8',
       );
@@ -1036,7 +1036,7 @@ csp_nonce = "rAnd0m+Nonce/=="
   test('keeps explicit build.base_path ahead of the GitHub Pages project-site fallback', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://octo.github.io/project-site/"\n[build]\nbase_path = "/manual/"\n`,
         'utf8',
       );
@@ -1051,10 +1051,10 @@ csp_nonce = "rAnd0m+Nonce/=="
     });
   });
 
-  test('keeps NECTAR_BUILD_BASE_PATH ahead of the GitHub Pages project-site fallback', async () => {
+  test('keeps LAUREL_BUILD_BASE_PATH ahead of the GitHub Pages project-site fallback', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://octo.github.io/project-site/"\n`,
         'utf8',
       );
@@ -1063,7 +1063,7 @@ csp_nonce = "rAnd0m+Nonce/=="
         env: {
           GITHUB_PAGES: 'true',
           GITHUB_REPOSITORY: 'octo/project-site',
-          NECTAR_BUILD_BASE_PATH: '/env/',
+          LAUREL_BUILD_BASE_PATH: '/env/',
         },
       });
       expect(config.build.base_path).toBe('/env/');
@@ -1073,7 +1073,7 @@ csp_nonce = "rAnd0m+Nonce/=="
   test('does not derive GitHub Pages base_path when a custom domain is configured', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://blog.example.com/"\n[deploy.github_pages]\ncustom_domain = "blog.example.com"\n`,
         'utf8',
       );
@@ -1091,7 +1091,7 @@ csp_nonce = "rAnd0m+Nonce/=="
   test('does not derive GitHub Pages base_path when a custom domain env override is present', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://blog.example.com/"\n`,
         'utf8',
       );
@@ -1100,7 +1100,7 @@ csp_nonce = "rAnd0m+Nonce/=="
         env: {
           GITHUB_PAGES: 'true',
           GITHUB_REPOSITORY: 'octo/project-site',
-          NECTAR_DEPLOY_GITHUB_PAGES_CUSTOM_DOMAIN: 'blog.example.com',
+          LAUREL_DEPLOY_GITHUB_PAGES_CUSTOM_DOMAIN: 'blog.example.com',
         },
       });
       expect(config.build.base_path).toBe('/');
@@ -1111,7 +1111,7 @@ csp_nonce = "rAnd0m+Nonce/=="
   test('does not derive GitHub Pages base_path for user or organization Pages repositories', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://octo.github.io/"\n`,
         'utf8',
       );
@@ -1129,7 +1129,7 @@ csp_nonce = "rAnd0m+Nonce/=="
   test('uses Vercel deployment URL and metadata when present', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
         'utf8',
       );
@@ -1154,7 +1154,7 @@ csp_nonce = "rAnd0m+Nonce/=="
   test('uses generic build metadata env vars without a provider flag', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
         'utf8',
       );
@@ -1175,7 +1175,7 @@ csp_nonce = "rAnd0m+Nonce/=="
   test('uses generic COMMIT_SHA when no provider commit env is present', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
         'utf8',
       );
@@ -1191,10 +1191,10 @@ csp_nonce = "rAnd0m+Nonce/=="
     });
   });
 
-  test('keeps explicit Nectar build metadata env aliases ahead of provider fallbacks', async () => {
+  test('keeps explicit Laurel build metadata env aliases ahead of provider fallbacks', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
         'utf8',
       );
@@ -1206,25 +1206,25 @@ csp_nonce = "rAnd0m+Nonce/=="
           CF_PAGES_BRANCH: 'feature/docs',
           CF_PAGES_COMMIT_SHA: 'provider-sha',
           BUILD_ID: 'generic-build',
-          NECTAR_BUILD_ID: 'nectar-build',
-          NECTAR_COMMIT_SHA: 'nectar-sha',
-          NECTAR_BUILD_METADATA_COMMIT_SHA: 'metadata-sha',
+          LAUREL_BUILD_ID: 'laurel-build',
+          LAUREL_COMMIT_SHA: 'laurel-sha',
+          LAUREL_BUILD_METADATA_COMMIT_SHA: 'metadata-sha',
         },
       });
       expect(config.build.metadata).toEqual({
         provider: 'cloudflare_pages',
         environment: 'preview',
         branch: 'feature/docs',
-        build_id: 'nectar-build',
+        build_id: 'laurel-build',
         commit_sha: 'metadata-sha',
       });
     });
   });
 
-  test('keeps explicit NECTAR_SITE_URL ahead of the Vercel URL fallback', async () => {
+  test('keeps explicit LAUREL_SITE_URL ahead of the Vercel URL fallback', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
         'utf8',
       );
@@ -1233,7 +1233,7 @@ csp_nonce = "rAnd0m+Nonce/=="
         env: {
           VERCEL: '1',
           VERCEL_URL: 'feature-docs-git-main-team.vercel.app',
-          NECTAR_SITE_URL: 'https://explicit-env.example',
+          LAUREL_SITE_URL: 'https://explicit-env.example',
         },
       });
       expect(config.site.url).toBe('https://explicit-env.example');
@@ -1243,7 +1243,7 @@ csp_nonce = "rAnd0m+Nonce/=="
   test('ignores Vercel URL when not running on Vercel', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
         'utf8',
       );
@@ -1261,7 +1261,7 @@ csp_nonce = "rAnd0m+Nonce/=="
   test('ignores Cloudflare Pages URL when not running on Pages', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
         'utf8',
       );
@@ -1279,7 +1279,7 @@ csp_nonce = "rAnd0m+Nonce/=="
   test('does not apply Netlify deploy URLs outside preview or branch deploy context', async () => {
     await withTempDir(async (cwd) => {
       await writeFile(
-        join(cwd, 'nectar.toml'),
+        join(cwd, 'laurel.toml'),
         `[site]\ntitle = "Blog"\nurl = "https://prod.example.com"\n`,
         'utf8',
       );
@@ -1300,8 +1300,8 @@ csp_nonce = "rAnd0m+Nonce/=="
       const config = await loadConfig({
         cwd,
         env: {
-          NECTAR_BUILD_MINIFY_HTML: 'true',
-          NECTAR_BUILD_COPY_CONTENT_ASSETS: '0',
+          LAUREL_BUILD_MINIFY_HTML: 'true',
+          LAUREL_BUILD_COPY_CONTENT_ASSETS: '0',
         },
       });
       expect(config.build.minify_html).toBe(true);
@@ -1314,12 +1314,12 @@ csp_nonce = "rAnd0m+Nonce/=="
       const config = await loadConfig({
         cwd,
         env: {
-          NECTAR_PLUGINS: './plugins/a.ts, nectar-plugin-b',
-          NECTAR_COMPONENTS_IMAGES_FORMATS: '["avif","webp"]',
-          NECTAR_DEPLOY_RSYNC_FLAGS: '["-az","--checksum"]',
+          LAUREL_PLUGINS: './plugins/a.ts, laurel-plugin-b',
+          LAUREL_COMPONENTS_IMAGES_FORMATS: '["avif","webp"]',
+          LAUREL_DEPLOY_RSYNC_FLAGS: '["-az","--checksum"]',
         },
       });
-      expect(config.plugins).toEqual(['./plugins/a.ts', 'nectar-plugin-b']);
+      expect(config.plugins).toEqual(['./plugins/a.ts', 'laurel-plugin-b']);
       expect(config.components.images.formats).toEqual(['avif', 'webp']);
       expect(config.deploy.rsync.flags).toEqual(['-az', '--checksum']);
     });
@@ -1330,11 +1330,11 @@ csp_nonce = "rAnd0m+Nonce/=="
       const config = await loadConfig({
         cwd,
         env: {
-          NECTAR_NAVIGATION: JSON.stringify([
+          LAUREL_NAVIGATION: JSON.stringify([
             { label: 'Home', url: '/' },
             { label: 'Docs', url: '/docs/' },
           ]),
-          NECTAR_TIERS: JSON.stringify([
+          LAUREL_TIERS: JSON.stringify([
             {
               name: 'Supporter',
               monthly_price: 9,
@@ -1364,7 +1364,7 @@ csp_nonce = "rAnd0m+Nonce/=="
       const config = await loadConfig({
         cwd,
         env: {
-          NECTAR_PLUGINS: '[not json',
+          LAUREL_PLUGINS: '[not json',
         },
       });
       expect(config.plugins).toEqual([]);
@@ -1377,23 +1377,23 @@ csp_nonce = "rAnd0m+Nonce/=="
       // crashing the build — the warn output is the operator's signal.
       const config = await loadConfig({
         cwd,
-        env: { NECTAR_BUILD_POSTS_PER_PAGE: 'nope' },
+        env: { LAUREL_BUILD_POSTS_PER_PAGE: 'nope' },
       });
       expect(config.build.posts_per_page).toBe(12);
     });
   });
 
-  test('unknown NECTAR_* env vars are ignored without breaking the load', async () => {
+  test('unknown LAUREL_* env vars are ignored without breaking the load', async () => {
     await withTempDir(async (cwd) => {
       const config = await loadConfig({
         cwd,
         env: {
-          NECTAR_NOT_A_REAL_KEY: 'whatever',
-          NECTAR_LOG_LEVEL: 'debug',
-          NECTAR_DRAFTS: '1',
+          LAUREL_NOT_A_REAL_KEY: 'whatever',
+          LAUREL_LOG_LEVEL: 'debug',
+          LAUREL_DRAFTS: '1',
         },
       });
-      expect(config.site.title).toBe('Nectar Site');
+      expect(config.site.title).toBe('Laurel Site');
     });
   });
 
@@ -1406,7 +1406,7 @@ csp_nonce = "rAnd0m+Nonce/=="
       const projectRoot = join(cwd, 'project');
       await mkdir(projectRoot, { recursive: true });
       await writeFile(
-        join(projectRoot, 'nectar.toml'),
+        join(projectRoot, 'laurel.toml'),
         `[site]\ntitle = "Cross"\n[content]\nposts_dir = "content/posts"\n[theme]\ndir = "themes"\nname = "src"\n`,
         'utf8',
       );
@@ -1414,7 +1414,7 @@ csp_nonce = "rAnd0m+Nonce/=="
       await mkdir(elsewhere, { recursive: true });
       const config = await loadConfig({
         cwd: elsewhere,
-        configPath: join(projectRoot, 'nectar.toml'),
+        configPath: join(projectRoot, 'laurel.toml'),
       });
       expect(isAbsolute(config.content.posts_dir)).toBe(true);
       expect(config.content.posts_dir).toBe(resolve(projectRoot, 'content/posts'));
@@ -1424,7 +1424,7 @@ csp_nonce = "rAnd0m+Nonce/=="
 
   test('keeps relative paths intact when configDir equals cwd (default flow)', async () => {
     await withTempDir(async (cwd) => {
-      await writeFile(join(cwd, 'nectar.toml'), `[content]\nposts_dir = "content/posts"\n`, 'utf8');
+      await writeFile(join(cwd, 'laurel.toml'), `[content]\nposts_dir = "content/posts"\n`, 'utf8');
       const config = await loadConfig({ cwd });
       // Default flow stays back-compat with consumers that pre-date #853:
       // bare relative dirs in -> bare relative dirs out.
@@ -1436,16 +1436,16 @@ csp_nonce = "rAnd0m+Nonce/=="
     await withTempDir(async (cwd) => {
       const projectRoot = join(cwd, 'p');
       await mkdir(projectRoot, { recursive: true });
-      await writeFile(join(projectRoot, 'nectar.toml'), '', 'utf8');
+      await writeFile(join(projectRoot, 'laurel.toml'), '', 'utf8');
       const result = await findProjectRoot({
         cwd: join(cwd, 'other'),
-        configPath: join(projectRoot, 'nectar.toml'),
+        configPath: join(projectRoot, 'laurel.toml'),
       });
       expect(resolve(result)).toBe(resolve(projectRoot));
     });
   });
 
-  test('findProjectRoot falls back to cwd when no nectar.toml is present', async () => {
+  test('findProjectRoot falls back to cwd when no laurel.toml is present', async () => {
     await withTempDir(async (cwd) => {
       const result = await findProjectRoot({ cwd });
       expect(resolve(result)).toBe(resolve(cwd));

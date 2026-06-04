@@ -20,7 +20,7 @@ export function contentSearchKinds(kindHint: ContentKind | undefined): ContentKi
 }
 
 // Resolve a slug to a Markdown file path. Fast path: `<dir>/<slug>.md` (the
-// convention `nectar new` writes). Fallback: scan every `.md` under the
+// convention `laurel new` writes). Fallback: scan every `.md` under the
 // candidate dirs and parse the leading YAML frontmatter for an explicit
 // `slug: <value>` line. The scan only fires when the fast path misses, so
 // the common case stays a single `existsSync` call.

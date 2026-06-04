@@ -30,7 +30,7 @@ function lcovRecord({
 async function runCoverageGate(
   lcov: string,
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  const dir = await mkdtemp(join(tmpdir(), 'nectar-coverage-gate-'));
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-coverage-gate-'));
   try {
     const lcovPath = join(dir, 'lcov.info');
     await writeFile(lcovPath, lcov, 'utf8');

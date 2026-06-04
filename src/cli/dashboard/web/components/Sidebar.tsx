@@ -44,7 +44,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
     <aside class="side" aria-label="Dashboard navigation">
       <div class="sideTop">
         <div class="brand">
-          {/* A faint hexagon — honey-cell glyph, ties the "Nectar" name to
+          {/* A faint hexagon — honey-cell glyph, ties the "Laurel" name to
            * a wordless mark without leaning on emoji or external assets. */}
           <svg class="brandMark" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
             <polygon
@@ -56,7 +56,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
             />
             <circle cx="10" cy="10" r="1.6" fill="currentColor" opacity="0.5" />
           </svg>
-          <span class="brandWord">Nectar</span>
+          <span class="brandWord">Laurel</span>
         </div>
       </div>
       {/* Sidebar nav is split into two groups so writers can see at a

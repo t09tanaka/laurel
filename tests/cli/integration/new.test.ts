@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Cross-cutting integration tests for `nectar new` (#663 / #692).
+// Cross-cutting integration tests for `laurel new` (#663 / #692).
 // Per-feature scaffolding behaviour is tested in tests/cli/commands/new.test.ts;
 // this file verifies help/version, argv parsing edge cases, and the end-to-end
 // file-creation happy path through the real spawned binary.
@@ -34,7 +34,7 @@ describe('cli integration — new (#663/#692)', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-new-int-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-new-int-')));
   });
 
   afterEach(async () => {
@@ -78,7 +78,7 @@ describe('cli integration — new (#663/#692)', () => {
   test('new post with a whitespace-only quoted title exits 2 with friendly guidance', async () => {
     const { stderr, exitCode } = await runCli(['new', 'post', '   '], dir);
     expect(exitCode).toBe(2);
-    expect(stderr).toContain('Title cannot be empty. Example: nectar new post "My First Post"');
+    expect(stderr).toContain('Title cannot be empty. Example: laurel new post "My First Post"');
   });
 
   test('new post creates a markdown file with the slugified title', async () => {

@@ -1,6 +1,6 @@
 # Example SPA consumer
 
-Nectar emits a static, Ghost-shaped Content API during `nectar build`. A
+Laurel emits a static, Ghost-shaped Content API during `laurel build`. A
 single-page app can read that JSON directly from the deployed site with the
 same `@tryghost/content-api` SDK used for a hosted Ghost site.
 
@@ -19,7 +19,7 @@ enabled = true
 Build and deploy the generated `dist/` directory to a static host:
 
 ```bash
-nectar build
+laurel build
 ```
 
 The deployed site must serve these generated files:
@@ -36,7 +36,7 @@ npm install @tryghost/content-api
 ```
 
 Use the package manager that matches the SPA project. The SDK does not need a
-Nectar-specific adapter.
+Laurel-specific adapter.
 
 ## 3. Fetch posts from React
 
@@ -45,15 +45,15 @@ import GhostContentAPI from '@tryghost/content-api';
 import { useEffect, useState } from 'react';
 
 const api = new GhostContentAPI({
-  // Use the public URL that serves the Nectar build's dist/ directory.
+  // Use the public URL that serves the Laurel build's dist/ directory.
   // Include the base path for subpath deploys, for example:
   // https://example.com/blog
   url: 'https://blog.example.com',
 
-  // Nectar is static and does not validate keys. The SDK still requires one.
+  // Laurel is static and does not validate keys. The SDK still requires one.
   key: '00000000000000000000000000',
 
-  // Match the Ghost Content API SDK version shape Nectar mirrors.
+  // Match the Ghost Content API SDK version shape Laurel mirrors.
   version: 'v5.0',
 });
 
@@ -100,13 +100,13 @@ https://blog.example.com/ghost/api/content/posts/?key=00000000000000000000000000
 ```
 
 Static hosts that do not map extensionless directory URLs to `index.json`
-need the generated redirects / rewrites from Nectar's platform outputs, or an
+need the generated redirects / rewrites from Laurel's platform outputs, or an
 equivalent host rule, so `/ghost/api/content/posts/` resolves to
 `/ghost/api/content/posts/index.json`.
 
 ## SDK shadow tree vs flat dump
 
-Nectar writes the same Content API payloads in two layouts:
+Laurel writes the same Content API payloads in two layouts:
 
 | Layout | Use it when | Example |
 | ------ | ----------- | ------- |
@@ -126,19 +126,19 @@ const { posts } = await response.json();
 ## Keys and public data
 
 Ghost's SDK requires a `key` during initialization and appends it as `?key=...`
-to each request. Nectar accepts and ignores that query parameter because the
+to each request. Laurel accepts and ignores that query parameter because the
 build output is static public JSON. Use a dummy value in browser code, and do
 not put a real Ghost Admin API key or any private secret in an SPA bundle.
 
 ## Cross-origin SPAs
 
-If the SPA runs on a different origin from the Nectar build, the host serving
+If the SPA runs on a different origin from the Laurel build, the host serving
 `dist/` must return CORS headers for the Content API paths it reads:
 
 - SDK clients need CORS on `/ghost/api/content/*`.
 - Flat `fetch()` clients need CORS on `/content/*`.
 
-Netlify and Cloudflare Pages can use Nectar's generated `_headers` files for
+Netlify and Cloudflare Pages can use Laurel's generated `_headers` files for
 the flat `/content/*` dump. If an SDK-powered SPA is cross-origin, add a
 matching host rule for `/ghost/api/content/*` unless your fronting layer already
 applies the same CORS policy globally. Self-hosted deployments can adapt the

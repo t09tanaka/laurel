@@ -26,8 +26,8 @@ async function runCli(
 describe('cli completions', () => {
   test.each([
     ['bash', 'compgen'],
-    ['zsh', '#compdef nectar'],
-    ['fish', 'complete -c nectar'],
+    ['zsh', '#compdef laurel'],
+    ['fish', 'complete -c laurel'],
     ['pwsh', 'Register-ArgumentCompleter'],
   ])('singular completion alias prints %s shell completions', async (shell, marker) => {
     const { stdout, stderr, exitCode } = await runCli(['completion', shell]);
@@ -61,17 +61,17 @@ describe('cli completions', () => {
     expect(stdout).toContain('content');
   });
 
-  test('zsh output contains #compdef nectar', async () => {
+  test('zsh output contains #compdef laurel', async () => {
     const { stdout, exitCode } = await runCli(['completions', 'zsh']);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain('#compdef nectar');
+    expect(stdout).toContain('#compdef laurel');
     expect(stdout).toContain('_arguments');
   });
 
-  test('fish output uses complete -c nectar', async () => {
+  test('fish output uses complete -c laurel', async () => {
     const { stdout, exitCode } = await runCli(['completions', 'fish']);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain('complete -c nectar');
+    expect(stdout).toContain('complete -c laurel');
   });
 
   test('powershell output uses Register-ArgumentCompleter', async () => {
@@ -81,7 +81,7 @@ describe('cli completions', () => {
   });
 
   test('install writes bash completions under XDG_DATA_HOME', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-completions-bash-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-completions-bash-'));
     try {
       const xdgDataHome = join(dir, 'data');
       const { stdout, stderr, exitCode } = await runCli(
@@ -91,7 +91,7 @@ describe('cli completions', () => {
           XDG_DATA_HOME: xdgDataHome,
         },
       );
-      const target = join(xdgDataHome, 'bash-completion', 'completions', 'nectar');
+      const target = join(xdgDataHome, 'bash-completion', 'completions', 'laurel');
       expect(exitCode).toBe(0);
       expect(stderr).toBe('');
       expect(stdout).toContain(target);
@@ -102,7 +102,7 @@ describe('cli completions', () => {
   });
 
   test('install auto-detects zsh and writes under ZDOTDIR', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-completions-zsh-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-completions-zsh-'));
     try {
       const zdotdir = join(dir, 'zdot');
       const { stdout, stderr, exitCode } = await runCli(['completions', 'install'], {
@@ -110,18 +110,18 @@ describe('cli completions', () => {
         SHELL: '/bin/zsh',
         ZDOTDIR: zdotdir,
       });
-      const target = join(zdotdir, 'completions', '_nectar');
+      const target = join(zdotdir, 'completions', '_laurel');
       expect(exitCode).toBe(0);
       expect(stderr).toBe('');
       expect(stdout).toContain(target);
-      expect(await readFile(target, 'utf8')).toContain('#compdef nectar');
+      expect(await readFile(target, 'utf8')).toContain('#compdef laurel');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
   test('install writes fish completions under XDG_CONFIG_HOME', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-completions-fish-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-completions-fish-'));
     try {
       const xdgConfigHome = join(dir, 'config');
       const { stdout, stderr, exitCode } = await runCli(
@@ -131,18 +131,18 @@ describe('cli completions', () => {
           XDG_CONFIG_HOME: xdgConfigHome,
         },
       );
-      const target = join(xdgConfigHome, 'fish', 'completions', 'nectar.fish');
+      const target = join(xdgConfigHome, 'fish', 'completions', 'laurel.fish');
       expect(exitCode).toBe(0);
       expect(stderr).toBe('');
       expect(stdout).toContain(target);
-      expect(await readFile(target, 'utf8')).toContain('complete -c nectar');
+      expect(await readFile(target, 'utf8')).toContain('complete -c laurel');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
   test('install writes pwsh completions under XDG_CONFIG_HOME', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-completions-pwsh-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-completions-pwsh-'));
     try {
       const xdgConfigHome = join(dir, 'config');
       const { stdout, stderr, exitCode } = await runCli(
@@ -152,7 +152,7 @@ describe('cli completions', () => {
           XDG_CONFIG_HOME: xdgConfigHome,
         },
       );
-      const target = join(xdgConfigHome, 'powershell', 'nectar-completions.ps1');
+      const target = join(xdgConfigHome, 'powershell', 'laurel-completions.ps1');
       expect(exitCode).toBe(0);
       expect(stderr).toBe('');
       expect(stdout).toContain(target);

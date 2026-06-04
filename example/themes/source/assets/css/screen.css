@@ -509,7 +509,7 @@ body[class*=" gh-font-heading"]:not(.gh-font-heading-fira-sans):not(.gh-font-hea
     font-weight: 600;
 }
 
-.nectar-search-toggle {
+.laurel-search-toggle {
     margin-right: -2px;
     margin-left: -2px;
 }
@@ -525,13 +525,13 @@ body[class*=" gh-font-heading"]:not(.gh-font-heading-fira-sans):not(.gh-font-hea
         width: 100%;
     }
 
-    .gh-navigation-actions .nectar-search-toggle {
+    .gh-navigation-actions .laurel-search-toggle {
         display: none;
     }
 }
 
 @media (min-width: 768px) {
-    .gh-navigation-brand .nectar-search-toggle {
+    .gh-navigation-brand .laurel-search-toggle {
         display: none;
     }
 
@@ -670,7 +670,7 @@ Search                         LOGO                    Login Subscribe
         justify-content: space-between;
     }
 
-    .gh-navigation.is-stacked .gh-navigation-actions .nectar-search-toggle {
+    .gh-navigation.is-stacked .gh-navigation-actions .laurel-search-toggle {
         display: flex;
         gap: 10px;
         width: auto;
@@ -2269,7 +2269,7 @@ unless a heading is the very first element in the post content */
 /* ---------------------------------------------------------- */
 
 /* Add extra margin before/after any cards, except for when immediately preceeded by a heading.
-   Ghost Source historically used [id] as a heading proxy here. Nectar assigns heading IDs
+   Ghost Source historically used [id] as a heading proxy here. Laurel assigns heading IDs
    during Markdown rendering, so keep the Source spacing intent explicit with heading tags. */
 
 .gh-content :not(.kg-card):not(table):not(:is(h1, h2, h3, h4, h5, h6)) + :is(.kg-card, table) {
@@ -2396,7 +2396,7 @@ unless a heading is the very first element in the post content */
 }
 
 /*
- * Native <details>-based toggle rendering. Nectar swaps Ghost's JS-driven
+ * Native <details>-based toggle rendering. Laurel swaps Ghost's JS-driven
  * div/heading/content structure for <details>/<summary> so toggles work
  * without bundling kg-toggle.js. The class hooks above still apply because we
  * keep .kg-toggle-card / .kg-toggle-heading / .kg-toggle-content names.
@@ -2712,7 +2712,7 @@ blockquote.kg-blockquote-alt {
 
 /* Audio */
 /* Ghost's audio card normally depends on Koenig's shared runtime for the
-   custom play button, seek slider, and timestamps. Nectar emits static HTML,
+   custom play button, seek slider, and timestamps. Laurel emits static HTML,
    so Source keeps the Koenig class hooks styled and relies on the native
    <audio controls> fallback when no hydration script is present. */
 
@@ -2810,7 +2810,7 @@ blockquote.kg-blockquote-alt {
    Without an `aspect-ratio` rule that consumes it, the <video> element
    either collapses to zero height before metadata loads or reflows when
    playback starts. Mirrors `@tryghost/kg-default-cards/styles/kg-video.css`
-   but only the static, non-overlay rules — Nectar renders the card without
+   but only the static, non-overlay rules — Laurel renders the card without
    Koenig's play-overlay DOM, so the native `controls` button is used. */
 
 .kg-video-container {

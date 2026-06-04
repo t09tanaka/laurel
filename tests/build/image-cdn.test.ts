@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { rewriteImageCdnUrls } from '~/build/image-cdn.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 
-function makeConfig(overrides: Partial<NectarConfig['image_cdn']> = {}): NectarConfig {
+function makeConfig(overrides: Partial<LaurelConfig['image_cdn']> = {}): LaurelConfig {
   return {
     site: { url: 'https://example.com' },
     build: { base_path: '/' },
@@ -15,7 +15,7 @@ function makeConfig(overrides: Partial<NectarConfig['image_cdn']> = {}): NectarC
       signature: 'insecure',
       ...overrides,
     },
-  } as NectarConfig;
+  } as LaurelConfig;
 }
 
 describe('rewriteImageCdnUrls', () => {

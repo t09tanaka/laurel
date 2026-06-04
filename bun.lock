@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "nectar",
+      "name": "laurel",
       "dependencies": {
         "@clack/prompts": "^1.4.0",
         "@iarna/toml": "^2.2.5",

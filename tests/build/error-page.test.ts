@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { renderDefault404Html } from '~/build/error-page.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ContentGraph, SiteData } from '~/content/model.ts';
 
 function makeSite(overrides: Partial<SiteData> = {}): SiteData {
@@ -42,7 +42,7 @@ function makeSite(overrides: Partial<SiteData> = {}): SiteData {
   } as unknown as SiteData;
 }
 
-function makeConfig(overrides: { base_path?: string; csp_nonce?: string } = {}): NectarConfig {
+function makeConfig(overrides: { base_path?: string; csp_nonce?: string } = {}): LaurelConfig {
   return {
     site: {
       title: 'Example',
@@ -60,7 +60,7 @@ function makeConfig(overrides: { base_path?: string; csp_nonce?: string } = {}):
       csp_nonce: overrides.csp_nonce,
     },
     components: {},
-  } as unknown as NectarConfig;
+  } as unknown as LaurelConfig;
 }
 
 function makeContent(site: SiteData): ContentGraph {

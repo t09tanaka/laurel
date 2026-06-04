@@ -1,23 +1,23 @@
 import { describe, expect, test } from 'bun:test';
 import dayjs from 'dayjs';
 import Handlebars from 'handlebars';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import { registerDateHelpers } from '~/render/helpers/date.ts';
 
-function makeEngine(locale: string, timezone = 'UTC'): NectarEngine {
+function makeEngine(locale: string, timezone = 'UTC'): LaurelEngine {
   const hb = Handlebars.create();
   return {
     hb,
-    config: {} as NectarEngine['config'],
-    content: { site: { locale, timezone } } as NectarEngine['content'],
-    theme: {} as NectarEngine['theme'],
+    config: {} as LaurelEngine['config'],
+    content: { site: { locale, timezone } } as LaurelEngine['content'],
+    theme: {} as LaurelEngine['theme'],
     templates: {},
     layouts: {},
     render() {
       throw new Error('not used');
     },
     sortedCache: new Map(),
-  } as unknown as NectarEngine;
+  } as unknown as LaurelEngine;
 }
 
 describe('date helper', () => {

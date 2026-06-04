@@ -1,13 +1,13 @@
 Inspect or modify authors in the project
 
 Usage:
-  nectar authors [--config <path>] [--orphaned] [--json] [--dry-run] <subcommand...>
+  laurel authors [--config <path>] [--orphaned] [--json] [--dry-run] <subcommand...>
 
 Arguments:
   subcommand          `list` (show authors and post counts) or `rename <old-slug> <new-slug>`
 
 End of options:
-  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+  Use `--` before positional values that start with `-`, for example `laurel new post -- --config`.
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -17,9 +17,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --config → NECTAR_AUTHORS_CONFIG
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → LAUREL_AUTHORS_CONFIG
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -27,8 +27,8 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar authors list                          # all authors + post counts
-  nectar authors list --orphaned               # authors defined but unused by posts
-  nectar authors list --json                   # machine-readable author inventory
-  nectar authors rename old-author new-author
-  nectar authors rename old new --dry-run       # preview files that would change
+  laurel authors list                          # all authors + post counts
+  laurel authors list --orphaned               # authors defined but unused by posts
+  laurel authors list --json                   # machine-readable author inventory
+  laurel authors rename old-author new-author
+  laurel authors rename old new --dry-run       # preview files that would change

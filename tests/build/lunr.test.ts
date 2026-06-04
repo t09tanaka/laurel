@@ -14,7 +14,7 @@ import { configSchema } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-lunr-'));
+  return mkdtemp(join(tmpdir(), 'laurel-lunr-'));
 }
 
 function makeTag(overrides: Partial<Tag> = {}): Tag {
@@ -368,7 +368,7 @@ describe('emitLunrWidget', () => {
     if (!result) return;
     expect(result.widget).toBe(join(outputDir, 'search', 'widget.js'));
     const widgetBody = readFileSync(result.widget, 'utf8');
-    expect(widgetBody).toContain('data-nectar-search');
+    expect(widgetBody).toContain('data-laurel-search');
     expect(widgetBody).toContain('lunr.Index.load');
     // The lunr optional dep is present in this repo, so the runtime bundle
     // should ship alongside the widget. If lunr is ever removed from

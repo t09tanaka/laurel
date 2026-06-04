@@ -1,19 +1,19 @@
-# Nectar Homebrew Tap
+# Laurel Homebrew Tap
 
-This directory documents the separate `t09tanaka/homebrew-nectar` tap repository
-that makes `brew tap t09tanaka/nectar && brew install nectar` work for release
+This directory documents the separate `t09tanaka/homebrew-laurel` tap repository
+that makes `brew tap t09tanaka/laurel && brew install laurel` work for release
 users.
 
 The tap repository should contain:
 
 ```text
 Formula/
-  nectar.rb
+  laurel.rb
 README.md
 ```
 
-`Formula/nectar.rb` is generated from
-`../homebrew/Formula/nectar.rb.template` by the release workflow after the
+`Formula/laurel.rb` is generated from
+`../homebrew/Formula/laurel.rb.template` by the release workflow after the
 GitHub Release exists. The generated formula downloads the signed and notarized
 Darwin binaries, or the Linux binaries, from the matching release tag and embeds
 the SHA-256 checksums from `SHASUMS256.txt`.
@@ -23,9 +23,9 @@ the SHA-256 checksums from `SHASUMS256.txt`.
 The `bump-homebrew-tap` job in `.github/workflows/release.yml`:
 
 1. downloads `SHASUMS256.txt` from the newly created GitHub Release,
-2. generates `Formula/nectar.rb`,
+2. generates `Formula/laurel.rb`,
 3. validates it with Ruby and `brew audit`, and
-4. opens or updates a pull request against `t09tanaka/homebrew-nectar`.
+4. opens or updates a pull request against `t09tanaka/homebrew-laurel`.
 
 The workflow needs a `HOMEBREW_TAP_TOKEN` repository secret with permission to
 push branches and open pull requests in the tap repository.

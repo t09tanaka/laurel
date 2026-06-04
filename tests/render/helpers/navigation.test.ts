@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import { registerNavigationHelpers } from '~/render/helpers/navigation.ts';
 
 interface NavItem {
@@ -18,23 +18,23 @@ function makeEngine(
     locales?: Record<string, Record<string, string>>;
     partials?: Record<string, string>;
   } = {},
-): NectarEngine {
+): LaurelEngine {
   const hb = Handlebars.create();
   const site = overrides.locale ? { locale: overrides.locale } : {};
   return {
     hb,
-    config: { build: { base_path: overrides.basePath ?? '/' } } as NectarEngine['config'],
-    content: { site } as unknown as NectarEngine['content'],
+    config: { build: { base_path: overrides.basePath ?? '/' } } as LaurelEngine['config'],
+    content: { site } as unknown as LaurelEngine['content'],
     theme: {
       locales: overrides.locales ?? {},
       partials: overrides.partials ?? {},
-    } as unknown as NectarEngine['theme'],
+    } as unknown as LaurelEngine['theme'],
     templates: {},
     layouts: {},
     render() {
       throw new Error('not used');
     },
-  } as unknown as NectarEngine;
+  } as unknown as LaurelEngine;
 }
 
 function renderNavigation(navigation: NavItem[], routeUrl: string | undefined, hash = ''): string {

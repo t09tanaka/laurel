@@ -38,15 +38,15 @@ const POSITIONAL_SPEC: CommandSpec = {
 
 describe('parseCommand', () => {
   test('parses string and boolean options', () => {
-    const result = parseCommand(SAMPLE_SPEC, ['--config', 'nectar.toml', '--watch']);
-    expect(result.values.config).toBe('nectar.toml');
+    const result = parseCommand(SAMPLE_SPEC, ['--config', 'laurel.toml', '--watch']);
+    expect(result.values.config).toBe('laurel.toml');
     expect(result.values.watch).toBe(true);
     expect(result.helpRequested).toBe(false);
   });
 
   test('accepts --key=value form for string options', () => {
-    const result = parseCommand(SAMPLE_SPEC, ['--config=./nectar.config.ts', '--watch']);
-    expect(result.values.config).toBe('./nectar.config.ts');
+    const result = parseCommand(SAMPLE_SPEC, ['--config=./laurel.config.ts', '--watch']);
+    expect(result.values.config).toBe('./laurel.config.ts');
     expect(result.values.watch).toBe(true);
   });
 
@@ -282,17 +282,17 @@ describe('parseCommand', () => {
     expect(result.values['emit-content-api']).toBe(false);
   });
 
-  test('applies project .nectarrc defaults below env and CLI flags', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-rc-parse-'));
+  test('applies project .laurelrc defaults below env and CLI flags', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-rc-parse-'));
     try {
       await writeFile(
-        join(dir, '.nectarrc.json'),
+        join(dir, '.laurelrc.json'),
         JSON.stringify({ build: { output: 'rc-dist', strict: true } }),
       );
       expect(parseCommand(BUILD_SPEC, [], {}, dir).values.output).toBe('rc-dist');
       expect(parseCommand(BUILD_SPEC, [], {}, dir).values.strict).toBe(true);
       expect(
-        parseCommand(BUILD_SPEC, [], { NECTAR_BUILD_OUTPUT: 'env-dist' }, dir).values.output,
+        parseCommand(BUILD_SPEC, [], { LAUREL_BUILD_OUTPUT: 'env-dist' }, dir).values.output,
       ).toBe('env-dist');
       expect(parseCommand(BUILD_SPEC, ['--output', 'cli-dist'], {}, dir).values.output).toBe(
         'cli-dist',
@@ -303,19 +303,19 @@ describe('parseCommand', () => {
   });
 
   test('applies user global config command defaults below project rc', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-rc-project-'));
-    const xdg = await mkdtemp(join(tmpdir(), 'nectar-rc-user-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-rc-project-'));
+    const xdg = await mkdtemp(join(tmpdir(), 'laurel-rc-user-'));
     try {
-      await mkdir(join(xdg, 'nectar'), { recursive: true });
+      await mkdir(join(xdg, 'laurel'), { recursive: true });
       await writeFile(
-        join(xdg, 'nectar/config.json'),
+        join(xdg, 'laurel/config.json'),
         JSON.stringify({ build: { output: 'user-dist', strict: true } }),
       );
       expect(parseCommand(BUILD_SPEC, [], { XDG_CONFIG_HOME: xdg }, dir).values.output).toBe(
         'user-dist',
       );
       await writeFile(
-        join(dir, '.nectarrc.json'),
+        join(dir, '.laurelrc.json'),
         JSON.stringify({ build: { output: 'rc-dist' } }),
       );
       const values = parseCommand(BUILD_SPEC, [], { XDG_CONFIG_HOME: xdg }, dir).values;
@@ -327,11 +327,11 @@ describe('parseCommand', () => {
     }
   });
 
-  test('accepts negated boolean defaults in project .nectarrc', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-rc-negated-'));
+  test('accepts negated boolean defaults in project .laurelrc', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-rc-negated-'));
     try {
       await writeFile(
-        join(dir, '.nectarrc.json'),
+        join(dir, '.laurelrc.json'),
         JSON.stringify({ build: { 'no-progress': true } }),
       );
       expect(parseCommand(BUILD_SPEC, [], {}, dir).values.progress).toBe(false);
@@ -376,7 +376,7 @@ describe('parseCommand', () => {
 describe('formatUsageLine', () => {
   test('renders options and positionals with brackets', () => {
     const usage = formatUsageLine(POSITIONAL_SPEC);
-    expect(usage).toBe('nectar new <kind> <title...>');
+    expect(usage).toBe('laurel new <kind> <title...>');
   });
 
   test('uses placeholder for string options', () => {
@@ -391,7 +391,7 @@ describe('formatCommandHelp', () => {
     const help = formatCommandHelp(SAMPLE_SPEC);
     expect(help).toContain('Build the site');
     expect(help).toContain('Usage:');
-    expect(help).toContain('nectar build');
+    expect(help).toContain('laurel build');
     expect(help).toContain('-c, --config <path>');
     expect(help).toContain('-w, --watch');
     expect(help).toContain('-h, --help');
@@ -431,34 +431,34 @@ describe('formatCommandHelp', () => {
 });
 
 describe('parseCommand env var fallbacks', () => {
-  test('fills missing string flag from NECTAR_<COMMAND>_<FLAG>', () => {
-    const result = parseCommand(SAMPLE_SPEC, [], { NECTAR_BUILD_CONFIG: 'env.toml' });
+  test('fills missing string flag from LAUREL_<COMMAND>_<FLAG>', () => {
+    const result = parseCommand(SAMPLE_SPEC, [], { LAUREL_BUILD_CONFIG: 'env.toml' });
     expect(result.values.config).toBe('env.toml');
   });
 
   test('CLI flag overrides env var', () => {
     const result = parseCommand(SAMPLE_SPEC, ['--config', 'cli.toml'], {
-      NECTAR_BUILD_CONFIG: 'env.toml',
+      LAUREL_BUILD_CONFIG: 'env.toml',
     });
     expect(result.values.config).toBe('cli.toml');
   });
 
   test('boolean env var accepts the documented truthy spellings', () => {
     for (const truthy of ['1', 'true', 'yes', 'on', 'TRUE', 'On', ' yes ']) {
-      const result = parseCommand(SAMPLE_SPEC, [], { NECTAR_BUILD_WATCH: truthy });
+      const result = parseCommand(SAMPLE_SPEC, [], { LAUREL_BUILD_WATCH: truthy });
       expect(result.values.watch).toBe(true);
     }
   });
 
   test('boolean env var accepts the documented falsy spellings', () => {
     for (const falsy of ['0', 'false', 'no', 'off', '', 'NO']) {
-      const result = parseCommand(SAMPLE_SPEC, [], { NECTAR_BUILD_WATCH: falsy });
+      const result = parseCommand(SAMPLE_SPEC, [], { LAUREL_BUILD_WATCH: falsy });
       expect(result.values.watch).toBe(false);
     }
   });
 
   test('throws CliUsageError on an unparseable boolean env var', () => {
-    expect(() => parseCommand(SAMPLE_SPEC, [], { NECTAR_BUILD_WATCH: 'maybe' })).toThrow(
+    expect(() => parseCommand(SAMPLE_SPEC, [], { LAUREL_BUILD_WATCH: 'maybe' })).toThrow(
       CliUsageError,
     );
   });
@@ -470,7 +470,7 @@ describe('parseCommand env var fallbacks', () => {
       options: { 'on-conflict': { type: 'string', description: 'conflict mode' } },
       positionals: [],
     };
-    const result = parseCommand(spec, [], { NECTAR_IMPORT_GHOST_ON_CONFLICT: 'overwrite' });
+    const result = parseCommand(spec, [], { LAUREL_IMPORT_GHOST_ON_CONFLICT: 'overwrite' });
     expect(result.values['on-conflict']).toBe('overwrite');
   });
 
@@ -481,12 +481,12 @@ describe('parseCommand env var fallbacks', () => {
       options: { post: { type: 'string', description: 'Post slug' } },
       positionals: [],
     };
-    const result = parseCommand(spec, [], { NECTAR_BUILD_EMAIL_POST: 'weekly' });
+    const result = parseCommand(spec, [], { LAUREL_BUILD_EMAIL_POST: 'weekly' });
     expect(result.values.post).toBe('weekly');
   });
 
   test('empty string env var is treated as not set for string options', () => {
-    const result = parseCommand(SAMPLE_SPEC, [], { NECTAR_BUILD_CONFIG: '' });
+    const result = parseCommand(SAMPLE_SPEC, [], { LAUREL_BUILD_CONFIG: '' });
     expect(result.values.config).toBeUndefined();
   });
 
@@ -498,7 +498,7 @@ describe('parseCommand env var fallbacks', () => {
 
   test('unrelated env vars are ignored', () => {
     const result = parseCommand(SAMPLE_SPEC, [], {
-      NECTAR_SERVE_PORT: '9999',
+      LAUREL_SERVE_PORT: '9999',
       PATH: '/usr/bin',
     });
     expect(result.values.config).toBeUndefined();
@@ -506,36 +506,36 @@ describe('parseCommand env var fallbacks', () => {
   });
 
   test('generated --no-* flags keep legacy NO_* env fallbacks', () => {
-    expect(parseCommand(SAMPLE_SPEC, [], { NECTAR_BUILD_NO_WATCH: '1' }).values.watch).toBe(false);
-    expect(parseCommand(SAMPLE_SPEC, [], { NECTAR_BUILD_NO_WATCH: '0' }).values.watch).toBe(true);
+    expect(parseCommand(SAMPLE_SPEC, [], { LAUREL_BUILD_NO_WATCH: '1' }).values.watch).toBe(false);
+    expect(parseCommand(SAMPLE_SPEC, [], { LAUREL_BUILD_NO_WATCH: '0' }).values.watch).toBe(true);
   });
 });
 
 describe('envVarName / globalEnvVarName', () => {
   test('uppercases and converts separators to underscores', () => {
-    expect(envVarName('serve', 'port')).toBe('NECTAR_SERVE_PORT');
-    expect(envVarName('build', 'base-path')).toBe('NECTAR_BUILD_BASE_PATH');
-    expect(envVarName('build:email', 'post')).toBe('NECTAR_BUILD_EMAIL_POST');
-    expect(envVarName('import-ghost', 'on-conflict')).toBe('NECTAR_IMPORT_GHOST_ON_CONFLICT');
-    expect(envVarName('serve', 'no-watch')).toBe('NECTAR_SERVE_NO_WATCH');
+    expect(envVarName('serve', 'port')).toBe('LAUREL_SERVE_PORT');
+    expect(envVarName('build', 'base-path')).toBe('LAUREL_BUILD_BASE_PATH');
+    expect(envVarName('build:email', 'post')).toBe('LAUREL_BUILD_EMAIL_POST');
+    expect(envVarName('import-ghost', 'on-conflict')).toBe('LAUREL_IMPORT_GHOST_ON_CONFLICT');
+    expect(envVarName('serve', 'no-watch')).toBe('LAUREL_SERVE_NO_WATCH');
   });
 
   test('globalEnvVarName drops the command segment', () => {
-    expect(globalEnvVarName('quiet')).toBe('NECTAR_QUIET');
-    expect(globalEnvVarName('verbose')).toBe('NECTAR_VERBOSE');
-    expect(globalEnvVarName('log-format')).toBe('NECTAR_LOG_FORMAT');
+    expect(globalEnvVarName('quiet')).toBe('LAUREL_QUIET');
+    expect(globalEnvVarName('verbose')).toBe('LAUREL_VERBOSE');
+    expect(globalEnvVarName('log-format')).toBe('LAUREL_LOG_FORMAT');
   });
 });
 
 describe('parseBooleanEnv', () => {
   test('rejects unknown values with a clear CliUsageError message', () => {
     try {
-      parseBooleanEnv('maybe', 'NECTAR_X');
+      parseBooleanEnv('maybe', 'LAUREL_X');
       throw new Error('expected throw');
     } catch (err) {
       expect(err).toBeInstanceOf(CliUsageError);
       const message = err instanceof Error ? err.message : '';
-      expect(message).toContain('NECTAR_X');
+      expect(message).toContain('LAUREL_X');
       expect(message).toContain('maybe');
     }
   });
@@ -545,8 +545,8 @@ describe('formatCommandHelp env footer', () => {
   test('mentions the env var convention with a per-command example', () => {
     const help = formatCommandHelp(SAMPLE_SPEC);
     expect(help).toContain('Environment variables:');
-    expect(help).toContain('NECTAR_<COMMAND>_<FLAG>');
-    expect(help).toContain('--config → NECTAR_BUILD_CONFIG');
+    expect(help).toContain('LAUREL_<COMMAND>_<FLAG>');
+    expect(help).toContain('--config → LAUREL_BUILD_CONFIG');
     expect(help).toContain('Repeated flags:');
     expect(help).toContain('Scalar string flags use the last value');
   });

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 // Regression for backlog task #101: the Source theme had zero `kg-video-*`
 // CSS, so the Koenig video card rendered with a zero-height container and no
 // aspect-ratio binding. The fix vendors the static slice of `kg-video.css`
-// (no overlay rules — Nectar emits no overlay DOM) and most importantly the
+// (no overlay rules — Laurel emits no overlay DOM) and most importantly the
 // `aspect-ratio: var(--aspect-ratio)` rule that the renderer relies on.
 
 const SOURCE_THEME = join(process.cwd(), 'example/themes/source');

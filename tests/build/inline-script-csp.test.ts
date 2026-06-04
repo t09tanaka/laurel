@@ -28,7 +28,7 @@ function parseHeaders(contentSecurityPolicy: string) {
 
 describe('collectInlineScriptCspHashes', () => {
   test('hashes inline script bodies and ignores external scripts', () => {
-    const body = "window.nectar = 'ok';";
+    const body = "window.laurel = 'ok';";
     const html = `<html><head><script>${body}</script><script src="/assets/app.js"></script></head></html>`;
 
     expect(collectInlineScriptCspHashes(html)).toEqual([cspHash(body)]);
@@ -56,7 +56,7 @@ describe('addInlineScriptHashesToCsp', () => {
   });
 
   test('creates script-src from default-src when script-src is absent', () => {
-    const hash = cspHash('window.__NECTAR__=true;');
+    const hash = cspHash('window.__LAUREL__=true;');
 
     expect(addInlineScriptHashesToCsp("default-src 'self'; object-src 'none'", [hash])).toBe(
       `default-src 'self'; object-src 'none'; script-src 'self' '${hash}'`,
@@ -64,7 +64,7 @@ describe('addInlineScriptHashesToCsp', () => {
   });
 
   test('also appends hashes to script-src-elem when it is configured', () => {
-    const hash = cspHash('window.__NECTAR__=true;');
+    const hash = cspHash('window.__LAUREL__=true;');
 
     expect(
       addInlineScriptHashesToCsp("default-src 'self'; script-src 'self'; script-src-elem 'self'", [

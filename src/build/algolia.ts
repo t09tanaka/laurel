@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { truncateExcerpt } from './search.ts';
@@ -81,7 +81,7 @@ function authorRecord(author: Author): AlgoliaRecord {
 }
 
 export function buildAlgoliaRecords(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
 }): AlgoliaBundle {
   const { config, content } = opts;
@@ -113,13 +113,13 @@ export function buildAlgoliaRecords(opts: {
     meta: {
       generated_at: new Date().toISOString(),
       site_url: config.site.url,
-      note: "Algolia records emitted by Nectar. Push with the `algoliasearch` CLI or SDK; pushing is the user's responsibility.",
+      note: "Algolia records emitted by Laurel. Push with the `algoliasearch` CLI or SDK; pushing is the user's responsibility.",
     },
   };
 }
 
 export async function emitAlgoliaRecords(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   outputDir: string;
 }): Promise<string | null> {
@@ -128,7 +128,7 @@ export async function emitAlgoliaRecords(opts: {
   if (!cfg.enabled) return null;
   if (!cfg.emit_algolia_records) return null;
   const bundle = buildAlgoliaRecords({ config, content });
-  const dir = join(outputDir, '.nectar');
+  const dir = join(outputDir, '.laurel');
   await ensureDir(dir);
   const dest = join(dir, 'algolia-records.json');
   await writeFile(dest, `${JSON.stringify(bundle)}\n`, 'utf8');
@@ -171,7 +171,7 @@ function docSearchCss(accent: string): string {
 }
 
 export async function emitDocSearchCss(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   outputDir: string;
 }): Promise<string | null> {
   const { config, outputDir } = opts;

@@ -7,9 +7,9 @@ import {
   buildPortalManifest,
   emitPortalManifest,
 } from '~/build/portal-manifest.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 
-function makeConfig(overrides: Partial<NectarConfig['components']['portal']> = {}): NectarConfig {
+function makeConfig(overrides: Partial<LaurelConfig['components']['portal']> = {}): LaurelConfig {
   return {
     components: {
       portal: {
@@ -19,7 +19,7 @@ function makeConfig(overrides: Partial<NectarConfig['components']['portal']> = {
         ...overrides,
       },
     },
-  } as unknown as NectarConfig;
+  } as unknown as LaurelConfig;
 }
 
 describe('portal manifest', () => {
@@ -61,8 +61,8 @@ describe('portal manifest', () => {
     });
   });
 
-  test('emits .nectar/portal-manifest.json', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-portal-manifest-'));
+  test('emits .laurel/portal-manifest.json', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-portal-manifest-'));
     try {
       await emitPortalManifest({
         config: makeConfig(),
@@ -72,7 +72,7 @@ describe('portal manifest', () => {
       });
 
       const body = JSON.parse(await readFile(join(outputDir, PORTAL_MANIFEST_PATH), 'utf8'));
-      expect(body.schema).toBe('nectar.portal-manifest.v1');
+      expect(body.schema).toBe('laurel.portal-manifest.v1');
       expect(body.selectors).toContainEqual({
         selector: '[data-portal="account"]',
         action: 'account',

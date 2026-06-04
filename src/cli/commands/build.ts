@@ -2,7 +2,7 @@ import { type FSWatcher, existsSync, watch as fsWatch } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { type BuildSummary, type DryRunRouteSummary, build } from '~/build/pipeline.ts';
 import { loadConfig } from '~/config/loader.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { createCleanupRegistry } from '~/util/cleanup.ts';
 import { EXIT_CODES, exitCodeForError } from '~/util/errors.ts';
 import { getLogLevel, logger } from '~/util/logger.ts';
@@ -58,17 +58,17 @@ export async function runBuild(args: string[]): Promise<number> {
       ? parsed.values['copy-content-assets']
       : undefined;
   const asJson = parsed.values.json === true;
-  // NECTAR_DRAFTS=1 is documented as a shorter alias for the auto-derived
-  // NECTAR_BUILD_INCLUDE_DRAFTS env fallback. The standard fallback already
+  // LAUREL_DRAFTS=1 is documented as a shorter alias for the auto-derived
+  // LAUREL_BUILD_INCLUDE_DRAFTS env fallback. The standard fallback already
   // populated `parsed.values['include-drafts']` if set; only fall back to the
   // shorter alias when the flag and the standard env var are both unset, so a
-  // misspelled NECTAR_DRAFTS value can't override an explicit --include-drafts=false.
+  // misspelled LAUREL_DRAFTS value can't override an explicit --include-drafts=false.
   let includeDrafts = parsed.values['include-drafts'] === true;
   if (!includeDrafts && parsed.values['include-drafts'] === undefined) {
-    const aliasRaw = process.env.NECTAR_DRAFTS;
+    const aliasRaw = process.env.LAUREL_DRAFTS;
     if (aliasRaw !== undefined) {
       try {
-        includeDrafts = parseBooleanEnv(aliasRaw, 'NECTAR_DRAFTS');
+        includeDrafts = parseBooleanEnv(aliasRaw, 'LAUREL_DRAFTS');
       } catch (err) {
         if (err instanceof CliUsageError) {
           process.stderr.write(`${err.message}\n\n`);
@@ -102,7 +102,7 @@ export async function runBuild(args: string[]): Promise<number> {
   // `--emit-content-api` is tri-state at the BuildOptions layer (undefined =
   // use config, true = force on, false = force off). The CLI parser only ever
   // produces `true` or `undefined` for boolean flags, but the env-var
-  // fallback (NECTAR_BUILD_EMIT_CONTENT_API=0) can populate `false` directly,
+  // fallback (LAUREL_BUILD_EMIT_CONTENT_API=0) can populate `false` directly,
   // so we forward whatever the parser landed on without coercion.
   const emitContentApiRaw = parsed.values['emit-content-api'];
   const emitContentApi: boolean | undefined =
@@ -193,7 +193,7 @@ export async function runBuild(args: string[]): Promise<number> {
       return;
     }
     if (!progress) return;
-    // Respect --quiet / NECTAR_LOG_LEVEL=warn. The finish block is an
+    // Respect --quiet / LAUREL_LOG_LEVEL=warn. The finish block is an
     // info-level signal — readers who silenced info logs explicitly opted out
     // of progress chatter, so we must not bypass that gate via direct stdout.
     if (!canEmitInfoProgress()) return;
@@ -233,7 +233,7 @@ export async function runBuild(args: string[]): Promise<number> {
     await ensureContentDirs(cwd, cfgForPreflight);
   } catch {
     // Config errors are surfaced by the build pipeline below with a richer
-    // NectarError; do not double-report here.
+    // LaurelError; do not double-report here.
   }
 
   let initialSummary: BuildSummary;
@@ -286,7 +286,7 @@ async function runWatchLoop({ cwd, configPath, onRebuild }: WatchLoopOptions): P
   // Re-load config so the watcher knows which paths the just-completed build
   // actually depends on (content dirs, theme dir, config files). Failing to
   // read config is fatal — there is nothing to watch otherwise.
-  let config: NectarConfig;
+  let config: LaurelConfig;
   try {
     config = await loadConfig({ cwd, configPath });
   } catch (err) {
@@ -368,7 +368,7 @@ async function runWatchLoop({ cwd, configPath, onRebuild }: WatchLoopOptions): P
   return EXIT_CODES.ok;
 }
 
-function gatherWatchPaths(cwd: string, config: NectarConfig): string[] {
+function gatherWatchPaths(cwd: string, config: LaurelConfig): string[] {
   const paths = new Set<string>();
   const add = (p: string): void => {
     const abs = isAbsolute(p) ? p : join(cwd, p);
@@ -380,7 +380,7 @@ function gatherWatchPaths(cwd: string, config: NectarConfig): string[] {
   add(config.content.tags_dir);
   add(config.content.assets_dir);
   add(join(config.theme.dir, config.theme.name));
-  for (const name of ['nectar.toml', 'nectar.config.toml']) {
+  for (const name of ['laurel.toml', 'laurel.config.toml']) {
     const p = join(cwd, name);
     if (existsSync(p)) paths.add(p);
   }
@@ -388,7 +388,7 @@ function gatherWatchPaths(cwd: string, config: NectarConfig): string[] {
 }
 
 async function hasProjectConfig(cwd: string): Promise<boolean> {
-  for (const name of ['nectar.toml', 'nectar.config.toml']) {
+  for (const name of ['laurel.toml', 'laurel.config.toml']) {
     if (await Bun.file(join(cwd, name)).exists()) return true;
   }
   return false;

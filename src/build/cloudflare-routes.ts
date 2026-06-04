@@ -5,10 +5,10 @@ import { ensureDir } from '~/util/fs.ts';
 // Cloudflare Pages Functions: when ANY `functions/` directory exists at the
 // project root (even a single file), Pages will route every request that
 // matches `include` through the Functions runtime before falling back to
-// static assets. For a pure-static nectar build that is pointless overhead
+// static assets. For a pure-static laurel build that is pointless overhead
 // — every request pays a worker invocation just to hit the asset CDN — and,
 // worse, the platform's default include is `/*`, so missing routes serve a
-// Functions 404 instead of nectar's `404.html`.
+// Functions 404 instead of laurel's `404.html`.
 //
 // Emitting an explicit `_routes.json` with an empty `exclude` array AND an
 // `include` of `/*` reserves zero paths for Functions: Pages serves every

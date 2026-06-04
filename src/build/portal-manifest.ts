@@ -1,10 +1,10 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { ensureDir } from '~/util/fs.ts';
 import type { PortalTrigger, ResolvedPortalUrls } from './portal-urls.ts';
 
-export const PORTAL_MANIFEST_PATH = '.nectar/portal-manifest.json';
+export const PORTAL_MANIFEST_PATH = '.laurel/portal-manifest.json';
 
 type PortalManifestBehavior = 'rewrite' | 'remove-invite-only' | 'runtime-warning' | 'deep-link';
 
@@ -16,8 +16,8 @@ interface PortalManifestSelector {
 }
 
 interface PortalManifest {
-  schema: 'nectar.portal-manifest.v1';
-  provider: NectarConfig['components']['portal']['provider'];
+  schema: 'laurel.portal-manifest.v1';
+  provider: LaurelConfig['components']['portal']['provider'];
   invite_only: boolean;
   selectors: PortalManifestSelector[];
 }
@@ -25,7 +25,7 @@ interface PortalManifest {
 const PORTAL_TRIGGERS: readonly PortalTrigger[] = ['signup', 'signin', 'account', 'upgrade'];
 
 export function buildPortalManifest(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   urls: ResolvedPortalUrls;
   recommendationsEnabled: boolean;
 }): PortalManifest {
@@ -62,7 +62,7 @@ export function buildPortalManifest(opts: {
     });
   }
   return {
-    schema: 'nectar.portal-manifest.v1',
+    schema: 'laurel.portal-manifest.v1',
     provider: opts.config.components.portal.provider,
     invite_only: opts.config.components.portal.invite_only,
     selectors,
@@ -70,12 +70,12 @@ export function buildPortalManifest(opts: {
 }
 
 export async function emitPortalManifest(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   outputDir: string;
   urls: ResolvedPortalUrls;
   recommendationsEnabled: boolean;
 }): Promise<void> {
   const dest = join(opts.outputDir, PORTAL_MANIFEST_PATH);
-  await ensureDir(join(opts.outputDir, '.nectar'));
+  await ensureDir(join(opts.outputDir, '.laurel'));
   await writeFile(dest, `${JSON.stringify(buildPortalManifest(opts), null, 2)}\n`, 'utf8');
 }

@@ -28,8 +28,8 @@ async function runCli(args: string[], cwd?: string): Promise<RunResult> {
 }
 
 async function makeFixture(toml: string): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-doctor-')));
-  await Bun.write(join(dir, 'nectar.toml'), toml);
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-doctor-')));
+  await Bun.write(join(dir, 'laurel.toml'), toml);
   return dir;
 }
 

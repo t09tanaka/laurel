@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 // Regression for project-backlog #82: the Source theme had no `kg-audio-*`
-// CSS. Nectar renders audio cards as static HTML, so the theme must at least
+// CSS. Laurel renders audio cards as static HTML, so the theme must at least
 // style Ghost's Koenig hooks and the native <audio controls> fallback.
 
 const SOURCE_THEME = join(process.cwd(), 'example/themes/source');

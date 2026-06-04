@@ -1,8 +1,8 @@
-# Dashboard dev mode (`nectar dashboard --dev`) Implementation Plan
+# Dashboard dev mode (`laurel dashboard --dev`) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a `--dev` flag to `nectar dashboard` that launches Bun's fullstack dev server with HMR for `src/cli/dashboard/web/**`, so frontend iteration no longer requires `bun run build:dashboard-bundle` between edits.
+**Goal:** Add a `--dev` flag to `laurel dashboard` that launches Bun's fullstack dev server with HMR for `src/cli/dashboard/web/**`, so frontend iteration no longer requires `bun run build:dashboard-bundle` between edits.
 
 **Architecture:** Two `Bun.serve()` invocations behind the same `runDashboard` entry. Prod mode (default) keeps serving `dist/dashboard-bundle/dashboard.{js,css}` unchanged. Dev mode imports a new static `dashboard.html` as a `routes` entry, lets Bun bundle TSX / Tailwind on demand, and injects an HMR client. The CSRF token previously embedded as a `<meta>` tag in the prod shell moves to a runtime `/api/dashboard/bootstrap` endpoint that both modes consume.
 
@@ -19,7 +19,7 @@
 
 **Modified files:**
 - `src/cli/commands/dashboard.ts` — `--dev` branch in `runDashboard`, new `/api/dashboard/bootstrap` handler, `mode` added to `DashboardRequestContext`. Drops the meta-tag token rendering inside the prod-shell HTML branch.
-- `src/cli/dashboard/html.ts` — remove `<meta name="nectar-dashboard-token">` line, drop the `token` parameter.
+- `src/cli/dashboard/html.ts` — remove `<meta name="laurel-dashboard-token">` line, drop the `token` parameter.
 - `src/cli/dashboard/web/entry.tsx` — async bootstrap fetch before `render()`.
 - `src/cli/dashboard/web/lib/api.ts` — replace module-load `readToken()` with a setter (`setDashboardToken`) called by `entry.tsx` after bootstrap resolves.
 - `src/cli/specs.ts` — declare the `dev` boolean option on `DASHBOARD_SPEC`.
@@ -201,7 +201,7 @@ export function getDashboardToken(): string {
 function writeHeaders(): Record<string, string> {
   return {
     'content-type': 'application/json',
-    'x-nectar-dashboard-token': dashboardToken,
+    'x-laurel-dashboard-token': dashboardToken,
   };
 }
 ```
@@ -293,7 +293,7 @@ In `tests/cli/commands/dashboard.test.ts`, replace the two tests at lines 1763-1
 test('renders the minimal Preact dashboard shell with bundle references', () => {
   const html = renderDashboardHtml();
 
-  expect(html).toContain('<title>Nectar Dashboard</title>');
+  expect(html).toContain('<title>Laurel Dashboard</title>');
   expect(html).toContain('data-theme="system"');
   expect(html).toContain('<link rel="stylesheet" href="/assets/dashboard.css">');
   expect(html).toContain('<script type="module" src="/assets/dashboard.js"></script>');
@@ -301,7 +301,7 @@ test('renders the minimal Preact dashboard shell with bundle references', () => 
   expect(html).toContain('href="#main"');
 
   // The CSRF token now ships via /api/dashboard/bootstrap, not a meta tag.
-  expect(html).not.toContain('nectar-dashboard-token');
+  expect(html).not.toContain('laurel-dashboard-token');
   // Inline `<style>` tag and bundled vanilla JS are gone — the shell only
   // loads the Preact bundle from the served assets.
   expect(html).not.toContain('<style>');
@@ -326,7 +326,7 @@ export function renderDashboardHtml(): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nectar Dashboard</title>
+<title>Laurel Dashboard</title>
 <link rel="stylesheet" href="/assets/dashboard.css">
 </head>
 <body>
@@ -363,7 +363,7 @@ Expected: Clean.
 ```bash
 git add src/cli/dashboard/html.ts src/cli/commands/dashboard.ts tests/cli/commands/dashboard.test.ts
 git commit -m "$(cat <<'EOF'
-refactor(dashboard): drop the <meta name=nectar-dashboard-token> tag
+refactor(dashboard): drop the <meta name=laurel-dashboard-token> tag
 
 Token now flows through /api/dashboard/bootstrap (added in the previous
 commit). renderDashboardHtml() no longer needs the token argument, so
@@ -397,7 +397,7 @@ dev: {
 And in `examples`, append:
 
 ```ts
-'nectar dashboard --dev                       # frontend HMR; bundles TSX/CSS on demand',
+'laurel dashboard --dev                       # frontend HMR; bundles TSX/CSS on demand',
 ```
 
 - [ ] **Step 2: Refresh the help snapshot fixture**
@@ -451,7 +451,7 @@ Create `src/cli/dashboard/web/dashboard.html` with the following content (exact,
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nectar Dashboard</title>
+<title>Laurel Dashboard</title>
 <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -505,7 +505,7 @@ Append the following block to the end of `bunfig.toml`:
 
 ```toml
 # ---------------------------------------------------------------------------
-# Bun fullstack dev server (used by `nectar dashboard --dev`).
+# Bun fullstack dev server (used by `laurel dashboard --dev`).
 #
 # bun-plugin-tailwind runs Tailwind v4 against any CSS file referenced from
 # an HTML import served via Bun.serve({ routes: { ... } }). The prod bundle
@@ -565,7 +565,7 @@ import { join } from 'node:path';
 import { runDashboard } from '~/cli/commands/dashboard.ts';
 
 async function makeMinimalProject(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-dashboard-dev-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-dashboard-dev-')));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
@@ -577,7 +577,7 @@ async function makeMinimalProject(): Promise<string> {
     'utf8',
   );
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Dev Mode Smoke"',
@@ -594,7 +594,7 @@ async function makeMinimalProject(): Promise<string> {
   return dir;
 }
 
-describe('nectar dashboard --dev', () => {
+describe('laurel dashboard --dev', () => {
   let originalCwd: string;
   let projectDir: string;
 
@@ -646,7 +646,7 @@ import { startDashboardServer } from '~/cli/commands/dashboard.ts';
 
 async function makeMinimalProject(): Promise<string> { /* same as above */ }
 
-describe('nectar dashboard --dev', () => {
+describe('laurel dashboard --dev', () => {
   let originalCwd: string;
   let projectDir: string;
 
@@ -943,7 +943,7 @@ Expected: the new section reads cleanly between Workflow rules and the bootstrap
 ```bash
 git add CLAUDE.md
 git commit -m "$(cat <<'EOF'
-docs(claude): document `nectar dashboard --dev` workflow
+docs(claude): document `laurel dashboard --dev` workflow
 
 Adds a short "Dashboard frontend development" section so future
 contributors (and future Claude sessions) reach for --dev instead of
@@ -978,13 +978,13 @@ Expected: Style applies after HMR push. If it does not (Tailwind plugin not wire
 
 - [ ] **Step 4: Verify SPA hard-navigation**
 
-In a new tab, navigate directly to `http://127.0.0.1:4322/posts/hello-nectar/edit`.
+In a new tab, navigate directly to `http://127.0.0.1:4322/posts/hello-laurel/edit`.
 Expected: HMR-enabled shell loads (no 404). Editor mounts via SPA routing.
 
 - [ ] **Step 5: Verify prod mode still works**
 
 Stop the dev server. Run: `bun run build:dashboard-bundle && bun run src/cli/index.ts dashboard`
-Expected: Bundle builds clean, prod dashboard renders, `<meta name="nectar-dashboard-token">` is gone from the HTML source, but writes still work (token comes from `/api/dashboard/bootstrap`).
+Expected: Bundle builds clean, prod dashboard renders, `<meta name="laurel-dashboard-token">` is gone from the HTML source, but writes still work (token comes from `/api/dashboard/bootstrap`).
 
 - [ ] **Step 6: Run the local CI equivalent**
 

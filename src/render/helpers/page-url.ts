@@ -1,5 +1,5 @@
 import type Handlebars from 'handlebars';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 
 // `{{page_url}}` is the per-page URL builder used by Ghost's default
 // `partials/pagination.hbs`. Ghost templates write `{{page_url next}}`,
@@ -15,7 +15,7 @@ import type { NectarEngine } from '../engine.ts';
 // Out of range numeric inputs return empty so themes that pre-render number
 // links (e.g. `{{#each (range 1 pages)}}<a href="{{page_url this}}">...`)
 // don't emit broken hrefs.
-export function registerPageUrlHelper(engine: NectarEngine): void {
+export function registerPageUrlHelper(engine: LaurelEngine): void {
   engine.hb.registerHelper('page_url', function pageUrlHelper(this: unknown, ...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
     const positional = args.length > 1 ? args[0] : undefined;

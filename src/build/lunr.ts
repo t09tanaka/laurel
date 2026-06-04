@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
@@ -91,7 +91,7 @@ async function loadLunrRuntime(): Promise<string | null> {
 }
 
 function buildDocs(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
 }): LunrDoc[] {
   const { config, content } = opts;
@@ -148,7 +148,7 @@ function buildDocs(opts: {
 }
 
 export async function buildLunrIndex(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
 }): Promise<LunrBundle | null> {
   const { config } = opts;
@@ -169,19 +169,19 @@ export async function buildLunrIndex(opts: {
     meta: {
       generated_at: new Date().toISOString(),
       site_url: config.site.url,
-      note: 'Pre-built Lunr index emitted by Nectar. Pair with /search/widget.js (or call lunr.Index.load on `.index` directly).',
+      note: 'Pre-built Lunr index emitted by Laurel. Pair with /search/widget.js (or call lunr.Index.load on `.index` directly).',
     },
   };
 }
 
 export function searchEngineEmitsLunr(
-  engine: NectarConfig['components']['search']['engine'],
+  engine: LaurelConfig['components']['search']['engine'],
 ): boolean {
   return engine === 'lunr' || engine === 'json+lunr';
 }
 
 export async function emitLunrIndex(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   outputDir: string;
 }): Promise<string | null> {
@@ -200,8 +200,8 @@ export async function emitLunrIndex(opts: {
 // Vanilla JS widget. Lazy-loads the index on first input so cold-load is cheap;
 // the runtime is expected on `window.lunr` (bundled alongside via
 // `search/lunr.min.js`). Wires to:
-//   <input data-nectar-search type="search" />
-//   <ul data-nectar-search-results></ul>
+//   <input data-laurel-search type="search" />
+//   <ul data-laurel-search-results></ul>
 // The script discovers its sibling JSON via its own src URL, so the same
 // build works on root deployments and subpath deployments without
 // templating a base path into the widget.
@@ -245,8 +245,8 @@ const WIDGET_JS = `(() => {
     }
   }
   function wire(scriptEl) {
-    const input = document.querySelector("[data-nectar-search]");
-    const list = document.querySelector("[data-nectar-search-results]");
+    const input = document.querySelector("[data-laurel-search]");
+    const list = document.querySelector("[data-laurel-search-results]");
     if (!input || !list) return;
     const url = indexUrl(scriptEl);
     let lastTerm = "";
@@ -273,7 +273,7 @@ const WIDGET_JS = `(() => {
 `;
 
 export async function emitLunrWidget(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   outputDir: string;
 }): Promise<{ widget: string; runtime: string | null } | null> {
   const { config, outputDir } = opts;

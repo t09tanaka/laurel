@@ -12,11 +12,11 @@ body:
 
         **Before opening this:**
         1. If you're proposing something new, post in
-           [Discussions → Ideas](https://github.com/t09tanaka/nectar/discussions/categories/ideas)
+           [Discussions → Ideas](https://github.com/t09tanaka/laurel/discussions/categories/ideas)
            first. When discussion converges on "yes, let's build this", come
            back and open this issue.
         2. Check the explicit non-goals in
-           [`CLAUDE.md`](https://github.com/t09tanaka/nectar/blob/main/CLAUDE.md)
+           [`CLAUDE.md`](https://github.com/t09tanaka/laurel/blob/main/CLAUDE.md)
            (members, server-side search, live drafts, multi-locale routing,
            email-only posts). Those aren't up for revisiting via issues.
   - type: textarea
@@ -25,7 +25,7 @@ body:
       label: What problem does this solve?
       description: Describe the situation, not the proposed solution. "I deploy
         to Cloudflare Pages and the headers file isn't picked up" rather than
-        "Nectar should emit `_headers`".
+        "Laurel should emit `_headers`".
     validations:
       required: true
   - type: textarea
@@ -44,7 +44,7 @@ body:
       description: Link to the Ideas discussion this was agreed in. Leave blank
         only if the change is small enough to skip that step (typo, trivial
         helper extension, etc.) — maintainers will redirect otherwise.
-      placeholder: "https://github.com/t09tanaka/nectar/discussions/..."
+      placeholder: "https://github.com/t09tanaka/laurel/discussions/..."
     validations:
       required: false
   - type: dropdown
@@ -77,8 +77,8 @@ body:
       description: Tick whichever apply. If anything is ticked, describe the
         migration story under "Anything else" below.
       options:
-        - label: Breaking change to the public CLI (`nectar build`, `nectar import-*`, ...)
-        - label: Breaking change to `nectar.toml` schema
+        - label: Breaking change to the public CLI (`laurel build`, `laurel import-*`, ...)
+        - label: Breaking change to `laurel.toml` schema
         - label: Breaking change to the Ghost compatibility surface (helpers, contexts, theme API)
         - label: Breaking change to the Markdown frontmatter / content layout under `content/`
         - label: No breaking changes

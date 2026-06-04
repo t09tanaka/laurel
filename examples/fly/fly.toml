@@ -1,10 +1,10 @@
 # Copy this file and Dockerfile to your project root, enable [deploy.nginx] with
 # root = "/usr/share/nginx/html", then run:
 #   flyctl launch --no-deploy
-#   bunx nectar build
+#   bunx laurel build
 #   flyctl deploy --remote-only
 
-app = "my-nectar-site"
+app = "my-laurel-site"
 primary_region = "sjc"
 
 [build]

@@ -10,17 +10,17 @@ import {
 } from '~/dev/livereload.ts';
 
 describe('livereload paths', () => {
-  test('LIVERELOAD_PATH lives under the /__nectar surface', () => {
-    expect(LIVERELOAD_PATH.startsWith('/__nectar')).toBe(true);
+  test('LIVERELOAD_PATH lives under the /__laurel surface', () => {
+    expect(LIVERELOAD_PATH.startsWith('/__laurel')).toBe(true);
   });
   test('LIVERELOAD_SCRIPT_PATH is a static .js URL', () => {
-    expect(LIVERELOAD_SCRIPT_PATH).toBe('/__nectar/livereload.js');
+    expect(LIVERELOAD_SCRIPT_PATH).toBe('/__laurel/livereload.js');
   });
 });
 
 describe('LIVERELOAD_CLIENT_JS', () => {
   test('self-guards against duplicate injection', () => {
-    expect(LIVERELOAD_CLIENT_JS).toContain('window.__nectarLiveReload');
+    expect(LIVERELOAD_CLIENT_JS).toContain('window.__laurelLiveReload');
   });
   test('opens a WebSocket on the livereload path', () => {
     expect(LIVERELOAD_CLIENT_JS).toContain(LIVERELOAD_PATH);
@@ -39,8 +39,8 @@ describe('injectLiveReload', () => {
   test('inline injection lands before </body>', () => {
     const html = '<!doctype html><html><body><h1>hi</h1></body></html>';
     const out = injectLiveReload(html, 'inline');
-    expect(out).toContain('__nectar_livereload');
-    expect(out.indexOf('__nectar_livereload')).toBeLessThan(out.indexOf('</body>'));
+    expect(out).toContain('__laurel_livereload');
+    expect(out.indexOf('__laurel_livereload')).toBeLessThan(out.indexOf('</body>'));
   });
 
   test('inline injection appends when </body> is missing', () => {
@@ -64,10 +64,10 @@ describe('injectLiveReload', () => {
     expect(out.endsWith(LIVERELOAD_EXTERNAL_TAG)).toBe(true);
   });
 
-  test('default mode is inline (backwards compat with nectar serve)', () => {
+  test('default mode is inline (backwards compat with laurel serve)', () => {
     const html = '<html><body>x</body></html>';
     const out = injectLiveReload(html);
-    expect(out).toContain('__nectar_livereload');
+    expect(out).toContain('__laurel_livereload');
     expect(out).not.toContain(LIVERELOAD_SCRIPT_PATH);
   });
 });

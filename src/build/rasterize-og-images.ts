@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { dirname, extname, join, relative, resolve } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ContentGraph, Page, Post } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
@@ -44,7 +44,7 @@ async function loadResvg(): Promise<ResvgConstructor | null> {
 
 interface RasterizeOgImagesOptions {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   outputDir: string;
 }

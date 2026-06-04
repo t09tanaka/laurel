@@ -1,5 +1,5 @@
 import type Handlebars from 'handlebars';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 
 const STRING_PASSTHROUGH = [
   'style',
@@ -21,7 +21,7 @@ const NUMBER_PASSTHROUGH = [
   'maximumSignificantDigits',
 ] as const;
 
-export function registerNumberHelpers(engine: NectarEngine): void {
+export function registerNumberHelpers(engine: LaurelEngine): void {
   const intlLocale = resolveIntlLocale(engine.content.site.locale);
 
   engine.hb.registerHelper('number', function numberHelper(this: unknown, ...args: unknown[]) {

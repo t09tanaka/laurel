@@ -2,10 +2,10 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { arch, homedir, platform, release } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { getNectarVersion } from '~/util/nectar-version.ts';
+import { getLaurelVersion } from '~/util/laurel-version.ts';
 import type { VersionJson } from './version.ts';
 
-export const DEFAULT_TELEMETRY_ENDPOINT = 'https://telemetry.nectar.dev/v1/usage';
+export const DEFAULT_TELEMETRY_ENDPOINT = 'https://telemetry.laurel.dev/v1/usage';
 export const TELEMETRY_SCHEMA_VERSION = 1;
 
 type TelemetryConfigSource = NodeJS.ProcessEnv | string;
@@ -25,7 +25,7 @@ interface TelemetryPayload {
   duration_ms: number;
   success: boolean;
   exit_code: number;
-  nectar_version: string;
+  laurel_version: string;
   bun_version: string | null;
   os: {
     platform: string;
@@ -51,7 +51,7 @@ interface CrashReportPayload {
   stack: string | null;
   argv: string[];
   versions: {
-    nectar: string;
+    laurel: string;
     bun: string | null;
     node: string;
     commit: string | null;
@@ -99,11 +99,11 @@ const VALUE_FLAGS = new Set([
 
 export function telemetryConfigPath(source: TelemetryConfigSource = process.env): string {
   if (typeof source === 'string') return source;
-  const explicit = source.NECTAR_TELEMETRY_CONFIG;
+  const explicit = source.LAUREL_TELEMETRY_CONFIG;
   if (explicit !== undefined && explicit !== '') return explicit;
   const xdg = source.XDG_CONFIG_HOME;
-  if (xdg !== undefined && xdg !== '') return join(xdg, 'nectar', 'telemetry.json');
-  return join(homedir(), '.config', 'nectar', 'telemetry.json');
+  if (xdg !== undefined && xdg !== '') return join(xdg, 'laurel', 'telemetry.json');
+  return join(homedir(), '.config', 'laurel', 'telemetry.json');
 }
 
 export async function readTelemetryConfig(
@@ -134,7 +134,7 @@ export function resolveTelemetryEndpoint(
   config: TelemetryConfig,
   env: NodeJS.ProcessEnv = process.env,
 ): string {
-  const envEndpoint = env.NECTAR_TELEMETRY_ENDPOINT;
+  const envEndpoint = env.LAUREL_TELEMETRY_ENDPOINT;
   if (envEndpoint !== undefined && envEndpoint !== '') return envEndpoint;
   return config.endpoint ?? DEFAULT_TELEMETRY_ENDPOINT;
 }
@@ -153,7 +153,7 @@ export async function buildTelemetryPayload(options: {
     duration_ms: Math.max(0, Math.round(options.durationMs)),
     success: options.exitCode === 0,
     exit_code: options.exitCode,
-    nectar_version: await getNectarVersion(),
+    laurel_version: await getLaurelVersion(),
     bun_version: typeof Bun === 'undefined' ? null : Bun.version,
     os: {
       platform: platform(),
@@ -179,14 +179,14 @@ export async function sendCommandTelemetry(options: TelemetrySendOptions): Promi
   const abort = new AbortController();
   const timeout = setTimeout(
     () => abort.abort(),
-    parseTelemetryTimeoutMs(env.NECTAR_TELEMETRY_TIMEOUT_MS),
+    parseTelemetryTimeoutMs(env.LAUREL_TELEMETRY_TIMEOUT_MS),
   );
   try {
     const res = await fetchFn(endpoint, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'user-agent': `nectar/${payload.nectar_version}`,
+        'user-agent': `laurel/${payload.laurel_version}`,
       },
       body: JSON.stringify(payload),
       signal: abort.signal,
@@ -330,7 +330,7 @@ export async function handleCrashReportPrompt(
 
 export function versionsForCrashReport(version: VersionJson): CrashReportPayload['versions'] {
   return {
-    nectar: version.version,
+    laurel: version.version,
     bun: version.bun,
     node: version.node,
     commit: version.commit,
@@ -381,7 +381,7 @@ async function promptOnStderr(question: string): Promise<string> {
 }
 
 async function sendCrashReport(payload: CrashReportPayload): Promise<boolean> {
-  const endpoint = process.env.NECTAR_CRASH_REPORT_URL?.trim();
+  const endpoint = process.env.LAUREL_CRASH_REPORT_URL?.trim();
   if (!endpoint) return false;
   const response = await fetch(endpoint, {
     method: 'POST',

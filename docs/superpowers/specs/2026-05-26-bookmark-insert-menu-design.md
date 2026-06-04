@@ -6,7 +6,7 @@ Branch: feature/editor-bookmark-card-insert
 
 ## Problem
 
-The nectar dashboard's WYSIWYG editor (ProseMirror) exposes a Ghost
+The laurel dashboard's WYSIWYG editor (ProseMirror) exposes a Ghost
 Koenig-style `+` menu on empty top-level paragraphs
 (`src/cli/dashboard/web/lib/prose-insert-menu.ts`). It currently offers
 Image / Divider / Code block / Table / Components. There is no way to
@@ -32,7 +32,7 @@ unchanged.
 ## Non-goals
 
 - oEmbed (Twitter / YouTube / Spotify cards) — already covered by `{{< embed >}}`, not in scope here.
-- Persistent OGP cache (`.nectar/cache/ogp/`) — future work.
+- Persistent OGP cache (`.laurel/cache/ogp/`) — future work.
 - Self-hosting fetched thumbnails into `content/images/` — future work; we keep external URLs.
 - A standalone "card link copy" route.
 - Retry UI on fetch failure beyond the existing "Replace" affordance.
@@ -215,7 +215,7 @@ user paste URL
   → ProseEditor onChange → serialise to markdown
        prose-bookmark-markdown serializer emits {{< bookmark … />}}
   → POST /api/content/posts/<slug> saves the markdown verbatim
-  → nectar build reads markdown
+  → laurel build reads markdown
        src/content/markdown.ts BOOKMARK_SHORTCODE_RE expands to kg-bookmark-card HTML
   → theme CSS renders the card
 ```

@@ -8,8 +8,8 @@ import type { AgentFormat, BundledSkill, SkillInstallReceipt } from '../types.ts
 // user-level `~/.agents/skills`). Files committed there are team-shared — the
 // same role `.claude/skills/` plays for Claude Code:
 //   .agents/skills/<slug>/SKILL.md     ← same body as the Claude emit
-//   .agents/skills/<slug>/.nectar.json ← install receipt
-// See https://developers.openai.com/codex/skills. (Earlier Nectar wrote these
+//   .agents/skills/<slug>/.laurel.json ← install receipt
+// See https://developers.openai.com/codex/skills. (Earlier Laurel wrote these
 // under `.codex/skills/`, which Codex does not scan.)
 
 const FORMAT: AgentFormat = 'codex';
@@ -33,7 +33,7 @@ export async function installSkillForCodex(cwd: string, skill: BundledSkill): Pr
     format: FORMAT,
     bundledAt: new Date().toISOString(),
   };
-  await writeFile(join(targetDir, '.nectar.json'), `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
+  await writeFile(join(targetDir, '.laurel.json'), `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
   return targetDir;
 }
 

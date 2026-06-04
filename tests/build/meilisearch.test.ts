@@ -8,7 +8,7 @@ import { configSchema } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-meilisearch-'));
+  return mkdtemp(join(tmpdir(), 'laurel-meilisearch-'));
 }
 
 function makeTag(overrides: Partial<Tag> = {}): Tag {
@@ -291,14 +291,14 @@ describe('buildMeilisearchDocuments', () => {
 });
 
 describe('emitMeilisearchRecords', () => {
-  test('writes .nectar/meilisearch-records.json when toggle is on', async () => {
+  test('writes .laurel/meilisearch-records.json when toggle is on', async () => {
     const outputDir = await makeOutputDir();
     const config = configSchema.parse({
       site: { title: 'S', url: 'https://x.test' },
       components: { search: { emit_meilisearch_records: true } },
     });
     const dest = await emitMeilisearchRecords({ config, content: makeContent(), outputDir });
-    expect(dest).toBe(join(outputDir, '.nectar', 'meilisearch-records.json'));
+    expect(dest).toBe(join(outputDir, '.laurel', 'meilisearch-records.json'));
     const body = JSON.parse(readFileSync(dest as string, 'utf8'));
     expect(body.documents.length).toBeGreaterThan(0);
     expect(body.documents[0].id).toBeDefined();
@@ -313,7 +313,7 @@ describe('emitMeilisearchRecords', () => {
     });
     const dest = await emitMeilisearchRecords({ config, content: makeContent(), outputDir });
     expect(dest).toBeNull();
-    expect(existsSync(join(outputDir, '.nectar', 'meilisearch-records.json'))).toBe(false);
+    expect(existsSync(join(outputDir, '.laurel', 'meilisearch-records.json'))).toBe(false);
   });
 
   test('skips when search is disabled', async () => {

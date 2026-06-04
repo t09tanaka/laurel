@@ -26,13 +26,13 @@ import {
 import { THEME_MEMBERS_REQUIRED_WITHOUT_PORTAL_WARNING } from '~/theme/loader.ts';
 
 async function makeMinimalSite(opts: { dateValue: string }): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'nectar-pipeline-'));
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-pipeline-'));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
 
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Strict Test"',
@@ -81,7 +81,7 @@ name: Casper
 }
 
 async function prependTomlTopLevel(cwd: string, snippet: string): Promise<void> {
-  const tomlPath = join(cwd, 'nectar.toml');
+  const tomlPath = join(cwd, 'laurel.toml');
   const existing = readFileSync(tomlPath, 'utf8');
   await writeFile(tomlPath, `${snippet}\n${existing}`, 'utf8');
 }
@@ -142,9 +142,9 @@ describe('build pipeline strict mode wiring', () => {
   test('invite-only portal builds remove Subscribe buttons but keep Sign in links', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
-        readFileSync(join(cwd, 'nectar.toml'), 'utf8'),
+        readFileSync(join(cwd, 'laurel.toml'), 'utf8'),
         '',
         '[components.portal]',
         'provider = "buttondown"',
@@ -222,9 +222,9 @@ date: 2026-01-01T00:00:00Z
       'utf8',
     );
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
-        readFileSync(join(cwd, 'nectar.toml'), 'utf8'),
+        readFileSync(join(cwd, 'laurel.toml'), 'utf8'),
         '',
         '[deploy.netlify]',
         'enabled = true',
@@ -238,8 +238,8 @@ date: 2026-01-01T00:00:00Z
     const headers = readFileSync(join(summary.outputDir, '_headers'), 'utf8');
 
     expect(feed).toBe('<rss><channel><title>Strict Test</title></channel></rss>');
-    expect(feed).not.toContain('data-nectar-build');
-    expect(feed).not.toContain('nectar-skip-link');
+    expect(feed).not.toContain('data-laurel-build');
+    expect(feed).not.toContain('laurel-skip-link');
     expect(headers).toContain('/custom-feed.xml');
     expect(headers).toContain('Content-Type: application/rss+xml');
   });
@@ -274,7 +274,7 @@ date: 2026-01-01T00:00:00Z
     const postHtml = readFileSync(join(summary.outputDir, 'hello/index.html'), 'utf8');
     expect(summary.warningCount).toBe(1);
     expect(stderr.output).toContain(SUBSCRIBE_NOOP_BUILD_WARNING);
-    expect(postHtml).toContain(`data-nectar-noop="${SUBSCRIBE_NOOP_REASON}"`);
+    expect(postHtml).toContain(`data-laurel-noop="${SUBSCRIBE_NOOP_REASON}"`);
     expect(postHtml).toContain('window.console.warn');
     expect(postHtml).toContain(SUBSCRIBE_NOOP_RUNTIME_WARNING);
   });
@@ -392,7 +392,7 @@ Intro.
   test('fails before static passthrough replaces generated deploy headers', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '',
         '[components.content_api]',
@@ -441,7 +441,7 @@ Intro.
   test('fails before public passthrough replaces generated deploy headers', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '',
         '[components.content_api]',
@@ -462,7 +462,7 @@ Intro.
   test('merges static deploy headers when deploy.merge is enabled', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '',
         '[components.content_api]',
@@ -490,7 +490,7 @@ Intro.
   test('lets build force replace generated deploy headers with static passthrough', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '',
         '[components.content_api]',
@@ -515,7 +515,7 @@ Intro.
   test('reports asset copy substeps through build progress events', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       ['', '[build]', 'copy_content_assets = false', ''].join('\n'),
       {
         flag: 'a',
@@ -565,7 +565,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 export default {
   name: 'asset-overlap-fixture',
   async beforeRender(ctx) {
-    const state = globalThis.__nectar_asset_overlap_state;
+    const state = globalThis.__laurel_asset_overlap_state;
     if (!state || state.checked) return;
     state.checked = true;
     const firstThemeAsset = ctx.theme.assets.values().next().value?.fingerprintedPath;
@@ -595,9 +595,9 @@ export default {
     };
     (
       globalThis as unknown as {
-        __nectar_asset_overlap_state?: typeof state;
+        __laurel_asset_overlap_state?: typeof state;
       }
-    ).__nectar_asset_overlap_state = state;
+    ).__laurel_asset_overlap_state = state;
 
     try {
       const summary = await build({ cwd, concurrency: 1 });
@@ -609,9 +609,9 @@ export default {
     } finally {
       (
         globalThis as unknown as {
-          __nectar_asset_overlap_state?: typeof state;
+          __laurel_asset_overlap_state?: typeof state;
         }
-      ).__nectar_asset_overlap_state = undefined;
+      ).__laurel_asset_overlap_state = undefined;
     }
   });
 
@@ -638,7 +638,7 @@ export default {
   test('materialises Source theme img_url size variants during build', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       ['', '[components.images]', 'formats = ["avif", "webp"]', ''].join('\n'),
       { flag: 'a' },
     );
@@ -702,7 +702,7 @@ feature_image_alt: "Cover"
 
   test('injects image dimensions into theme-rendered img tags during build', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
-    const tomlPath = join(cwd, 'nectar.toml');
+    const tomlPath = join(cwd, 'laurel.toml');
     await writeFile(
       tomlPath,
       [
@@ -753,7 +753,7 @@ Body
   test('inlines LQIP placeholders into rendered raster images during build', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       ['', '[components.images]', 'lqip_width = 12', 'lqip_quality = 35', ''].join('\n'),
       { flag: 'a' },
     );
@@ -795,7 +795,7 @@ date: 2026-01-01T00:00:00Z
   test('rewrites emitted HTML image URLs when image_cdn is enabled', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '',
         '[image_cdn]',
@@ -842,7 +842,7 @@ feature_image_alt: "Cover"
   test('rewrites emitted HTML image URLs through Netlify Image CDN', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '',
         '[image_cdn]',
@@ -886,7 +886,7 @@ date: 2026-01-01T00:00:00Z
   test('passes base_path-prefixed images into Image CDN without rebasing the CDN endpoint', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '',
         '[build]',
@@ -934,7 +934,7 @@ date: 2026-01-01T00:00:00Z
   test('rewrites emitted root-relative theme and content URLs for base_path deploys', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '',
         '[build]',
@@ -1052,7 +1052,7 @@ date: 2026-01-01T00:00:00Z
     expect(secondBodyImage).not.toContain('fetchpriority="high"');
   });
 
-  test('throws a NectarError when frontmatter date is unparseable', async () => {
+  test('throws a LaurelError when frontmatter date is unparseable', async () => {
     const cwd = await makeMinimalSite({ dateValue: 'not-a-real-date' });
     // Unparseable dates used to surface as a warning that fell back to the
     // epoch; they now hard-fail the build so the typo can't ship silently.
@@ -1077,15 +1077,15 @@ date: 2026-01-01T00:00:00Z
       [
         '#!/bin/sh',
         'set -eu',
-        'test -f "$NECTAR_OUTPUT_DIR/index.html"',
-        'printf "cwd=%s\\noutput=%s\\narg=%s\\n" "$PWD" "$NECTAR_OUTPUT_DIR" "$1" > "$PWD/hook.log"',
+        'test -f "$LAUREL_OUTPUT_DIR/index.html"',
+        'printf "cwd=%s\\noutput=%s\\narg=%s\\n" "$PWD" "$LAUREL_OUTPUT_DIR" "$1" > "$PWD/hook.log"',
         '',
       ].join('\n'),
       'utf8',
     );
     await chmod(hookPath, 0o755);
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       ['', '[hooks]', 'post_build = "./scripts/post-build.sh newsletter-send"', ''].join('\n'),
       { flag: 'a' },
     );
@@ -1133,7 +1133,7 @@ date: 2026-01-01T00:00:00Z
     expect(body).toContain('/* SITE */');
     expect(body).toContain('Title: Strict Test');
     expect(body).toContain('URL: https://strict.test');
-    expect(body).toContain('Generator: Nectar');
+    expect(body).toContain('Generator: Laurel');
   });
 
   test('emits zero-byte dist/.nojekyll for GitHub Pages compatibility', async () => {
@@ -1144,10 +1144,10 @@ date: 2026-01-01T00:00:00Z
     expect(readFileSync(nojekyll, 'utf8')).toBe('');
   });
 
-  test('emits dist/.nectar/cloudfront-response-headers-policy.json from deploy headers', async () => {
+  test('emits dist/.laurel/cloudfront-response-headers-policy.json from deploy headers', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '',
         '[deploy.headers.security]',
@@ -1160,7 +1160,7 @@ date: 2026-01-01T00:00:00Z
     const summary = await build({ cwd });
     const body = JSON.parse(
       readFileSync(
-        join(summary.outputDir, '.nectar', 'cloudfront-response-headers-policy.json'),
+        join(summary.outputDir, '.laurel', 'cloudfront-response-headers-policy.json'),
         'utf8',
       ),
     );
@@ -1170,12 +1170,12 @@ date: 2026-01-01T00:00:00Z
     expect(csp).toMatch(/^default-src 'self'; script-src 'self' 'sha256-/);
   });
 
-  test('emits dist/.nectar/asset-manifest.json for fingerprinted theme assets', async () => {
+  test('emits dist/.laurel/asset-manifest.json for fingerprinted theme assets', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
 
     const summary = await build({ cwd });
     const manifest = JSON.parse(
-      readFileSync(join(summary.outputDir, '.nectar', 'asset-manifest.json'), 'utf8'),
+      readFileSync(join(summary.outputDir, '.laurel', 'asset-manifest.json'), 'utf8'),
     ) as Record<string, { path: string; integrity: string }>;
 
     expect(manifest['assets/built/screen.css']?.path).toMatch(
@@ -1244,14 +1244,14 @@ Hidden detail.
 
     expect(indexHtml).not.toContain('/blog/assets/ghost-card-assets.js?v=7');
     expect(postHtml).toContain('/blog/assets/ghost-card-assets.js?v=7');
-    expect(postHtml).toContain('data-nectar-koenig-runtime="toggle"');
+    expect(postHtml).toContain('data-laurel-koenig-runtime="toggle"');
   });
 
   test('translates card-emitted default labels through the active theme locale', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
-      readFileSync(join(cwd, 'nectar.toml'), 'utf8').replace(
+      join(cwd, 'laurel.toml'),
+      readFileSync(join(cwd, 'laurel.toml'), 'utf8').replace(
         'url = "https://strict.test"',
         'url = "https://strict.test"\nlocale = "fr"',
       ),
@@ -1294,7 +1294,7 @@ date: 2026-01-01T00:00:00Z
     const postHtml = readFileSync(join(summary.outputDir, 'hello', 'index.html'), 'utf8');
 
     expect(postHtml).toContain('/blog/assets/ghost-card-assets.js?v=7');
-    expect(postHtml).toContain('data-nectar-koenig-runtime="lightbox"');
+    expect(postHtml).toContain('data-laurel-koenig-runtime="lightbox"');
   });
 
   test('Source post-card excerpts stay plaintext when content starts with a Koenig card', async () => {
@@ -1323,15 +1323,15 @@ The text after the opening card should feed Source list excerpts.
     expect(indexHtml).not.toContain('<div class="gh-card-wrapper"><div class="kg-card');
   });
 
-  test('emits dist/.nectar/Caddyfile when the Caddy deploy target is enabled', async () => {
+  test('emits dist/.laurel/Caddyfile when the Caddy deploy target is enabled', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '',
         '[deploy.caddy]',
         'enabled = true',
-        'root = "/srv/nectar"',
+        'root = "/srv/laurel"',
         'site_address = "example.com"',
         '',
       ].join('\n'),
@@ -1344,9 +1344,9 @@ The text after the opening card should feed Source list excerpts.
     );
 
     const summary = await build({ cwd });
-    const body = readFileSync(join(summary.outputDir, '.nectar', 'Caddyfile'), 'utf8');
+    const body = readFileSync(join(summary.outputDir, '.laurel', 'Caddyfile'), 'utf8');
     expect(body).toContain('example.com {');
-    expect(body).toContain('root * /srv/nectar');
+    expect(body).toContain('root * /srv/laurel');
     expect(body).toContain('redir @redirect_0 /new 308');
     expect(body).toContain('try_files {path} {path}/index.html =404');
   });
@@ -1354,7 +1354,7 @@ The text after the opening card should feed Source list excerpts.
   test('emits dist/.htaccess when deploy.apache is enabled', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '[site]',
         'title = "Apache Test"',
@@ -1394,7 +1394,7 @@ The text after the opening card should feed Source list excerpts.
   test('emits dist/_routes-manifest.json when deploy.cloudflare_workers is enabled', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '',
         '[components.content_api]',
@@ -1556,7 +1556,7 @@ describe('build pipeline trailing slash policy', () => {
   test('build.trailing_slash = never writes flat HTML and redirects slash URLs to slashless canonicals', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '',
         '[build]',
@@ -1585,13 +1585,13 @@ describe('build pipeline trailing slash policy', () => {
 
 describe('build pipeline baseUrl override (#250)', () => {
   async function makeSiteWithFeeds(opts: { dateValue: string }): Promise<string> {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-pipeline-baseurl-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-pipeline-baseurl-'));
     await mkdir(join(dir, 'content/posts'), { recursive: true });
     await mkdir(join(dir, 'content/pages'), { recursive: true });
     await mkdir(join(dir, 'content/authors'), { recursive: true });
 
     await writeFile(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       [
         '[site]',
         'title = "Preview Test"',
@@ -1742,12 +1742,12 @@ describe('build pipeline base_path applied to content URLs (#432)', () => {
   // build that has feeds + sitemap turned on (the minimal fixture disables
   // them for unrelated reasons).
   async function makeSiteWithFeeds(opts: { dateValue: string }): Promise<string> {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-pipeline-basepath-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-pipeline-basepath-'));
     await mkdir(join(dir, 'content/posts'), { recursive: true });
     await mkdir(join(dir, 'content/pages'), { recursive: true });
     await mkdir(join(dir, 'content/authors'), { recursive: true });
     await writeFile(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       [
         '[site]',
         'title = "Subpath Site"',
@@ -1889,9 +1889,9 @@ describe('build pipeline page approvals', () => {
     ].join('\n');
     await writeFile(pagePath, approvedMarkdown, 'utf8');
     const approvedStat = await stat(pagePath);
-    await mkdir(join(cwd, '.nectar/approvals/pages'), { recursive: true });
+    await mkdir(join(cwd, '.laurel/approvals/pages'), { recursive: true });
     await writeFile(
-      join(cwd, '.nectar/approvals/pages/about.json'),
+      join(cwd, '.laurel/approvals/pages/about.json'),
       JSON.stringify(
         {
           kind: 'pages',
@@ -1911,7 +1911,7 @@ describe('build pipeline page approvals', () => {
       ),
       'utf8',
     );
-    await writeFile(join(cwd, '.nectar/approvals/pages/about.md'), approvedMarkdown, 'utf8');
+    await writeFile(join(cwd, '.laurel/approvals/pages/about.md'), approvedMarkdown, 'utf8');
 
     await writeFile(
       pagePath,
@@ -1962,9 +1962,9 @@ describe('build pipeline page approvals', () => {
       ].join('\n'),
       'utf8',
     );
-    await mkdir(join(cwd, '.nectar/approvals/pages'), { recursive: true });
+    await mkdir(join(cwd, '.laurel/approvals/pages'), { recursive: true });
     await writeFile(
-      join(cwd, '.nectar/approvals/pages/about.json'),
+      join(cwd, '.laurel/approvals/pages/about.json'),
       JSON.stringify(
         {
           kind: 'pages',
@@ -1984,7 +1984,7 @@ describe('build pipeline page approvals', () => {
       ),
       'utf8',
     );
-    await writeFile(join(cwd, '.nectar/approvals/pages/about.md'), approvedMarkdown, 'utf8');
+    await writeFile(join(cwd, '.laurel/approvals/pages/about.md'), approvedMarkdown, 'utf8');
 
     const summary = await build({ cwd });
 
@@ -1997,13 +1997,13 @@ describe('build pipeline --profile', () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     const summary = await build({ cwd });
     expect(summary.profilePath).toBeUndefined();
-    expect(existsSync(join(summary.outputDir, '.nectar-build-stats.json'))).toBe(false);
+    expect(existsSync(join(summary.outputDir, '.laurel-build-stats.json'))).toBe(false);
   });
 
-  test('writes dist/.nectar-build-stats.json with phase + render-route entries when profile: true', async () => {
+  test('writes dist/.laurel-build-stats.json with phase + render-route entries when profile: true', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     const summary = await build({ cwd, profile: true });
-    const file = join(summary.outputDir, '.nectar-build-stats.json');
+    const file = join(summary.outputDir, '.laurel-build-stats.json');
     expect(summary.profilePath).toBe(file);
     expect(existsSync(file)).toBe(true);
     const parsed = JSON.parse(readFileSync(file, 'utf8')) as {
@@ -2062,11 +2062,11 @@ describe('build pipeline --profile', () => {
 });
 
 describe('build pipeline build-manifest emission (#248)', () => {
-  test('writes dist/.nectar/manifest.json with the deploy-facing fields', async () => {
+  test('writes dist/.laurel/manifest.json with the deploy-facing fields', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     const summary = await build({ cwd });
     const file = join(summary.outputDir, buildManifestRelPath());
-    const changedPathsFile = join(summary.outputDir, '.nectar/changed-paths.txt');
+    const changedPathsFile = join(summary.outputDir, '.laurel/changed-paths.txt');
     expect(existsSync(file)).toBe(true);
     expect(existsSync(changedPathsFile)).toBe(true);
     expect(readFileSync(changedPathsFile, 'utf8')).toBe('/*\n');
@@ -2074,7 +2074,7 @@ describe('build pipeline build-manifest emission (#248)', () => {
     const parsed = JSON.parse(readFileSync(file, 'utf8')) as {
       schema_version: number;
       generated_at: string;
-      nectar: { version: string };
+      laurel: { version: string };
       theme: {
         name: string;
         version: string;
@@ -2109,7 +2109,7 @@ describe('build pipeline build-manifest emission (#248)', () => {
     expect(headerTextSetting).toBeDefined();
     expect(headerTextSetting?.group).toBe('homepage');
     expect(headerTextSetting?.visibility).toBe('header_style:[Landing, Search]');
-    expect(typeof parsed.nectar.version).toBe('string');
+    expect(typeof parsed.laurel.version).toBe('string');
     expect(parsed.config_hash).toMatch(/^[0-9a-f]{64}$/);
     expect(new Date(parsed.generated_at).toString()).not.toBe('Invalid Date');
     expect(parsed.routes.length).toBe(summary.routeCount);
@@ -2126,7 +2126,7 @@ describe('build pipeline build-manifest emission (#248)', () => {
     // The manifest must not list itself; otherwise its contents would be
     // self-referential and change every build.
     expect(parsed.files.find((f) => f.path === buildManifestRelPath())).toBeUndefined();
-    expect(parsed.files.find((f) => f.path === '.nectar/changed-paths.txt')).toBeUndefined();
+    expect(parsed.files.find((f) => f.path === '.laurel/changed-paths.txt')).toBeUndefined();
 
     // Files must be sorted for deterministic deploy diffs.
     const paths = parsed.files.map((f) => f.path);
@@ -2175,7 +2175,7 @@ feature_image: /content/images/2024/01/foo.jpg
     await writeFile(join(cwd, 'media/blog/hero.png'), 'HERO');
 
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '[site]',
         'title = "Strict Test"',
@@ -2215,7 +2215,7 @@ feature_image: /content/images/2024/01/foo.jpg
     await writeFile(join(cwd, 'content/images/skipme.png'), 'SKIP');
 
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '[site]',
         'title = "Strict Test"',
@@ -2247,14 +2247,14 @@ feature_image: /content/images/2024/01/foo.jpg
 
 describe('build pipeline favicon emission', () => {
   test('copies site.icon into dist root and emits a <link rel="icon"> in rendered HTML', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-pipeline-favicon-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-pipeline-favicon-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await mkdir(join(cwd, 'content/pages'), { recursive: true });
     await mkdir(join(cwd, 'content/authors'), { recursive: true });
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(join(cwd, 'content/images/logo.svg'), '<svg/>');
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '[site]',
         'title = "Favicon Test"',
@@ -2294,12 +2294,12 @@ describe('build pipeline favicon emission', () => {
 
 describe('build pipeline HTML minification (#1109)', () => {
   async function makeSite(opts: { minify: boolean }): Promise<string> {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-pipeline-minify-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-pipeline-minify-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await mkdir(join(cwd, 'content/pages'), { recursive: true });
     await mkdir(join(cwd, 'content/authors'), { recursive: true });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '[site]',
         'title = "Minify Test"',
@@ -2431,7 +2431,7 @@ describe('build pipeline --no-atomic escape hatch (#247)', () => {
     expect(existsSync(join(summary.outputDir, 'content/images/old.png'))).toBe(false);
     expect(readFileSync(hashedNew, 'utf8')).toBe('NEW');
     expect(existsSync(join(summary.outputDir, 'index.html'))).toBe(true);
-    expect(existsSync(join(summary.outputDir, '.nectar', 'asset-manifest.json'))).toBe(true);
+    expect(existsSync(join(summary.outputDir, '.laurel', 'asset-manifest.json'))).toBe(true);
   });
 
   test('stale cleanup removes old route html when the route plan changes', async () => {
@@ -2456,12 +2456,12 @@ Old
     expect(existsSync(join(summary.outputDir, 'index.html'))).toBe(true);
   });
 
-  test('--no-atomic skips .nectarignore preservation (documented tradeoff)', async () => {
+  test('--no-atomic skips .laurelignore preservation (documented tradeoff)', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     const distDir = resolve(cwd, 'dist');
     await mkdir(distDir, { recursive: true });
     await writeFile(join(distDir, 'CNAME'), 'example.test', 'utf8');
-    await writeFile(join(cwd, '.nectarignore'), 'CNAME\n', 'utf8');
+    await writeFile(join(cwd, '.laurelignore'), 'CNAME\n', 'utf8');
 
     const summary = await build({ cwd, noAtomic: true });
 
@@ -2469,12 +2469,12 @@ Old
     expect(existsSync(join(summary.outputDir, 'CNAME'))).toBe(false);
   });
 
-  test('default atomic mode preserves .nectarignore-listed files across rebuilds', async () => {
+  test('default atomic mode preserves .laurelignore-listed files across rebuilds', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await build({ cwd });
     const distDir = resolve(cwd, 'dist');
     await writeFile(join(distDir, 'CNAME'), 'example.test', 'utf8');
-    await writeFile(join(cwd, '.nectarignore'), 'CNAME\n', 'utf8');
+    await writeFile(join(cwd, '.laurelignore'), 'CNAME\n', 'utf8');
 
     const summary = await build({ cwd });
 
@@ -2528,7 +2528,7 @@ describe('build pipeline chunked route rendering (#536)', () => {
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-const state = globalThis.__nectar_chunked_route_test_state;
+const state = globalThis.__laurel_chunked_route_test_state;
 const routeCount = ${routeCount};
 const batchSize = ${ROUTE_RENDER_BATCH_SIZE};
 
@@ -2567,9 +2567,9 @@ export default {
     };
     (
       globalThis as unknown as {
-        __nectar_chunked_route_test_state: typeof state;
+        __laurel_chunked_route_test_state: typeof state;
       }
-    ).__nectar_chunked_route_test_state = state;
+    ).__laurel_chunked_route_test_state = state;
     const events: BuildProgressEvent[] = [];
 
     const summary = await build({
@@ -2602,7 +2602,7 @@ export default {
     ).toBe(true);
 
     const parsed = JSON.parse(
-      readFileSync(join(summary.outputDir, '.nectar-build-stats.json'), 'utf8'),
+      readFileSync(join(summary.outputDir, '.laurel-build-stats.json'), 'utf8'),
     ) as {
       routeCount: number;
       routes: Array<{ url: string; outputPath: string; bytes: number; reused: boolean }>;
@@ -2777,7 +2777,7 @@ describe('build pipeline content_api stubs (#210/#211/#212)', () => {
   test('emits Apache content .htaccess when components.content_api.emit_htaccess is true', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '[site]',
         'title = "Strict Test"',
@@ -2822,11 +2822,11 @@ For members.
 `,
       'utf8',
     );
-    // Overwrite nectar.toml to enable the search component with the
+    // Overwrite laurel.toml to enable the search component with the
     // requested engine. We keep RSS/sitemap disabled to match the base
     // fixture's expectations.
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '[site]',
         'title = "Strict Test"',
@@ -2891,13 +2891,13 @@ For members.
     const html = readFileSync(join(summary.outputDir, 'index.html'), 'utf8');
     expect(html).toContain('data-ghost-search');
     expect(html).toContain('src="/search/ghost-search.js"');
-    expect(html).toContain('data-nectar-search-shim');
+    expect(html).toContain('data-laurel-search-shim');
   });
 
   test('skips shim emission when search is disabled', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '[site]',
         'title = "Strict Test"',
@@ -2947,7 +2947,7 @@ For members.
     const summary = await build({ cwd });
     const html = readFileSync(join(summary.outputDir, 'hello', 'index.html'), 'utf8');
     if (!html.includes('data-ghost-search')) {
-      expect(html).not.toContain('data-nectar-search-shim');
+      expect(html).not.toContain('data-laurel-search-shim');
     }
   });
 });
@@ -2957,13 +2957,13 @@ For members.
 // error template, and assert the sub-sitemaps stay clean.
 describe('build pipeline — sitemap excludes non-indexable routes (#781)', () => {
   async function makeSiteWithPagination(): Promise<string> {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-pipeline-781-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-pipeline-781-'));
     await mkdir(join(dir, 'content/posts'), { recursive: true });
     await mkdir(join(dir, 'content/pages'), { recursive: true });
     await mkdir(join(dir, 'content/authors'), { recursive: true });
 
     await writeFile(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       [
         '[site]',
         'title = "Pagination Test"',

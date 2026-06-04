@@ -65,10 +65,10 @@ function rewriteMembersFormBlock(block: string, resolved: ResolvedSubscribeForm)
   let form = setAttribute(open, 'action', resolved.action);
   form = setAttribute(form, 'method', resolved.method);
   if (resolved.disabled) {
-    form = setAttribute(form, 'data-nectar-noop', SUBSCRIBE_NOOP_REASON);
+    form = setAttribute(form, 'data-laurel-noop', SUBSCRIBE_NOOP_REASON);
     form = setAttribute(form, 'onsubmit', subscribeNoopSubmitHandler());
   } else {
-    form = removeAttribute(removeAttribute(form, 'data-nectar-noop'), 'onsubmit');
+    form = removeAttribute(removeAttribute(form, 'data-laurel-noop'), 'onsubmit');
   }
 
   const rewrittenBody = body

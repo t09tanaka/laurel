@@ -1,6 +1,6 @@
 import { readFile, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 import { parseFrontmatter } from './frontmatter.ts';
@@ -113,7 +113,7 @@ async function loadComponentFile(
 
 export async function loadComponents(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
 ): Promise<ComponentSnippet[]> {
   const componentsDir = resolve(cwd, config.content.components_dir);
   let rels: string[];

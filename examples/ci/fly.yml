@@ -1,4 +1,4 @@
-# Deploy a Nectar site to Fly.io.
+# Deploy a Laurel site to Fly.io.
 #
 # Fly is not a static host, so this workflow builds the site and ships it
 # inside a tiny nginx container. Copy examples/fly/fly.toml and
@@ -8,7 +8,7 @@
 #   enabled = true
 #   root = "/usr/share/nginx/html"
 #
-# The Fly Dockerfile copies dist/.nectar/nginx.conf into nginx so
+# The Fly Dockerfile copies dist/.laurel/nginx.conf into nginx so
 # redirects.yaml and [deploy.headers] apply at runtime. See docs/deploy/fly.md
 # for the full quickstart. Then:
 #   - run `flyctl launch --no-deploy` once locally to create the app
@@ -51,7 +51,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build site
-        run: bunx nectar build
+        run: bunx laurel build
 
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4

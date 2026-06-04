@@ -1,4 +1,4 @@
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ContentImageAssetPlan } from './emit.ts';
 
 interface TagSpan {
@@ -17,7 +17,7 @@ interface AttrSpan {
 }
 
 interface RewriteOptions {
-  config: NectarConfig;
+  config: LaurelConfig;
   plan: ContentImageAssetPlan;
 }
 
@@ -55,7 +55,7 @@ export function rewriteContentImageUrls(html: string, { config, plan }: RewriteO
   return out;
 }
 
-function rewriteTag(tag: TagSpan, config: NectarConfig, plan: ContentImageAssetPlan): string {
+function rewriteTag(tag: TagSpan, config: LaurelConfig, plan: ContentImageAssetPlan): string {
   const attrs = scanAttrs(tag.openTag);
   if (attrs.length === 0) return tag.openTag;
 
@@ -82,7 +82,7 @@ function rewriteTag(tag: TagSpan, config: NectarConfig, plan: ContentImageAssetP
 function rewriteUrlAttr(
   attr: AttrSpan | undefined,
   replacements: Map<AttrSpan, string>,
-  config: NectarConfig,
+  config: LaurelConfig,
   plan: ContentImageAssetPlan,
 ): void {
   if (!attr) return;
@@ -93,7 +93,7 @@ function rewriteUrlAttr(
 function rewriteSrcsetAttr(
   attr: AttrSpan,
   replacements: Map<AttrSpan, string>,
-  config: NectarConfig,
+  config: LaurelConfig,
   plan: ContentImageAssetPlan,
 ): void {
   const rewritten = rewriteSrcset(attr.value, config, plan);
@@ -103,14 +103,14 @@ function rewriteSrcsetAttr(
 function rewriteStyleAttr(
   attr: AttrSpan,
   replacements: Map<AttrSpan, string>,
-  config: NectarConfig,
+  config: LaurelConfig,
   plan: ContentImageAssetPlan,
 ): void {
   const rewritten = rewriteCssUrls(attr.value, config, plan);
   if (rewritten !== attr.value) replacements.set(attr, rewritten);
 }
 
-function rewriteSrcset(value: string, config: NectarConfig, plan: ContentImageAssetPlan): string {
+function rewriteSrcset(value: string, config: LaurelConfig, plan: ContentImageAssetPlan): string {
   if (/\bdata:/i.test(value)) return value;
   let touched = false;
   const rewritten = value
@@ -132,7 +132,7 @@ function rewriteSrcset(value: string, config: NectarConfig, plan: ContentImageAs
   return touched ? rewritten : value;
 }
 
-function rewriteCssUrls(value: string, config: NectarConfig, plan: ContentImageAssetPlan): string {
+function rewriteCssUrls(value: string, config: LaurelConfig, plan: ContentImageAssetPlan): string {
   return value.replace(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^'")]*?))\s*\)/gi, (match, d, s, raw) => {
     const url = (d ?? s ?? raw ?? '').trim();
     const rewritten = rewriteImageUrl(url, config, plan);
@@ -149,14 +149,14 @@ function rewriteCssUrls(value: string, config: NectarConfig, plan: ContentImageA
 // rendered `<img>` tags do. URLs not covered by the plan are returned as-is.
 export function resolveContentImageUrl(
   url: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   plan: ContentImageAssetPlan,
 ): string {
   if (plan.entries.length === 0) return url;
   return rewriteImageUrl(url, config, plan);
 }
 
-function rewriteImageUrl(raw: string, config: NectarConfig, plan: ContentImageAssetPlan): string {
+function rewriteImageUrl(raw: string, config: LaurelConfig, plan: ContentImageAssetPlan): string {
   const decoded = decodeHtmlAttr(raw).trim();
   if (!decoded || decoded.startsWith('//')) return raw;
   if (/^(data|blob|mailto|tel):/i.test(decoded)) return raw;
@@ -177,7 +177,7 @@ function rewriteImageUrl(raw: string, config: NectarConfig, plan: ContentImageAs
 
 function matchContentImageUrl(
   value: string,
-  config: NectarConfig,
+  config: LaurelConfig,
 ): { prefix: string; rel: string; suffix: string } | undefined {
   const basePath = normalizeBasePath(config.build.base_path);
   const prefixes = basePath === '/' ? [''] : [basePath.slice(0, -1), ''];
@@ -199,7 +199,7 @@ function normalizeBasePath(basePath: string): string {
   return withLeading.endsWith('/') ? withLeading : `${withLeading}/`;
 }
 
-function stripSiteOrigin(value: string, config: NectarConfig): string | undefined {
+function stripSiteOrigin(value: string, config: LaurelConfig): string | undefined {
   if (!/^https?:\/\//i.test(value)) return undefined;
   try {
     const parsed = new URL(value);
@@ -210,7 +210,7 @@ function stripSiteOrigin(value: string, config: NectarConfig): string | undefine
   }
 }
 
-function siteOrigin(config: NectarConfig): string {
+function siteOrigin(config: LaurelConfig): string {
   try {
     return new URL(config.site.url).origin;
   } catch {

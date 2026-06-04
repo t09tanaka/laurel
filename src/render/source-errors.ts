@@ -1,9 +1,9 @@
 import { join } from 'node:path';
 import type Handlebars from 'handlebars';
 import type { ThemeBundle } from '~/theme/types.ts';
-import { NectarError, isNectarError } from '~/util/errors.ts';
+import { LaurelError, isLaurelError } from '~/util/errors.ts';
 
-const SOURCE_STACK_KEY = '__nectarSourceStack';
+const SOURCE_STACK_KEY = '__laurelSourceStack';
 
 interface ThemeSourceInfo {
   file: string;
@@ -149,7 +149,7 @@ function wrapTemplateDelegate(
       setSourceStack(data, previous);
     }
   }) as Handlebars.TemplateDelegate;
-  Object.defineProperty(wrapped, '__nectarSource', {
+  Object.defineProperty(wrapped, '__laurelSource', {
     value: info.source,
     enumerable: false,
   });
@@ -177,10 +177,10 @@ function toThemeSourceError(
   err: unknown,
   info: ThemeSourceInfo,
   opts: { messagePrefix?: string; loc?: SourceLocation } = {},
-): NectarError {
-  if (isNectarError(err)) {
+): LaurelError {
+  if (isLaurelError(err)) {
     if (err.file !== undefined) return err;
-    return new NectarError({
+    return new LaurelError({
       message: err.message,
       file: info.file,
       line: opts.loc?.line,
@@ -201,7 +201,7 @@ function toThemeSourceError(
   const context = sourceLine === undefined ? '' : ` — ${sourceLine.trim()}`;
   const prefix = opts.messagePrefix ?? messagePrefixFor(info);
   const message = sourceErrorMessage(prefix, rawMessage, context);
-  return new NectarError({
+  return new LaurelError({
     message,
     file: info.file,
     line: loc?.line,

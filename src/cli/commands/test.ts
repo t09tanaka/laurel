@@ -19,7 +19,7 @@ export async function runTest(args: string[], options: TestRunOptions = {}): Pro
     return 0;
   }
 
-  stderr.write('Warning: `nectar test` is currently a passthrough to `bun test`.\n');
+  stderr.write('Warning: `laurel test` is currently a passthrough to `bun test`.\n');
   const command = ['bun', 'test', ...args];
   if (options.run !== undefined) return options.run(command);
 

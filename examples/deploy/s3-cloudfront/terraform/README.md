@@ -1,6 +1,6 @@
 # S3 + CloudFront Terraform sample
 
-This sample creates the AWS hosting layer for a Nectar `dist/` directory:
+This sample creates the AWS hosting layer for a Laurel `dist/` directory:
 
 - a private S3 bucket with public access blocked
 - a CloudFront distribution that serves that bucket through Origin Access
@@ -16,8 +16,8 @@ It intentionally uses OAC, not the legacy Origin Access Identity (OAI) model.
 ```sh
 terraform init
 terraform plan \
-  -var='bucket_name=my-nectar-site-prod' \
-  -var='site_name=my-nectar-site'
+  -var='bucket_name=my-laurel-site-prod' \
+  -var='site_name=my-laurel-site'
 ```
 
 For a custom domain, create or import an ACM certificate in `us-east-1`, then
@@ -25,7 +25,7 @@ set both `aliases` and `acm_certificate_arn`:
 
 ```sh
 terraform plan \
-  -var='bucket_name=my-nectar-site-prod' \
+  -var='bucket_name=my-laurel-site-prod' \
   -var='aliases=["www.example.com"]' \
   -var='acm_certificate_arn=arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000'
 ```
@@ -34,8 +34,8 @@ After applying, upload a built site with the GitHub Actions workflow in
 `examples/ci/s3-cloudfront.yml` or with:
 
 ```sh
-bunx nectar build
-aws s3 sync dist s3://my-nectar-site-prod --delete
+bunx laurel build
+aws s3 sync dist s3://my-laurel-site-prod --delete
 aws cloudfront create-invalidation --distribution-id <distribution-id> --paths '/*'
 ```
 
@@ -44,7 +44,7 @@ aws cloudfront create-invalidation --distribution-id <distribution-id> --paths '
 This full sample already includes the two `custom_error_response` blocks from
 `../cloudfront-custom-errors.tf.example`. Use the standalone fragment only when
 you already manage your CloudFront distribution elsewhere and just need to add
-Nectar's `403` / `404` mapping.
+Laurel's `403` / `404` mapping.
 
 For directory-style URLs such as `/about/`, also attach the CloudFront Function
 from `examples/s3-cloudfront/append-index.js` to the viewer-request event. This

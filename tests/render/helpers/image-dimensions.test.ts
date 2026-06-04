@@ -3,11 +3,11 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Handlebars from 'handlebars';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import { registerImageDimensionHelpers } from '~/render/helpers/image-dimensions.ts';
 
 function makeAssetsCwd(): string {
-  const cwd = mkdtempSync(join(tmpdir(), 'nectar-image-dims-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'laurel-image-dims-'));
   mkdirSync(join(cwd, 'content/images'), { recursive: true });
   return cwd;
 }
@@ -22,23 +22,23 @@ function writeSvg(cwd: string, name: string, width: number, height: number): voi
   );
 }
 
-function makeEngine(opts: { cwd?: string } = {}): NectarEngine {
+function makeEngine(opts: { cwd?: string } = {}): LaurelEngine {
   const hb = Handlebars.create();
   return {
     hb,
     cwd: opts.cwd,
     config: {
       content: { assets_dir: 'content/images' },
-    } as unknown as NectarEngine['config'],
-    content: {} as unknown as NectarEngine['content'],
-    theme: {} as unknown as NectarEngine['theme'],
+    } as unknown as LaurelEngine['config'],
+    content: {} as unknown as LaurelEngine['content'],
+    theme: {} as unknown as LaurelEngine['theme'],
     templates: {},
     layouts: {},
     sortedCache: new Map(),
     render() {
       throw new Error('not used');
     },
-  } as unknown as NectarEngine;
+  } as unknown as LaurelEngine;
 }
 
 describe('image_dimensions helper', () => {

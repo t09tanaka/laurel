@@ -1,4 +1,4 @@
-# Deploy a Nectar site to Vercel.
+# Deploy a Laurel site to Vercel.
 #
 # Copy this file to .github/workflows/vercel.yml in your repo. Disable Vercel's
 # native Git integration for the project so this workflow is the only deploy
@@ -10,9 +10,9 @@
 # Push to main = production deploy. Other branches and PRs = preview deploys.
 # The workflow uses Vercel CLI prebuilt deploys:
 #   vercel pull -> vercel build -> vercel deploy --prebuilt
-# Keep the Vercel project Build Command set to `bunx nectar build` and Output
+# Keep the Vercel project Build Command set to `bunx laurel build` and Output
 # Directory set to `dist`, matching docs/deploy/vercel.md.
-# Nectar is not a Next.js app, so do not add Next.js `output: 'export'` or
+# Laurel is not a Next.js app, so do not add Next.js `output: 'export'` or
 # Vercel adapter settings; the CLI packages the static `dist/` output.
 
 name: Deploy to Vercel

@@ -8,13 +8,13 @@ import { build } from '~/build/pipeline.ts';
 // can run independently: spins up a tiny site against the vendored Source theme
 // with RSS / sitemap / search disabled to keep the build fast.
 async function makeMinimalSite(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'nectar-reuse-state-'));
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-reuse-state-'));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
 
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Reuse Test"',

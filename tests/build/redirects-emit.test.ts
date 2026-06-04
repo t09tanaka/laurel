@@ -29,12 +29,12 @@ afterEach(() => {
 
 describe('loadGhostStyleRedirects', () => {
   test('returns [] when content/data/redirects.* does not exist', async () => {
-    const cwd = await makeTmp('nectar-ghost-redirects-missing-');
+    const cwd = await makeTmp('laurel-ghost-redirects-missing-');
     expect(await loadGhostStyleRedirects(cwd)).toEqual([]);
   });
 
   test('parses Ghost status-keyed YAML', async () => {
-    const cwd = await makeTmp('nectar-ghost-redirects-yaml-');
+    const cwd = await makeTmp('laurel-ghost-redirects-yaml-');
     await writeGhostRedirects(
       cwd,
       'redirects.yaml',
@@ -54,7 +54,7 @@ describe('loadGhostStyleRedirects', () => {
   });
 
   test('parses Ghost flat-array JSON with `permanent` flag', async () => {
-    const cwd = await makeTmp('nectar-ghost-redirects-json-');
+    const cwd = await makeTmp('laurel-ghost-redirects-json-');
     await writeGhostRedirects(
       cwd,
       'redirects.json',
@@ -70,7 +70,7 @@ describe('loadGhostStyleRedirects', () => {
   });
 
   test('defaults to status 302 when neither permanent nor status is set', async () => {
-    const cwd = await makeTmp('nectar-ghost-redirects-default-');
+    const cwd = await makeTmp('laurel-ghost-redirects-default-');
     await writeGhostRedirects(cwd, 'redirects.json', JSON.stringify([{ from: '/x', to: '/y' }]));
     expect(await loadGhostStyleRedirects(cwd)).toEqual([
       { from: '/x', to: '/y', status: 302, force: false },
@@ -78,7 +78,7 @@ describe('loadGhostStyleRedirects', () => {
   });
 
   test('skips invalid entries (missing from/to) with a warn', async () => {
-    const cwd = await makeTmp('nectar-ghost-redirects-invalid-');
+    const cwd = await makeTmp('laurel-ghost-redirects-invalid-');
     await writeGhostRedirects(
       cwd,
       'redirects.json',
@@ -95,7 +95,7 @@ describe('loadGhostStyleRedirects', () => {
   });
 
   test('skips unknown status keys in nested form', async () => {
-    const cwd = await makeTmp('nectar-ghost-redirects-bad-status-key-');
+    const cwd = await makeTmp('laurel-ghost-redirects-bad-status-key-');
     await writeGhostRedirects(
       cwd,
       'redirects.yaml',
@@ -114,7 +114,7 @@ describe('loadGhostStyleRedirects', () => {
   });
 
   test('throws on malformed YAML', async () => {
-    const cwd = await makeTmp('nectar-ghost-redirects-malformed-');
+    const cwd = await makeTmp('laurel-ghost-redirects-malformed-');
     await writeGhostRedirects(cwd, 'redirects.yaml', '301:\n  - from: /x\n    to: [bad');
     await expect(loadGhostStyleRedirects(cwd)).rejects.toThrow(/Failed to parse/);
   });
@@ -144,7 +144,7 @@ describe('normalizeGhostRedirects', () => {
 
 describe('loadAllRedirects', () => {
   test('merges project-root redirects.yaml with content/data/redirects.yaml', async () => {
-    const cwd = await makeTmp('nectar-all-redirects-merge-');
+    const cwd = await makeTmp('laurel-all-redirects-merge-');
     await writeFile(
       join(cwd, 'redirects.yaml'),
       ['- from: /root', '  to: /R', '  status: 308'].join('\n'),
@@ -161,7 +161,7 @@ describe('loadAllRedirects', () => {
   });
 
   test('returns [] when neither file exists', async () => {
-    const cwd = await makeTmp('nectar-all-redirects-empty-');
+    const cwd = await makeTmp('laurel-all-redirects-empty-');
     expect(await loadAllRedirects(cwd)).toEqual([]);
   });
 });
@@ -185,7 +185,7 @@ describe('formatRedirectsFile', () => {
 
 describe('emitRedirectsComponent', () => {
   test('writes dist/_redirects when enabled and rules exist', async () => {
-    const out = await makeTmp('nectar-emit-redirects-');
+    const out = await makeTmp('laurel-emit-redirects-');
     await emitRedirectsComponent({
       outputDir: out,
       rules: [{ from: '/a', to: '/b', status: 301, force: false }],
@@ -197,7 +197,7 @@ describe('emitRedirectsComponent', () => {
   });
 
   test('does NOT write _redirects when enabled but rule list is empty', async () => {
-    const out = await makeTmp('nectar-emit-redirects-empty-');
+    const out = await makeTmp('laurel-emit-redirects-empty-');
     await emitRedirectsComponent({
       outputDir: out,
       rules: [],
@@ -208,7 +208,7 @@ describe('emitRedirectsComponent', () => {
   });
 
   test('does NOT write _redirects when disabled', async () => {
-    const out = await makeTmp('nectar-emit-redirects-disabled-');
+    const out = await makeTmp('laurel-emit-redirects-disabled-');
     await emitRedirectsComponent({
       outputDir: out,
       rules: [{ from: '/a', to: '/b', status: 301, force: false }],
@@ -219,7 +219,7 @@ describe('emitRedirectsComponent', () => {
   });
 
   test('does NOT emit per-rule HTML by default', async () => {
-    const out = await makeTmp('nectar-emit-redirects-no-html-');
+    const out = await makeTmp('laurel-emit-redirects-no-html-');
     await emitRedirectsComponent({
       outputDir: out,
       rules: [{ from: '/old', to: '/new', status: 301, force: false }],
@@ -230,7 +230,7 @@ describe('emitRedirectsComponent', () => {
   });
 
   test('emits per-rule meta-refresh HTML when emit_html is true', async () => {
-    const out = await makeTmp('nectar-emit-redirects-html-');
+    const out = await makeTmp('laurel-emit-redirects-html-');
     await emitRedirectsComponent({
       outputDir: out,
       rules: [{ from: '/old', to: '/new', status: 301, force: false }],
@@ -244,7 +244,7 @@ describe('emitRedirectsComponent', () => {
   });
 
   test('collapses duplicate `from` (first-match)', async () => {
-    const out = await makeTmp('nectar-emit-redirects-collapse-');
+    const out = await makeTmp('laurel-emit-redirects-collapse-');
     await emitRedirectsComponent({
       outputDir: out,
       rules: [
@@ -260,7 +260,7 @@ describe('emitRedirectsComponent', () => {
   });
 
   test('skips HTML emit for traversal-y `from` values', async () => {
-    const out = await makeTmp('nectar-emit-redirects-traversal-');
+    const out = await makeTmp('laurel-emit-redirects-traversal-');
     await emitRedirectsComponent({
       outputDir: out,
       rules: [{ from: '/../etc/passwd', to: '/safe', status: 301, force: false }],
@@ -277,7 +277,7 @@ describe('emitRedirectsComponent', () => {
   });
 
   test('escapes HTML-special characters in the destination URL', async () => {
-    const out = await makeTmp('nectar-emit-redirects-escape-');
+    const out = await makeTmp('laurel-emit-redirects-escape-');
     await emitRedirectsComponent({
       outputDir: out,
       rules: [{ from: '/x', to: '/dest?q=<script>', status: 301, force: false }],

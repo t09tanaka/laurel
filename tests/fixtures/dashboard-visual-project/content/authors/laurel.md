@@ -1,5 +1,5 @@
 ---
-slug: nectar
-name: Nectar Admin
+slug: laurel
+name: Laurel Admin
 bio: Maintains file-backed editorial operations.
 ---

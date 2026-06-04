@@ -3,7 +3,7 @@ import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { changedPathsAbsPath, loadBuildManifest } from '~/build/build-manifest.ts';
 import { build } from '~/build/pipeline.ts';
 import { loadConfig } from '~/config/loader.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { EXIT_CODES, exitCodeForError } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
@@ -273,7 +273,7 @@ export async function runDeploy(args: string[], options: RunDeployOptions = {}):
     return EXIT_CODES.usage;
   }
 
-  let config: NectarConfig;
+  let config: LaurelConfig;
   try {
     config = await loadConfig({ cwd, configPath });
   } catch (err) {
@@ -297,18 +297,18 @@ export async function runDeploy(args: string[], options: RunDeployOptions = {}):
 
   if (!existsSync(outputDir)) {
     process.stderr.write(
-      `dist/ does not exist at ${outputDir}. Run \`nectar build\` first or pass --build.\n`,
+      `dist/ does not exist at ${outputDir}. Run \`laurel build\` first or pass --build.\n`,
     );
     return EXIT_CODES.generic;
   }
-  // The build pipeline writes `.nectar-manifest.json` only on successful runs.
+  // The build pipeline writes `.laurel-manifest.json` only on successful runs.
   // Treating its absence as "no build present" prevents shipping a half-written
   // directory left over from a crashed build (or a hand-populated `dist/` that
-  // bypassed nectar entirely).
-  const manifestPath = join(outputDir, '.nectar-manifest.json');
+  // bypassed laurel entirely).
+  const manifestPath = join(outputDir, '.laurel-manifest.json');
   if (!existsSync(manifestPath)) {
     process.stderr.write(
-      `No build manifest at ${manifestPath}. Run \`nectar build\` (or pass --build) before deploying.\n`,
+      `No build manifest at ${manifestPath}. Run \`laurel build\` (or pass --build) before deploying.\n`,
     );
     return EXIT_CODES.generic;
   }
@@ -432,7 +432,7 @@ function formatDeployDryRun(
   }
   lines.push('', 'Diff against last build:');
   if (summary.changedPaths === undefined) {
-    lines.push('  (unavailable: no .nectar/changed-paths.txt)');
+    lines.push('  (unavailable: no .laurel/changed-paths.txt)');
   } else if (summary.changedPaths.length === 0) {
     lines.push('  (no changed paths)');
   } else {
@@ -451,7 +451,7 @@ interface PlanDeployArgs {
   cwd: string;
   env: Record<string, string | undefined>;
   outputDir: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   cliValues: Record<string, string | boolean | undefined>;
 }
 
@@ -479,7 +479,7 @@ function planCloudflare(args: PlanDeployArgs): DeployPlan {
   const projectName = pickString(args.cliValues['project-name']) ?? cfg.project_name;
   if (!projectName) {
     throw new CliUsageError(
-      'cloudflare deploy requires a project name. Set [deploy.cloudflare].project_name in nectar.toml or pass --project-name.',
+      'cloudflare deploy requires a project name. Set [deploy.cloudflare].project_name in laurel.toml or pass --project-name.',
     );
   }
   const branch = pickString(args.cliValues.branch) ?? cfg.branch;
@@ -562,9 +562,9 @@ function planGithubPages(args: PlanDeployArgs): DeployPlan {
   // the exact sequence without executing it.
   const headline = ['git', 'push', remote, `HEAD:${branch}`];
   const extra: Array<{ command: string; args: string[] }> = [
-    { command: 'git', args: ['worktree', 'add', '.nectar-gh-pages', '--detach'] },
+    { command: 'git', args: ['worktree', 'add', '.laurel-gh-pages', '--detach'] },
     { command: 'git', args: ['add', '--all'] },
-    { command: 'git', args: ['commit', '--allow-empty', '-m', 'deploy: nectar build'] },
+    { command: 'git', args: ['commit', '--allow-empty', '-m', 'deploy: laurel build'] },
   ];
   return {
     target: 'github-pages',
@@ -584,7 +584,7 @@ function planS3(args: PlanDeployArgs): DeployPlan {
   const bucket = pickString(args.cliValues.bucket) ?? cfg.bucket;
   if (!bucket) {
     throw new CliUsageError(
-      's3 deploy requires a bucket. Set [deploy.s3].bucket in nectar.toml or pass --bucket.',
+      's3 deploy requires a bucket. Set [deploy.s3].bucket in laurel.toml or pass --bucket.',
     );
   }
   const region = pickString(args.cliValues.region) ?? cfg.region;
@@ -646,13 +646,13 @@ function planR2(args: PlanDeployArgs): DeployPlan {
   const bucket = pickString(args.cliValues.bucket) ?? cfg.bucket;
   if (!bucket) {
     throw new CliUsageError(
-      'r2 deploy requires a bucket. Set [deploy.r2].bucket in nectar.toml or pass --bucket.',
+      'r2 deploy requires a bucket. Set [deploy.r2].bucket in laurel.toml or pass --bucket.',
     );
   }
   const endpoint = pickString(args.cliValues.endpoint) ?? cfg.endpoint;
   if (!endpoint) {
     throw new CliUsageError(
-      'r2 deploy requires an endpoint URL. Set [deploy.r2].endpoint in nectar.toml or pass --endpoint.',
+      'r2 deploy requires an endpoint URL. Set [deploy.r2].endpoint in laurel.toml or pass --endpoint.',
     );
   }
   const argv = ['s3', 'sync', args.outputDir, `s3://${bucket}`, '--endpoint-url', endpoint];
@@ -678,7 +678,7 @@ function planRsync(args: PlanDeployArgs): DeployPlan {
   const destination = pickString(args.cliValues.destination) ?? cfg.destination;
   if (!destination) {
     throw new CliUsageError(
-      'rsync deploy requires a destination. Set [deploy.rsync].destination in nectar.toml or pass --destination.',
+      'rsync deploy requires a destination. Set [deploy.rsync].destination in laurel.toml or pass --destination.',
     );
   }
   // Append a trailing slash to the source so rsync copies the *contents* of

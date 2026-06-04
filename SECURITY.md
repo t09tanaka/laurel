@@ -1,12 +1,12 @@
 # Security Policy
 
-Thanks for helping keep Nectar and its users safe. This document explains how to
-report a vulnerability in Nectar (the Ghost-compatible static site generator in
+Thanks for helping keep Laurel and its users safe. This document explains how to
+report a vulnerability in Laurel (the Ghost-compatible static site generator in
 this repository) and what to expect after you do.
 
 ## Supported Versions
 
-Nectar is pre-1.0 and ships from `main`. Security fixes land on `main` and the
+Laurel is pre-1.0 and ships from `main`. Security fixes land on `main` and the
 latest published release on npm. Older versions are not patched separately —
 please upgrade to the latest release.
 
@@ -28,7 +28,7 @@ Instead, use one of the private channels below.
 
 Open a private vulnerability report through GitHub's built-in flow:
 
-1. Go to <https://github.com/t09tanaka/nectar/security/advisories/new>.
+1. Go to <https://github.com/t09tanaka/laurel/security/advisories/new>.
 2. Fill in the advisory form with as much detail as you can share.
 3. Submit. Only repository maintainers will be able to see the report.
 
@@ -38,7 +38,7 @@ eventual fix linked in one place, and lets us request a CVE if appropriate.
 ### Alternative: Email
 
 If you cannot use GitHub Security Advisories, email **t09tanaka@gmail.com**
-with the subject line `[nectar security] <short summary>`.
+with the subject line `[laurel security] <short summary>`.
 
 ## What to Include
 
@@ -68,10 +68,10 @@ have not heard back within the windows above, please send a polite nudge.
 
 In scope:
 
-- The Nectar CLI and library code under `src/`.
+- The Laurel CLI and library code under `src/`.
 - The build pipeline that turns Markdown content and Ghost themes into a
   static site.
-- The example site under `example/` _only_ where it demonstrates a Nectar
+- The example site under `example/` _only_ where it demonstrates a Laurel
   behavior (not third-party Ghost theme code vendored verbatim).
 
 Out of scope:
@@ -80,7 +80,7 @@ Out of scope:
   `example/themes/source/`). Please report those upstream to the theme
   authors.
 - Issues that require an attacker to already have write access to your
-  `content/` directory or theme files — these are trust boundaries Nectar
+  `content/` directory or theme files — these are trust boundaries Laurel
   does not defend.
 - Denial of service from intentionally pathological input to the local CLI
   (e.g. multi-GB Markdown files). Reports are still welcome, but will be
@@ -96,7 +96,7 @@ site-wide script if they are enabled. They are gated behind explicit opt-in
 config so the default build is safe even when accepting outside PRs:
 
 - `codeinjection_head` / `codeinjection_foot` on posts and pages — ignored
-  unless `build.allow_code_injection = true` is set in `nectar.toml`. The
+  unless `build.allow_code_injection = true` is set in `laurel.toml`. The
   loader logs a warning when it drops these fields so the misconfiguration is
   visible at build time.
 - `unsafe_html: true` on a single post / page — disables the HTML sanitizer
@@ -110,10 +110,10 @@ shipped to every visitor.
 
 The built site is plain static files, so HTTP response headers
 (`Content-Security-Policy`, `Strict-Transport-Security`, `Referrer-Policy`,
-`Permissions-Policy`, …) are set by the hosting platform, not by Nectar.
+`Permissions-Policy`, …) are set by the hosting platform, not by Laurel.
 See [`docs/security/hosting.md`](docs/security/hosting.md) for
 copy-pasteable `_headers` / `vercel.json` / `netlify.toml` snippets
-calibrated to what Nectar actually emits (inline JSON-LD, optional
+calibrated to what Laurel actually emits (inline JSON-LD, optional
 component scripts, theme-controlled inline scripts), plus workarounds for
 GitHub Pages' fixed header set.
 
@@ -151,7 +151,7 @@ please report it through the channels in
 
 ## Bug bounty and recognition
 
-Nectar is an unfunded open-source project, so **no monetary bounty is
+Laurel is an unfunded open-source project, so **no monetary bounty is
 currently offered**. We do recognize researchers in three ways that cost
 nothing and are useful for your portfolio:
 
@@ -204,4 +204,4 @@ We will not pursue or support legal action against researchers who:
 - Avoid privacy violations, destruction of data, and disruption of services.
 - Give us a reasonable window to fix the issue before public disclosure.
 
-Thank you for helping keep Nectar safe.
+Thank you for helping keep Laurel safe.

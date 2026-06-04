@@ -41,7 +41,7 @@ import { planRoutes } from '~/build/routes.ts';
 import { findOutdatedSkills } from '~/cli/skill/check-updates.ts';
 import { exportComponentsBundle, importComponentsBundle } from '~/components-bundle/index.ts';
 import { loadConfig } from '~/config/loader.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import {
   type ApprovalState,
   readApprovalState,
@@ -71,14 +71,14 @@ import {
 } from '~/ghost/import.ts';
 import { type LoadedPluginSet, loadPlugins } from '~/plugin/loader.ts';
 import type { BuildContext } from '~/plugin/types.ts';
-import { type NectarEngine, createEngine } from '~/render/engine.ts';
+import { type LaurelEngine, createEngine } from '~/render/engine.ts';
 import type { RouteContext } from '~/render/types.ts';
 import { loadTheme, resolveThemeRoot } from '~/theme/loader.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { createCleanupRegistry } from '~/util/cleanup.ts';
+import { getLaurelVersion } from '~/util/laurel-version.ts';
 import { logger } from '~/util/logger.ts';
-import { getNectarVersion } from '~/util/nectar-version.ts';
 import { absolutise, resolveContentSlugPath } from '../content-paths.ts';
 import { createBuildStreamResponse, createExportZipResponse } from '../dashboard/build-runner.ts';
 import { DASHBOARD_BUNDLE_ASSETS } from '../dashboard/bundled-assets.ts';
@@ -331,8 +331,8 @@ export interface DashboardThemeOption {
 }
 
 // Surfaced via `/api/state` so the dashboard can show a top-of-page warning
-// when `[theme]` in `nectar.toml` points at a directory that does not exist.
-// Mirrors the `Theme directory not found` `NectarError` that `loadTheme()`
+// when `[theme]` in `laurel.toml` points at a directory that does not exist.
+// Mirrors the `Theme directory not found` `LaurelError` that `loadTheme()`
 // raises at build time so the operator gets the same actionable hint inside
 // the dashboard instead of having to drop to the CLI.
 export interface DashboardThemeStatus {
@@ -348,7 +348,7 @@ export interface DashboardThemeStatus {
   // banner headline.
   message?: string;
   // Populated when `missing` is true. Longer, hint-style explanation pulled
-  // from the same copy `NectarError` emits.
+  // from the same copy `LaurelError` emits.
   hint?: string;
 }
 
@@ -552,7 +552,7 @@ export interface DashboardState {
     description: string;
     url: string;
     accentColor: string;
-    // Raw `[site].icon` from nectar.toml so the dashboard favicon control can
+    // Raw `[site].icon` from laurel.toml so the dashboard favicon control can
     // round-trip the configured path/URL. The build's favicon emission
     // (src/build/favicons.ts) is the consumer; this just surfaces the source.
     icon: string;
@@ -850,7 +850,7 @@ export async function startDashboardServer(
   // (oven-sh/bun#23617 and related). Bun does not expose a public option
   // to disable source maps for `development: true`, so there is no
   // in-process workaround -- if the dev server crashes mid-session, just
-  // restart `nectar dashboard --dev`. The prod (HMR-off) branch below is
+  // restart `laurel dashboard --dev`. The prod (HMR-off) branch below is
   // not affected.
   const server =
     mode === 'dev'
@@ -951,14 +951,14 @@ export async function runDashboard(args: string[]): Promise<number> {
   // theme, content counts, which bundle path is serving the dashboard JS).
   // The actual server starts below; the Ready block then carries the URL
   // only once the bind succeeds.
-  let bannerConfig: NectarConfig;
+  let bannerConfig: LaurelConfig;
   try {
     bannerConfig = await loadConfig({ cwd, configPath });
   } catch (err) {
     reportError(err, cwd);
     return 1;
   }
-  const version = await getNectarVersion();
+  const version = await getLaurelVersion();
   const counts = await countContentFiles(cwd, {
     posts_dir: bannerConfig.content.posts_dir,
     pages_dir: bannerConfig.content.pages_dir,
@@ -1038,7 +1038,7 @@ export async function runDashboard(args: string[]): Promise<number> {
   if (mode === 'dev') {
     // Surface the known SourceMapStore segfault (oven-sh/bun#23617 and
     // related) at startup so contributors who hit it during a long HMR
-    // session know it is upstream Bun, not Nectar, and that restarting the
+    // session know it is upstream Bun, not Laurel, and that restarting the
     // dev server is the right recovery. The full backstory lives next to
     // the Bun.serve call in startDashboardServer.
     writeBlock(
@@ -1069,7 +1069,7 @@ export async function runDashboard(args: string[]): Promise<number> {
     writeBlock(
       renderNotice(
         'info',
-        `${outdatedSkills.length} skill ${outdatedSkills.length === 1 ? 'update' : 'updates'} available — run \`nectar skill install\` to apply.`,
+        `${outdatedSkills.length} skill ${outdatedSkills.length === 1 ? 'update' : 'updates'} available — run \`laurel skill install\` to apply.`,
       ),
     );
   }
@@ -1268,7 +1268,7 @@ export async function readDashboardContentItem({
   slug,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   kind: EditableKind;
   slug: string;
 }): Promise<DashboardContentItem> {
@@ -1306,7 +1306,7 @@ export async function writeDashboardContentItem({
   body,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   kind: EditableKind;
   slug: string;
   expectedFingerprint: ContentSourceFingerprint;
@@ -1704,7 +1704,7 @@ export async function handleDashboardRequest(
           return jsonResponse({ error: 'ghost export exceeds 200MB limit' }, 413);
         }
         // Parse + validate scalar fields *before* staging the upload so a bad
-        // request doesn't leak a file under .nectar/ (the unlink() in finally
+        // request doesn't leak a file under .laurel/ (the unlink() in finally
         // below only runs after stagedPath is set inside the try-block).
         const rawDownloadImages = form?.get('downloadImages');
         const downloadImages =
@@ -1725,7 +1725,7 @@ export async function handleDashboardRequest(
           maxImageSizeBytes = parsed;
         }
         const safe = (file.name || 'ghost-export').replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 80);
-        stagedPath = resolve(ctx.cwd, '.nectar', `import-ghost-${Date.now()}-${safe}`);
+        stagedPath = resolve(ctx.cwd, '.laurel', `import-ghost-${Date.now()}-${safe}`);
         await mkdir(dirname(stagedPath), { recursive: true });
         await Bun.write(stagedPath, new Uint8Array(await file.arrayBuffer()));
         payload = {
@@ -1800,7 +1800,7 @@ export async function handleDashboardRequest(
         return new Response(zip, {
           headers: {
             'content-type': 'application/zip',
-            'content-disposition': `attachment; filename="${slug}.nectar.zip"`,
+            'content-disposition': `attachment; filename="${slug}.laurel.zip"`,
           },
         });
       } catch (err) {
@@ -1872,18 +1872,18 @@ export async function handleDashboardRequest(
         });
         const headers: Record<string, string> = {
           'content-type': 'application/zip',
-          'content-disposition': 'attachment; filename="components.nectar.zip"',
+          'content-disposition': 'attachment; filename="components.laurel.zip"',
         };
         // Surface format-valid-but-nonexistent slugs to programmatic callers:
         // exportComponentsBundle returns a partial zip (it only throws when
         // *every* requested slug is missing), so without this header an API
         // client has no way to learn that a requested component was skipped.
-        if (missing.length > 0) headers['x-nectar-missing-components'] = missing.join(',');
+        if (missing.length > 0) headers['x-laurel-missing-components'] = missing.join(',');
         // Likewise surface assets that a component references but could not be
         // bundled (missing / unsafe / symlinked) so the receiver knows an image
         // will be absent.
         if (omittedAssets.length > 0) {
-          headers['x-nectar-omitted-assets'] = omittedAssets.join(',');
+          headers['x-laurel-omitted-assets'] = omittedAssets.join(',');
         }
         return new Response(zip, { headers });
       } catch (err) {
@@ -2376,7 +2376,7 @@ async function createDashboardContentItem({
   payload,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   payload: { kind?: EditableKind; title?: string; slug?: string; template?: string };
 }): Promise<{ ok: true; kind: EditableKind; slug: string; path: string }> {
   const kind = parseEditableKind(payload.kind ?? '');
@@ -2466,7 +2466,7 @@ export async function applyDashboardBulkAction({
   value,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   action?: DashboardBulkAction;
   targets?: DashboardBulkTarget[];
   value?: string;
@@ -2579,7 +2579,7 @@ async function rewriteComponentReferencesInContent({
   newSlug,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   oldSlug: string;
   newSlug: string;
 }): Promise<DashboardComponentReferenceRewriteSummary> {
@@ -2611,7 +2611,7 @@ export async function renameDashboardContentSlug({
   rewriteReferences,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   kind: EditableKind;
   oldSlug: string;
   newSlug: string;
@@ -2744,7 +2744,7 @@ export async function trashDashboardContentItem({
   now,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   kind: EditableKind;
   slug: string;
   expectedFingerprint: ContentSourceFingerprint;
@@ -2811,8 +2811,8 @@ export async function listDashboardTrash({
 }: {
   cwd: string;
 }): Promise<DashboardTrashInventory> {
-  const root = join(cwd, '.nectar', 'trash');
-  if (!existsSync(root)) return { path: '.nectar/trash', exists: false, entries: [] };
+  const root = join(cwd, '.laurel', 'trash');
+  if (!existsSync(root)) return { path: '.laurel/trash', exists: false, entries: [] };
   const entries: DashboardTrashEntry[] = [];
   for (const dirent of await readdir(root, { withFileTypes: true })) {
     if (!dirent.isDirectory()) continue;
@@ -2825,12 +2825,12 @@ export async function listDashboardTrash({
         const entry = trashEntryFromMetadata(cwd, metadataPath, parsed);
         if (entry) entries.push(entry);
       } catch {
-        // Ignore malformed trash metadata; `nectar content delete --purge` remains the repair path.
+        // Ignore malformed trash metadata; `laurel content delete --purge` remains the repair path.
       }
     }
   }
   entries.sort((a, b) => b.trashedAt.localeCompare(a.trashedAt));
-  return { path: '.nectar/trash', exists: true, entries };
+  return { path: '.laurel/trash', exists: true, entries };
 }
 
 export async function restoreDashboardTrashEntry({
@@ -2849,7 +2849,7 @@ export async function restoreDashboardTrashEntry({
   const trashPath = resolve(cwd, entry.trashPath);
   const originalPath = resolve(cwd, entry.originalPath);
   if (
-    !isInsidePath(resolve(cwd, '.nectar', 'trash'), trashPath) ||
+    !isInsidePath(resolve(cwd, '.laurel', 'trash'), trashPath) ||
     !isInsidePath(cwd, originalPath)
   ) {
     return { ok: false, reason: 'forbidden' };
@@ -2878,7 +2878,7 @@ function postSummary(
   cwd: string,
   post: Post,
   graph: ContentGraph,
-  config: NectarConfig,
+  config: LaurelConfig,
 ): DashboardContentSummary {
   const source = graph.sources?.posts.get(post.id);
   return {
@@ -2908,7 +2908,7 @@ function pageSummary(
   cwd: string,
   page: Page,
   graph: ContentGraph,
-  config: NectarConfig,
+  config: LaurelConfig,
 ): DashboardContentSummary {
   const source = graph.sources?.pages.get(page.id);
   return {
@@ -2953,7 +2953,7 @@ export async function listDashboardInternalLinks({
   config,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
 }): Promise<DashboardInternalLink[]> {
   const graph = await loadContent({
     cwd,
@@ -2975,7 +2975,7 @@ export async function listDashboardInternalLinks({
 
 function assetReference(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   value: string | undefined,
 ): DashboardAssetReference {
   const raw = value?.trim() ?? '';
@@ -3052,7 +3052,7 @@ function assetReference(
 
 function markdownImageReferences(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   body: string,
 ): DashboardAssetReference[] {
   const refs: DashboardAssetReference[] = [];
@@ -3088,7 +3088,7 @@ function remoteAssetReference(value: string): DashboardAssetReference {
 }
 
 function renamePreviewFor(
-  config: NectarConfig,
+  config: LaurelConfig,
   oldSlug: string,
   newSlug: string,
   currentUrl: string | undefined,
@@ -3182,7 +3182,7 @@ function countImagesMissingAlt(html: string): number {
 function taxonomySummary(
   item: Author | Tag,
   graph: ContentGraph,
-  config: NectarConfig,
+  config: LaurelConfig,
   kind: 'authors' | 'tags',
 ): DashboardTaxonomySummary {
   const source =
@@ -3304,7 +3304,7 @@ function paginate<T>(
 }
 
 async function withPreviewArtifacts(
-  config: NectarConfig,
+  config: LaurelConfig,
   list: DashboardList<DashboardContentSummary>,
 ): Promise<DashboardList<DashboardContentSummary>> {
   return {
@@ -3331,7 +3331,7 @@ function countPreviewFreshness(
 }
 
 async function resolveDashboardPreviewArtifact(
-  config: NectarConfig,
+  config: LaurelConfig,
   item: DashboardContentSummary,
 ): Promise<DashboardPreviewArtifact> {
   const route = routePathFromContentUrl(item.url, config);
@@ -3371,10 +3371,10 @@ async function serveDashboardContentPreview({
 }
 
 interface DashboardPreviewRenderContext {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   theme: ThemeBundle;
-  engine: NectarEngine;
+  engine: LaurelEngine;
   routes: RouteContext[];
   pluginSet: LoadedPluginSet;
   pluginCtx: BuildContext;
@@ -3556,7 +3556,7 @@ async function serveDashboardPreviewAsset({
   return undefined;
 }
 
-function stripPreviewBasePath(pathname: string, config: NectarConfig): string {
+function stripPreviewBasePath(pathname: string, config: LaurelConfig): string {
   const basePath = normalizeBasePathForPreview(config.build.base_path);
   if (basePath === '/') return pathname;
   if (pathname === basePath.slice(0, -1)) return '/';
@@ -3606,7 +3606,7 @@ function isGhostImageTransformRel(rel: string): boolean {
 
 export async function filterUnavailablePreviewPictureSources(
   html: string,
-  opts: { cwd: string; config: NectarConfig },
+  opts: { cwd: string; config: LaurelConfig },
 ): Promise<string> {
   if (!html.includes('<source') || !html.includes('/content/images/')) return html;
   return html.replace(/<source\b([^>]*?)(\/?)>/gi, (match, attrsRaw: string) => {
@@ -3657,7 +3657,7 @@ function parseHtmlAttrs(attrsRaw: string): Map<string, string | true> {
 
 function previewContentImageVariantPath(
   rawUrl: string,
-  opts: { cwd: string; config: NectarConfig },
+  opts: { cwd: string; config: LaurelConfig },
 ): string | undefined {
   const pathname = normalizePreviewLocalPathname(rawUrl, opts.config);
   if (!pathname) return undefined;
@@ -3673,7 +3673,7 @@ function previewContentImageVariantPath(
   return filePath;
 }
 
-function normalizePreviewLocalPathname(rawUrl: string, config: NectarConfig): string | undefined {
+function normalizePreviewLocalPathname(rawUrl: string, config: LaurelConfig): string | undefined {
   if (rawUrl.startsWith('//')) return undefined;
   let pathname = rawUrl.split(/[?#]/)[0] ?? '';
   if (/^[a-z][a-z0-9+.-]*:/i.test(pathname)) {
@@ -3710,7 +3710,7 @@ async function fileResponse(root: string, filePath: string): Promise<Response | 
   }
 }
 
-function routePathFromContentUrl(url: string, config: NectarConfig): string {
+function routePathFromContentUrl(url: string, config: LaurelConfig): string {
   let pathname = '/';
   try {
     pathname = new URL(url, config.site.url).pathname;
@@ -3774,7 +3774,7 @@ async function buildSettingsCards({
 }: {
   cwd: string;
   configPath?: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   operations: DashboardOperations;
 }): Promise<DashboardSettingsCard[]> {
   const configSource = relativePath(cwd, resolveConfigPath(cwd, configPath));
@@ -3865,7 +3865,7 @@ async function buildSettingsCards({
         { label: 'assets', value: String(themeInfo.assets) },
         { label: 'custom settings', value: String(themeInfo.customSettings) },
       ],
-      command: 'nectar theme lint',
+      command: 'laurel theme lint',
     },
     {
       id: 'build-output',
@@ -3885,7 +3885,7 @@ async function buildSettingsCards({
         { label: 'copy_content_assets', value: String(config.build.copy_content_assets) },
         { label: 'include_future_posts', value: String(config.build.include_future_posts) },
       ],
-      command: 'nectar build --dry-run --verbose',
+      command: 'laurel build --dry-run --verbose',
     },
     {
       id: 'navigation',
@@ -3926,7 +3926,7 @@ async function buildSettingsCards({
         { label: 'duplicates', value: String(operations.redirects.duplicates.length) },
         { label: 'component enabled', value: String(config.components.redirects.enabled) },
       ],
-      command: 'nectar redirects validate',
+      command: 'laurel redirects validate',
     },
     {
       id: 'routes',
@@ -3966,7 +3966,7 @@ async function buildSettingsCards({
           value: String(operations.inventory.missingTaxonomyFiles),
         },
       ],
-      command: 'nectar check --frontmatter --check-links',
+      command: 'laurel check --frontmatter --check-links',
     },
     {
       id: 'feeds-search-images',
@@ -4025,7 +4025,7 @@ async function buildSettingsCards({
       section: 'Advanced',
       title: 'Trash and restore',
       summary:
-        'Deleted content is moved to .nectar/trash with restore metadata; purge stays CLI-only.',
+        'Deleted content is moved to .laurel/trash with restore metadata; purge stays CLI-only.',
       source: operations.trash.path,
       sourceKind: 'content',
       mode: 'dangerous-cli-only',
@@ -4037,7 +4037,7 @@ async function buildSettingsCards({
           value: String(operations.trash.entries.filter((entry) => entry.restoreBlocked).length),
         },
       ],
-      command: 'nectar content delete --purge',
+      command: 'laurel content delete --purge',
     },
     {
       id: 'deploy',
@@ -4054,7 +4054,7 @@ async function buildSettingsCards({
         { label: 'merge artifacts', value: String(config.deploy.merge) },
         { label: 'output', value: config.build.output_dir },
       ],
-      command: 'nectar deploy <target> --dry-run',
+      command: 'laurel deploy <target> --dry-run',
     },
     {
       id: 'advanced-security',
@@ -4090,7 +4090,7 @@ async function buildSettingsCards({
         { label: 'export', value: 'CLI only' },
         { label: 'diagnostics', value: 'redacted bundle via CLI' },
       ],
-      command: 'nectar import-ghost <export.zip> --dry-run',
+      command: 'laurel import-ghost <export.zip> --dry-run',
     },
     {
       id: 'dashboard-frontend-bundle',
@@ -4128,7 +4128,7 @@ async function buildSettingsCards({
           value: 'future file-backed admin catalog, not bundled CMS data',
         },
         { label: 'fallback', value: 'English UI copy' },
-        { label: 'content locale', value: 'preserved from nectar.toml/frontmatter' },
+        { label: 'content locale', value: 'preserved from laurel.toml/frontmatter' },
       ],
     },
     {
@@ -4181,7 +4181,7 @@ async function buildSettingsCards({
         { label: 'lock policy', value: operations.collaboration.lockPolicy },
         { label: 'presence', value: operations.collaboration.presencePolicy },
       ],
-      command: 'nectar open <slug> --kind posts',
+      command: 'laurel open <slug> --kind posts',
     },
   ];
 }
@@ -4198,7 +4198,7 @@ async function buildDashboardOperations({
 }: {
   cwd: string;
   configPath?: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   graph: ContentGraph;
   posts: DashboardContentSummary[];
   pages: DashboardContentSummary[];
@@ -4208,7 +4208,7 @@ async function buildDashboardOperations({
   const [doctor, cache, redirects, routes, assets, trash, contentTemplates, internalLinks] =
     await Promise.all([
       runChecks({ cwd, configPath, skipNetwork: true }),
-      readCacheStats(resolve(cwd, '.nectar/cache')),
+      readCacheStats(resolve(cwd, '.laurel/cache')),
       readRedirectInventory(cwd),
       readRoutesInventory(cwd),
       readAssetInventory(cwd, config, [...posts, ...pages]),
@@ -4253,7 +4253,7 @@ async function buildDashboardOperations({
     contentTemplates,
     internalLinks,
     collaboration: {
-      editorCommand: 'nectar open <slug> --kind posts',
+      editorCommand: 'laurel open <slug> --kind posts',
       lockPolicy: 'No filesystem lock; saves remain fingerprint-gated.',
       presencePolicy: 'SSE file-change events mark open editors stale before save.',
       safety:
@@ -4274,7 +4274,7 @@ function dirStatus(cwd: string, dir: string): DashboardCardStatus {
 
 async function readThemeInfo(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
 ): Promise<{
   packageName: string;
   templates: number;
@@ -4304,7 +4304,7 @@ async function readThemeInfo(
   }
 }
 
-function enabledDeployTargets(config: NectarConfig): string[] {
+function enabledDeployTargets(config: LaurelConfig): string[] {
   const out: string[] = [];
   if (config.deploy.cloudflare_pages.enabled) out.push('cloudflare-pages');
   if (config.deploy.cloudflare_workers.enabled) out.push('cloudflare-workers');
@@ -4353,7 +4353,7 @@ async function scanFiles(path: string): Promise<{ files: number; bytes: number }
 
 async function readAssetInventory(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   content: DashboardContentSummary[],
 ): Promise<DashboardAssetInventory> {
   const root = absolutise(cwd, config.content.assets_dir);
@@ -4439,7 +4439,7 @@ export async function listDashboardContentTemplates({
       description: 'A terse release-note style post scaffold.',
     },
   ];
-  const projectDir = join(cwd, '.nectar', 'templates', 'content');
+  const projectDir = join(cwd, '.laurel', 'templates', 'content');
   if (!existsSync(projectDir)) return builtins;
   const projectTemplates: DashboardContentTemplate[] = [];
   for (const entry of await readdir(projectDir, { withFileTypes: true })) {
@@ -4451,7 +4451,7 @@ export async function listDashboardContentTemplates({
       name: titleFromSlug(id),
       kind: 'any',
       source: 'project',
-      description: `.nectar/templates/content/${entry.name}`,
+      description: `.laurel/templates/content/${entry.name}`,
     });
   }
   return [...builtins, ...projectTemplates.sort((a, b) => a.id.localeCompare(b.id))];
@@ -4537,7 +4537,7 @@ function readinessItems({
   routes,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   graph: ContentGraph;
   doctor: CheckResult[];
   inventory: DashboardOperations['inventory'];
@@ -4568,7 +4568,7 @@ function readinessItems({
     label: 'Doctor checks',
     status: failingDoctor.length > 0 ? 'danger' : warningDoctor.length > 0 ? 'warn' : 'ok',
     detail: `${doctor.length} check(s), ${failingDoctor.length} failure(s), ${warningDoctor.length} warning(s)`,
-    command: 'nectar doctor --no-network',
+    command: 'laurel doctor --no-network',
   });
   items.push({
     id: 'taxonomy-files',
@@ -4601,7 +4601,7 @@ function readinessItems({
     detail:
       redirects.error ??
       `${redirects.rules} rule(s), ${redirects.duplicates.length} duplicate source(s)`,
-    command: 'nectar redirects validate',
+    command: 'laurel redirects validate',
   });
   items.push({
     id: 'routes',
@@ -4627,7 +4627,7 @@ function readinessItems({
     status: 'info',
     detail:
       'Internal/frontmatter checks can be surfaced immediately; external probes stay explicit.',
-    command: 'nectar check --check-links',
+    command: 'laurel check --check-links',
   });
   items.push({
     id: 'preview-output',
@@ -4636,7 +4636,7 @@ function readinessItems({
     detail: existsSync(join(cwd, config.build.output_dir))
       ? `Preview renders Markdown on demand; ${config.build.output_dir} remains the prebuilt deploy output.`
       : `Preview renders ${graph.posts.length + graph.pages.length} content item(s) from Markdown before any build output exists.`,
-    command: 'nectar build',
+    command: 'laurel build',
   });
   return items;
 }
@@ -4704,7 +4704,7 @@ function contentPath(dir: string, source: ContentSourceFingerprint | undefined):
   return source ? `${dir.replace(/\/$/, '')}/${source.path}` : '';
 }
 
-function editableDir(cwd: string, config: NectarConfig, kind: EditableKind): string {
+function editableDir(cwd: string, config: LaurelConfig, kind: EditableKind): string {
   const dir =
     kind === 'posts'
       ? config.content.posts_dir
@@ -4720,7 +4720,7 @@ function editableDir(cwd: string, config: NectarConfig, kind: EditableKind): str
 
 async function resolveEditablePath(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   kind: EditableKind,
   slug: string,
 ): Promise<string | undefined> {
@@ -4737,7 +4737,7 @@ async function resolveEditablePath(
 
 async function isEditableRealPath(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   kind: EditableKind,
   filePath: string,
 ): Promise<boolean> {
@@ -4755,7 +4755,7 @@ async function isEditableRealPath(
 
 async function isEditableRootInsideProject(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   kind: EditableKind,
 ): Promise<boolean> {
   try {
@@ -4909,9 +4909,9 @@ function dashboardSocialSettings(site: Record<string, unknown>): DashboardSocial
   };
 }
 
-// Mirrors the `Theme directory not found` `NectarError` raised by `loadTheme()`
+// Mirrors the `Theme directory not found` `LaurelError` raised by `loadTheme()`
 // in `src/theme/loader.ts`, so the dashboard banner shows the same actionable
-// hint an operator gets at `nectar build` time. Kept in lockstep with the
+// hint an operator gets at `laurel build` time. Kept in lockstep with the
 // loader copy on purpose — when the loader's hint changes, this should change
 // with it.
 export function computeDashboardThemeStatus(
@@ -5058,7 +5058,7 @@ function tomlString(value: string): string {
 
 function resolveConfigPath(cwd: string, configPath: string | undefined): string {
   const paths = resolveConfigPaths(cwd, configPath);
-  return paths.at(-1) ?? resolve(cwd, 'nectar.toml');
+  return paths.at(-1) ?? resolve(cwd, 'laurel.toml');
 }
 
 function resolveConfigPaths(cwd: string, configPath: string | undefined): string[] {
@@ -5066,7 +5066,7 @@ function resolveConfigPaths(cwd: string, configPath: string | undefined): string
     ?.split(',')
     .map((value) => value.trim())
     .filter(Boolean);
-  const targets = paths && paths.length > 0 ? paths : ['nectar.toml'];
+  const targets = paths && paths.length > 0 ? paths : ['laurel.toml'];
   return targets.map((target) => (isAbsolute(target) ? target : resolve(cwd, target)));
 }
 
@@ -5076,7 +5076,7 @@ async function settingsFingerprintFor(
 ): Promise<ContentSourceFingerprint> {
   const paths = resolveConfigPaths(cwd, configPath);
   if (paths.length === 1)
-    return optionalFingerprintFor(cwd, paths[0] ?? resolve(cwd, 'nectar.toml'));
+    return optionalFingerprintFor(cwd, paths[0] ?? resolve(cwd, 'laurel.toml'));
   const fingerprints = await Promise.all(paths.map((path) => optionalFingerprintFor(cwd, path)));
   return {
     path: fingerprints.map((fingerprint) => fingerprint.path).join(','),
@@ -5144,7 +5144,7 @@ async function appendDashboardRedirect(cwd: string, from: string, to: string): P
 
 function slugRenameSuccess(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   kind: EditableKind,
   oldSlug: string,
   newSlug: string,
@@ -5169,7 +5169,7 @@ function timestampForTrashPath(now: Date): string {
 }
 
 function resolveDashboardTrashDir(cwd: string, now: Date): string {
-  const trashRoot = join(cwd, '.nectar', 'trash');
+  const trashRoot = join(cwd, '.laurel', 'trash');
   for (let offsetMs = 0; offsetMs < 1000; offsetMs += 1) {
     const candidate = join(trashRoot, timestampForTrashPath(new Date(now.getTime() + offsetMs)));
     if (!existsSync(candidate)) return candidate;
@@ -5193,7 +5193,7 @@ function trashEntryFromMetadata(
   if (isAbsolute(originalPath) || isAbsolute(trashPath)) return null;
   const trashAbs = resolve(cwd, trashPath);
   const originalAbs = resolve(cwd, originalPath);
-  if (!isInsidePath(resolve(cwd, '.nectar', 'trash'), trashAbs)) return null;
+  if (!isInsidePath(resolve(cwd, '.laurel', 'trash'), trashAbs)) return null;
   if (!isInsidePath(cwd, originalAbs)) return null;
   const dirId = basename(dirname(metadataPath));
   const id = `${dirId}--${slug}`;
@@ -5265,7 +5265,7 @@ async function scaffoldDashboardContent({
   if (normalizedTemplate.startsWith('project:')) {
     const id = normalizedTemplate.slice('project:'.length);
     if (!SLUG_RE.test(id)) throw new Error('invalid template');
-    const file = join(cwd, '.nectar', 'templates', 'content', `${id}.md`);
+    const file = join(cwd, '.laurel', 'templates', 'content', `${id}.md`);
     if (!existsSync(file)) throw new Error(`template does not exist: ${normalizedTemplate}`);
     const raw = await readFile(file, 'utf8');
     return renderTemplateScaffold(raw, { title, slug, now, kind });
@@ -5442,7 +5442,7 @@ async function serveActiveThemeScopedCss({
   cwd: string;
   configPath?: string;
 }): Promise<Response> {
-  let config: NectarConfig;
+  let config: LaurelConfig;
   let themePkg: Awaited<ReturnType<typeof loadTheme>>['pkg'];
   try {
     config = await loadConfig({ cwd, configPath });
@@ -5450,7 +5450,7 @@ async function serveActiveThemeScopedCss({
     themePkg = theme.pkg;
   } catch (err) {
     return cssNotice(
-      `/* Nectar dashboard: failed to load nectar.toml or theme — ${(err as Error).message ?? 'unknown error'} */`,
+      `/* Laurel dashboard: failed to load laurel.toml or theme — ${(err as Error).message ?? 'unknown error'} */`,
     );
   }
   // The dashboard ships with the same `themes/` convention the build
@@ -5462,7 +5462,7 @@ async function serveActiveThemeScopedCss({
   const screen = Bun.file(screenCssPath);
   if (!(await screen.exists())) {
     return cssNotice(
-      `/* Nectar dashboard: active theme "${config.theme.name}" has no assets/built/screen.css; bookmark preview falls back to dashboard styles. */`,
+      `/* Laurel dashboard: active theme "${config.theme.name}" has no assets/built/screen.css; bookmark preview falls back to dashboard styles. */`,
     );
   }
   const stat = await screen.stat();
@@ -5543,7 +5543,7 @@ function notFoundResponse(request: Request): Response {
     /[<>&"']/g,
     (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' })[c] ?? c,
   );
-  const body = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not Found · Nectar Dashboard</title><style>
+  const body = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not Found · Laurel Dashboard</title><style>
 :root { color-scheme: light; }
 body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f4ecd9; color: #2a241b; font-family: ui-serif, 'Iowan Old Style', Georgia, serif; }
 main { max-width: 480px; padding: 48px 32px; text-align: left; }
@@ -5627,7 +5627,7 @@ function validateWriteRequest(
   security: DashboardSecurityContext | undefined,
 ): Response | undefined {
   if (security === undefined) return undefined;
-  const token = request.headers.get('x-nectar-dashboard-token');
+  const token = request.headers.get('x-laurel-dashboard-token');
   if (token !== security.token) return jsonResponse({ error: 'dashboard token is required' }, 403);
   return validateSameOrigin(request, security, 'cross-origin dashboard write rejected');
 }

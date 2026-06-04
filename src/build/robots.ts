@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { absoluteUrl } from './url.ts';
@@ -16,14 +16,14 @@ const DEFAULT_DISALLOW_PATHS = [
 
 export async function emitRobots(opts: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   outputDir: string;
   theme?: Pick<ThemeBundle, 'rootDir'> | undefined;
 }): Promise<void> {
   const { cwd, config, outputDir, theme } = opts;
   await ensureDir(outputDir);
 
-  // `static/robots.txt` is Nectar's site-level escape hatch and still wins over
+  // `static/robots.txt` is Laurel's site-level escape hatch and still wins over
   // generated output. Ghost themes can also ship a root-level `robots.txt`;
   // when present, copy it verbatim instead of generating the default body.
   const overridePath = join(cwd, 'static', 'robots.txt');

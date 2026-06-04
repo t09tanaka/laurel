@@ -1,9 +1,9 @@
-# Copy this file to the root of a Nectar site repository before creating a
+# Copy this file to the root of a Laurel site repository before creating a
 # Render Blueprint.
 
 services:
   - type: static
-    name: nectar-site
+    name: laurel-site
     buildCommand: bun install && bun run build
     publishPath: ./dist
     envVars:

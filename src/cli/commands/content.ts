@@ -218,7 +218,7 @@ function timestampForPath(now: Date): string {
 }
 
 function resolveUniqueTrashDir(cwd: string, now: Date): string {
-  const trashRoot = join(cwd, '.nectar', 'trash');
+  const trashRoot = join(cwd, '.laurel', 'trash');
   for (let offsetMs = 0; offsetMs < 1000; offsetMs += 1) {
     const candidate = join(trashRoot, timestampForPath(new Date(now.getTime() + offsetMs)));
     if (!existsSync(candidate)) return candidate;
@@ -234,7 +234,7 @@ interface PurgeOpts {
 }
 
 async function purgeTrash({ cwd, slug, now, asJson }: PurgeOpts): Promise<number> {
-  const trashRoot = join(cwd, '.nectar', 'trash');
+  const trashRoot = join(cwd, '.laurel', 'trash');
   const cutoff = now.getTime() - TRASH_RETENTION_MS;
   if (!existsSync(trashRoot)) {
     if (asJson) {
@@ -748,7 +748,7 @@ export function rewriteFrontmatterSlug(source: string, newSlug: string): string 
   }
   if (closeIdx === -1) {
     // Malformed frontmatter (no closing fence). Don't try to repair — the
-    // loader will surface this via `nectar check`; rename just preserves
+    // loader will surface this via `laurel check`; rename just preserves
     // the file content and emits an error to the caller.
     throw new Error('frontmatter has no closing `---`; refusing to rewrite');
   }

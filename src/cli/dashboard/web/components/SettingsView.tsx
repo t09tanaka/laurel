@@ -38,7 +38,7 @@ interface SettingsViewProps {
 
 /* Dashboard surfaces only Site identity, Social links, Theme switcher,
  * and Code injection. Everything else (content paths, build config,
- * structure / routes, operations, advanced) lives in nectar.toml for
+ * structure / routes, operations, advanced) lives in laurel.toml for
  * developers to edit directly — it doesn't belong in an editorial
  * dashboard.
  *
@@ -208,7 +208,7 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
     });
     if (status === 409) {
       props.onConflict(
-        'nectar.toml changed on disk. Latest settings loaded; re-enter changes after review.',
+        'laurel.toml changed on disk. Latest settings loaded; re-enter changes after review.',
       );
       await props.onSettingsSaved();
       return;
@@ -219,7 +219,7 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
     }
     setSiteSettingsDirty(false);
     props.onDirtyChange(false);
-    notify('Saved to nectar.toml', 'ok');
+    notify('Saved to laurel.toml', 'ok');
     await props.onSettingsSaved();
   }
 
@@ -229,7 +229,7 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
         <div>
           <h3>Site identity</h3>
           <p class="meta">
-            Saved to the <code>[site]</code> section of nectar.toml.
+            Saved to the <code>[site]</code> section of laurel.toml.
           </p>
         </div>
       </header>
@@ -294,7 +294,7 @@ function SiteIdentityPanel(props: SiteIdentityProps): JSX.Element {
               void handleSaveSite();
             }}
             disabled={!siteSettingsDirty}
-            title={siteSettingsDirty ? 'Save site identity to nectar.toml' : 'No changes to save'}
+            title={siteSettingsDirty ? 'Save site identity to laurel.toml' : 'No changes to save'}
           >
             Save changes
           </button>
@@ -346,7 +346,7 @@ function SocialShareImagePanel(props: SocialShareImageProps): JSX.Element {
     });
     if (status === 409) {
       props.onConflict(
-        'nectar.toml changed on disk. Latest settings loaded; re-enter changes after review.',
+        'laurel.toml changed on disk. Latest settings loaded; re-enter changes after review.',
       );
       await props.onSettingsSaved();
       return;
@@ -357,7 +357,7 @@ function SocialShareImagePanel(props: SocialShareImageProps): JSX.Element {
     }
     setDirty(false);
     props.onDirtyChange(false);
-    setNotice('Saved to nectar.toml');
+    setNotice('Saved to laurel.toml');
     await props.onSettingsSaved();
   }
 
@@ -369,7 +369,7 @@ function SocialShareImagePanel(props: SocialShareImageProps): JSX.Element {
           <p class="meta">
             Default preview image for social shares (Open Graph / X card), used when a post or page
             has no feature image of its own. One image covers both Facebook and X. Recommended size
-            1200×630. Saved to the <code>[site]</code> section of nectar.toml as{' '}
+            1200×630. Saved to the <code>[site]</code> section of laurel.toml as{' '}
             <code>og_image</code>.
           </p>
         </div>
@@ -394,7 +394,7 @@ function SocialShareImagePanel(props: SocialShareImageProps): JSX.Element {
               void handleSave();
             }}
             disabled={!dirty}
-            title={dirty ? 'Save social share image to nectar.toml' : 'No changes to save'}
+            title={dirty ? 'Save social share image to laurel.toml' : 'No changes to save'}
           >
             Save changes
           </button>
@@ -433,7 +433,7 @@ function SocialLinksPanel(props: SocialLinksProps): JSX.Element {
     });
     if (status === 409) {
       props.onConflict(
-        'nectar.toml changed on disk. Latest settings loaded; re-enter changes after review.',
+        'laurel.toml changed on disk. Latest settings loaded; re-enter changes after review.',
       );
       await props.onSettingsSaved();
       return;
@@ -444,7 +444,7 @@ function SocialLinksPanel(props: SocialLinksProps): JSX.Element {
     }
     setDirty(false);
     props.onDirtyChange(false);
-    setNotice('Saved to nectar.toml');
+    setNotice('Saved to laurel.toml');
     await props.onSettingsSaved();
   }
 
@@ -456,7 +456,7 @@ function SocialLinksPanel(props: SocialLinksProps): JSX.Element {
           <p class="meta">
             Public profile URLs surfaced to themes as <code>@site.twitter</code>,{' '}
             <code>@site.facebook</code>, etc. Leave a field blank to omit it. Saved to the{' '}
-            <code>[site]</code> section of nectar.toml.
+            <code>[site]</code> section of laurel.toml.
           </p>
         </div>
       </header>
@@ -488,7 +488,7 @@ function SocialLinksPanel(props: SocialLinksProps): JSX.Element {
               void handleSave();
             }}
             disabled={!dirty}
-            title={dirty ? 'Save social links to nectar.toml' : 'No changes to save'}
+            title={dirty ? 'Save social links to laurel.toml' : 'No changes to save'}
           >
             Save changes
           </button>
@@ -537,7 +537,7 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
     });
     if (status === 409) {
       props.onConflict(
-        'nectar.toml changed on disk. Latest theme settings loaded; choose again after review.',
+        'laurel.toml changed on disk. Latest theme settings loaded; choose again after review.',
       );
       await props.onSettingsSaved();
       return;
@@ -557,7 +557,7 @@ function ThemeSwitcherPanel(props: ThemeSwitcherProps): JSX.Element {
     ? 'No changes to save'
     : !selected
       ? 'Pick a theme first'
-      : 'Save the active theme to nectar.toml';
+      : 'Save the active theme to laurel.toml';
 
   return (
     <section class="themeSwitcherPanel" aria-label="Themes">
@@ -772,7 +772,7 @@ interface CodeInjectionProps {
  * Mirrors Ghost's "Code injection" admin surface: a header textarea
  * splices into {{ghost_head}} on every page, a footer textarea splices
  * before </body>. Storage lands in `[site].codeinjection_head` /
- * `[site].codeinjection_foot` of nectar.toml.
+ * `[site].codeinjection_foot` of laurel.toml.
  *
  * `build.allow_code_injection` is an explicit checkbox — NOT auto-flipped
  * from head/foot non-emptiness — because the same gate also activates
@@ -829,7 +829,7 @@ function CodeInjectionPanel(props: CodeInjectionProps): JSX.Element {
     });
     if (status === 409) {
       props.onConflict(
-        'nectar.toml changed on disk. Latest settings loaded; re-enter changes after review.',
+        'laurel.toml changed on disk. Latest settings loaded; re-enter changes after review.',
       );
       await props.onSettingsSaved();
       return;
@@ -840,7 +840,7 @@ function CodeInjectionPanel(props: CodeInjectionProps): JSX.Element {
     }
     setDirty(false);
     props.onCodeInjectionDirtyChange(false);
-    setNotice('Saved to nectar.toml.');
+    setNotice('Saved to laurel.toml.');
     await props.onSettingsSaved();
   }
 
@@ -853,7 +853,7 @@ function CodeInjectionPanel(props: CodeInjectionProps): JSX.Element {
           <p class="meta">
             Raw HTML spliced into the Ghost theme's <code>{'{{ghost_head}}'}</code> and{' '}
             <code>{'{{ghost_foot}}'}</code> helpers on every page. Saved to the <code>[site]</code>{' '}
-            section of nectar.toml as <code>codeinjection_head</code> /{' '}
+            section of laurel.toml as <code>codeinjection_head</code> /{' '}
             <code>codeinjection_foot</code>. Values are emitted verbatim — operators are responsible
             for what they paste. Enabling also activates per-post <code>codeinjection_head</code> /{' '}
             <code>codeinjection_foot</code> frontmatter, so only enable if every contributor with
@@ -912,7 +912,7 @@ function CodeInjectionPanel(props: CodeInjectionProps): JSX.Element {
               void handleSave();
             }}
             disabled={!dirty}
-            title={dirty ? 'Save code injection to nectar.toml' : 'No changes to save'}
+            title={dirty ? 'Save code injection to laurel.toml' : 'No changes to save'}
           >
             Save changes
           </button>

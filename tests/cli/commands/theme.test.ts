@@ -24,10 +24,10 @@ async function runCli(
 }
 
 async function makeProject(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-theme-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-theme-')));
   await mkdir(join(dir, 'themes'), { recursive: true });
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Theme Test"',

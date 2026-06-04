@@ -7,19 +7,19 @@ import {
   EMBED_PROVIDER_SCRIPT_DATA_KEY,
   collectEmbedProviderScripts,
 } from '~/render/embed-provider-scripts.ts';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import { registerGhostHeadFootHelpers } from '~/render/helpers/ghost-head.ts';
 import { KOENIG_RUNTIME_DATA_KEY, collectKoenigRuntimeCardTypes } from '~/render/koenig-runtime.ts';
 
 function makeEngine(
   site: Partial<SiteData> = {},
-  config?: Partial<NectarEngine['config']> | Record<string, unknown>,
+  config?: Partial<LaurelEngine['config']> | Record<string, unknown>,
   favicons?: FaviconSet,
-  theme?: Partial<NectarEngine['theme']> | Record<string, unknown>,
-): NectarEngine {
+  theme?: Partial<LaurelEngine['theme']> | Record<string, unknown>,
+): LaurelEngine {
   const hb = Handlebars.create();
-  const themeOverrides = theme as Partial<NectarEngine['theme']> | undefined;
-  const baseTheme: NectarEngine['theme'] = {
+  const themeOverrides = theme as Partial<LaurelEngine['theme']> | undefined;
+  const baseTheme: LaurelEngine['theme'] = {
     name: 'test-theme',
     rootDir: '',
     templates: {},
@@ -37,7 +37,7 @@ function makeEngine(
     },
   };
   const fullSite = {
-    title: 'Nectar Test',
+    title: 'Laurel Test',
     description: 'desc',
     url: 'https://example.com',
     locale: 'en',
@@ -74,20 +74,20 @@ function makeEngine(
   } as unknown as SiteData;
   return {
     hb,
-    config: (config ?? {}) as NectarEngine['config'],
+    config: (config ?? {}) as LaurelEngine['config'],
     content: { site: fullSite } as unknown as ContentGraph,
     theme: {
       ...baseTheme,
       ...themeOverrides,
       pkg: { ...baseTheme.pkg, ...themeOverrides?.pkg },
-    } as NectarEngine['theme'],
+    } as LaurelEngine['theme'],
     favicons,
     templates: {},
     layouts: {},
     render() {
       throw new Error('not used');
     },
-  } as unknown as NectarEngine;
+  } as unknown as LaurelEngine;
 }
 
 function renderGhostHead(
@@ -95,14 +95,14 @@ function renderGhostHead(
   routeUrl = '/some-post/',
   opts: {
     site?: Partial<SiteData>;
-    config?: Partial<NectarEngine['config']> | Record<string, unknown>;
+    config?: Partial<LaurelEngine['config']> | Record<string, unknown>;
     routeData?: Record<string, unknown>;
     routeKind?: string;
     routeMeta?: { canonical?: string; title?: string };
     routeAlternates?: { locale: string; href: string }[];
     routeVariant?: string;
     favicons?: FaviconSet;
-    theme?: Partial<NectarEngine['theme']> | Record<string, unknown>;
+    theme?: Partial<LaurelEngine['theme']> | Record<string, unknown>;
   } = {},
 ): string {
   const engine = makeEngine(opts.site, opts.config, opts.favicons, opts.theme);
@@ -155,8 +155,8 @@ function renderGhostFoot(
   ctx: Record<string, unknown>,
   opts: {
     site?: Partial<SiteData>;
-    config?: Partial<NectarEngine['config']> | Record<string, unknown>;
-    theme?: Partial<NectarEngine['theme']> | Record<string, unknown>;
+    config?: Partial<LaurelEngine['config']> | Record<string, unknown>;
+    theme?: Partial<LaurelEngine['theme']> | Record<string, unknown>;
     data?: Record<string, unknown>;
   } = {},
 ): string {
@@ -231,7 +231,7 @@ describe('ghost_head color-scheme meta', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       theme: {
         pkg: { customDefaults: { site_background_color: '#111111' } },
-      } as unknown as Partial<NectarEngine['theme']>,
+      } as unknown as Partial<LaurelEngine['theme']>,
     });
     expect(html).toContain('<meta name="color-scheme" content="dark light">');
   });
@@ -240,9 +240,9 @@ describe('ghost_head color-scheme meta', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       theme: {
         pkg: { customDefaults: { site_background_color: '#111111' } },
-      } as unknown as Partial<NectarEngine['theme']>,
+      } as unknown as Partial<LaurelEngine['theme']>,
       config: { theme: { custom: { site_background_color: '#ffffff' } } } as unknown as Partial<
-        NectarEngine['config']
+        LaurelEngine['config']
       >,
     });
     expect(html).toContain('<meta name="color-scheme" content="light dark">');
@@ -257,7 +257,7 @@ describe('ghost_head color-scheme meta', () => {
             site_background_color: '#111111',
           },
         },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).toContain('<meta name="color-scheme" content="light dark">');
   });
@@ -287,7 +287,7 @@ describe('ghost_head shared card assets', () => {
   test('honours base_path and exclude-specific cache key for the head stylesheet', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       config: { build: { base_path: '/blog/', csp_nonce: 'abc123' } } as unknown as Partial<
-        NectarEngine['config']
+        LaurelEngine['config']
       >,
       theme: { pkg: { card_assets: { exclude: ['bookmark', 'gallery'] } } },
     });
@@ -328,7 +328,7 @@ describe('ghost_foot Koenig card runtime injection', () => {
       {},
       {
         config: { build: { base_path: '/blog/', csp_nonce: 'abc123' } } as unknown as Partial<
-          NectarEngine['config']
+          LaurelEngine['config']
         >,
         theme: { pkg: { card_assets: true } },
         data: { [KOENIG_RUNTIME_DATA_KEY]: new Set(['audio', 'toggle']) },
@@ -336,7 +336,7 @@ describe('ghost_foot Koenig card runtime injection', () => {
     );
 
     expect(html).toContain(
-      `<script defer src="/blog/assets/ghost-card-assets.js?v=${CARD_ASSETS_VERSION}" nonce="abc123" data-nectar-koenig-runtime="audio,toggle"></script>`,
+      `<script defer src="/blog/assets/ghost-card-assets.js?v=${CARD_ASSETS_VERSION}" nonce="abc123" data-laurel-koenig-runtime="audio,toggle"></script>`,
     );
   });
 
@@ -356,8 +356,8 @@ describe('ghost_foot Koenig card runtime injection', () => {
 describe('ghost_foot embed provider script injection', () => {
   test('collects script-bearing embed providers from rendered body HTML', () => {
     const providers = collectEmbedProviderScripts(`
-      <figure class="kg-card kg-embed-card" data-nectar-embed-provider="twitter"></figure>
-      <figure class="kg-card kg-embed-card" data-nectar-embed-provider="twitter"></figure>
+      <figure class="kg-card kg-embed-card" data-laurel-embed-provider="twitter"></figure>
+      <figure class="kg-card kg-embed-card" data-laurel-embed-provider="twitter"></figure>
       <blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/p/abc/"></blockquote>
       <blockquote class="tiktok-embed" cite="https://www.tiktok.com/@ghost/video/123"></blockquote>
     `);
@@ -369,27 +369,27 @@ describe('ghost_foot embed provider script injection', () => {
     const html = renderGhostFoot(
       {},
       {
-        config: { build: { csp_nonce: 'abc123' } } as Partial<NectarEngine['config']>,
+        config: { build: { csp_nonce: 'abc123' } } as Partial<LaurelEngine['config']>,
         data: { [EMBED_PROVIDER_SCRIPT_DATA_KEY]: ['twitter', 'instagram', 'twitter', 'tiktok'] },
       },
     );
 
-    expect(html.match(/data-nectar-embed-script=/g)?.length).toBe(3);
+    expect(html.match(/data-laurel-embed-script=/g)?.length).toBe(3);
     expect(html).toContain(
-      '<script async defer src="https://www.instagram.com/embed.js" nonce="abc123" data-nectar-embed-script="instagram"></script>',
+      '<script async defer src="https://www.instagram.com/embed.js" nonce="abc123" data-laurel-embed-script="instagram"></script>',
     );
     expect(html).toContain(
-      '<script async defer src="https://www.tiktok.com/embed.js" nonce="abc123" data-nectar-embed-script="tiktok"></script>',
+      '<script async defer src="https://www.tiktok.com/embed.js" nonce="abc123" data-laurel-embed-script="tiktok"></script>',
     );
     expect(html).toContain(
-      '<script async defer src="https://platform.twitter.com/widgets.js" nonce="abc123" data-nectar-embed-script="twitter"></script>',
+      '<script async defer src="https://platform.twitter.com/widgets.js" nonce="abc123" data-laurel-embed-script="twitter"></script>',
     );
   });
 
   test('omits provider scripts when the page has no script-bearing embeds', () => {
     const html = renderGhostFoot({}, { data: { [EMBED_PROVIDER_SCRIPT_DATA_KEY]: [] } });
 
-    expect(html).not.toContain('data-nectar-embed-script');
+    expect(html).not.toContain('data-laurel-embed-script');
     expect(html).not.toContain('platform.twitter.com/widgets.js');
     expect(html).not.toContain('instagram.com/embed.js');
     expect(html).not.toContain('tiktok.com/embed.js');
@@ -523,18 +523,18 @@ describe('ghost_head RSS feed autodiscovery', () => {
   test('emits absolute <link rel="alternate" type="application/rss+xml"> when RSS is enabled', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       config: { components: { rss: { enabled: true, items: 20 } } } as unknown as Partial<
-        NectarEngine['config']
+        LaurelEngine['config']
       >,
     });
     expect(html).toContain(
-      '<link rel="alternate" type="application/rss+xml" title="Nectar Test" href="https://example.com/rss.xml">',
+      '<link rel="alternate" type="application/rss+xml" title="Laurel Test" href="https://example.com/rss.xml">',
     );
   });
 
   test('omits the RSS discovery link when components.rss.enabled is false', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       config: { components: { rss: { enabled: false, items: 20 } } } as unknown as Partial<
-        NectarEngine['config']
+        LaurelEngine['config']
       >,
     });
     expect(html).not.toContain('application/rss+xml');
@@ -545,7 +545,7 @@ describe('ghost_head RSS feed autodiscovery', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       site: { title: 'A & "B"' },
       config: { components: { rss: { enabled: true, items: 20 } } } as unknown as Partial<
-        NectarEngine['config']
+        LaurelEngine['config']
       >,
     });
     expect(html).toContain(
@@ -556,7 +556,7 @@ describe('ghost_head RSS feed autodiscovery', () => {
   test('defaults to emitting the RSS link when config does not specify the RSS component', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/');
     expect(html).toContain(
-      '<link rel="alternate" type="application/rss+xml" title="Nectar Test" href="https://example.com/rss.xml">',
+      '<link rel="alternate" type="application/rss+xml" title="Laurel Test" href="https://example.com/rss.xml">',
     );
   });
 });
@@ -833,14 +833,14 @@ describe('ghost_head JSON-LD Article schema required fields', () => {
       },
       '/p1/',
       {
-        site: { twitter: '@nectar_ssg', facebook: 'nectarssg' },
+        site: { twitter: '@laurel_ssg', facebook: 'laurelssg' },
       },
     );
     const parsed = JSON.parse(extractJsonLd(html)) as {
       publisher: { sameAs?: string[] };
     };
-    expect(parsed.publisher.sameAs).toContain('https://twitter.com/nectar_ssg');
-    expect(parsed.publisher.sameAs).toContain('https://facebook.com/nectarssg');
+    expect(parsed.publisher.sameAs).toContain('https://twitter.com/laurel_ssg');
+    expect(parsed.publisher.sameAs).toContain('https://facebook.com/laurelssg');
   });
 
   test('emits author.sameAs on the primary_author entity (issue #867)', () => {
@@ -929,7 +929,7 @@ describe('ghost_head web standards metadata', () => {
 
   test('links the generated web manifest when the theme does not provide one', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
-      config: { build: { base_path: '/blog/' } } as Partial<NectarEngine['config']>,
+      config: { build: { base_path: '/blog/' } } as Partial<LaurelEngine['config']>,
     });
 
     expect(html).toContain('<link rel="manifest" href="/blog/site.webmanifest">');
@@ -983,7 +983,7 @@ describe('ghost_head JSON-LD cache', () => {
   test('keeps site URL and base_path variants in separate JSON-LD cache entries', () => {
     const engine = makeEngine({ url: 'https://first.example' }, {
       build: { base_path: '/blog' },
-    } as Partial<NectarEngine['config']>);
+    } as Partial<LaurelEngine['config']>);
     registerGhostHeadFootHelpers(engine);
     const template = engine.hb.compile('{{{ghost_head}}}');
     const ctx = {
@@ -1031,9 +1031,9 @@ describe('ghost_head twitter:site / twitter:creator (issue #868)', () => {
         updated_at: '2026-01-01',
       },
       '/p1/',
-      { site: { twitter: 'nectar_ssg' } },
+      { site: { twitter: 'laurel_ssg' } },
     );
-    expect(html).toContain('<meta name="twitter:site" content="@nectar_ssg">');
+    expect(html).toContain('<meta name="twitter:site" content="@laurel_ssg">');
   });
 
   test('emits twitter:creator from post.primary_author.twitter', () => {
@@ -1051,9 +1051,9 @@ describe('ghost_head twitter:site / twitter:creator (issue #868)', () => {
     const html = renderGhostHead(
       { id: 'p1', title: 'A post', published_at: '2026-01-01', updated_at: '2026-01-01' },
       '/p1/',
-      { site: { twitter: 'https://twitter.com/nectar_ssg' } },
+      { site: { twitter: 'https://twitter.com/laurel_ssg' } },
     );
-    expect(html).toContain('<meta name="twitter:site" content="@nectar_ssg">');
+    expect(html).toContain('<meta name="twitter:site" content="@laurel_ssg">');
   });
 
   test('drops malformed twitter handles instead of rendering @/path/foo', () => {
@@ -1253,7 +1253,7 @@ describe('ghost_head BreadcrumbList JSON-LD', () => {
       {
         '@type': 'ListItem',
         position: 1,
-        name: 'Nectar Test',
+        name: 'Laurel Test',
         item: 'https://example.com/',
       },
       {
@@ -1286,7 +1286,7 @@ describe('ghost_head BreadcrumbList JSON-LD', () => {
       {
         '@type': 'ListItem',
         position: 1,
-        name: 'Nectar Test',
+        name: 'Laurel Test',
         item: 'https://example.com/',
       },
       {
@@ -1300,7 +1300,7 @@ describe('ghost_head BreadcrumbList JSON-LD', () => {
 
   test('emits Home > Tag for a tag archive page', () => {
     const html = renderGhostHead(
-      { meta_title: 'News - Nectar Test', meta_description: 'News posts' },
+      { meta_title: 'News - Laurel Test', meta_description: 'News posts' },
       '/tag/news/',
       {
         routeData: {
@@ -1313,7 +1313,7 @@ describe('ghost_head BreadcrumbList JSON-LD', () => {
       {
         '@type': 'ListItem',
         position: 1,
-        name: 'Nectar Test',
+        name: 'Laurel Test',
         item: 'https://example.com/',
       },
       {
@@ -1327,7 +1327,7 @@ describe('ghost_head BreadcrumbList JSON-LD', () => {
 
   test('emits Home > Author for an author archive page', () => {
     const html = renderGhostHead(
-      { meta_title: 'Jane Doe - Nectar Test', meta_description: 'Author archive' },
+      { meta_title: 'Jane Doe - Laurel Test', meta_description: 'Author archive' },
       '/author/jane/',
       {
         routeData: {
@@ -1340,7 +1340,7 @@ describe('ghost_head BreadcrumbList JSON-LD', () => {
       {
         '@type': 'ListItem',
         position: 1,
-        name: 'Nectar Test',
+        name: 'Laurel Test',
         item: 'https://example.com/',
       },
       {
@@ -1412,7 +1412,7 @@ describe('ghost_head JSON-LD route-aware shapes', () => {
 
   test('tag archive emits CollectionPage with ItemList referencing each post', () => {
     const html = renderGhostHead(
-      { meta_title: 'News - Nectar Test', meta_description: 'News posts' },
+      { meta_title: 'News - Laurel Test', meta_description: 'News posts' },
       '/tag/news/',
       {
         routeKind: 'tag',
@@ -1442,11 +1442,11 @@ describe('ghost_head JSON-LD route-aware shapes', () => {
       };
     };
     expect(parsed['@type']).toBe('CollectionPage');
-    expect(parsed.name).toBe('News - Nectar Test');
+    expect(parsed.name).toBe('News - Laurel Test');
     expect(parsed.url).toBe('https://example.com/tag/news/');
     expect(parsed.isPartOf).toEqual({
       '@type': 'WebSite',
-      name: 'Nectar Test',
+      name: 'Laurel Test',
       url: 'https://example.com',
     });
     expect(parsed.mainEntity['@type']).toBe('ItemList');
@@ -1459,7 +1459,7 @@ describe('ghost_head JSON-LD route-aware shapes', () => {
 
   test('author archive emits CollectionPage with ItemList referencing each post', () => {
     const html = renderGhostHead(
-      { meta_title: 'Jane - Nectar Test', meta_description: 'Author archive' },
+      { meta_title: 'Jane - Laurel Test', meta_description: 'Author archive' },
       '/author/jane/',
       {
         routeKind: 'author',
@@ -1870,7 +1870,7 @@ describe('ghost_head favicon <link> tags', () => {
       { id: 'p1', title: 't', published_at: '2026-01-01', updated_at: '2026-01-01' },
       '/p1/',
       {
-        config: { build: { base_path: '/blog/' } } as Partial<NectarEngine['config']>,
+        config: { build: { base_path: '/blog/' } } as Partial<LaurelEngine['config']>,
         favicons: {
           copies: [],
           links: [{ rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
@@ -1885,7 +1885,7 @@ describe('ghost_head favicon <link> tags', () => {
       { id: 'p1', title: 't', published_at: '2026-01-01', updated_at: '2026-01-01' },
       '/p1/',
       {
-        config: { build: { base_path: '/blog/' } } as Partial<NectarEngine['config']>,
+        config: { build: { base_path: '/blog/' } } as Partial<LaurelEngine['config']>,
         favicons: {
           copies: [],
           links: [{ rel: 'icon', href: 'https://cdn.example.com/favicon.png', type: 'image/png' }],
@@ -1924,7 +1924,7 @@ describe('ghost_head CSP nonce', () => {
     const html = renderGhostHead(
       { id: 'p1', title: 't', published_at: '2026-01-01', updated_at: '2026-01-01' },
       '/p1/',
-      { config: { build: { csp_nonce: 'rAnd0m+Nonce/=' } } as Partial<NectarEngine['config']> },
+      { config: { build: { csp_nonce: 'rAnd0m+Nonce/=' } } as Partial<LaurelEngine['config']> },
     );
     // Posts emit Article + BreadcrumbList JSON-LD; both must carry the nonce.
     const scripts = html.match(/<script[^>]*type="application\/ld\+json"[^>]*>/g) ?? [];
@@ -2134,7 +2134,7 @@ describe('ghost_head RSS alternate link href shape', () => {
       site: { url: 'https://example.com' },
     });
     expect(html).toContain(
-      '<link rel="alternate" type="application/rss+xml" title="Nectar Test" href="https://example.com/rss.xml">',
+      '<link rel="alternate" type="application/rss+xml" title="Laurel Test" href="https://example.com/rss.xml">',
     );
   });
 
@@ -2143,7 +2143,7 @@ describe('ghost_head RSS alternate link href shape', () => {
       site: { url: 'https://example.com/' },
     });
     expect(html).toContain(
-      '<link rel="alternate" type="application/rss+xml" title="Nectar Test" href="https://example.com/rss.xml">',
+      '<link rel="alternate" type="application/rss+xml" title="Laurel Test" href="https://example.com/rss.xml">',
     );
   });
 });
@@ -2165,14 +2165,14 @@ describe('ghost_head site-wide meta/og/twitter fallbacks (issue #421)', () => {
 
   test('tag archive without an override falls back to tag.name before site titles', () => {
     const tag = { name: 'News', url: '/tag/news/' };
-    const html = renderGhostHead({ tag, meta_title: 'News | Nectar Test' }, '/tag/news/', {
+    const html = renderGhostHead({ tag, meta_title: 'News | Laurel Test' }, '/tag/news/', {
       routeKind: 'tag',
       routeData: { tag },
       site: { meta_title: 'Configured Site Title' },
     });
     expect(html).toContain('<meta property="og:title" content="News">');
     expect(html).toContain('<meta name="twitter:title" content="News">');
-    expect(html).not.toContain('content="News | Nectar Test"');
+    expect(html).not.toContain('content="News | Laurel Test"');
     expect(html).not.toContain('content="Configured Site Title"');
   });
 
@@ -2191,16 +2191,16 @@ describe('ghost_head site-wide meta/og/twitter fallbacks (issue #421)', () => {
     const html = renderGhostHead({ tag }, '/tag/news/', {
       routeKind: 'tag',
       routeData: { tag },
-      routeMeta: { title: 'News | Nectar Test' },
+      routeMeta: { title: 'News | Laurel Test' },
     });
-    expect(html).toContain('<meta property="og:title" content="News | Nectar Test">');
-    expect(html).toContain('<meta name="twitter:title" content="News | Nectar Test">');
+    expect(html).toContain('<meta property="og:title" content="News | Laurel Test">');
+    expect(html).toContain('<meta name="twitter:title" content="News | Laurel Test">');
   });
 
   test('author archive without an override falls back to author.name before site titles', () => {
     const author = { name: 'Jane Doe', url: '/author/jane/' };
     const html = renderGhostHead(
-      { author, meta_title: 'Jane Doe | Nectar Test' },
+      { author, meta_title: 'Jane Doe | Laurel Test' },
       '/author/jane/',
       {
         routeKind: 'author',
@@ -2210,7 +2210,7 @@ describe('ghost_head site-wide meta/og/twitter fallbacks (issue #421)', () => {
     );
     expect(html).toContain('<meta property="og:title" content="Jane Doe">');
     expect(html).toContain('<meta name="twitter:title" content="Jane Doe">');
-    expect(html).not.toContain('content="Jane Doe | Nectar Test"');
+    expect(html).not.toContain('content="Jane Doe | Laurel Test"');
     expect(html).not.toContain('content="Configured Site Title"');
   });
 
@@ -2219,10 +2219,10 @@ describe('ghost_head site-wide meta/og/twitter fallbacks (issue #421)', () => {
     const html = renderGhostHead({ author }, '/author/jane/', {
       routeKind: 'author',
       routeData: { author },
-      routeMeta: { title: 'Jane Doe | Nectar Test' },
+      routeMeta: { title: 'Jane Doe | Laurel Test' },
     });
-    expect(html).toContain('<meta property="og:title" content="Jane Doe | Nectar Test">');
-    expect(html).toContain('<meta name="twitter:title" content="Jane Doe | Nectar Test">');
+    expect(html).toContain('<meta property="og:title" content="Jane Doe | Laurel Test">');
+    expect(html).toContain('<meta name="twitter:title" content="Jane Doe | Laurel Test">');
   });
 
   test('@site.og_image is the last fallback for og:image / twitter:image', () => {
@@ -2337,7 +2337,7 @@ describe('ghost_head / ghost_foot site-level codeinjection (issue #419)', () => 
   });
 });
 
-// Issue #408: `nectar import-ghost` writes per-post `codeinjection_head` /
+// Issue #408: `laurel import-ghost` writes per-post `codeinjection_head` /
 // `codeinjection_foot` into frontmatter (gated behind `build.allow_code_injection`).
 // These fields surface on the post context, so `{{ghost_head}}` / `{{ghost_foot}}`
 // must splice them into the rendered page even when the site-level value is
@@ -2398,7 +2398,7 @@ describe('ghost_head analytics provider snippet (issue #209)', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       config: {
         components: { analytics: { provider: 'plausible', site: 'example.com' } },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).toContain(
       '<script defer data-domain="example.com" src="https://plausible.io/js/script.js"></script>',
@@ -2409,7 +2409,7 @@ describe('ghost_head analytics provider snippet (issue #209)', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       config: {
         components: { analytics: { provider: 'umami', site: 'abc-123' } },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).toContain(
       '<script async defer src="https://cloud.umami.is/script.js" data-website-id="abc-123"></script>',
@@ -2420,7 +2420,7 @@ describe('ghost_head analytics provider snippet (issue #209)', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       config: {
         components: { analytics: { provider: 'fathom', site: 'ABCDEFGH' } },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).toContain(
       '<script src="https://cdn.usefathom.com/script.js" data-site="ABCDEFGH" defer></script>',
@@ -2431,7 +2431,7 @@ describe('ghost_head analytics provider snippet (issue #209)', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       config: {
         components: { analytics: { provider: 'simpleanalytics' } },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).toContain(
       '<script async defer src="https://scripts.simpleanalyticscdn.com/latest.js"></script>',
@@ -2445,7 +2445,7 @@ describe('ghost_head analytics provider snippet (issue #209)', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       config: {
         components: { analytics: { provider: 'googleanalytics', site: 'G-XYZ123' } },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).toContain(
       '<script async src="https://www.googletagmanager.com/gtag/js?id=G-XYZ123"></script>',
@@ -2457,7 +2457,7 @@ describe('ghost_head analytics provider snippet (issue #209)', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       config: {
         components: { analytics: { provider: 'none' } },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).not.toContain('plausible.io');
     expect(html).not.toContain('umami.is');
@@ -2472,7 +2472,7 @@ describe('ghost_head analytics provider snippet (issue #209)', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       config: {
         components: { analytics: { provider: 'plausible' } },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).not.toContain('plausible.io');
   });
@@ -2484,7 +2484,7 @@ describe('ghost_head analytics provider snippet (issue #209)', () => {
       {
         config: {
           components: { analytics: { provider: 'plausible', site: 'example.com' } },
-        } as unknown as Partial<NectarEngine['config']>,
+        } as unknown as Partial<LaurelEngine['config']>,
       },
     );
     const analyticsPos = html.indexOf('plausible.io');
@@ -2500,7 +2500,7 @@ describe('ghost_head analytics provider snippet (issue #209)', () => {
         components: {
           analytics: { provider: 'plausible', site: 'evil" onload="alert(1)' },
         },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).not.toContain('onload="alert');
     expect(html).toContain('&quot;');
@@ -2508,14 +2508,14 @@ describe('ghost_head analytics provider snippet (issue #209)', () => {
 });
 
 // Issue #123: Source-style themes render visible `[data-portal]` buttons when
-// members are enabled. Nectar ships a static runtime in {{ghost_foot}} so those
+// members are enabled. Laurel ships a static runtime in {{ghost_foot}} so those
 // buttons navigate or warn instead of silently doing nothing.
 describe('ghost_foot static Portal runtime injection (issue #123)', () => {
   test('emits no runtime when members are disabled', () => {
     const html = renderGhostFoot({});
 
-    expect(html).not.toContain('nectar-portal.js');
-    expect(html).not.toContain('NectarPortal');
+    expect(html).not.toContain('laurel-portal.js');
+    expect(html).not.toContain('LaurelPortal');
   });
 
   test('emits runtime config and asset when members are enabled', () => {
@@ -2534,14 +2534,14 @@ describe('ghost_foot static Portal runtime injection (issue #123)', () => {
             },
           },
           recommendations: [],
-        } as unknown as Partial<NectarEngine['config']>,
+        } as unknown as Partial<LaurelEngine['config']>,
       },
     );
 
-    expect(html).toContain('window.NectarPortal=');
+    expect(html).toContain('window.LaurelPortal=');
     expect(html).toContain('"signup":"https://buttondown.email/my-newsletter"');
     expect(html).toContain('"signin":"https://buttondown.email/login"');
-    expect(html).toContain('src="/assets/nectar-portal.js?v=');
+    expect(html).toContain('src="/assets/laurel-portal.js?v=');
   });
 
   test('includes configured upgrade URL and recommendations deep-link', () => {
@@ -2560,13 +2560,13 @@ describe('ghost_foot static Portal runtime injection (issue #123)', () => {
             },
           },
           recommendations: [{ title: 'Friend', url: 'https://friend.test' }],
-        } as unknown as Partial<NectarEngine['config']>,
+        } as unknown as Partial<LaurelEngine['config']>,
       },
     );
 
     expect(html).toContain('"upgrade":"https://example.test/checkout"');
     expect(html).toContain('"recommendations":"/blog/recommendations/#all-recommendations"');
-    expect(html).toContain('src="/blog/assets/nectar-portal.js?v=');
+    expect(html).toContain('src="/blog/assets/laurel-portal.js?v=');
   });
 
   test('escapes inline config so a URL cannot break out of the script tag', () => {
@@ -2585,7 +2585,7 @@ describe('ghost_foot static Portal runtime injection (issue #123)', () => {
             },
           },
           recommendations: [],
-        } as unknown as Partial<NectarEngine['config']>,
+        } as unknown as Partial<LaurelEngine['config']>,
       },
     );
 
@@ -2605,12 +2605,12 @@ describe('ghost_foot static Portal runtime injection (issue #123)', () => {
           build: { base_path: '/' },
           components: { portal: { provider: 'custom', paid: false, invite_only: false } },
           recommendations: [],
-        } as unknown as Partial<NectarEngine['config']>,
+        } as unknown as Partial<LaurelEngine['config']>,
       },
     );
 
-    expect(html.indexOf('<!-- site -->')).toBeLessThan(html.indexOf('NectarPortal'));
-    expect(html.indexOf('NectarPortal')).toBeLessThan(html.indexOf('<!-- page -->'));
+    expect(html.indexOf('<!-- site -->')).toBeLessThan(html.indexOf('LaurelPortal'));
+    expect(html.indexOf('LaurelPortal')).toBeLessThan(html.indexOf('<!-- page -->'));
   });
 });
 
@@ -2624,11 +2624,11 @@ describe('ghost_foot inline subscribe submit injection (issue #1166)', () => {
           build: { base_path: '/' },
           components: { portal: { provider: 'custom', inline_submit: false } },
           recommendations: [],
-        } as unknown as Partial<NectarEngine['config']>,
+        } as unknown as Partial<LaurelEngine['config']>,
       },
     );
 
-    expect(html).not.toContain('NectarInlineSubmit');
+    expect(html).not.toContain('LaurelInlineSubmit');
     expect(html).not.toContain('form[data-members-form]');
   });
 
@@ -2639,12 +2639,12 @@ describe('ghost_foot inline subscribe submit injection (issue #1166)', () => {
         config: {
           build: { csp_nonce: 'nonce-1166' },
           components: { portal: { inline_submit: true } },
-        } as unknown as Partial<NectarEngine['config']>,
+        } as unknown as Partial<LaurelEngine['config']>,
       },
     );
 
     expect(html).toContain('<script nonce="nonce-1166">');
-    expect(html).toContain('NectarInlineSubmit');
+    expect(html).toContain('LaurelInlineSubmit');
     expect(html).toContain('form[data-members-form]');
     expect(html).toContain('data-members-error');
     expect(html).not.toContain('src=');
@@ -2660,7 +2660,7 @@ describe('ghost_head Portal script injection (issue #462)', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       config: {
         components: { portal: { inject_script: false } },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).not.toContain('portal.min.js');
     expect(html).not.toContain('data-portal');
@@ -2676,7 +2676,7 @@ describe('ghost_head Portal script injection (issue #462)', () => {
             script_src: 'https://unpkg.com/@tryghost/portal@latest/umd/portal.min.js',
           },
         },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).toContain(
       '<script defer src="https://unpkg.com/@tryghost/portal@latest/umd/portal.min.js" data-i18n="true" data-ghost="https://example.com"></script>',
@@ -2690,7 +2690,7 @@ describe('ghost_head Portal script injection (issue #462)', () => {
         components: {
           portal: { inject_script: true, script_src: '/assets/portal.min.js' },
         },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).toContain(
       '<script defer src="/assets/portal.min.js" data-i18n="true" data-ghost="https://example.com"></script>',
@@ -2704,7 +2704,7 @@ describe('ghost_head Portal script injection (issue #462)', () => {
         components: {
           portal: { inject_script: true, script_src: 'javascript:alert(1)' },
         },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).not.toContain('javascript:alert');
     expect(html).not.toContain('data-portal');
@@ -2719,7 +2719,7 @@ describe('ghost_head Sodo Search script injection (issue #462)', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       config: {
         components: { search: { enabled: true, engine: 'json' } },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).not.toContain('sodo-search');
   });
@@ -2736,7 +2736,7 @@ describe('ghost_head Sodo Search script injection (issue #462)', () => {
               'https://unpkg.com/@tryghost/sodo-search@latest/umd/sodo-search.min.js',
           },
         },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).toContain(
       '<script defer src="https://unpkg.com/@tryghost/sodo-search@latest/umd/sodo-search.min.js" data-sodo-search="https://example.com"></script>',
@@ -2754,7 +2754,7 @@ describe('ghost_head Sodo Search script injection (issue #462)', () => {
             sodo_search_src: '/assets/sodo-search.min.js',
           },
         },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).toContain(
       '<script defer src="/assets/sodo-search.min.js" data-sodo-search="https://example.com"></script>',
@@ -2823,7 +2823,7 @@ describe('ghost_head LCP preload (#147)', () => {
       {
         routeKind: 'post',
         config: { performance: { preload_lcp_image: false } } as unknown as Partial<
-          NectarEngine['config']
+          LaurelEngine['config']
         >,
       },
     );
@@ -2898,7 +2898,7 @@ describe('ghost_head preconnect to external image origins (#530)', () => {
       {
         routeKind: 'post',
         config: { performance: { max_preconnect_origins: 0 } } as unknown as Partial<
-          NectarEngine['config']
+          LaurelEngine['config']
         >,
       },
     );
@@ -2912,7 +2912,7 @@ describe('ghost_head preconnect to external image origins (#530)', () => {
       {
         routeKind: 'post',
         config: { performance: { preconnect_image_origins: false } } as unknown as Partial<
-          NectarEngine['config']
+          LaurelEngine['config']
         >,
       },
     );
@@ -2926,7 +2926,7 @@ describe('ghost_head component head hints (#1726)', () => {
       routeKind: 'post',
       config: {
         components: { comments: { provider: 'giscus', repo: 'acme/site' } },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).toContain('<link rel="preconnect" href="https://giscus.app" crossorigin>');
   });
@@ -2936,7 +2936,7 @@ describe('ghost_head component head hints (#1726)', () => {
       routeKind: 'post',
       config: {
         components: { comments: { provider: 'utterances', repo: 'acme/site' } },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).toContain('<link rel="preconnect" href="https://utteranc.es" crossorigin>');
   });
@@ -2946,7 +2946,7 @@ describe('ghost_head component head hints (#1726)', () => {
       routeKind: 'post',
       config: {
         components: { comments: { provider: 'disqus', shortname: 'mysite' } },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).toContain('<link rel="preconnect" href="https://mysite.disqus.com">');
   });
@@ -2956,7 +2956,7 @@ describe('ghost_head component head hints (#1726)', () => {
       routeKind: 'post',
       config: {
         components: { comments: { provider: 'disqus', shortname: 'bad/name' } },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).not.toContain('bad/name.disqus.com');
     expect(html).not.toContain('giscus.app');
@@ -2968,7 +2968,7 @@ describe('ghost_head component head hints (#1726)', () => {
       routeKind: 'post',
       config: {
         components: { comments: { provider: 'giscus', repo: 'acme/site' } },
-      } as unknown as Partial<NectarEngine['config']>,
+      } as unknown as Partial<LaurelEngine['config']>,
     });
     expect(html).not.toContain('giscus.app');
   });

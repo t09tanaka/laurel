@@ -13,15 +13,15 @@ interface RunResult {
 }
 
 interface TelemetryCliEnv extends Record<string, string> {
-  NECTAR_TELEMETRY_CONFIG: string;
+  LAUREL_TELEMETRY_CONFIG: string;
 }
 
 let dir: string | undefined;
 
 async function makeEnv(): Promise<TelemetryCliEnv> {
-  dir = await mkdtemp(join(tmpdir(), 'nectar-telemetry-cli-'));
+  dir = await mkdtemp(join(tmpdir(), 'laurel-telemetry-cli-'));
   return {
-    NECTAR_TELEMETRY_CONFIG: join(dir, 'telemetry.json'),
+    LAUREL_TELEMETRY_CONFIG: join(dir, 'telemetry.json'),
   };
 }
 
@@ -67,7 +67,7 @@ describe('cli telemetry command', () => {
     expect(stdout).toContain('Telemetry enabled.');
     expect(stdout).toContain('Endpoint: https://example.test/usage');
 
-    const config = JSON.parse(await readFile(env.NECTAR_TELEMETRY_CONFIG, 'utf8')) as {
+    const config = JSON.parse(await readFile(env.LAUREL_TELEMETRY_CONFIG, 'utf8')) as {
       enabled: boolean;
       endpoint: string;
       anonymousMachineId: string;
@@ -80,12 +80,12 @@ describe('cli telemetry command', () => {
   test('disable keeps anonymous id but stops future sending', async () => {
     const env = await makeEnv();
     await runCli(['telemetry', 'enable'], env);
-    const enabled = JSON.parse(await readFile(env.NECTAR_TELEMETRY_CONFIG, 'utf8')) as {
+    const enabled = JSON.parse(await readFile(env.LAUREL_TELEMETRY_CONFIG, 'utf8')) as {
       anonymousMachineId: string;
     };
 
     const { stdout, stderr, exitCode } = await runCli(['telemetry', 'disable'], env);
-    const disabled = JSON.parse(await readFile(env.NECTAR_TELEMETRY_CONFIG, 'utf8')) as {
+    const disabled = JSON.parse(await readFile(env.LAUREL_TELEMETRY_CONFIG, 'utf8')) as {
       enabled: boolean;
       anonymousMachineId: string;
     };
@@ -103,6 +103,6 @@ describe('cli telemetry command', () => {
 
     expect(exitCode).toBe(2);
     expect(stderr).toContain('Unknown telemetry subcommand');
-    expect(stderr).toContain('nectar telemetry enable');
+    expect(stderr).toContain('laurel telemetry enable');
   });
 });

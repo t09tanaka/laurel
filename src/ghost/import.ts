@@ -280,7 +280,7 @@ export interface ImportSummary {
   // is surfaced so operators can audit the source export (#1138).
   slugCollisions: number;
   // Absolute paths the import wrote, or would write in dry-run mode. This is
-  // primarily surfaced by `nectar import-ghost --dry-run` so operators can
+  // primarily surfaced by `laurel import-ghost --dry-run` so operators can
   // review the exact files before committing an import.
   plannedPaths: string[];
 }
@@ -535,7 +535,7 @@ export async function importGhostExport(opts: ImportGhostOptions): Promise<Impor
     // WordPress WXR is a real format we ship a separate importer for; spotting
     // it here saves the user from staring at a "no .json found" failure.
     throw new Error(
-      `${opts.file} looks like a WordPress WXR XML export. Use \`nectar import-wordpress ${opts.file}\` instead.`,
+      `${opts.file} looks like a WordPress WXR XML export. Use \`laurel import-wordpress ${opts.file}\` instead.`,
     );
   }
   const hasZipExt = opts.file.toLowerCase().endsWith('.zip');
@@ -1172,7 +1172,7 @@ async function extractZipExport(zipPath: string): Promise<ExtractedZip> {
     );
   }
 
-  const dir = await mkdtemp(join(tmpdir(), 'nectar-ghost-zip-'));
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-ghost-zip-'));
   let proc: ReturnType<typeof Bun.spawn>;
   try {
     proc = Bun.spawn(['unzip', '-q', '-o', zipPath, '-d', dir], {
@@ -1385,7 +1385,7 @@ async function copyGhostAssets(
 
 // Ghost exports keep project-level routing files under the content directory
 // (commonly content/settings/routes.yaml and content/data/redirects.yaml).
-// Nectar reads these from the project root, so migrate the first supported
+// Laurel reads these from the project root, so migrate the first supported
 // variant in each family without clobbering an existing project file.
 async function copyGhostProjectFiles(
   assetsRoot: string,
@@ -1457,7 +1457,7 @@ async function writeGhostSettingsConfig(args: {
   const imported = collectGhostSettings(args.settings);
   if (!hasImportedSettings(imported)) return;
 
-  const dest = join(args.targetRoot, 'nectar.toml');
+  const dest = join(args.targetRoot, 'laurel.toml');
   assertWithin(args.targetRoot, dest);
   const exists = await pathExists(dest);
   let writePath = dest;
@@ -1587,7 +1587,7 @@ function renderImportedSettingsConfig(
   if (Object.keys(imported.site).length > 0) {
     const site = isPlainRecord(root.site) ? root.site : {};
     for (const [key, value] of Object.entries(imported.site)) site[key] = value;
-    if (typeof site.title !== 'string' || site.title.trim() === '') site.title = 'Nectar Site';
+    if (typeof site.title !== 'string' || site.title.trim() === '') site.title = 'Laurel Site';
     root.site = site;
   }
   if (imported.navigation) root.navigation = imported.navigation;

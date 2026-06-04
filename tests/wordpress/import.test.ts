@@ -140,7 +140,7 @@ describe('importWordPressExport — happy path', () => {
   let captured: CapturedStderr;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-wp-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-wp-')));
     exportFile = join(cwd, 'export.xml');
     captured = captureStderr();
   });
@@ -375,7 +375,7 @@ describe('importWordPressExport — error handling', () => {
   let cwd: string;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-wp-err-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-wp-err-')));
   });
 
   afterEach(async () => {

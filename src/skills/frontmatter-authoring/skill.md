@@ -1,6 +1,6 @@
 ---
-name: nectar-frontmatter-authoring
-description: Use when creating or editing posts, pages, authors, or tags in a Nectar project. Teaches the valid YAML frontmatter shape, file locations, slug rules, and Ghost-compatibility fields the build pipeline expects.
+name: laurel-frontmatter-authoring
+description: Use when creating or editing posts, pages, authors, or tags in a Laurel project. Teaches the valid YAML frontmatter shape, file locations, slug rules, and Ghost-compatibility fields the build pipeline expects.
 version: 1
 applies_to:
   - claude
@@ -14,9 +14,9 @@ triggers:
   - publish a draft
 ---
 
-# Authoring Nectar content
+# Authoring Laurel content
 
-Nectar is a Ghost-theme-compatible static site generator. Posts and pages live as Markdown files with YAML frontmatter under `content/`. The `nectar build` pipeline reads every file once and produces the static site — no admin UI, no database.
+Laurel is a Ghost-theme-compatible static site generator. Posts and pages live as Markdown files with YAML frontmatter under `content/`. The `laurel build` pipeline reads every file once and produces the static site — no admin UI, no database.
 
 ## File locations
 
@@ -33,7 +33,7 @@ Slugs must match `/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/` — lowercase, alphanumer
 
 ```yaml
 ---
-title: "Welcome to Nectar"              # required
+title: "Welcome to Laurel"              # required
 date: 2026-01-15T09:00:00Z              # ISO 8601 with timezone; used for ordering + RSS
 updated_at: 2026-02-01T12:00:00Z        # optional, falls back to date
 status: published                       # `published` (default) | `draft` | `scheduled`
@@ -53,7 +53,7 @@ Anything not listed above is passed through to the theme context unchanged (Ghos
 
 ## Tag and author references
 
-If a post lists `tags: [announcements]` but `content/tags/announcements.md` does not exist, Nectar auto-creates a placeholder tag at build time and prints a warning. Always vendor the matching `content/tags/<slug>.md` (and `content/authors/<slug>.md`) to silence the warning and to give the tag a real `name` + `description`. Author / tag file frontmatter:
+If a post lists `tags: [announcements]` but `content/tags/announcements.md` does not exist, Laurel auto-creates a placeholder tag at build time and prints a warning. Always vendor the matching `content/tags/<slug>.md` (and `content/authors/<slug>.md`) to silence the warning and to give the tag a real `name` + `description`. Author / tag file frontmatter:
 
 ```yaml
 # content/authors/casper.md
@@ -80,8 +80,8 @@ description: "Project milestones and release notes."
 
 ## Drafts and scheduling
 
-- `status: draft` keeps the post out of the build by default. To preview drafts, run `nectar build --include-drafts` (or set `NECTAR_DRAFTS=1`) — plain `nectar build` and `nectar dev` both exclude drafts.
-- `status: scheduled` + a future `date:` keeps the post out of the build until that timestamp passes. To force-include scheduled / future-dated posts in a preview build, set `[build] include_future_posts = true` in `nectar.toml`. There is no `--include-future` CLI flag.
+- `status: draft` keeps the post out of the build by default. To preview drafts, run `laurel build --include-drafts` (or set `LAUREL_DRAFTS=1`) — plain `laurel build` and `laurel dev` both exclude drafts.
+- `status: scheduled` + a future `date:` keeps the post out of the build until that timestamp passes. To force-include scheduled / future-dated posts in a preview build, set `[build] include_future_posts = true` in `laurel.toml`. There is no `--include-future` CLI flag.
 
 ## Things to never do
 
@@ -92,4 +92,4 @@ description: "Project milestones and release notes."
 
 ## Verifying a draft
 
-Run `nectar lint` for frontmatter / content rule checks across the whole `content/` tree (title length, alt text, broken local links, future-date sanity); `lint` takes no file-path argument. Run `nectar build` to catch any error the loader rejects.
+Run `laurel lint` for frontmatter / content rule checks across the whole `content/` tree (title length, alt text, broken local links, future-date sanity); `lint` takes no file-path argument. Run `laurel build` to catch any error the loader rejects.

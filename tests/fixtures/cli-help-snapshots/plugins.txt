@@ -1,22 +1,22 @@
-Inspect future Nectar plugins
+Inspect future Laurel plugins
 
 Usage:
-  nectar plugins [--json] <subcommand...>
+  laurel plugins [--json] <subcommand...>
 
 Arguments:
   subcommand          `list` (show installed plugins; currently always empty)
 
 End of options:
-  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+  Use `--` before positional values that start with `-`, for example `laurel new post -- --config`.
 
 Options:
   -j, --json          Emit the plugin list as JSON
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --json → NECTAR_PLUGINS_JSON
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --json → LAUREL_PLUGINS_JSON
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -24,4 +24,4 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar plugins list
+  laurel plugins list

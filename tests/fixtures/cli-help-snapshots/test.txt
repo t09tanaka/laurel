@@ -1,17 +1,17 @@
 Run the project test suite via Bun test (passthrough placeholder)
 
 Usage:
-  nectar test [args...]
+  laurel test [args...]
 
 Arguments:
-  args                Arguments forwarded to `bun test` after Nectar prints a passthrough warning
+  args                Arguments forwarded to `bun test` after Laurel prints a passthrough warning
 
 End of options:
-  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+  Use `--` before positional values that start with `-`, for example `laurel new post -- --config`.
 
 Options:
   -h, --help          Show help for this command
 
 Examples:
-  nectar test                                  # run bun test
-  nectar test tests/cli/parse.test.ts          # forward a path to bun test
+  laurel test                                  # run bun test
+  laurel test tests/cli/parse.test.ts          # forward a path to bun test

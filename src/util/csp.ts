@@ -1,5 +1,5 @@
 // Render the ` nonce="..."` attribute fragment (leading space included) for an
-// inline `<script>` or `<style>` tag emitted by Nectar, or an empty string
+// inline `<script>` or `<style>` tag emitted by Laurel, or an empty string
 // when no nonce is configured.
 //
 // The `[build].csp_nonce` schema validates against `[A-Za-z0-9+/\-_]+={0,2}`,

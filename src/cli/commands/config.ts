@@ -10,15 +10,15 @@ import { reportError } from '../report.ts';
 import { CONFIG_SPEC } from '../specs.ts';
 
 const CONFIG_CANDIDATES = [
-  'nectar.toml',
-  'nectar.config.toml',
-  'nectar.config.json',
-  'nectar.config.ts',
-  'nectar.config.js',
-  'nectar.config.mjs',
-  'nectar.config.cjs',
+  'laurel.toml',
+  'laurel.config.toml',
+  'laurel.config.json',
+  'laurel.config.ts',
+  'laurel.config.js',
+  'laurel.config.mjs',
+  'laurel.config.cjs',
 ];
-const LOCAL_CONFIG_NAME = '.nectar.local.toml';
+const LOCAL_CONFIG_NAME = '.laurel.local.toml';
 const JS_CONFIG_EXTENSIONS = new Set(['.ts', '.js', '.mjs', '.cjs']);
 const CONFIG_PRINT_FORMATS = new Set(['json', 'toml']);
 type ConfigPrintFormat = 'json' | 'toml';
@@ -239,7 +239,7 @@ function resolveConfigWriteTarget(cwd: string, configPath: string | undefined): 
   if (configPath) {
     const explicit = splitConfigPathList(configPath);
     const selected = explicit[explicit.length - 1];
-    if (!selected) return tomlTarget(join(cwd, 'nectar.toml'), false);
+    if (!selected) return tomlTarget(join(cwd, 'laurel.toml'), false);
     return writeTargetForPath(cwd, selected, true);
   }
 
@@ -250,7 +250,7 @@ function resolveConfigWriteTarget(cwd: string, configPath: string | undefined): 
     const candidate = join(cwd, name);
     if (existsSync(candidate)) return writeTargetForPath(cwd, candidate, false);
   }
-  return tomlTarget(join(cwd, 'nectar.toml'), false);
+  return tomlTarget(join(cwd, 'laurel.toml'), false);
 }
 
 function writeTargetForPath(cwd: string, inputPath: string, explicit: boolean): ConfigWriteTarget {

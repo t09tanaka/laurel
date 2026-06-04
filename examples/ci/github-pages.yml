@@ -1,11 +1,11 @@
-# Deploy a Nectar site to GitHub Pages.
+# Deploy a Laurel site to GitHub Pages.
 #
 # Copy this file to .github/workflows/pages.yml in your repo, then in the
 # GitHub repo settings turn on: Pages -> Build and deployment -> Source =
 # "GitHub Actions". Push to main and the workflow publishes dist/ to Pages.
 #
 # If your site lives at https://<user>.github.io/<repo>/ (a project site),
-# the build step below sets GITHUB_PAGES=true so Nectar can derive
+# the build step below sets GITHUB_PAGES=true so Laurel can derive
 # [build].base_path = "/<repo>/" from GITHUB_REPOSITORY. Set
 # [build].base_path manually only when you need to override that path.
 #
@@ -47,7 +47,7 @@ jobs:
       - name: Build site
         env:
           GITHUB_PAGES: "true"
-        run: bunx nectar build
+        run: bunx laurel build
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

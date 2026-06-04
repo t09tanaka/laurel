@@ -3,7 +3,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Built something with Nectar? Migrated a real Ghost blog over? Wrote a
+        Built something with Laurel? Migrated a real Ghost blog over? Wrote a
         custom theme? We want to see it. Posts here are great fodder for the
         eventual showcase / examples list.
   - type: input
@@ -37,7 +37,7 @@ body:
     attributes:
       label: Anything tricky?
       description: Workarounds you needed, helpers that didn't quite fit, or
-        things you wish Nectar did natively. These are some of our best
+        things you wish Laurel did natively. These are some of our best
         signals for what to build next.
     validations:
       required: false

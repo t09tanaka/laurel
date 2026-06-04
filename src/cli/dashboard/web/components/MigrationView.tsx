@@ -278,7 +278,7 @@ function GhostImportModal({ onClose, onResult }: GhostImportModalProps): JSX.Ele
         </header>
         <p class="meta">
           Drop a Ghost export <code>.zip</code> or <code>ghost-export.json</code>. Imported posts
-          land in the content dir configured in <code>nectar.toml</code>.
+          land in the content dir configured in <code>laurel.toml</code>.
         </p>
         <UploadDropzone
           accept=".zip,.json,application/zip,application/json"

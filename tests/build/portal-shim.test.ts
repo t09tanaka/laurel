@@ -21,7 +21,7 @@ describe('rewriteRecommendationsButton', () => {
     expect(out).toContain('id="see-all"');
     expect(out).toContain('aria-label="See all"');
     expect(out).toContain('role="button"');
-    expect(out).toContain('data-nectar-recommendations-link');
+    expect(out).toContain('data-laurel-recommendations-link');
   });
 
   test('honours non-root build.base_path', () => {
@@ -51,7 +51,7 @@ describe('rewriteRecommendationsButton', () => {
       '<footer><button data-portal="recommendations">B</button></footer>',
     ].join('');
     const out = rewriteRecommendationsButton({ html, basePath: '/', enabled: true });
-    const matches = out.match(/data-nectar-recommendations-link/g) ?? [];
+    const matches = out.match(/data-laurel-recommendations-link/g) ?? [];
     expect(matches.length).toBe(2);
     expect(out).not.toContain('<button');
   });

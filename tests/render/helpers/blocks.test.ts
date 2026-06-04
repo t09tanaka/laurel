@@ -1,33 +1,33 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
 import type { ContentGraph } from '~/content/model.ts';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import { registerBlockHelpers } from '~/render/helpers/blocks.ts';
 
 interface MakeEngineOpts {
   content?: Partial<ContentGraph>;
 }
 
-function makeEngine(opts: MakeEngineOpts = {}): NectarEngine {
+function makeEngine(opts: MakeEngineOpts = {}): LaurelEngine {
   const hb = Handlebars.create();
   return {
     hb,
-    config: {} as NectarEngine['config'],
+    config: {} as LaurelEngine['config'],
     content: {
       posts: [],
       pages: [],
       tags: [],
       authors: [],
       ...opts.content,
-    } as unknown as NectarEngine['content'],
-    theme: {} as NectarEngine['theme'],
+    } as unknown as LaurelEngine['content'],
+    theme: {} as LaurelEngine['theme'],
     templates: {},
     layouts: {},
     sortedCache: new Map<string, readonly unknown[]>(),
     render() {
       throw new Error('not used');
     },
-  } as unknown as NectarEngine;
+  } as unknown as LaurelEngine;
 }
 
 describe('foreach helper', () => {
@@ -257,7 +257,7 @@ describe('foreach helper', () => {
     expect(tpl({ items })).toBe('hash-featured|');
   });
 
-  // Authors have no `visibility` field in Nectar's content graph (mirroring
+  // Authors have no `visibility` field in Laurel's content graph (mirroring
   // Ghost's API shape). The filter must treat a missing field as public so
   // `{{#foreach authors visibility="public"}}` is a no-op for that resource
   // rather than wiping the iteration empty.
@@ -1277,12 +1277,12 @@ describe('data helper', () => {
       '{{#data}}{{site.title}}|{{route.kind}}|{{@site.title}}|{{@route.kind}}{{/data}}',
     );
     const data = {
-      site: { title: 'Nectar Test' },
+      site: { title: 'Laurel Test' },
       route: { kind: 'home' },
     };
 
     expect(() => tpl({}, { data })).not.toThrow();
-    expect(tpl({}, { data })).toBe('Nectar Test|home|Nectar Test|home');
+    expect(tpl({}, { data })).toBe('Laurel Test|home|Laurel Test|home');
   });
 });
 

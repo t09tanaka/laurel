@@ -14,7 +14,7 @@ import {
 import { configSchema } from '~/config/schema.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-deploy-registry-'));
+  return mkdtemp(join(tmpdir(), 'laurel-deploy-registry-'));
 }
 
 function makeArtifacts(

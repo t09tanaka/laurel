@@ -35,13 +35,13 @@ describe('formatCloudFrontRedirectFunction', () => {
     expect(body).toContain('"location": "\\/rss.xml"');
     expect(body).toContain('"statusCode": 307');
     expect(body).toContain('function handler(event)');
-    expect(body).not.toContain('__NECTAR_REDIRECTS_JSON__');
+    expect(body).not.toContain('__LAUREL_REDIRECTS_JSON__');
   });
 });
 
 describe('generateCloudFrontRedirectFunction', () => {
   test('reads redirects.yaml and writes a CloudFront Function with inlined rules', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cloudfront-redirects-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cloudfront-redirects-'));
     const outputPath = join(cwd, 'generated', 'cloudfront-redirects.generated.js');
     await writeFile(
       join(cwd, 'redirects.yaml'),

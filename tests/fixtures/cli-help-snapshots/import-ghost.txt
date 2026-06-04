@@ -1,13 +1,13 @@
 Convert a Ghost JSON export into Markdown content
 
 Usage:
-  nectar import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--output <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--dry-run] [--include-drafts] [--include-pages] [--only-tags <slugs>] [--since <date>] [--max-size <size>] [--max-post-html-size <size>] [--keep-code-injection] [--keep-html] [--json] <file>
+  laurel import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--output <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--dry-run] [--include-drafts] [--include-pages] [--only-tags <slugs>] [--since <date>] [--max-size <size>] [--max-post-html-size <size>] [--keep-code-injection] [--keep-html] [--json] <file>
 
 Arguments:
   file                Path to a Ghost export: a JSON file (.json), an unzipped folder containing one or more JSON exports, the .zip archive itself, or - to read JSON from stdin. The file extension is optional; format is sniffed by magic bytes (PK\x03\x04 → zip, leading "{" / "[" → json)
 
 End of options:
-  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+  Use `--` before positional values that start with `-`, for example `laurel new post -- --config`.
 
 Options:
   --on-conflict <skip|overwrite|rename>  How to handle existing files when slugs collide: skip (default), overwrite, or rename
@@ -29,9 +29,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --on-conflict → NECTAR_IMPORT_GHOST_ON_CONFLICT
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --on-conflict → LAUREL_IMPORT_GHOST_ON_CONFLICT
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -39,13 +39,13 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar import-ghost ghost-export.json
-  nectar import-ghost ghost-export-folder       # imports all export*.json files in stable order
-  nectar import-ghost - < ghost-export.json   # read JSON from stdin
-  nectar import-ghost ghost-export.zip            # zip archive (auto-detected)
-  nectar import-ghost ghost-export --dry-run      # extension-less, magic-bytes sniff
-  nectar import-ghost export.json --output review-import
-  nectar import-ghost export.json --only-tags news,blog --since 2024-01-01
-  nectar import-ghost export.json --only-tags news --include-drafts --include-pages
-  nectar import-ghost export.json --download-images --max-image-size 5MB
-  nectar import-ghost export.json --on-conflict overwrite
+  laurel import-ghost ghost-export.json
+  laurel import-ghost ghost-export-folder       # imports all export*.json files in stable order
+  laurel import-ghost - < ghost-export.json   # read JSON from stdin
+  laurel import-ghost ghost-export.zip            # zip archive (auto-detected)
+  laurel import-ghost ghost-export --dry-run      # extension-less, magic-bytes sniff
+  laurel import-ghost export.json --output review-import
+  laurel import-ghost export.json --only-tags news,blog --since 2024-01-01
+  laurel import-ghost export.json --only-tags news --include-drafts --include-pages
+  laurel import-ghost export.json --download-images --max-image-size 5MB
+  laurel import-ghost export.json --on-conflict overwrite

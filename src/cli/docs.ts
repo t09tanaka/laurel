@@ -29,7 +29,7 @@ export const DEFAULT_GLOBAL_OPTIONS: GlobalOptionDoc[] = [
   {
     flag: '-j, --json',
     description:
-      'Emit one JSON object per log line (and JSON-shaped output where the command supports it). Also picks up `NECTAR_JSON=1`.',
+      'Emit one JSON object per log line (and JSON-shaped output where the command supports it). Also picks up `LAUREL_JSON=1`.',
     envVar: globalEnvVarName('json'),
   },
   {
@@ -52,7 +52,7 @@ export const DEFAULT_GLOBAL_OPTIONS: GlobalOptionDoc[] = [
   {
     flag: '--debug',
     description:
-      'Show full stack traces when a command errors out. Default mode prints a short message + hint + docs link; set `NECTAR_DEBUG=1` for the same effect from env.',
+      'Show full stack traces when a command errors out. Default mode prints a short message + hint + docs link; set `LAUREL_DEBUG=1` for the same effect from env.',
     envVar: globalEnvVarName('debug'),
   },
   {
@@ -64,7 +64,7 @@ export const DEFAULT_GLOBAL_OPTIONS: GlobalOptionDoc[] = [
   {
     flag: '-v, --version',
     description:
-      'Print the Nectar version and exit. Use `nectar version --json` for machine-readable version metadata.',
+      'Print the Laurel version and exit. Use `laurel version --json` for machine-readable version metadata.',
   },
 ];
 
@@ -83,12 +83,12 @@ export function renderCliReference(
   const globals = options.globals ?? DEFAULT_GLOBAL_OPTIONS;
   const lines: string[] = [];
 
-  lines.push('# Nectar CLI reference');
+  lines.push('# Laurel CLI reference');
   lines.push('');
   lines.push(AUTOGEN_BANNER);
   lines.push('');
   lines.push(
-    'This page lists every `nectar` subcommand, flag, and positional argument.',
+    'This page lists every `laurel` subcommand, flag, and positional argument.',
     'It is generated from the command specs in `src/cli/specs.ts`; run',
     '`bun run docs:cli` after changing a spec to refresh it.',
   );
@@ -96,7 +96,7 @@ export function renderCliReference(
   lines.push('## Synopsis');
   lines.push('');
   lines.push('```');
-  lines.push('nectar [global options] <command> [options]');
+  lines.push('laurel [global options] <command> [options]');
   lines.push('```');
   lines.push('');
 
@@ -104,7 +104,7 @@ export function renderCliReference(
   lines.push('');
   lines.push(
     'Within a subcommand, flags and positional arguments may be interleaved.',
-    '`nectar new --slug foo post "Hello"` and `nectar new post --slug foo "Hello"`',
+    '`laurel new --slug foo post "Hello"` and `laurel new post --slug foo "Hello"`',
     'parse the same way. `--` still ends option parsing; every following token is',
     'treated as a positional argument, so literal values such as `--config` or',
     'filenames beginning with `--` can be passed after it.',
@@ -124,17 +124,17 @@ export function renderCliReference(
   lines.push('## JSON Lines logs');
   lines.push('');
   lines.push(
-    'Set `NECTAR_LOG_FORMAT=json` (or pass `--log-format=json`) when CI jobs,',
-    'process supervisors, or log shippers need machine-readable Nectar logs',
-    'without changing command-specific output such as `nectar version` or',
-    '`nectar config get`. Each logger call emits one JSON object per line with',
+    'Set `LAUREL_LOG_FORMAT=json` (or pass `--log-format=json`) when CI jobs,',
+    'process supervisors, or log shippers need machine-readable Laurel logs',
+    'without changing command-specific output such as `laurel version` or',
+    '`laurel config get`. Each logger call emits one JSON object per line with',
     '`ts`, `level`, and `msg`; structured logger fields are emitted as additional',
     'top-level properties when present.',
   );
   lines.push('');
   lines.push('```sh');
-  lines.push('NECTAR_LOG_FORMAT=json nectar build > nectar.log.jsonl');
-  lines.push('NECTAR_LOG_FORMAT=json nectar dev 2> nectar.err.jsonl');
+  lines.push('LAUREL_LOG_FORMAT=json laurel build > laurel.log.jsonl');
+  lines.push('LAUREL_LOG_FORMAT=json laurel dev 2> laurel.err.jsonl');
   lines.push('```');
   lines.push('');
   lines.push('```json');
@@ -142,19 +142,19 @@ export function renderCliReference(
   lines.push('```');
   lines.push('');
   lines.push(
-    '`NECTAR_LOG_FORMAT=json` is intentionally different from `NECTAR_JSON=1`',
+    '`LAUREL_LOG_FORMAT=json` is intentionally different from `LAUREL_JSON=1`',
     'or the global `--json` flag: it only changes the logger surface. Use',
     '`--json` when a subcommand also has a machine-readable result payload.',
     'Use `--log-format=pretty` to force human-readable logs when the environment',
-    'sets `NECTAR_LOG_FORMAT=json`.',
+    'sets `LAUREL_LOG_FORMAT=json`.',
   );
   lines.push('');
 
   lines.push('## Built-in version output');
   lines.push('');
   lines.push(
-    '`nectar --version` prints the plain package version for scripts that expect',
-    'a single semver line. `nectar version --json` and `nectar --json version`',
+    '`laurel --version` prints the plain package version for scripts that expect',
+    'a single semver line. `laurel version --json` and `laurel --json version`',
     'print machine-readable metadata with `name`, `version`, `bun`, `node`, and',
     '`commit`; `commit` is `null` when it cannot be resolved from the environment',
     'or local Git checkout.',
@@ -169,26 +169,26 @@ export function renderCliReference(
   );
   lines.push('');
   lines.push(
-    '- **Naming:** `NECTAR_<COMMAND>_<FLAG>`, uppercased, with dashes turned into',
-    '  underscores. Example: `--port` on `nectar serve` reads from `NECTAR_SERVE_PORT`,',
-    '  and `--base-path` on `nectar build` reads from `NECTAR_BUILD_BASE_PATH`.',
-    '  Global flags drop the command segment: `NECTAR_QUIET`, `NECTAR_VERBOSE`,',
-    '  `NECTAR_LOG_FORMAT`, `NECTAR_LOCALE`.',
-    '- **Precedence:** CLI flag → env var → project `.nectarrc` → user global',
+    '- **Naming:** `LAUREL_<COMMAND>_<FLAG>`, uppercased, with dashes turned into',
+    '  underscores. Example: `--port` on `laurel serve` reads from `LAUREL_SERVE_PORT`,',
+    '  and `--base-path` on `laurel build` reads from `LAUREL_BUILD_BASE_PATH`.',
+    '  Global flags drop the command segment: `LAUREL_QUIET`, `LAUREL_VERBOSE`,',
+    '  `LAUREL_LOG_FORMAT`, `LAUREL_LOCALE`.',
+    '- **Precedence:** CLI flag → env var → project `.laurelrc` → user global',
     '  config → built-in default.',
     '- **Boolean values:** `1`, `true`, `yes`, `on` are true; `0`, `false`, `no`,',
     '  `off`, and the empty string are false (case-insensitive). Anything else is',
     '  rejected as a usage error.',
     '- **String values:** used verbatim. An empty string is treated as unset so',
     '  the next lower-priority layer wins.',
-    '- **Verbosity:** `NECTAR_VERBOSE` takes a non-negative integer (`0` = info,',
+    '- **Verbosity:** `LAUREL_VERBOSE` takes a non-negative integer (`0` = info,',
     '  `1` = debug, `2+` = trace), matching how `-V` / `-VV` stack on the CLI.',
   );
   lines.push('');
-  lines.push('## Project `.nectarrc` defaults');
+  lines.push('## Project `.laurelrc` defaults');
   lines.push('');
   lines.push(
-    'A project can keep CLI flag defaults in `.nectarrc.json` (or `.nectarrc`) in',
+    'A project can keep CLI flag defaults in `.laurelrc.json` (or `.laurelrc`) in',
     'the process cwd. The file is JSON with a `global` object for top-level flags',
     'and one object per command name. Only known flags are read; env vars and CLI',
     'flags override these defaults.',
@@ -203,19 +203,19 @@ export function renderCliReference(
   lines.push('```');
   lines.push('');
   lines.push(
-    '`nectar config path` prints both the resolved config file and whether a',
-    'project rc file was detected; `nectar config path --json` exposes',
+    '`laurel config path` prints both the resolved config file and whether a',
+    'project rc file was detected; `laurel config path --json` exposes',
     '`config_path` and `rc_path`.',
   );
   lines.push('');
   lines.push('## User-wide defaults');
   lines.push('');
   lines.push(
-    'User-wide defaults live in `~/.config/nectar/config.json` (or',
-    '`$XDG_CONFIG_HOME/nectar/config.json`) and use the same JSON shape as',
-    'project `.nectarrc` files. They are intended for personal defaults such as',
+    'User-wide defaults live in `~/.config/laurel/config.json` (or',
+    '`$XDG_CONFIG_HOME/laurel/config.json`) and use the same JSON shape as',
+    'project `.laurelrc` files. They are intended for personal defaults such as',
     '`global.no-color`, `global.locale`, or a preferred `serve.port`. Project',
-    '`.nectarrc`, env vars, and CLI flags override them.',
+    '`.laurelrc`, env vars, and CLI flags override them.',
   );
   lines.push('');
   lines.push(
@@ -240,17 +240,17 @@ export function renderCliReference(
   lines.push('');
   lines.push(
     'Commands with `--config <path>` accept one or more TOML or JSON files. Without',
-    'it, Nectar checks only the current working directory, first `nectar.toml`, then',
-    '`nectar.config.toml`, then `nectar.config.json`; the first existing base file',
-    'wins. If `NECTAR_ENV` is set, Nectar then appends `nectar.<env>.toml` when that',
-    'file exists. Finally, `.nectar.local.toml` is appended when present so local',
-    'overrides written by `nectar config set` win. If no config file exists, the',
+    'it, Laurel checks only the current working directory, first `laurel.toml`, then',
+    '`laurel.config.toml`, then `laurel.config.json`; the first existing base file',
+    'wins. If `LAUREL_ENV` is set, Laurel then appends `laurel.<env>.toml` when that',
+    'file exists. Finally, `.laurel.local.toml` is appended when present so local',
+    'overrides written by `laurel config set` win. If no config file exists, the',
     'config schema defaults are used.',
   );
   lines.push('');
   lines.push(
     'Passing `--config`, or setting the matching env var such as',
-    '`NECTAR_BUILD_CONFIG`, disables discovery and `NECTAR_ENV` file selection.',
+    '`LAUREL_BUILD_CONFIG`, disables discovery and `LAUREL_ENV` file selection.',
     'Repeat `--config` or comma-separate paths to load multiple files; later files',
     'deep-merge over earlier files, with arrays and scalar values replaced.',
     'Relative paths are resolved from the process cwd.',
@@ -259,7 +259,7 @@ export function renderCliReference(
   lines.push(
     'The programmatic build API mirrors the loader behaviour through',
     '`build({ cwd, configPath })`, but it does not parse CLI flags or',
-    '`NECTAR_<COMMAND>_CONFIG` env vars for you. Pass `configPath` as one path,',
+    '`LAUREL_<COMMAND>_CONFIG` env vars for you. Pass `configPath` as one path,',
     'a comma-separated list, or an ordered array if you want explicit-file mode.',
   );
   lines.push('');
@@ -268,9 +268,9 @@ export function renderCliReference(
   lines.push('');
   lines.push(
     'CLI scaffolders write generated text files with LF (`\\n`) line endings on',
-    'every OS, including Windows. This applies to `nectar init`, `nectar new`,',
+    'every OS, including Windows. This applies to `laurel init`, `laurel new`,',
     'and the Markdown/YAML frontmatter files they create. If scaffold input',
-    'contains CRLF or bare CR characters, Nectar normalizes those characters',
+    'contains CRLF or bare CR characters, Laurel normalizes those characters',
     'before writing so generated files do not mix CRLF and LF endings.',
   );
   lines.push('');
@@ -278,11 +278,11 @@ export function renderCliReference(
   lines.push('## Standard input');
   lines.push('');
   lines.push(
-    'Most Nectar commands do not consume piped stdin: they read files, config,',
+    'Most Laurel commands do not consume piped stdin: they read files, config,',
     'or command-line arguments explicitly. The exceptions are narrow and opt-in:',
-    '`nectar new <kind> --stdin` reads Markdown body content from stdin, and',
-    '`nectar import-ghost -` reads a Ghost JSON export from stdin. Interactive',
-    '`nectar init` and `nectar clean` may also read prompt answers from stdin',
+    '`laurel new <kind> --stdin` reads Markdown body content from stdin, and',
+    '`laurel import-ghost -` reads a Ghost JSON export from stdin. Interactive',
+    '`laurel init` and `laurel clean` may also read prompt answers from stdin',
     'when prompts are enabled.',
   );
   lines.push('');
@@ -314,15 +314,15 @@ function renderCommandIndex(
   for (const name of order) {
     const spec = specs[name];
     if (!spec) continue;
-    const anchor = `#nectar-${anchorize(name)}`;
-    rows.push([`[\`nectar ${name}\`](${anchor})`, spec.summary]);
+    const anchor = `#laurel-${anchorize(name)}`;
+    rows.push([`[\`laurel ${name}\`](${anchor})`, spec.summary]);
   }
   return renderTable(['Command', 'Summary'], rows);
 }
 
 function renderCommandSection(spec: CommandSpec): string[] {
   const lines: string[] = [];
-  lines.push(`### \`nectar ${spec.name}\``);
+  lines.push(`### \`laurel ${spec.name}\``);
   lines.push('');
   lines.push(spec.summary);
   lines.push('');

@@ -10,7 +10,7 @@ const SITE_FIXTURE = join(FIXTURE_DIR, 'theme-smoke', 'site');
 const ALTO_THEME = join(FIXTURE_DIR, 'themes', 'alto');
 
 async function buildAltoFixture(): Promise<string> {
-  const workDir = await mkdtemp(join(tmpdir(), 'nectar-alto-pswp-'));
+  const workDir = await mkdtemp(join(tmpdir(), 'laurel-alto-pswp-'));
   await cp(SITE_FIXTURE, workDir, { recursive: true });
   await cp(ALTO_THEME, join(workDir, 'themes', 'alto'), { recursive: true });
 
@@ -21,7 +21,7 @@ async function buildAltoFixture(): Promise<string> {
       'title: "Welcome to the smoke fixture"',
       'slug: welcome',
       'date: 2026-01-15T09:00:00Z',
-      'authors: [nectar-bot]',
+      'authors: [laurel-bot]',
       'tags: [general]',
       '---',
       '',
@@ -37,7 +37,7 @@ async function buildAltoFixture(): Promise<string> {
       'title: "About this fixture"',
       'slug: about',
       'date: 2026-01-01T00:00:00Z',
-      'authors: [nectar-bot]',
+      'authors: [laurel-bot]',
       '---',
       '',
       '![Page image](/content/images/cover.svg)',
@@ -46,7 +46,7 @@ async function buildAltoFixture(): Promise<string> {
     'utf8',
   );
   await writeFile(
-    join(workDir, 'nectar.toml'),
+    join(workDir, 'laurel.toml'),
     [
       '[site]',
       'title = "Alto PSWP Fixture"',
@@ -89,7 +89,7 @@ describe('Alto pswp route guard', () => {
       post: await readFile(join(distRoot, 'welcome', 'index.html'), 'utf8'),
       page: await readFile(join(distRoot, 'about', 'index.html'), 'utf8'),
       tag: await readFile(join(distRoot, 'tag', 'general', 'index.html'), 'utf8'),
-      author: await readFile(join(distRoot, 'author', 'nectar-bot', 'index.html'), 'utf8'),
+      author: await readFile(join(distRoot, 'author', 'laurel-bot', 'index.html'), 'utf8'),
     };
 
     expect(pages.post).toContain('<div class="pswp"');

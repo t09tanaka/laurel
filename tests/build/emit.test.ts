@@ -75,14 +75,14 @@ function jpegWithExif(payload = 'SECRET_GPS'): Buffer {
 
 describe('writeHtml', () => {
   test('writes file when path resolves under outputDir', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-emit-'));
     await writeHtml(dir, 'hello/index.html', '<h1>ok</h1>');
     const body = await readFile(join(dir, 'hello/index.html'), 'utf8');
     expect(body).toContain('ok');
   });
 
   test('strips a leading BOM from HTML output', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-emit-'));
     await writeHtml(dir, 'index.html', '\uFEFF<!doctype html><h1>ok</h1>');
     const body = await readFile(join(dir, 'index.html'), 'utf8');
     expect(body.startsWith('\uFEFF')).toBeFalse();
@@ -90,14 +90,14 @@ describe('writeHtml', () => {
   });
 
   test('refuses to write when outputPath escapes outputDir via ..', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-emit-'));
     await expect(writeHtml(dir, '../../../etc/cron.d/evil/index.html', 'pwned')).rejects.toThrow(
       /Refusing to write outside output directory/,
     );
   });
 
   test('refuses to write when outputPath escapes via .. mixed with segments', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-emit-'));
     await expect(writeHtml(dir, 'foo/../../bar/index.html', 'pwned')).rejects.toThrow(
       /Refusing to write outside output directory/,
     );
@@ -114,7 +114,7 @@ describe('writeHtml', () => {
 
 describe('writeHtmlBatch', () => {
   test('writes all outputs and creates nested directories (#1102)', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-emit-batch-'));
     await writeHtmlBatch(dir, [
       { outputPath: 'index.html', html: '<h1>home</h1>' },
       { outputPath: 'a/index.html', html: '<h1>a</h1>' },
@@ -128,7 +128,7 @@ describe('writeHtmlBatch', () => {
   });
 
   test('strips a leading BOM from batched HTML output', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-emit-batch-'));
     await writeHtmlBatch(dir, [{ outputPath: 'index.html', html: '\uFEFF<h1>home</h1>' }]);
 
     const body = await readFile(join(dir, 'index.html'), 'utf8');
@@ -137,7 +137,7 @@ describe('writeHtmlBatch', () => {
   });
 
   test('preserves global SVG sprite symbols and xlink use references (#1703)', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-svg-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-emit-batch-svg-'));
     const html = [
       '<!doctype html>',
       '<html>',
@@ -161,7 +161,7 @@ describe('writeHtmlBatch', () => {
   });
 
   test('refuses any output that escapes outputDir (#1102)', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-emit-batch-'));
     await expect(
       writeHtmlBatch(dir, [
         { outputPath: 'index.html', html: 'ok' },
@@ -172,14 +172,14 @@ describe('writeHtmlBatch', () => {
   });
 
   test('handles empty input without touching the filesystem (#1102)', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-emit-batch-'));
     await writeHtmlBatch(dir, []);
     // mkdtemp gives us an empty dir; should still be empty afterwards.
     expect(existsSync(join(dir, 'index.html'))).toBe(false);
   });
 
   test('writes many outputs concurrently without dropping any (#1102)', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-emit-batch-'));
     const n = 200;
     const outputs = Array.from({ length: n }, (_, i) => ({
       outputPath: `post-${i}/index.html`,
@@ -195,7 +195,7 @@ describe('writeHtmlBatch', () => {
     // Exercises the chunked write phase: with WRITE_BATCH_SIZE=512 internally,
     // an n=1300 input forces at least three chunks (512+512+276) and surfaces
     // any off-by-one in the chunk boundary or any missed entry at the tail.
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-large-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-emit-batch-large-'));
     const n = 1300;
     const outputs = Array.from({ length: n }, (_, i) => ({
       outputPath: `p/${i}/index.html`,
@@ -216,7 +216,7 @@ describe('writeHtmlBatch', () => {
     // writeHtmlBatch; this test exercises the observable surface: 100
     // siblings in one directory complete in one shot, with the directory
     // existing exactly once and every file landing under it.
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-mkdir-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-emit-batch-mkdir-'));
     const n = 100;
     // All entries share `flat/` so the dedupe target is exactly one parent
     // directory regardless of how chunked iteration would otherwise group
@@ -238,7 +238,7 @@ describe('writeHtmlBatch', () => {
     // routes across 4 unique dirs should still resolve to those 4 dirs
     // total. Verifies the up-front ensureDirs pass collapses repeats both
     // within a chunk and across chunks.
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-mkdir-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-emit-batch-mkdir-'));
     const dirs = ['x', 'y', 'z', 'w'];
     const outputs = Array.from({ length: 1024 }, (_, i) => {
       const bucket = dirs[i % dirs.length] as string;
@@ -252,7 +252,7 @@ describe('writeHtmlBatch', () => {
   });
 
   test('calls recursive mkdir once per unique parent dir, not once per route (#1097)', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-mkdir-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-emit-batch-mkdir-'));
     const outputs: HtmlOutput[] = Array.from({ length: 1024 }, (_, i) => {
       const bucket = i % 2 === 0 ? 'shared/a' : 'shared/b';
       return { outputPath: `${bucket}/p-${i}.html`, html: `<h1>${i}</h1>` };
@@ -286,7 +286,7 @@ describe('writeHtmlBatch', () => {
     // first chunk should land on disk either. Confirms the two-pass design
     // (validate everything, then write chunk-by-chunk) and protects against a
     // future refactor that interleaves validation with disk I/O.
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-emit-batch-reject-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-emit-batch-reject-'));
     const n = 700;
     const outputs = Array.from({ length: n }, (_, i) => ({
       outputPath: i === 600 ? '../escape.html' : `q/${i}/index.html`,
@@ -303,8 +303,8 @@ describe('writeHtmlBatch', () => {
 
 describe('copyAssets', () => {
   test('emits only the fingerprinted file when fingerprinted differs from logical (#1106)', async () => {
-    const srcDir = await mkdtemp(join(tmpdir(), 'nectar-assets-src-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-assets-out-'));
+    const srcDir = await mkdtemp(join(tmpdir(), 'laurel-assets-src-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-assets-out-'));
     const srcCss = join(srcDir, 'screen.css');
     await writeFile(srcCss, 'body{}');
 
@@ -325,8 +325,8 @@ describe('copyAssets', () => {
   });
 
   test('emits non-fingerprinted assets (e.g. fonts) exactly once', async () => {
-    const srcDir = await mkdtemp(join(tmpdir(), 'nectar-assets-src2-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-assets-out2-'));
+    const srcDir = await mkdtemp(join(tmpdir(), 'laurel-assets-src2-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-assets-out2-'));
     const srcFont = join(srcDir, 'Inter.woff2');
     await writeFile(srcFont, 'FONTBYTES');
 
@@ -343,8 +343,8 @@ describe('copyAssets', () => {
   });
 
   test('skips recopying an unchanged fingerprinted asset already in the output dir', async () => {
-    const srcDir = await mkdtemp(join(tmpdir(), 'nectar-assets-skip-src-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-assets-skip-out-'));
+    const srcDir = await mkdtemp(join(tmpdir(), 'laurel-assets-skip-src-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-assets-skip-out-'));
     const srcCss = join(srcDir, 'screen.css');
     const source = 'body{color:red}';
     const hash = sha256Short(source);
@@ -368,8 +368,8 @@ describe('copyAssets', () => {
   });
 
   test('recopies a fingerprinted asset when an existing output has the same size but different bytes', async () => {
-    const srcDir = await mkdtemp(join(tmpdir(), 'nectar-assets-corrupt-src-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-assets-corrupt-out-'));
+    const srcDir = await mkdtemp(join(tmpdir(), 'laurel-assets-corrupt-src-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-assets-corrupt-out-'));
     const srcCss = join(srcDir, 'screen.css');
     const source = 'body{color:red}';
     const hash = sha256Short(source);
@@ -391,8 +391,8 @@ describe('copyAssets', () => {
   });
 
   test('uses a verified manifest entry to skip hashing an unchanged fingerprinted output', async () => {
-    const srcDir = await mkdtemp(join(tmpdir(), 'nectar-assets-manifest-src-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-assets-manifest-out-'));
+    const srcDir = await mkdtemp(join(tmpdir(), 'laurel-assets-manifest-src-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-assets-manifest-out-'));
     const srcCss = join(srcDir, 'screen.css');
     const source = 'body{color:red}';
     const hash = sha256Short(source);
@@ -431,8 +431,8 @@ describe('copyAssets', () => {
   });
 
   test('deduplicates theme asset copies across calls when a shared cache is provided (#1743)', async () => {
-    const srcDir = await mkdtemp(join(tmpdir(), 'nectar-assets-cross-src-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-assets-cross-out-'));
+    const srcDir = await mkdtemp(join(tmpdir(), 'laurel-assets-cross-src-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-assets-cross-out-'));
     const srcCss = join(srcDir, 'screen.css');
     await writeFile(srcCss, 'body{color:red}');
     const cache = createThemeAssetCopyCache();
@@ -467,8 +467,8 @@ describe('copyAssets', () => {
 
 describe('copyContentAssets', () => {
   test('can copy content/images into content-addressed _images paths (#1054)', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-cas-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-cas-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-cas-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-cas-'));
     await mkdir(join(cwd, 'content/images/2024/01'), { recursive: true });
     await mkdir(join(cwd, 'content/images/2025/02'), { recursive: true });
     await writeFile(join(cwd, 'content/images/2024/01/hero.png'), 'SAME');
@@ -488,8 +488,8 @@ describe('copyContentAssets', () => {
   });
 
   test('content-addressed image plan honors metadata strip opt-out', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-cas-exif-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-cas-exif-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-cas-exif-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-cas-exif-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(join(cwd, 'content/images/photo.jpg'), jpegWithExif());
 
@@ -510,11 +510,11 @@ describe('copyContentAssets', () => {
   });
 
   test('skips symlinked content asset files so external secrets are not published', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-'));
     const images = join(cwd, 'content/images');
     await mkdir(images, { recursive: true });
-    const outside = await mkdtemp(join(tmpdir(), 'nectar-outside-'));
+    const outside = await mkdtemp(join(tmpdir(), 'laurel-outside-'));
     const secret = join(outside, 'secret.txt');
     await writeFile(secret, 'SECRET_TOKEN=abc');
     await symlink(secret, join(images, 'oops.png'));
@@ -527,8 +527,8 @@ describe('copyContentAssets', () => {
   });
 
   test('also copies content/files and content/media when present (#73)', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-files-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-files-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-files-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-files-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(join(cwd, 'content/images/a.png'), 'A');
     await mkdir(join(cwd, 'content/files'), { recursive: true });
@@ -544,8 +544,8 @@ describe('copyContentAssets', () => {
   });
 
   test('streams unchanged binary content assets instead of buffering full files (#1083)', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-stream-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-stream-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-stream-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-stream-'));
     const src = join(cwd, 'content/files/handout.pdf');
     const dst = join(outputDir, 'content/files/handout.pdf');
     await mkdir(join(cwd, 'content/images'), { recursive: true });
@@ -593,8 +593,8 @@ describe('copyContentAssets', () => {
   });
 
   test('falls back when Bun streaming copy is unavailable (#1083)', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-stream-fallback-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-stream-fallback-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-stream-fallback-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-stream-fallback-'));
     const src = join(cwd, 'content/files/handout.pdf');
     const dst = join(outputDir, 'content/files/handout.pdf');
     await mkdir(join(cwd, 'content/images'), { recursive: true });
@@ -634,8 +634,8 @@ describe('copyContentAssets', () => {
   });
 
   test('sanitizes SVGs and strips JPEG EXIF metadata while copying content/images', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-sanitize-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-sanitize-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-sanitize-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-sanitize-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(
       join(cwd, 'content/images/unsafe.svg'),
@@ -666,8 +666,8 @@ describe('copyContentAssets', () => {
   });
 
   test('can preserve JPEG EXIF metadata while still sanitizing SVGs', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-sanitize-optout-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-sanitize-optout-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-sanitize-optout-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-sanitize-optout-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(
       join(cwd, 'content/images/unsafe.svg'),
@@ -691,8 +691,8 @@ describe('copyContentAssets', () => {
   });
 
   test('content/files and content/media are optional', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-opt-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-opt-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-opt-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-opt-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(join(cwd, 'content/images/a.png'), 'A');
 
@@ -704,8 +704,8 @@ describe('copyContentAssets', () => {
   });
 
   test('skips raster images larger than maxImageBytes and logs a warning (#138)', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-cap-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-cap-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-cap-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-cap-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     // 5KB cap, with a 4KB image (under) and a 6KB image (over).
     await writeFile(join(cwd, 'content/images/small.jpg'), Buffer.alloc(4 * 1024, 0));
@@ -720,8 +720,8 @@ describe('copyContentAssets', () => {
   });
 
   test('maxImageBytes=0 disables the cap (#138)', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-cap-off-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-cap-off-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-cap-off-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-cap-off-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(join(cwd, 'content/images/huge.jpg'), Buffer.alloc(6 * 1024, 0));
 
@@ -733,8 +733,8 @@ describe('copyContentAssets', () => {
   });
 
   test('maxImageBytes does not skip SVG or non-image files (#138)', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-cap-other-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-cap-other-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-cap-other-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-cap-other-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(join(cwd, 'content/images/huge.svg'), Buffer.alloc(10 * 1024, 0));
     await mkdir(join(cwd, 'content/files'), { recursive: true });
@@ -752,8 +752,8 @@ describe('copyContentAssets', () => {
   });
 
   test('image exactly at maxImageBytes is allowed (#138)', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-cap-eq-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-cap-eq-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-cap-eq-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-cap-eq-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(join(cwd, 'content/images/at-limit.png'), Buffer.alloc(2048, 0));
 
@@ -769,8 +769,8 @@ describe('copyContentAssets', () => {
     // The bounded fan-out keeps file count exact across runs; this test
     // exercises a count well above the concurrency limit (32) so any
     // races would surface as missing or duplicated outputs.
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-parallel-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-parallel-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-parallel-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-parallel-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     const total = 200;
     for (let i = 0; i < total; i++) {
@@ -791,8 +791,8 @@ describe('copyContentAssets', () => {
     // the source's mtime, so the second run hits the stat-compare fast
     // path and the destination's mtime stays exactly as it was — which is
     // the load-bearing observation: copyFile would bump it again.
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-skip-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-skip-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-skip-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-skip-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(join(cwd, 'content/images/stable.png'), 'STABLE');
 
@@ -813,8 +813,8 @@ describe('copyContentAssets', () => {
   test('skip-unchanged re-copies when the source size differs (#520)', async () => {
     // Source has been edited (size differs) -> the fast-path must miss
     // and the new bytes need to land in the destination.
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-resize-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-resize-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-resize-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-resize-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     const src = join(cwd, 'content/images/edited.png');
     await writeFile(src, 'OLD');
@@ -831,8 +831,8 @@ describe('copyContentAssets', () => {
     // Same byte count, different mtime: still treat as changed. mtime is
     // the cheap heuristic; users who want content-hash equivalence can
     // layer the incremental-build cache on top.
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-touch-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-touch-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-touch-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-touch-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     const src = join(cwd, 'content/images/touched.png');
     await writeFile(src, 'AAA');
@@ -855,8 +855,8 @@ describe('copyContentAssets', () => {
     // ENOENT on the optional dirs is the expected hot path — the loader
     // already documents `content/files` and `content/media` as optional. A
     // warning on every site that does not use them would be log noise.
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-quiet-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-quiet-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-quiet-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-quiet-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(join(cwd, 'content/images/only.png'), 'X');
 
@@ -873,8 +873,8 @@ describe('copyContentAssets', () => {
     // `catch {}` and produce a deceptively-quiet "0 files copied" result.
     // With the #776 fix the operator gets a warning so the broken layout
     // is visible at build time.
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-cca-warn-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-out-warn-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-cca-warn-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-out-warn-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(join(cwd, 'content/images/ok.png'), 'OK');
     // `content/files` exists, but as a regular file — scan will trip.

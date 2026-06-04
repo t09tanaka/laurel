@@ -3,7 +3,7 @@ import type { ThemePackage } from '~/theme/types.ts';
 import { generateThemeCustomTomlSnippet } from '~/theme/validate-custom.ts';
 
 describe('generateThemeCustomTomlSnippet', () => {
-  test('renders a nectar.toml snippet from theme package custom settings', () => {
+  test('renders a laurel.toml snippet from theme package custom settings', () => {
     const pkg = {
       name: 'custom-theme',
       version: '1.0.0',

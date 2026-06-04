@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Cross-cutting integration tests for `nectar import-ghost` (#663 / #692).
+// Cross-cutting integration tests for `laurel import-ghost` (#663 / #692).
 // Per-flag importer behaviour is exercised in tests/ghost/import*.test.ts and
 // tests/cli/commands/import-ghost.test.ts; this file is the regression net for
 // help, exit codes, and the happy path through the real spawned binary using
@@ -38,7 +38,7 @@ describe('cli integration — import-ghost (#663/#692)', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-int-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-int-')));
   });
 
   afterEach(async () => {

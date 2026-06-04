@@ -1,6 +1,6 @@
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import type { RouteContext } from '~/render/types.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 
@@ -13,7 +13,7 @@ import type { ThemeBundle } from '~/theme/types.ts';
 export interface BuildContext {
   readonly cwd: string;
   readonly outputDir: string;
-  readonly config: NectarConfig;
+  readonly config: LaurelConfig;
   readonly content: ContentGraph;
   readonly theme: ThemeBundle;
   // Render engine handed to plugins so `beforeBuild` can call
@@ -21,7 +21,7 @@ export interface BuildContext {
   // very early hooks (before engine creation) may receive a context without an
   // engine; production builds always populate this by the time the first
   // plugin hook fires (`beforeBuild` runs after engine construction).
-  readonly engine: NectarEngine;
+  readonly engine: LaurelEngine;
 }
 
 // Markdown transform context handed to `transformMarkdown` hooks. `kind` lets
@@ -104,7 +104,7 @@ export interface Plugin {
   transformMarkdown?: (input: string, ctx: MarkdownTransformContext) => string | Promise<string>;
 }
 
-// Module shape Nectar accepts when dynamic-importing a plugin path. The
+// Module shape Laurel accepts when dynamic-importing a plugin path. The
 // loader accepts either a `default` export or a named `plugin` export; both
 // may be a factory function or a plain object satisfying the `Plugin` shape.
 export type PluginModuleShape =
@@ -119,15 +119,15 @@ export type PluginFactory = () => Plugin | Promise<Plugin>;
 // Signature for a Handlebars helper registered via the engine's
 // `registerHelper` shortcut. Mirrors Handlebars' own `HelperDelegate` shape
 // without dragging the full handlebars type signature into plugin code.
-export type NectarHelper = (this: unknown, ...args: unknown[]) => unknown;
+export type LaurelHelper = (this: unknown, ...args: unknown[]) => unknown;
 
 // Legacy plugin shape published before the full hook surface existed. Kept
 // alive as an alias because downstream code already imports it from
-// `nectar/types`. The new `Plugin` interface is a structural superset (every
-// `NectarPlugin` is a valid `Plugin` if its `setup` is renamed to
+// `laurel/types`. The new `Plugin` interface is a structural superset (every
+// `LaurelPlugin` is a valid `Plugin` if its `setup` is renamed to
 // `beforeBuild`), but we keep the legacy name resolvable so existing code
 // keeps compiling.
-export interface NectarPlugin {
+export interface LaurelPlugin {
   readonly name: string;
   setup?: (ctx: BuildContext) => void | Promise<void>;
 }

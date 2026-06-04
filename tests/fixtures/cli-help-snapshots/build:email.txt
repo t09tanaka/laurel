@@ -1,7 +1,7 @@
 Render a theme email template for one post
 
 Usage:
-  nectar build:email [--config <path>] [--output <dir>] [--post <slug>] [--json]
+  laurel build:email [--config <path>] [--output <dir>] [--post <slug>] [--json]
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -11,9 +11,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --config → NECTAR_BUILD_EMAIL_CONFIG
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → LAUREL_BUILD_EMAIL_CONFIG
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -21,5 +21,5 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar build:email --post=weekly-update
-  nectar build:email --post=weekly-update --output dist-email-preview
+  laurel build:email --post=weekly-update
+  laurel build:email --post=weekly-update --output dist-email-preview

@@ -7,19 +7,19 @@ import { SCHEMA_SPEC } from '../specs.ts';
 
 const SCHEMA_TARGETS = {
   config: {
-    name: 'NectarConfig',
+    name: 'LaurelConfig',
     schema: configSchema,
-    title: 'Nectar config schema',
+    title: 'Laurel config schema',
   },
   frontmatter: {
-    name: 'NectarFrontmatter',
+    name: 'LaurelFrontmatter',
     schema: frontmatterSchema,
-    title: 'Nectar frontmatter schema',
+    title: 'Laurel frontmatter schema',
   },
   theme: {
-    name: 'NectarThemePackage',
+    name: 'LaurelThemePackage',
     schema: themePackageJsonSchema,
-    title: 'Nectar theme package.json schema',
+    title: 'Laurel theme package.json schema',
   },
 } as const;
 

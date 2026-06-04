@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
 import { SUBSCRIBE_NOOP_REASON, SUBSCRIBE_NOOP_RUNTIME_WARNING } from '~/members/noop.ts';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import { registerHelpers } from '~/render/helpers/index.ts';
 import { registerMemberHelpers } from '~/render/helpers/members.ts';
 
-function makeEngine(overrides: Partial<NectarEngine> = {}): NectarEngine {
+function makeEngine(overrides: Partial<LaurelEngine> = {}): LaurelEngine {
   const hb = Handlebars.create();
   return {
     hb,
@@ -16,7 +16,7 @@ function makeEngine(overrides: Partial<NectarEngine> = {}): NectarEngine {
         subscribe: { provider: 'none', method: 'post' },
       },
       theme: { custom: {} },
-    } as unknown as NectarEngine['config'],
+    } as unknown as LaurelEngine['config'],
     content: {
       site: {
         title: 'Example',
@@ -29,7 +29,7 @@ function makeEngine(overrides: Partial<NectarEngine> = {}): NectarEngine {
       tags: [],
       authors: [],
       tiers: [],
-    } as unknown as NectarEngine['content'],
+    } as unknown as LaurelEngine['content'],
     theme: {
       name: 'test',
       partials: {},
@@ -42,7 +42,7 @@ function makeEngine(overrides: Partial<NectarEngine> = {}): NectarEngine {
         customDefaults: {},
       },
       locales: {},
-    } as unknown as NectarEngine['theme'],
+    } as unknown as LaurelEngine['theme'],
     templates: {},
     layouts: {},
     sortedCache: new Map(),
@@ -50,7 +50,7 @@ function makeEngine(overrides: Partial<NectarEngine> = {}): NectarEngine {
       throw new Error('not used');
     },
     ...overrides,
-  } as unknown as NectarEngine;
+  } as unknown as LaurelEngine;
 }
 
 describe('member helpers', () => {
@@ -111,7 +111,7 @@ describe('member helpers', () => {
           subscribe: { provider: 'none', method: 'post' },
         },
         theme: { custom: {} },
-      } as unknown as NectarEngine['config'],
+      } as unknown as LaurelEngine['config'],
     });
     registerMemberHelpers(engine);
     expect(engine.hb.compile('{{signup_url}}')({})).toBe('https://buttondown.email/letters');
@@ -131,7 +131,7 @@ describe('member helpers', () => {
           subscribe: { provider: 'none', method: 'post' },
         },
         theme: { custom: {} },
-      } as unknown as NectarEngine['config'],
+      } as unknown as LaurelEngine['config'],
     });
     registerMemberHelpers(engine);
     expect(engine.hb.compile('{{signup_url}}')({})).toBe(
@@ -162,7 +162,7 @@ describe('member helpers', () => {
         tags: [],
         authors: [],
         tiers: [],
-      } as unknown as NectarEngine['content'],
+      } as unknown as LaurelEngine['content'],
     });
     registerMemberHelpers(engine);
     expect(engine.hb.compile('{{member_count}}')({})).toBe('1,200+');
@@ -184,7 +184,7 @@ describe('member helpers', () => {
           subscribe: { provider: 'buttondown', username: 'letters', method: 'post' },
         },
         theme: { custom: {} },
-      } as unknown as NectarEngine['config'],
+      } as unknown as LaurelEngine['config'],
     });
     registerMemberHelpers(engine);
     const html = engine.hb.compile('{{signup buttonText="Join <today>"}}')({});
@@ -197,7 +197,7 @@ describe('member helpers', () => {
     const engine = makeEngine();
     registerMemberHelpers(engine);
     const html = engine.hb.compile('{{signup name=true}}')({});
-    expect(html).toContain(`data-nectar-noop="${SUBSCRIBE_NOOP_REASON}"`);
+    expect(html).toContain(`data-laurel-noop="${SUBSCRIBE_NOOP_REASON}"`);
     expect(html).toContain('window.console.warn');
     expect(html).toContain(SUBSCRIBE_NOOP_RUNTIME_WARNING);
     expect(html).toContain('onsubmit=');
@@ -224,7 +224,7 @@ describe('member helpers', () => {
         tags: [],
         authors: [],
         tiers: [{ id: 'free', slug: 'free', name: 'Free' }],
-      } as unknown as NectarEngine['content'],
+      } as unknown as LaurelEngine['content'],
     });
     registerMemberHelpers(engine);
     expect(engine.hb.compile('{{tiers}}')({})).toBe('Free tier');

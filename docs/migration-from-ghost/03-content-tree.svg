@@ -1,11 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360" role="img" aria-label="File tree of a Nectar project after running import-ghost">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360" role="img" aria-label="File tree of a Laurel project after running import-ghost">
   <title>Project file tree after import</title>
   <desc>The content/ directory contains posts, pages, tags, authors, images, files, and media subfolders, with a sample Markdown file shown.</desc>
   <rect width="720" height="360" fill="#ffffff"/>
   <rect x="0" y="0" width="720" height="360" fill="#fafafa"/>
   <g font-family="SF Mono, ui-monospace, Menlo, monospace" font-size="13" fill="#15171a">
     <text x="24" y="40">my-blog/</text>
-    <text x="48" y="64">nectar.toml</text>
+    <text x="48" y="64">laurel.toml</text>
     <text x="48" y="88">themes/</text>
     <text x="72" y="112">source/</text>
     <text x="48" y="136">content/</text>
@@ -32,7 +32,7 @@
     <text x="436" y="200">status: published</text>
     <text x="436" y="216">---</text>
     <text x="436" y="240">Hi everyone, this is our new blog.</text>
-    <text x="436" y="260">It runs on **Nectar**, but reads</text>
+    <text x="436" y="260">It runs on **Laurel**, but reads</text>
     <text x="436" y="280">like Ghost.</text>
   </g>
 </svg>

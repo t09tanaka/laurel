@@ -1,4 +1,4 @@
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 import type {
   PortalAdapter,
   ResolvedSubscribeForm,
@@ -6,15 +6,15 @@ import type {
 } from '../portal-adapter.ts';
 
 // MailerLite embeds expose the full public form action in the generated HTML.
-// Operators paste that action verbatim; Nectar only maps Ghost's generic
+// Operators paste that action verbatim; Laurel only maps Ghost's generic
 // members inputs to MailerLite's field names.
 export const mailerLiteAdapter: PortalAdapter = {
   provider: 'mailerlite',
   resolve(cfg: SubscribeAdapterConfig): ResolvedSubscribeForm {
     if (!cfg.action) {
-      throw new NectarError({
+      throw new LaurelError({
         message: 'components.subscribe.action is required when provider is "mailerlite"',
-        hint: 'Set components.subscribe.action in nectar.toml to the action URL from your MailerLite embedded form HTML',
+        hint: 'Set components.subscribe.action in laurel.toml to the action URL from your MailerLite embedded form HTML',
         code: 'config',
       });
     }

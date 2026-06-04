@@ -1,15 +1,15 @@
-# Nectar — Ghost-compatible Static Site Generator
+# Laurel — Ghost-compatible Static Site Generator
 
 ## What this project is
 
-Nectar is a **static site generator that consumes Ghost themes** (the `.hbs` Handlebars
+Laurel is a **static site generator that consumes Ghost themes** (the `.hbs` Handlebars
 templates Ghost publishes use) and **Markdown content from a Git repository**, and
 emits a fully static site. The runtime is Bun + TypeScript. There is no server, no
 admin UI, and no database.
 
 The compatibility target is the official Ghost **Source** theme (vendored at
 `example/themes/source/`). If Source renders end-to-end against `example/` content,
-Nectar's Ghost compatibility surface is doing its job.
+Laurel's Ghost compatibility surface is doing its job.
 
 ## Architectural pillars
 
@@ -18,21 +18,21 @@ Nectar's Ghost compatibility surface is doing its job.
    `is`, `match`, `has`, `get`, `t`, `date`, `reading_time`, …), and the Ghost
    context shape (`@site`, `@custom`, `post`, `page`, `author`, `tag`, pagination).
 2. **Markdown/Git content** — `content/posts/**/*.md` with YAML frontmatter is the
-   source of truth. No CMS. `nectar build` regenerates everything.
+   source of truth. No CMS. `laurel build` regenerates everything.
 3. **Static-only runtime** — output is plain HTML/CSS/JS/assets. No server-side
    rendering at request time. Anything that *requires* a server (members,
    subscriptions, search backend) is either stubbed or hooked through an optional
    client-only component.
 4. **Optional components** — features like search, comments, RSS, sitemap, OG
    images, and JSON feeds plug in by config; they are not core.
-5. **Migration tooling** — `nectar import-ghost` ingests a Ghost JSON export and
-   writes Markdown + assets into `content/`. `nectar import-wordpress` does the
+5. **Migration tooling** — `laurel import-ghost` ingests a Ghost JSON export and
+   writes Markdown + assets into `content/`. `laurel import-wordpress` does the
    same for a WordPress WXR XML export.
 
 ## Repo layout
 
 ```
-nectar/
+laurel/
 ├── src/                       # SSG implementation
 │   ├── cli/                   # CLI entry, command dispatch
 │   ├── content/               # Markdown + frontmatter loader, content graph
@@ -40,11 +40,11 @@ nectar/
 │   ├── render/                # Handlebars engine wiring, Ghost helpers, context builders
 │   ├── ghost/                 # Ghost-compat surface: helpers, contexts, import tool
 │   ├── build/                 # Build pipeline, routing, pagination, sitemap, asset copy
-│   ├── config/                # nectar.toml schema + loader
+│   ├── config/                # laurel.toml schema + loader
 │   └── util/                  # logger, fs helpers, path helpers
 ├── tests/                     # bun test suite, mirrors src/ layout
 ├── example/                   # The reference blog site
-│   ├── nectar.toml
+│   ├── laurel.toml
 │   ├── content/
 │   │   ├── posts/
 │   │   ├── pages/
@@ -75,7 +75,7 @@ nectar/
 
 ## Ghost compatibility scoping
 
-Ghost has a *huge* surface area. Nectar covers the subset needed to render
+Ghost has a *huge* surface area. Laurel covers the subset needed to render
 real-world themes against static Markdown content. The current explicit scope is:
 
 **Implemented (MVP):**
@@ -101,7 +101,7 @@ real-world themes against static Markdown content. The current explicit scope is
 - Live preview / drafts via API.
 - Multi-locale routing. One build = one locale (set via `[site].locale`).
   No `/en/foo/` + `/ja/foo/` split, no per-locale content subdir convention,
-  no language switcher. Run one Nectar build per locale and stitch at the
+  no language switcher. Run one Laurel build per locale and stitch at the
   host. See `docs/DESIGN.md` §1 Non-goals.
 
 ## Workflow rules
@@ -122,7 +122,7 @@ real-world themes against static Markdown content. The current explicit scope is
   checkout, auto-builds the frontend bundle into memory at startup if any
   `src/cli/dashboard/web/**` file is newer than the embedded
   `src/cli/dashboard/bundled-assets.ts` (an mtime fast path skips the rebuild
-  when the source is unchanged). So a plain `nectar dashboard` reflects your
+  when the source is unchanged). So a plain `laurel dashboard` reflects your
   latest `web/**` edits without a manual `build-dashboard-bundle.ts` run. Pass
   `--no-build` to skip the auto-build and serve the embedded bundle as-is. The
   npm-published CLI / compiled binary has no `web/**` source or tailwind, so it
@@ -142,7 +142,7 @@ real-world themes against static Markdown content. The current explicit scope is
   iteration; confirm look-and-feel against the prod bundle.
 - **When you run `scripts/build-dashboard-bundle.ts` and serve the committed
   `dist/dashboard-bundle/` (the published-CLI path), RESTART any running prod
-  dashboard.** A plain source-run `nectar dashboard` rebuilds on launch, so this
+  dashboard.** A plain source-run `laurel dashboard` rebuilds on launch, so this
   only bites the explicit-bundle workflow. The prod server loads its bundle into
   memory at startup and serves it from there, so a rebuild does not reach an
   already-running server and a browser reload alone shows stale UI. Kill and
@@ -150,7 +150,7 @@ real-world themes against static Markdown content. The current explicit scope is
 
 ## What "done" looks like for the bootstrap milestone
 
-`cd example && bun ../src/cli/index.ts build` (or `bunx nectar build`) writes a
+`cd example && bun ../src/cli/index.ts build` (or `bunx laurel build`) writes a
 static site into `example/dist/` that:
 
 1. Has `index.html`, `<post-slug>/index.html`, `tag/<tag>/index.html`,

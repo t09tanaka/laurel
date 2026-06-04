@@ -24,12 +24,12 @@ export function renderConfigReference(schema: z.ZodTypeAny = configSchema): stri
   const root = describeRootObject(schema);
   const lines: string[] = [];
 
-  lines.push('# Nectar configuration reference');
+  lines.push('# Laurel configuration reference');
   lines.push('');
   lines.push(AUTOGEN_BANNER);
   lines.push('');
   lines.push(
-    'This page lists every key understood by Nectar config files. It is generated from the',
+    'This page lists every key understood by Laurel config files. It is generated from the',
     'Zod schema in `src/config/schema.ts`; run `bun run docs:config` after changing a',
     'field to refresh it.',
   );
@@ -42,19 +42,19 @@ export function renderConfigReference(schema: z.ZodTypeAny = configSchema): stri
   lines.push('## File discovery and precedence');
   lines.push('');
   lines.push(
-    'When a caller does not provide an explicit config path, Nectar looks only in',
-    'the current working directory. It checks `nectar.toml`, `nectar.config.toml`,',
-    'then `nectar.config.json`; the first existing base file wins. If `NECTAR_ENV`',
-    'is set, Nectar then appends `nectar.<env>.toml` when that file exists.',
-    'Finally, `.nectar.local.toml` is appended when present so local overrides',
-    'written by `nectar config set` win over the base and environment layers. If',
+    'When a caller does not provide an explicit config path, Laurel looks only in',
+    'the current working directory. It checks `laurel.toml`, `laurel.config.toml`,',
+    'then `laurel.config.json`; the first existing base file wins. If `LAUREL_ENV`',
+    'is set, Laurel then appends `laurel.<env>.toml` when that file exists.',
+    'Finally, `.laurel.local.toml` is appended when present so local overrides',
+    'written by `laurel config set` win over the base and environment layers. If',
     'no config file exists, the schema defaults shown below are used.',
   );
   lines.push('');
   lines.push(
     'Passing `--config <path>` on the CLI, setting the command-specific config',
-    'environment variable such as `NECTAR_BUILD_CONFIG`, or passing',
-    '`configPath` to the build API disables discovery and `NECTAR_ENV` file',
+    'environment variable such as `LAUREL_BUILD_CONFIG`, or passing',
+    '`configPath` to the build API disables discovery and `LAUREL_ENV` file',
     'selection. Repeat `--config` or comma-separate paths to load multiple files;',
     'later files deep-merge over earlier files, with arrays and scalar values',
     'replaced. Relative config paths are resolved from the command or API `cwd`.',
@@ -63,9 +63,9 @@ export function renderConfigReference(schema: z.ZodTypeAny = configSchema): stri
   lines.push(
     'The value precedence for config-backed behaviour is: CLI flag, then',
     'command-specific env var, then config file, then schema default. Separately,',
-    '`NECTAR_<SECTION>_<KEY>` environment variables override matching config',
+    '`LAUREL_<SECTION>_<KEY>` environment variables override matching config',
     'keys after the file is parsed, for example',
-    '`NECTAR_SITE_URL=https://preview.example`. String, number, boolean, and',
+    '`LAUREL_SITE_URL=https://preview.example`. String, number, boolean, and',
     'array keys are coerced through the same schema parser as TOML config;',
     'primitive arrays may be comma-separated or JSON arrays, while object arrays',
     'must be JSON arrays.',
@@ -73,31 +73,31 @@ export function renderConfigReference(schema: z.ZodTypeAny = configSchema): stri
   lines.push('');
   lines.push(
     'On Netlify `deploy-preview` and `branch-deploy` builds, `DEPLOY_PRIME_URL`',
-    'is used as a `site.url` fallback when `NECTAR_SITE_URL` is unset; Nectar',
+    'is used as a `site.url` fallback when `LAUREL_SITE_URL` is unset; Laurel',
     'falls back to `DEPLOY_URL`, then `URL`. Build-level `--base-url` and',
-    '`NECTAR_BUILD_BASE_URL` still override that loaded config value.',
+    '`LAUREL_BUILD_BASE_URL` still override that loaded config value.',
   );
   lines.push('');
   lines.push(
     'On Vercel builds, `VERCEL_URL` is used as the same `site.url` fallback',
-    'when `NECTAR_SITE_URL` is unset; host-only values are treated as HTTPS.',
+    'when `LAUREL_SITE_URL` is unset; host-only values are treated as HTTPS.',
     '`VERCEL_GIT_COMMIT_REF` and `VERCEL_GIT_COMMIT_SHA` populate',
     '`build.metadata.branch` and `build.metadata.commit_sha`, unless an',
-    'explicit Nectar build metadata env var overrides them.',
+    'explicit Laurel build metadata env var overrides them.',
   );
   lines.push('');
   lines.push(
     'On Cloudflare Pages builds, `CF_PAGES_URL` is used as the same `site.url`',
-    'fallback when `NECTAR_SITE_URL` is unset. `CF_PAGES_BRANCH` and',
+    'fallback when `LAUREL_SITE_URL` is unset. `CF_PAGES_BRANCH` and',
     '`CF_PAGES_COMMIT_SHA` populate `build.metadata.branch` and',
-    '`build.metadata.commit_sha`, unless an explicit Nectar build metadata env',
+    '`build.metadata.commit_sha`, unless an explicit Laurel build metadata env',
     'var overrides them.',
   );
   lines.push('');
   lines.push(
     '`build.metadata` is surfaced to templates as `@site.build`. Precedence for',
-    'branch / build ID / commit SHA is: `NECTAR_BUILD_METADATA_*` env vars,',
-    'short Nectar aliases such as `NECTAR_BUILD_ID` and `NECTAR_COMMIT_SHA`,',
+    'branch / build ID / commit SHA is: `LAUREL_BUILD_METADATA_*` env vars,',
+    'short Laurel aliases such as `LAUREL_BUILD_ID` and `LAUREL_COMMIT_SHA`,',
     'provider env such as `VERCEL_GIT_COMMIT_SHA` or `CF_PAGES_COMMIT_SHA`,',
     'then generic CI env such as `BUILD_ID`, `COMMIT_SHA`, `COMMIT_REF`, and',
     '`GITHUB_SHA`.',

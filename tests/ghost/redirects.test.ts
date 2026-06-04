@@ -139,7 +139,7 @@ describe('redirects — loadRedirectsJson', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'nectar-redirects-'));
+    dir = await mkdtemp(join(tmpdir(), 'laurel-redirects-'));
   });
 
   afterEach(async () => {
@@ -172,7 +172,7 @@ describe('importGhostExport — redirects integration (#503)', () => {
   let exportDir: string;
 
   beforeEach(async () => {
-    cwd = await mkdtemp(join(tmpdir(), 'nectar-import-redirects-'));
+    cwd = await mkdtemp(join(tmpdir(), 'laurel-import-redirects-'));
     exportDir = join(cwd, 'export');
     await ensureDir(exportDir);
   });

@@ -8,7 +8,7 @@ import { configSchema } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-algolia-'));
+  return mkdtemp(join(tmpdir(), 'laurel-algolia-'));
 }
 
 function makeTag(overrides: Partial<Tag> = {}): Tag {
@@ -275,14 +275,14 @@ describe('buildAlgoliaRecords', () => {
 });
 
 describe('emitAlgoliaRecords', () => {
-  test('writes .nectar/algolia-records.json when toggle is on', async () => {
+  test('writes .laurel/algolia-records.json when toggle is on', async () => {
     const outputDir = await makeOutputDir();
     const config = configSchema.parse({
       site: { title: 'S', url: 'https://x.test' },
       components: { search: { emit_algolia_records: true } },
     });
     const dest = await emitAlgoliaRecords({ config, content: makeContent(), outputDir });
-    expect(dest).toBe(join(outputDir, '.nectar', 'algolia-records.json'));
+    expect(dest).toBe(join(outputDir, '.laurel', 'algolia-records.json'));
     const body = JSON.parse(readFileSync(dest as string, 'utf8'));
     expect(body.records.length).toBeGreaterThan(0);
     expect(body.records[0].objectID).toBeDefined();
@@ -297,7 +297,7 @@ describe('emitAlgoliaRecords', () => {
     });
     const dest = await emitAlgoliaRecords({ config, content: makeContent(), outputDir });
     expect(dest).toBeNull();
-    expect(existsSync(join(outputDir, '.nectar', 'algolia-records.json'))).toBe(false);
+    expect(existsSync(join(outputDir, '.laurel', 'algolia-records.json'))).toBe(false);
   });
 
   test('skips when search is disabled', async () => {

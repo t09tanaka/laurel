@@ -401,7 +401,7 @@
     color: var(--sidebar-ink);
   }
   .brand:before {
-    /* Removed — the italic serif "Nectar" carries its own identity now.
+    /* Removed — the italic serif "Laurel" carries its own identity now.
      * The brand-green color appears only on semantic surfaces. */
     content: none;
   }
@@ -5990,7 +5990,7 @@
     padding: 1px 5px;
     border-radius: 3px;
   }
-  /* Top-of-dashboard banner that fires when [theme] in nectar.toml points at
+  /* Top-of-dashboard banner that fires when [theme] in laurel.toml points at
    * a directory that doesn't exist on disk. Rendered as a global strip in
    * the shell grid row above sidebar+main (`grid-column: 1 / -1`) so it
    * reads as a workspace-level alert rather than a posts-scoped error.

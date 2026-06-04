@@ -35,7 +35,7 @@ export const BUILD_SPEC: CommandSpec = {
     profile: {
       type: 'boolean',
       description:
-        'Write dist/.nectar-build-stats.json with phase timings, per-route render durations, slowest routes, helper hotspots, and peak RSS for diagnosing slow or memory-heavy builds',
+        'Write dist/.laurel-build-stats.json with phase timings, per-route render durations, slowest routes, helper hotspots, and peak RSS for diagnosing slow or memory-heavy builds',
     },
     atomic: {
       type: 'boolean',
@@ -43,7 +43,7 @@ export const BUILD_SPEC: CommandSpec = {
       description:
         'Use atomic staging: write into a sibling temp dir before renaming into build.output_dir',
       negatedDescription:
-        'Disable atomic staging: write directly into build.output_dir instead of a sibling temp dir. Faster on slow filesystems but a mid-build failure leaves a half-written output and skips .nectarignore preservation; intended as an escape hatch for sandboxed CI runners where the rename-into-place step is restricted',
+        'Disable atomic staging: write directly into build.output_dir instead of a sibling temp dir. Faster on slow filesystems but a mid-build failure leaves a half-written output and skips .laurelignore preservation; intended as an escape hatch for sandboxed CI runners where the rename-into-place step is restricted',
     },
     concurrency: {
       type: 'string',
@@ -59,12 +59,12 @@ export const BUILD_SPEC: CommandSpec = {
     'include-drafts': {
       type: 'boolean',
       description:
-        'Include posts and pages whose status is not published or scheduled (`status: draft`, `needs-review`, or `approved`) in the build. Default is to exclude them so a forgotten WIP or in-review entry cannot accidentally ship. Emits a "Building with drafts" warning so the looser policy is visible in CI logs. NECTAR_DRAFTS=1 is honoured as a shorter env-var alias alongside the standard NECTAR_BUILD_INCLUDE_DRAFTS',
+        'Include posts and pages whose status is not published or scheduled (`status: draft`, `needs-review`, or `approved`) in the build. Default is to exclude them so a forgotten WIP or in-review entry cannot accidentally ship. Emits a "Building with drafts" warning so the looser policy is visible in CI logs. LAUREL_DRAFTS=1 is honoured as a shorter env-var alias alongside the standard LAUREL_BUILD_INCLUDE_DRAFTS',
     },
     force: {
       type: 'boolean',
       description:
-        'Ignore the previous build manifest (.nectar-manifest.json in the output dir) and re-render every route from scratch. Default behaviour reuses unchanged route HTML when the per-route hash (config + site + theme + template + route data) matches the last successful build; use --force as an escape hatch when the incremental cache appears stale or corrupted',
+        'Ignore the previous build manifest (.laurel-manifest.json in the output dir) and re-render every route from scratch. Default behaviour reuses unchanged route HTML when the per-route hash (config + site + theme + template + route data) matches the last successful build; use --force as an escape hatch when the incremental cache appears stale or corrupted',
     },
     clean: {
       type: 'boolean',
@@ -85,7 +85,7 @@ export const BUILD_SPEC: CommandSpec = {
       type: 'boolean',
       default: true,
       description:
-        'Print human-readable build progress and summary lines to stdout. Interactive terminals show an in-place spinner and route counter such as `Rendering 12/150...`; piped output uses periodic plain progress logs. Enabled by default; pass --no-progress to keep warnings/errors on stderr while suppressing build progress output. This keeps warnings/errors visible when running `nectar build > build.log`',
+        'Print human-readable build progress and summary lines to stdout. Interactive terminals show an in-place spinner and route counter such as `Rendering 12/150...`; piped output uses periodic plain progress logs. Enabled by default; pass --no-progress to keep warnings/errors on stderr while suppressing build progress output. This keeps warnings/errors visible when running `laurel build > build.log`',
       negatedDescription:
         'Suppress human-readable build progress and summary lines on stdout while keeping warnings/errors on stderr',
     },
@@ -99,7 +99,7 @@ export const BUILD_SPEC: CommandSpec = {
     watch: {
       type: 'boolean',
       description:
-        'After the initial build, keep the process alive and rebuild on changes to content/, theme/, and nectar.toml. Uses fs.watch with a 100ms debounce; no HTTP server (pair with `nectar serve` or an external static host). Errors in follow-up builds are logged but do not exit; Ctrl-C / SIGTERM stops the loop',
+        'After the initial build, keep the process alive and rebuild on changes to content/, theme/, and laurel.toml. Uses fs.watch with a 100ms debounce; no HTTP server (pair with `laurel serve` or an external static host). Errors in follow-up builds are logged but do not exit; Ctrl-C / SIGTERM stops the loop',
     },
     'emit-content-api': {
       type: 'boolean',
@@ -112,19 +112,19 @@ export const BUILD_SPEC: CommandSpec = {
     json: {
       type: 'boolean',
       description:
-        'Emit the build completion event as one final JSON line ({ event: "build.done", routeCount, assetCount, outputDir, warningCount, renderedCount, skippedCount, dryRun }) on stdout for CI consumption. Human progress is suppressed; warnings/errors still go to stderr so `nectar build --json > build.jsonl` does not hide failures',
+        'Emit the build completion event as one final JSON line ({ event: "build.done", routeCount, assetCount, outputDir, warningCount, renderedCount, skippedCount, dryRun }) on stdout for CI consumption. Human progress is suppressed; warnings/errors still go to stderr so `laurel build --json > build.jsonl` does not hide failures',
     },
   },
   positionals: [],
   examples: [
-    'nectar build                                 # one-shot build into dist/',
-    'nectar build --strict                        # fail when the build emits any warnings',
-    'nectar build --output dist-preview --base-path /preview/',
-    'nectar build --dry-run --verbose             # plan routes without writing anything',
-    'nectar build --profile                       # write timings and peak RSS to dist/.nectar-build-stats.json',
-    'BUN_INSPECT=1 nectar build --profile         # attach Bun inspector for heap snapshots while profiling',
-    'nectar build --watch                         # rebuild on content/theme/config changes',
-    'nectar build --json                          # emit the summary as JSON for CI',
+    'laurel build                                 # one-shot build into dist/',
+    'laurel build --strict                        # fail when the build emits any warnings',
+    'laurel build --output dist-preview --base-path /preview/',
+    'laurel build --dry-run --verbose             # plan routes without writing anything',
+    'laurel build --profile                       # write timings and peak RSS to dist/.laurel-build-stats.json',
+    'BUN_INSPECT=1 laurel build --profile         # attach Bun inspector for heap snapshots while profiling',
+    'laurel build --watch                         # rebuild on content/theme/config changes',
+    'laurel build --json                          # emit the summary as JSON for CI',
   ],
 };
 
@@ -157,8 +157,8 @@ export const BUILD_EMAIL_SPEC: CommandSpec = {
   },
   positionals: [],
   examples: [
-    'nectar build:email --post=weekly-update',
-    'nectar build:email --post=weekly-update --output dist-email-preview',
+    'laurel build:email --post=weekly-update',
+    'laurel build:email --post=weekly-update --output dist-email-preview',
   ],
 };
 
@@ -235,14 +235,14 @@ export const NEW_SPEC: CommandSpec = {
     },
   ],
   examples: [
-    'nectar new post "Hello World"               # content/posts/hello-world.md',
-    'nectar new post "日本語タイトル" --slug japanese-title',
-    'nectar new post "Draft Idea" --draft        # status: draft so the build skips it',
-    'nectar new post "Tagged" --tags news,tech --author jane',
-    'cat post.md | nectar new post --stdin       # derive title/body from Markdown stdin',
-    'nectar new tag releases                      # content/tags/releases.md',
-    'nectar new author jane                       # content/authors/jane.md',
-    'nectar new event "Launch Party"              # custom kind from config/theme manifest',
+    'laurel new post "Hello World"               # content/posts/hello-world.md',
+    'laurel new post "日本語タイトル" --slug japanese-title',
+    'laurel new post "Draft Idea" --draft        # status: draft so the build skips it',
+    'laurel new post "Tagged" --tags news,tech --author jane',
+    'cat post.md | laurel new post --stdin       # derive title/body from Markdown stdin',
+    'laurel new tag releases                      # content/tags/releases.md',
+    'laurel new author jane                       # content/authors/jane.md',
+    'laurel new event "Launch Party"              # custom kind from config/theme manifest',
   ],
 };
 
@@ -275,9 +275,9 @@ export const DEV_SPEC: CommandSpec = {
   },
   positionals: [],
   examples: [
-    'nectar dev                                   # http://localhost:4321 with live reload',
-    'nectar dev --port 8080                       # pick a different port',
-    'nectar dev --host 0.0.0.0                    # expose on the LAN (mobile testing)',
+    'laurel dev                                   # http://localhost:4321 with live reload',
+    'laurel dev --port 8080                       # pick a different port',
+    'laurel dev --host 0.0.0.0                    # expose on the LAN (mobile testing)',
   ],
 };
 
@@ -349,15 +349,15 @@ export const SERVE_SPEC: CommandSpec = {
   },
   positionals: [],
   examples: [
-    'nectar serve                                 # local preview of dist/ + rebuild on change',
-    'nectar serve --no-watch                      # serve dist/ as a static snapshot',
-    'nectar serve --open                          # open the local preview in a browser',
-    'nectar serve --simulate netlify --no-watch   # apply emitted _headers/_redirects locally',
-    'nectar serve --compression auto              # enable br/gzip negotiation',
-    'nectar serve --proxy https://ghost.example.com',
-    'nectar serve --tls-cert cert.pem --tls-key key.pem',
-    'nectar serve --build                         # build first, then serve',
-    'nectar serve --port 8080 --host 0.0.0.0',
+    'laurel serve                                 # local preview of dist/ + rebuild on change',
+    'laurel serve --no-watch                      # serve dist/ as a static snapshot',
+    'laurel serve --open                          # open the local preview in a browser',
+    'laurel serve --simulate netlify --no-watch   # apply emitted _headers/_redirects locally',
+    'laurel serve --compression auto              # enable br/gzip negotiation',
+    'laurel serve --proxy https://ghost.example.com',
+    'laurel serve --tls-cert cert.pem --tls-key key.pem',
+    'laurel serve --build                         # build first, then serve',
+    'laurel serve --port 8080 --host 0.0.0.0',
   ],
 };
 
@@ -404,12 +404,12 @@ export const DASHBOARD_SPEC: CommandSpec = {
   },
   positionals: [],
   examples: [
-    'nectar dashboard                             # http://127.0.0.1:4322 local dashboard',
-    'nectar dashboard --open                      # launch the browser after startup',
-    'nectar dashboard --port 0                    # pick a free port for smoke tests',
-    'nectar dashboard --host 0.0.0.0              # expose on the LAN',
-    'nectar dashboard --dev                       # frontend HMR; bundles TSX/CSS on demand',
-    'nectar dashboard --no-build                  # serve the embedded bundle without rebuilding',
+    'laurel dashboard                             # http://127.0.0.1:4322 local dashboard',
+    'laurel dashboard --open                      # launch the browser after startup',
+    'laurel dashboard --port 0                    # pick a free port for smoke tests',
+    'laurel dashboard --host 0.0.0.0              # expose on the LAN',
+    'laurel dashboard --dev                       # frontend HMR; bundles TSX/CSS on demand',
+    'laurel dashboard --no-build                  # serve the embedded bundle without rebuilding',
   ],
 };
 
@@ -420,20 +420,20 @@ export const TEST_SPEC: CommandSpec = {
   positionals: [
     {
       name: 'args',
-      description: 'Arguments forwarded to `bun test` after Nectar prints a passthrough warning',
+      description: 'Arguments forwarded to `bun test` after Laurel prints a passthrough warning',
       required: false,
       variadic: true,
     },
   ],
   examples: [
-    'nectar test                                  # run bun test',
-    'nectar test tests/cli/parse.test.ts          # forward a path to bun test',
+    'laurel test                                  # run bun test',
+    'laurel test tests/cli/parse.test.ts          # forward a path to bun test',
   ],
 };
 
 export const PLUGINS_SPEC: CommandSpec = {
   name: 'plugins',
-  summary: 'Inspect future Nectar plugins',
+  summary: 'Inspect future Laurel plugins',
   options: {
     json: {
       type: 'boolean',
@@ -448,7 +448,7 @@ export const PLUGINS_SPEC: CommandSpec = {
       variadic: true,
     },
   ],
-  examples: ['nectar plugins list'],
+  examples: ['laurel plugins list'],
 };
 
 export const CHECK_SPEC: CommandSpec = {
@@ -492,11 +492,11 @@ export const CHECK_SPEC: CommandSpec = {
   },
   positionals: [],
   examples: [
-    'nectar check                                 # config + theme + content validation',
-    'nectar check --strict                        # fail on any warning (use in CI)',
-    'nectar check --check-frontmatter --check-templates',
-    'nectar check --check-links                   # also resolve relative markdown links',
-    'nectar check --json | jq                     # machine-readable findings',
+    'laurel check                                 # config + theme + content validation',
+    'laurel check --strict                        # fail on any warning (use in CI)',
+    'laurel check --check-frontmatter --check-templates',
+    'laurel check --check-links                   # also resolve relative markdown links',
+    'laurel check --json | jq                     # machine-readable findings',
   ],
 };
 
@@ -602,16 +602,16 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
     },
   ],
   examples: [
-    'nectar import-ghost ghost-export.json',
-    'nectar import-ghost ghost-export-folder       # imports all export*.json files in stable order',
-    'nectar import-ghost - < ghost-export.json   # read JSON from stdin',
-    'nectar import-ghost ghost-export.zip            # zip archive (auto-detected)',
-    'nectar import-ghost ghost-export --dry-run      # extension-less, magic-bytes sniff',
-    'nectar import-ghost export.json --output review-import',
-    'nectar import-ghost export.json --only-tags news,blog --since 2024-01-01',
-    'nectar import-ghost export.json --only-tags news --include-drafts --include-pages',
-    'nectar import-ghost export.json --download-images --max-image-size 5MB',
-    'nectar import-ghost export.json --on-conflict overwrite',
+    'laurel import-ghost ghost-export.json',
+    'laurel import-ghost ghost-export-folder       # imports all export*.json files in stable order',
+    'laurel import-ghost - < ghost-export.json   # read JSON from stdin',
+    'laurel import-ghost ghost-export.zip            # zip archive (auto-detected)',
+    'laurel import-ghost ghost-export --dry-run      # extension-less, magic-bytes sniff',
+    'laurel import-ghost export.json --output review-import',
+    'laurel import-ghost export.json --only-tags news,blog --since 2024-01-01',
+    'laurel import-ghost export.json --only-tags news --include-drafts --include-pages',
+    'laurel import-ghost export.json --download-images --max-image-size 5MB',
+    'laurel import-ghost export.json --on-conflict overwrite',
   ],
 };
 
@@ -643,9 +643,9 @@ export const IMPORT_WORDPRESS_SPEC: CommandSpec = {
     },
   ],
   examples: [
-    'nectar import-wordpress wordpress.xml',
-    'nectar import-wordpress wordpress.xml --dry-run',
-    'nectar import-wordpress wordpress.xml --on-conflict rename',
+    'laurel import-wordpress wordpress.xml',
+    'laurel import-wordpress wordpress.xml --dry-run',
+    'laurel import-wordpress wordpress.xml --on-conflict rename',
   ],
 };
 
@@ -669,44 +669,44 @@ const STATIC_SITE_IMPORT_OPTIONS: CommandSpec['options'] = {
 
 export const IMPORT_HUGO_SPEC: CommandSpec = {
   name: 'import-hugo',
-  summary: 'Convert Hugo Markdown posts into Nectar content',
+  summary: 'Convert Hugo Markdown posts into Laurel content',
   options: STATIC_SITE_IMPORT_OPTIONS,
   positionals: [
     {
       name: 'dir',
       description:
-        'Path to a Hugo project root. Nectar scans content/posts/, content/post/, content/blog/, then content/.',
+        'Path to a Hugo project root. Laurel scans content/posts/, content/post/, content/blog/, then content/.',
       required: true,
     },
   ],
   examples: [
-    'nectar import-hugo ../old-hugo-site',
-    'nectar import-hugo ../old-hugo-site --dry-run',
-    'nectar import-hugo ../old-hugo-site --on-conflict rename',
+    'laurel import-hugo ../old-hugo-site',
+    'laurel import-hugo ../old-hugo-site --dry-run',
+    'laurel import-hugo ../old-hugo-site --on-conflict rename',
   ],
 };
 
 export const IMPORT_JEKYLL_SPEC: CommandSpec = {
   name: 'import-jekyll',
-  summary: 'Convert Jekyll Markdown posts into Nectar content',
+  summary: 'Convert Jekyll Markdown posts into Laurel content',
   options: STATIC_SITE_IMPORT_OPTIONS,
   positionals: [
     {
       name: 'dir',
-      description: 'Path to a Jekyll project root. Nectar scans _posts/.',
+      description: 'Path to a Jekyll project root. Laurel scans _posts/.',
       required: true,
     },
   ],
   examples: [
-    'nectar import-jekyll ../old-jekyll-site',
-    'nectar import-jekyll ../old-jekyll-site --dry-run',
-    'nectar import-jekyll ../old-jekyll-site --on-conflict rename',
+    'laurel import-jekyll ../old-jekyll-site',
+    'laurel import-jekyll ../old-jekyll-site --dry-run',
+    'laurel import-jekyll ../old-jekyll-site --on-conflict rename',
   ],
 };
 
 export const INIT_SPEC: CommandSpec = {
   name: 'init',
-  summary: 'Scaffold a new Nectar project in the current (or given) directory',
+  summary: 'Scaffold a new Laurel project in the current (or given) directory',
   options: {
     yes: {
       type: 'boolean',
@@ -736,11 +736,11 @@ export const INIT_SPEC: CommandSpec = {
   },
   positionals: [],
   examples: [
-    'nectar init                                  # scaffold in the current dir (interactive)',
-    'nectar init --yes                            # accept defaults; CI-friendly',
-    'nectar init --dir my-blog --yes              # scaffold a new project folder',
-    'nectar init --yes --agent claude             # also create CLAUDE.md + install skills',
-    'nectar init --yes --agent both               # wire up Claude Code and Codex',
+    'laurel init                                  # scaffold in the current dir (interactive)',
+    'laurel init --yes                            # accept defaults; CI-friendly',
+    'laurel init --dir my-blog --yes              # scaffold a new project folder',
+    'laurel init --yes --agent claude             # also create CLAUDE.md + install skills',
+    'laurel init --yes --agent both               # wire up Claude Code and Codex',
   ],
 };
 
@@ -766,9 +766,9 @@ export const DOCTOR_SPEC: CommandSpec = {
   },
   positionals: [],
   examples: [
-    'nectar doctor                                # full project health check',
-    'nectar doctor --no-network                   # skip the connectivity probe',
-    'nectar doctor --json                         # machine-readable for CI',
+    'laurel doctor                                # full project health check',
+    'laurel doctor --no-network                   # skip the connectivity probe',
+    'laurel doctor --json                         # machine-readable for CI',
   ],
 };
 
@@ -785,13 +785,13 @@ export const DIAGNOSTICS_SPEC: CommandSpec = {
       type: 'string',
       short: 'o',
       description:
-        'Path for the .tar.gz bundle. Defaults to nectar-diagnostics-<timestamp>.tar.gz in the current directory',
+        'Path for the .tar.gz bundle. Defaults to laurel-diagnostics-<timestamp>.tar.gz in the current directory',
       placeholder: '<file>',
     },
     'log-lines': {
       type: 'string',
       description:
-        'Maximum number of lines to include from each known Nectar log file. Defaults to 200; use 0 to omit log text while still listing log candidates',
+        'Maximum number of lines to include from each known Laurel log file. Defaults to 200; use 0 to omit log text while still listing log candidates',
       placeholder: '<n>',
     },
     'dry-run': {
@@ -817,16 +817,16 @@ export const DIAGNOSTICS_SPEC: CommandSpec = {
     },
   ],
   examples: [
-    'nectar diagnostics bundle',
-    'nectar diagnostics bundle --output support/nectar-diagnostics.tar.gz',
-    'nectar diagnostics bundle --dry-run',
-    'nectar diagnostics bundle --log-lines 50 --json',
+    'laurel diagnostics bundle',
+    'laurel diagnostics bundle --output support/laurel-diagnostics.tar.gz',
+    'laurel diagnostics bundle --dry-run',
+    'laurel diagnostics bundle --log-lines 50 --json',
   ],
 };
 
 export const CLEAN_SPEC: CommandSpec = {
   name: 'clean',
-  summary: 'Remove dist/ and .nectar/cache build artifacts',
+  summary: 'Remove dist/ and .laurel/cache build artifacts',
   options: {
     config: {
       type: 'string',
@@ -857,16 +857,16 @@ export const CLEAN_SPEC: CommandSpec = {
   },
   positionals: [],
   examples: [
-    'nectar clean                                 # interactive; asks before deleting',
-    'nectar clean --yes                           # non-interactive (CI/scripts)',
-    'nectar clean --dry-run                       # show what would be removed',
-    'nectar clean --keep dist/.well-known --yes   # preserve specific paths',
+    'laurel clean                                 # interactive; asks before deleting',
+    'laurel clean --yes                           # non-interactive (CI/scripts)',
+    'laurel clean --dry-run                       # show what would be removed',
+    'laurel clean --keep dist/.well-known --yes   # preserve specific paths',
   ],
 };
 
 export const CACHE_SPEC: CommandSpec = {
   name: 'cache',
-  summary: 'Inspect or remove the local .nectar/cache directory',
+  summary: 'Inspect or remove the local .laurel/cache directory',
   options: {
     'dry-run': {
       type: 'boolean',
@@ -885,10 +885,10 @@ export const CACHE_SPEC: CommandSpec = {
     },
   ],
   examples: [
-    'nectar cache dir',
-    'nectar cache stats --json',
-    'nectar cache clean --dry-run',
-    'nectar cache clean',
+    'laurel cache dir',
+    'laurel cache stats --json',
+    'laurel cache clean --dry-run',
+    'laurel cache clean',
   ],
 };
 
@@ -920,12 +920,12 @@ export const COMPLETIONS_SPEC: CommandSpec = {
     },
   ],
   examples: [
-    'nectar completion bash >> ~/.bashrc         # singular alias',
-    'nectar completions bash >> ~/.bashrc',
-    'nectar completions zsh > ~/.zsh/_nectar',
-    'nectar completions fish > ~/.config/fish/completions/nectar.fish',
-    'nectar completions install                 # install for the detected shell',
-    'nectar completions install --shell zsh     # install under a user-writable zsh path',
+    'laurel completion bash >> ~/.bashrc         # singular alias',
+    'laurel completions bash >> ~/.bashrc',
+    'laurel completions zsh > ~/.zsh/_laurel',
+    'laurel completions fish > ~/.config/fish/completions/laurel.fish',
+    'laurel completions install                 # install for the detected shell',
+    'laurel completions install --shell zsh     # install under a user-writable zsh path',
   ],
 };
 
@@ -985,7 +985,7 @@ export const CONTENT_SPEC: CommandSpec = {
     purge: {
       type: 'boolean',
       description:
-        'On `delete`: permanently remove matching entries from `.nectar/trash/` only when they are at least 30 days old. Never removes current content files',
+        'On `delete`: permanently remove matching entries from `.laurel/trash/` only when they are at least 30 days old. Never removes current content files',
     },
     date: {
       type: 'string',
@@ -1008,22 +1008,22 @@ export const CONTENT_SPEC: CommandSpec = {
     {
       name: 'subcommand',
       description:
-        '`list` (show posts/pages), `show <slug>` (print frontmatter + body preview), `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter), `delete <slug>` (move content into `.nectar/trash/` with restore metadata), or `touch <slug>` (update date frontmatter)',
+        '`list` (show posts/pages), `show <slug>` (print frontmatter + body preview), `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter), `delete <slug>` (move content into `.laurel/trash/` with restore metadata), or `touch <slug>` (update date frontmatter)',
       required: true,
       variadic: true,
     },
   ],
   examples: [
-    'nectar content list                          # posts + pages with status/date',
-    'nectar content list --kind pages',
-    'nectar content list --tag changelog --json',
-    'nectar content show hello-world --lines 12',
-    'nectar content show about --kind pages --frontmatter',
-    'nectar content rename old-slug new-slug --redirect',
-    'nectar content delete old-slug',
-    'nectar content delete --purge old-slug',
-    'nectar content touch hello-world --date 2026-01-02T03:04:05Z',
-    'nectar content touch about --kind pages --published',
+    'laurel content list                          # posts + pages with status/date',
+    'laurel content list --kind pages',
+    'laurel content list --tag changelog --json',
+    'laurel content show hello-world --lines 12',
+    'laurel content show about --kind pages --frontmatter',
+    'laurel content rename old-slug new-slug --redirect',
+    'laurel content delete old-slug',
+    'laurel content delete --purge old-slug',
+    'laurel content touch hello-world --date 2026-01-02T03:04:05Z',
+    'laurel content touch about --kind pages --published',
   ],
 };
 
@@ -1049,15 +1049,15 @@ export const REDIRECTS_SPEC: CommandSpec = {
     },
   ],
   examples: [
-    'nectar redirects list',
-    'nectar redirects list --collapsed --json',
-    'nectar redirects validate',
+    'laurel redirects list',
+    'laurel redirects list --collapsed --json',
+    'laurel redirects validate',
   ],
 };
 
 export const INFO_SPEC: CommandSpec = {
   name: 'info',
-  summary: 'Print Nectar, Bun, and project environment information',
+  summary: 'Print Laurel, Bun, and project environment information',
   options: {
     config: {
       type: 'string',
@@ -1071,9 +1071,9 @@ export const INFO_SPEC: CommandSpec = {
   },
   positionals: [],
   examples: [
-    'nectar info                                  # human-readable summary',
-    'nectar info --json                           # machine-readable; same payload',
-    'nectar env                                   # alias for `nectar info`',
+    'laurel info                                  # human-readable summary',
+    'laurel info --json                           # machine-readable; same payload',
+    'laurel env                                   # alias for `laurel info`',
   ],
 };
 
@@ -1115,11 +1115,11 @@ export const TAGS_SPEC: CommandSpec = {
     },
   ],
   examples: [
-    'nectar tags list                             # all tags + post counts',
-    'nectar tags list --orphaned                  # tags defined but unused',
-    'nectar tags rename old-tag new-tag',
-    'nectar tags rename old new --dry-run         # preview files that would change',
-    'nectar tags merge draft old canonical --dry-run',
+    'laurel tags list                             # all tags + post counts',
+    'laurel tags list --orphaned                  # tags defined but unused',
+    'laurel tags rename old-tag new-tag',
+    'laurel tags rename old new --dry-run         # preview files that would change',
+    'laurel tags merge draft old canonical --dry-run',
   ],
 };
 
@@ -1156,17 +1156,17 @@ export const AUTHORS_SPEC: CommandSpec = {
     },
   ],
   examples: [
-    'nectar authors list                          # all authors + post counts',
-    'nectar authors list --orphaned               # authors defined but unused by posts',
-    'nectar authors list --json                   # machine-readable author inventory',
-    'nectar authors rename old-author new-author',
-    'nectar authors rename old new --dry-run       # preview files that would change',
+    'laurel authors list                          # all authors + post counts',
+    'laurel authors list --orphaned               # authors defined but unused by posts',
+    'laurel authors list --json                   # machine-readable author inventory',
+    'laurel authors rename old-author new-author',
+    'laurel authors rename old new --dry-run       # preview files that would change',
   ],
 };
 
 export const CONFIG_SPEC: CommandSpec = {
   name: 'config',
-  summary: 'Inspect or update the loaded Nectar config',
+  summary: 'Inspect or update the loaded Laurel config',
   options: {
     config: {
       type: 'string',
@@ -1189,27 +1189,27 @@ export const CONFIG_SPEC: CommandSpec = {
     {
       name: 'subcommand',
       description:
-        '`print` (dump the fully resolved config after defaults, env overrides, and config layers), `validate` (load config only and exit 0/1), `get <dotted.key>` (print one value), `set <dotted.key> <value>` (write a string/number/bool), or `path` (print the detected config path and project .nectarrc path/status)',
+        '`print` (dump the fully resolved config after defaults, env overrides, and config layers), `validate` (load config only and exit 0/1), `get <dotted.key>` (print one value), `set <dotted.key> <value>` (write a string/number/bool), or `path` (print the detected config path and project .laurelrc path/status)',
       required: true,
       variadic: true,
     },
   ],
   examples: [
-    'nectar config print                          # resolved config as TOML',
-    'nectar config print --format json            # resolved config as JSON',
-    'nectar config validate                       # config-only validation',
-    'nectar config path                           # detected config and .nectarrc paths',
-    'nectar config get site.url',
-    'nectar config set site.title "My Site"',
-    'nectar config set components.rss.enabled false',
-    'nectar config get build.base_path --json',
+    'laurel config print                          # resolved config as TOML',
+    'laurel config print --format json            # resolved config as JSON',
+    'laurel config validate                       # config-only validation',
+    'laurel config path                           # detected config and .laurelrc paths',
+    'laurel config get site.url',
+    'laurel config set site.title "My Site"',
+    'laurel config set components.rss.enabled false',
+    'laurel config get build.base_path --json',
   ],
 };
 
 export const SKILL_SPEC: CommandSpec = {
   name: 'skill',
   summary:
-    'Install bundled agent skills (Claude Code / Codex) so AI assistants understand how to work in this Nectar project',
+    'Install bundled agent skills (Claude Code / Codex) so AI assistants understand how to work in this Laurel project',
   options: {
     format: {
       type: 'string',
@@ -1235,18 +1235,18 @@ export const SKILL_SPEC: CommandSpec = {
     },
   ],
   examples: [
-    'nectar skill list',
-    'nectar skill install                                # auto-detect + install all',
-    'nectar skill install frontmatter-authoring          # one skill',
-    'nectar skill install --format codex                 # only emit Codex format',
-    'nectar skill install --format all                   # emit every format',
-    'nectar skill remove build-troubleshoot',
+    'laurel skill list',
+    'laurel skill install                                # auto-detect + install all',
+    'laurel skill install frontmatter-authoring          # one skill',
+    'laurel skill install --format codex                 # only emit Codex format',
+    'laurel skill install --format all                   # emit every format',
+    'laurel skill remove build-troubleshoot',
   ],
 };
 
 export const SCHEMA_SPEC: CommandSpec = {
   name: 'schema',
-  summary: 'Print JSON Schema for Nectar config, frontmatter, or theme package.json',
+  summary: 'Print JSON Schema for Laurel config, frontmatter, or theme package.json',
   options: {},
   positionals: [
     {
@@ -1256,9 +1256,9 @@ export const SCHEMA_SPEC: CommandSpec = {
     },
   ],
   examples: [
-    'nectar schema config > nectar.config.schema.json',
-    'nectar schema frontmatter > nectar.frontmatter.schema.json',
-    'nectar schema theme > nectar.theme.schema.json',
+    'laurel schema config > laurel.config.schema.json',
+    'laurel schema frontmatter > laurel.frontmatter.schema.json',
+    'laurel schema theme > laurel.theme.schema.json',
   ],
 };
 
@@ -1291,10 +1291,10 @@ export const LINT_SPEC: CommandSpec = {
   },
   positionals: [],
   examples: [
-    'nectar lint                                  # warn-level summary table',
-    'nectar lint --strict                         # exit non-zero on any warning',
-    'nectar lint --json | jq                      # CI-friendly findings stream',
-    'nectar lint --max-title-length 60',
+    'laurel lint                                  # warn-level summary table',
+    'laurel lint --strict                         # exit non-zero on any warning',
+    'laurel lint --json | jq                      # CI-friendly findings stream',
+    'laurel lint --max-title-length 60',
   ],
 };
 
@@ -1315,15 +1315,15 @@ export const FMT_SPEC: CommandSpec = {
   },
   positionals: [],
   examples: [
-    'nectar fmt                                   # rewrite content frontmatter in place',
-    'nectar fmt --check                           # CI check; exits 1 when formatting is needed',
+    'laurel fmt                                   # rewrite content frontmatter in place',
+    'laurel fmt --check                           # CI check; exits 1 when formatting is needed',
   ],
 };
 
 export const MIGRATE_SPEC: CommandSpec = {
   name: 'migrate',
   summary:
-    'Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>`',
+    'Convert content from another platform into Laurel Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>`',
   options: {
     'on-conflict': {
       type: 'string',
@@ -1391,11 +1391,11 @@ export const MIGRATE_SPEC: CommandSpec = {
     },
   ],
   examples: [
-    'nectar migrate ghost export.json',
-    'nectar migrate ghost export.zip --on-conflict overwrite',
-    'nectar migrate wordpress export.xml',
-    'nectar migrate hugo ./old-hugo-site --dry-run',
-    'nectar migrate jekyll ./old-jekyll-site',
+    'laurel migrate ghost export.json',
+    'laurel migrate ghost export.zip --on-conflict overwrite',
+    'laurel migrate wordpress export.xml',
+    'laurel migrate hugo ./old-hugo-site --dry-run',
+    'laurel migrate jekyll ./old-jekyll-site',
   ],
 };
 
@@ -1454,15 +1454,15 @@ export const THEME_SPEC: CommandSpec = {
     },
   ],
   examples: [
-    'nectar theme list                            # show themes under theme.dir',
-    'nectar theme list --json                     # machine-readable theme list',
-    'nectar theme new my-theme                    # scaffold themes/my-theme/',
-    'nectar theme new my-fork --from source       # fork the active theme',
-    'nectar theme zip                             # ship-ready zip in cwd',
-    'nectar theme lint themes/my-theme            # audit before shipping',
-    'nectar theme serve                           # fast theme dev server using fixture content',
-    'nectar theme serve --port 8080               # pick a different port',
-    'nectar theme:lint themes/my-theme            # colon-style alias',
+    'laurel theme list                            # show themes under theme.dir',
+    'laurel theme list --json                     # machine-readable theme list',
+    'laurel theme new my-theme                    # scaffold themes/my-theme/',
+    'laurel theme new my-fork --from source       # fork the active theme',
+    'laurel theme zip                             # ship-ready zip in cwd',
+    'laurel theme lint themes/my-theme            # audit before shipping',
+    'laurel theme serve                           # fast theme dev server using fixture content',
+    'laurel theme serve --port 8080               # pick a different port',
+    'laurel theme:lint themes/my-theme            # colon-style alias',
   ],
 };
 
@@ -1496,9 +1496,9 @@ export const OPEN_SPEC: CommandSpec = {
     },
   ],
   examples: [
-    'nectar open hello-world                      # opens content/posts/hello-world.md',
-    'nectar open about --kind pages',
-    'EDITOR=code nectar open hello-world          # respects $EDITOR',
+    'laurel open hello-world                      # opens content/posts/hello-world.md',
+    'laurel open about --kind pages',
+    'EDITOR=code laurel open hello-world          # respects $EDITOR',
   ],
 };
 
@@ -1516,7 +1516,7 @@ export const DEPLOY_SPEC: CommandSpec = {
       type: 'boolean',
       short: 'b',
       description:
-        'Run `nectar build` before deploying so the publish step always uses fresh artifacts. Without this flag the command refuses to deploy when `dist/` is missing or has no `.nectar-manifest.json` (the build pre-flight); set it for one-shot deploys from CI without a separate build step',
+        'Run `laurel build` before deploying so the publish step always uses fresh artifacts. Without this flag the command refuses to deploy when `dist/` is missing or has no `.laurel-manifest.json` (the build pre-flight); set it for one-shot deploys from CI without a separate build step',
     },
     target: {
       type: 'string',
@@ -1555,7 +1555,7 @@ export const DEPLOY_SPEC: CommandSpec = {
     prod: {
       type: 'boolean',
       description:
-        'netlify, vercel: explicitly pass `--prod`. Default `true` for both via config (`[deploy.<target>].prod`); pair with `--prod=false`-equivalent NECTAR_DEPLOY_PROD=0 env var when the CLI flag is unsuitable',
+        'netlify, vercel: explicitly pass `--prod`. Default `true` for both via config (`[deploy.<target>].prod`); pair with `--prod=false`-equivalent LAUREL_DEPLOY_PROD=0 env var when the CLI flag is unsuitable',
     },
     bucket: {
       type: 'string',
@@ -1601,13 +1601,13 @@ export const DEPLOY_SPEC: CommandSpec = {
     },
   ],
   examples: [
-    'nectar deploy cloudflare --project-name my-blog --build',
-    'nectar deploy netlify --site-id abc123',
-    'nectar deploy vercel --prod',
-    'nectar deploy github-pages --branch gh-pages',
-    'nectar deploy rsync --destination user@host:/var/www/site/',
-    'nectar deploy s3 --bucket my-bucket --region us-east-1 --dry-run',
-    'nectar deploy s3 --bucket my-bucket --region us-east-1 --preflight',
+    'laurel deploy cloudflare --project-name my-blog --build',
+    'laurel deploy netlify --site-id abc123',
+    'laurel deploy vercel --prod',
+    'laurel deploy github-pages --branch gh-pages',
+    'laurel deploy rsync --destination user@host:/var/www/site/',
+    'laurel deploy s3 --bucket my-bucket --region us-east-1 --dry-run',
+    'laurel deploy s3 --bucket my-bucket --region us-east-1 --preflight',
   ],
 };
 
@@ -1625,7 +1625,7 @@ export const EXPORT_SPEC: CommandSpec = {
       type: 'string',
       short: 'o',
       description:
-        'Path to write the export to. For `entry` defaults to `<slug>.nectar.zip`; for `components` defaults to `components.nectar.zip`; for other formats defaults to stdout. Parent directories are created as needed; existing files are overwritten',
+        'Path to write the export to. For `entry` defaults to `<slug>.laurel.zip`; for `components` defaults to `components.laurel.zip`; for other formats defaults to stdout. Parent directories are created as needed; existing files are overwritten',
       placeholder: '<path>',
     },
     slugs: {
@@ -1642,7 +1642,7 @@ export const EXPORT_SPEC: CommandSpec = {
     'include-drafts': {
       type: 'boolean',
       description:
-        'Include posts and pages with `status: draft` in the export. Off by default so an unintended draft cannot leak through `nectar export`',
+        'Include posts and pages with `status: draft` in the export. Off by default so an unintended draft cannot leak through `laurel export`',
     },
     kind: {
       type: 'string',
@@ -1660,7 +1660,7 @@ export const EXPORT_SPEC: CommandSpec = {
     {
       name: 'format',
       description:
-        'Export format: `json` (Nectar content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), `entry` (zip entry-bundle for a single post or page), or `components` (zip bundle of reusable component snippets for handoff)',
+        'Export format: `json` (Laurel content graph), `ghost-json` (Ghost backup-shaped {db: [{data: {posts, pages, tags, users, posts_tags, posts_authors}}]}), `rss` (RSS 2.0 XML), `entry` (zip entry-bundle for a single post or page), or `components` (zip bundle of reusable component snippets for handoff)',
       required: true,
     },
     {
@@ -1670,21 +1670,21 @@ export const EXPORT_SPEC: CommandSpec = {
     },
   ],
   examples: [
-    'nectar export json > content.json',
-    'nectar export json --pretty -o snapshot.json',
-    'nectar export ghost-json -o ghost-backup.json',
-    'nectar export rss -o feed.xml',
-    'nectar export entry hello-world',
-    'nectar export entry hello-world -o out.nectar.zip',
-    'nectar export entry about --kind page -o about.nectar.zip',
-    'nectar export components                       # every component',
-    'nectar export components --slugs callout,cta -o snippets.nectar.zip',
+    'laurel export json > content.json',
+    'laurel export json --pretty -o snapshot.json',
+    'laurel export ghost-json -o ghost-backup.json',
+    'laurel export rss -o feed.xml',
+    'laurel export entry hello-world',
+    'laurel export entry hello-world -o out.laurel.zip',
+    'laurel export entry about --kind page -o about.laurel.zip',
+    'laurel export components                       # every component',
+    'laurel export components --slugs callout,cta -o snippets.laurel.zip',
   ],
 };
 
 export const IMPORT_SPEC: CommandSpec = {
   name: 'import',
-  summary: 'Import a Nectar zip bundle: an entry (post or page) or a components bundle',
+  summary: 'Import a Laurel zip bundle: an entry (post or page) or a components bundle',
   options: {
     config: {
       type: 'string',
@@ -1715,23 +1715,23 @@ export const IMPORT_SPEC: CommandSpec = {
     },
     {
       name: 'file',
-      description: 'Path to a `.nectar.zip` bundle (entry or components)',
+      description: 'Path to a `.laurel.zip` bundle (entry or components)',
       required: true,
     },
   ],
   examples: [
-    'nectar import entry hello-world.nectar.zip',
-    'nectar import entry hello-world.nectar.zip --dry-run',
-    'nectar import entry hello-world.nectar.zip --on-conflict rename',
-    'nectar import entry hello-world.nectar.zip --on-conflict overwrite',
-    'nectar import components components.nectar.zip',
-    'nectar import components components.nectar.zip --on-conflict overwrite',
+    'laurel import entry hello-world.laurel.zip',
+    'laurel import entry hello-world.laurel.zip --dry-run',
+    'laurel import entry hello-world.laurel.zip --on-conflict rename',
+    'laurel import entry hello-world.laurel.zip --on-conflict overwrite',
+    'laurel import components components.laurel.zip',
+    'laurel import components components.laurel.zip --on-conflict overwrite',
   ],
 };
 
 export const UPGRADE_SPEC: CommandSpec = {
   name: 'upgrade',
-  summary: 'Upgrade the installed Nectar CLI when the install method supports it',
+  summary: 'Upgrade the installed Laurel CLI when the install method supports it',
   options: {
     'dry-run': {
       type: 'boolean',
@@ -1744,9 +1744,9 @@ export const UPGRADE_SPEC: CommandSpec = {
   },
   positionals: [],
   examples: [
-    'nectar upgrade',
-    'nectar upgrade --dry-run',
-    'NECTAR_NO_UPDATE_CHECK=1 nectar upgrade       # skip self-update checks and actions',
+    'laurel upgrade',
+    'laurel upgrade --dry-run',
+    'LAUREL_NO_UPDATE_CHECK=1 laurel upgrade       # skip self-update checks and actions',
   ],
 };
 
@@ -1757,7 +1757,7 @@ export const TELEMETRY_SPEC: CommandSpec = {
     endpoint: {
       type: 'string',
       description:
-        'Set the stored telemetry endpoint when enabling. NECTAR_TELEMETRY_ENDPOINT overrides it per run',
+        'Set the stored telemetry endpoint when enabling. LAUREL_TELEMETRY_ENDPOINT overrides it per run',
       placeholder: '<url>',
     },
   },
@@ -1769,11 +1769,11 @@ export const TELEMETRY_SPEC: CommandSpec = {
     },
   ],
   examples: [
-    'nectar telemetry status',
-    'nectar telemetry enable',
-    'nectar telemetry enable --endpoint https://telemetry.example.test/v1/usage',
-    'NECTAR_TELEMETRY_ENDPOINT=http://127.0.0.1:8787/usage nectar build',
-    'nectar telemetry disable',
+    'laurel telemetry status',
+    'laurel telemetry enable',
+    'laurel telemetry enable --endpoint https://telemetry.example.test/v1/usage',
+    'LAUREL_TELEMETRY_ENDPOINT=http://127.0.0.1:8787/usage laurel build',
+    'laurel telemetry disable',
   ],
 };
 

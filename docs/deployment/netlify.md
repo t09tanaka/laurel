@@ -1,14 +1,14 @@
 # Netlify deployment recipe
 
-Use this target when Netlify should build Nectar, publish `dist/`, and manage
+Use this target when Netlify should build Laurel, publish `dist/`, and manage
 deploy previews.
 
 ## Recipe
 
 1. Set `site.url`; Netlify preview URLs can still override this during builds.
-2. Enable `[deploy.netlify]` so Nectar emits `_headers` and `_redirects`.
-3. Run `bunx nectar build` and confirm the generated Netlify files.
-4. In Netlify, use build command `bunx nectar build` and publish directory
+2. Enable `[deploy.netlify]` so Laurel emits `_headers` and `_redirects`.
+3. Run `bunx laurel build` and confirm the generated Netlify files.
+4. In Netlify, use build command `bunx laurel build` and publish directory
    `dist`.
 5. Use the CLI workflow only when CI, not Netlify, owns the upload.
 6. If Content API SDK clients fetch `/content/*`, add an unforced Netlify

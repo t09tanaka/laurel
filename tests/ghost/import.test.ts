@@ -98,7 +98,7 @@ describe('importGhostExport — --on-conflict policy', () => {
   let captured: CapturedStderr;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-')));
     exportFile = join(cwd, 'export.json');
     captured = captureStderr();
   });
@@ -262,7 +262,7 @@ describe('importGhostExport — intra-export slug collisions (#1138)', () => {
   let captured: CapturedStderr;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-coll-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-coll-')));
     exportFile = join(cwd, 'export.json');
     captured = captureStderr();
   });
@@ -555,7 +555,7 @@ describe('importGhostExport — intra-export slug collisions (#1138)', () => {
 
 describe('importGhostExport — Ghost post metadata compatibility', () => {
   test('preserves page title/feature-image visibility and post email metadata', async () => {
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-meta-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-meta-')));
     try {
       const exportFile = join(cwd, 'export.json');
       await writeFile(
@@ -620,7 +620,7 @@ describe('importGhostExport — --keep-html (#808)', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-html-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-html-')));
     exportFile = join(cwd, 'export.json');
   });
 
@@ -686,7 +686,7 @@ describe('importGhostExport — reusable Ghost HTML cards', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-components-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-components-')));
     exportFile = join(cwd, 'export.json');
   });
 
@@ -763,7 +763,7 @@ describe('importGhostExport — slug sanitization (#160)', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    const tmp = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-sec-')));
+    const tmp = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-sec-')));
     cwd = join(tmp, 'project');
     outside = join(tmp, 'outside');
     await ensureDir(cwd);
@@ -971,7 +971,7 @@ describe('importGhostExport — slug postcondition /^[a-z0-9-]+$/ (#115)', () =>
   let exportFile: string;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-sluggate-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-sluggate-')));
     exportFile = join(cwd, 'export.json');
   });
 
@@ -1045,7 +1045,7 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
   let exportDir: string;
 
   beforeEach(async () => {
-    exportDir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-assets-')));
+    exportDir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-assets-')));
   });
 
   afterEach(async () => {
@@ -1090,7 +1090,7 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
     await ensureDir(join(exportDir, 'content/media/clip'));
     await writeFile(join(exportDir, 'content/media/clip/intro.mp4'), 'MP4');
 
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-cwd-')));
     try {
       const summary = await importGhostExport({ cwd, file: exportDir, onConflict: 'overwrite' });
       expect(summary.posts).toBe(1);
@@ -1121,7 +1121,7 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
     );
     await writeFile(join(exportDir, 'content/images/2024/01/photo.jpg'), jpegWithExif());
 
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-cwd-')));
     try {
       const summary = await importGhostExport({ cwd, file: exportDir, onConflict: 'overwrite' });
       expect(summary.assetsCopied).toBe(2);
@@ -1148,7 +1148,7 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
     await ensureDir(join(exportDir, 'images/2024'));
     await writeFile(join(exportDir, 'images/2024/cover.jpg'), 'COVER');
 
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-cwd-')));
     try {
       const summary = await importGhostExport({ cwd, file: exportDir, onConflict: 'overwrite' });
       expect(summary.posts).toBe(1);
@@ -1160,7 +1160,7 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
   });
 
   test('folder with no JSON throws a clear error', async () => {
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-cwd-')));
     try {
       await expect(importGhostExport({ cwd, file: exportDir })).rejects.toThrow(
         /Ghost export directory does not contain a \.json export file:/,
@@ -1173,12 +1173,12 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
   test('JSON file input + explicit --assets copies from the override dir', async () => {
     const jsonFile = await writeJsonNamed('export.json');
 
-    const assetsRoot = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-ext-')));
+    const assetsRoot = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-ext-')));
     try {
       await ensureDir(join(assetsRoot, 'images'));
       await writeFile(join(assetsRoot, 'images/cover.jpg'), 'OVERRIDE');
 
-      const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+      const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-cwd-')));
       try {
         const summary = await importGhostExport({
           cwd,
@@ -1202,12 +1202,12 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
     await ensureDir(join(exportDir, 'content/images'));
     await writeFile(join(exportDir, 'content/images/auto.jpg'), 'AUTO');
 
-    const override = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-ovr-')));
+    const override = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-ovr-')));
     try {
       await ensureDir(join(override, 'images'));
       await writeFile(join(override, 'images/explicit.jpg'), 'EXPLICIT');
 
-      const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+      const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-cwd-')));
       try {
         const summary = await importGhostExport({
           cwd,
@@ -1228,7 +1228,7 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
 
   test('--assets pointing to a non-existent dir rejects with a clear error', async () => {
     const jsonFile = await writeJsonNamed('export.json');
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-cwd-')));
     try {
       await expect(
         importGhostExport({
@@ -1247,7 +1247,7 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
     await ensureDir(join(exportDir, 'content/images'));
     await writeFile(join(exportDir, 'content/images/cover.jpg'), 'FROM-EXPORT');
 
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-cwd-')));
     try {
       await ensureDir(join(cwd, 'content/images'));
       await writeFile(join(cwd, 'content/images/cover.jpg'), 'KEEP-ME');
@@ -1261,7 +1261,7 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
   });
 
   test('passing a missing .zip path rejects with a clear error', async () => {
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-cwd-')));
     try {
       await expect(
         importGhostExport({ cwd, file: join(exportDir, 'does-not-exist.zip') }),
@@ -1276,7 +1276,7 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
     await ensureDir(join(exportDir, 'content/images/2024'));
     await writeFile(join(exportDir, 'content/images/2024/cover.jpg'), 'COVER');
 
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-cwd-')));
     try {
       const summary = await importGhostExport({ cwd, file: jsonFile, onConflict: 'overwrite' });
       expect(summary.posts).toBe(1);
@@ -1291,7 +1291,7 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
     const jsonFile = await writeJsonNamed('export.json');
     await rm(join(exportDir, 'content'), { recursive: true, force: true });
 
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-cwd-')));
     try {
       const summary = await importGhostExport({ cwd, file: jsonFile, onConflict: 'overwrite' });
       expect(summary.posts).toBe(1);
@@ -1345,7 +1345,7 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
     await ensureDir(join(exportDir, 'content/files/2024/01'));
     await writeFile(join(exportDir, 'content/files/2024/01/demo-en.vtt'), 'VTT');
 
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-cwd-')));
     try {
       const summary = await importGhostExport({ cwd, file: exportDir, onConflict: 'overwrite' });
       expect(summary.posts).toBe(1);
@@ -1395,7 +1395,7 @@ describe('importGhostExport — folder input + asset copy (#73)', () => {
     await ensureDir(join(exportDir, 'content/images/2024/01'));
     await writeFile(join(exportDir, 'content/images/2024/01/header.jpg'), 'HEADER');
 
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-cwd-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-cwd-')));
     try {
       const summary = await importGhostExport({ cwd, file: exportDir, onConflict: 'overwrite' });
       expect(summary.posts).toBe(1);
@@ -1416,7 +1416,7 @@ describe('importGhostExport — ZIP archive input (#88)', () => {
   let stagingDir: string;
 
   beforeEach(async () => {
-    stagingDir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-zip-')));
+    stagingDir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-zip-')));
   });
 
   afterEach(async () => {
@@ -1483,7 +1483,7 @@ describe('importGhostExport — ZIP archive input (#88)', () => {
     const zipPath = join(stagingDir, 'my-blog.ghost.2024-01-01.zip');
     await makeZip(zipPath, exportFolder, true);
 
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-zip-cwd-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-zip-cwd-')));
     try {
       const summary = await importGhostExport({ cwd, file: zipPath, onConflict: 'overwrite' });
       expect(summary.posts).toBe(1);
@@ -1509,7 +1509,7 @@ describe('importGhostExport — ZIP archive input (#88)', () => {
     const zipPath = join(stagingDir, 'flat-export.zip');
     await makeZip(zipPath, exportFolder, false);
 
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-zip-cwd-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-zip-cwd-')));
     try {
       const summary = await importGhostExport({ cwd, file: zipPath, onConflict: 'overwrite' });
       expect(summary.posts).toBe(1);
@@ -1526,11 +1526,11 @@ describe('importGhostExport — ZIP archive input (#88)', () => {
     const zipPath = join(stagingDir, 'my-blog.zip');
     await makeZip(zipPath, exportFolder, true);
 
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-zip-cwd-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-zip-cwd-')));
     try {
-      const before = (await readdir(tmpdir())).filter((n) => n.startsWith('nectar-ghost-zip-'));
+      const before = (await readdir(tmpdir())).filter((n) => n.startsWith('laurel-ghost-zip-'));
       await importGhostExport({ cwd, file: zipPath, onConflict: 'overwrite' });
-      const after = (await readdir(tmpdir())).filter((n) => n.startsWith('nectar-ghost-zip-'));
+      const after = (await readdir(tmpdir())).filter((n) => n.startsWith('laurel-ghost-zip-'));
       expect(after.length).toBe(before.length);
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -1541,11 +1541,11 @@ describe('importGhostExport — ZIP archive input (#88)', () => {
     const zipPath = join(stagingDir, 'corrupt.zip');
     await writeFile(zipPath, 'NOT A ZIP');
 
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-zip-cwd-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-zip-cwd-')));
     try {
-      const before = (await readdir(tmpdir())).filter((n) => n.startsWith('nectar-ghost-zip-'));
+      const before = (await readdir(tmpdir())).filter((n) => n.startsWith('laurel-ghost-zip-'));
       await expect(importGhostExport({ cwd, file: zipPath })).rejects.toThrow(/Failed to extract/);
-      const after = (await readdir(tmpdir())).filter((n) => n.startsWith('nectar-ghost-zip-'));
+      const after = (await readdir(tmpdir())).filter((n) => n.startsWith('laurel-ghost-zip-'));
       expect(after.length).toBe(before.length);
     } finally {
       await rm(cwd, { recursive: true, force: true });
@@ -1558,7 +1558,7 @@ describe('importGhostExport — __GHOST_URL__ placeholder (#72)', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-url-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-url-')));
     exportFile = join(cwd, 'export.json');
   });
 
@@ -1761,7 +1761,7 @@ describe('importGhostExport — Koenig card comment fences', () => {
   let captured: CapturedStderr;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-')));
     exportFile = join(cwd, 'export.json');
     captured = captureStderr();
   });
@@ -2056,7 +2056,7 @@ describe('importGhostExport — --download-images (#128)', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-dl-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-dl-')));
     exportFile = join(cwd, 'export.json');
   });
 
@@ -2696,7 +2696,7 @@ describe('importGhostExport — --max-image-size (#239)', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-maxsz-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-maxsz-')));
     exportFile = join(cwd, 'export.json');
   });
 
@@ -2866,7 +2866,7 @@ describe('importGhostExport — --source-url (#500)', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-srcurl-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-srcurl-')));
     exportFile = join(cwd, 'export.json');
   });
 
@@ -3148,7 +3148,7 @@ describe('importGhostExport — multi-db export merging (#126)', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-multidb-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-multidb-')));
     exportFile = join(cwd, 'export.json');
   });
 
@@ -3349,7 +3349,7 @@ describe('importGhostExport — Lexical/Mobiledoc body rendering (#127)', () => 
   let captured: CapturedStderr;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-')));
     exportFile = join(cwd, 'export.json');
     captured = captureStderr();
   });
@@ -3599,7 +3599,7 @@ describe('importGhostExport — posts_tags/posts_authors bucketing (#139)', () =
   let captured: CapturedStderr;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-')));
     exportFile = join(cwd, 'export.json');
     captured = captureStderr();
   });
@@ -3742,7 +3742,7 @@ describe('importGhostExport — --dry-run (#502)', () => {
   let captured: CapturedStderr;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-')));
     exportFile = join(cwd, 'export.json');
     captured = captureStderr();
   });
@@ -3966,7 +3966,7 @@ describe('importGhostExport — outputDir (#265)', () => {
   let exportFolder: string;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-output-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-output-')));
     exportFolder = join(cwd, 'ghost-export');
     await Bun.write(
       join(exportFolder, 'my-blog.ghost.json'),
@@ -4041,7 +4041,7 @@ describe('importGhostExport — Ghost project YAML files (#1010)', () => {
   let exportFolder: string;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-project-yaml-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-project-yaml-')));
     exportFolder = join(cwd, 'ghost-export');
     await Bun.write(
       join(exportFolder, 'my-blog.ghost.json'),
@@ -4150,7 +4150,7 @@ describe('importGhostExport — Ghost settings config import (#1042)', () => {
   let captured: CapturedStderr;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-settings-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-settings-')));
     exportFile = join(cwd, 'export.json');
     captured = captureStderr();
   });
@@ -4194,11 +4194,11 @@ describe('importGhostExport — Ghost settings config import (#1042)', () => {
     );
   }
 
-  test('writes site metadata and navigation into nectar.toml when no config exists', async () => {
+  test('writes site metadata and navigation into laurel.toml when no config exists', async () => {
     await writeSettingsExport();
 
     const summary = await importGhostExport({ cwd, file: exportFile });
-    const configPath = join(cwd, 'nectar.toml');
+    const configPath = join(cwd, 'laurel.toml');
     const parsed = TOML.parse(await readFile(configPath, 'utf8')) as {
       site?: { title?: string; description?: string; url?: string };
       navigation?: Array<{ label: string; url: string }>;
@@ -4216,9 +4216,9 @@ describe('importGhostExport — Ghost settings config import (#1042)', () => {
     expect(parsed.secondary_navigation).toEqual([{ label: 'RSS', url: '/rss/' }]);
   });
 
-  test('preserves an existing nectar.toml by default', async () => {
+  test('preserves an existing laurel.toml by default', async () => {
     await writeSettingsExport();
-    const configPath = join(cwd, 'nectar.toml');
+    const configPath = join(cwd, 'laurel.toml');
     await writeFile(
       configPath,
       [
@@ -4247,7 +4247,7 @@ describe('importGhostExport — Ghost settings config import (#1042)', () => {
 
   test('--on-conflict overwrite updates imported settings while preserving other config', async () => {
     await writeSettingsExport();
-    const configPath = join(cwd, 'nectar.toml');
+    const configPath = join(cwd, 'laurel.toml');
     await writeFile(
       configPath,
       [
@@ -4286,7 +4286,7 @@ describe('importGhostExport — JSON size cap (#558)', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-size-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-size-')));
     exportFile = join(cwd, 'export.json');
   });
 
@@ -4360,7 +4360,7 @@ describe('importGhostExport — post HTML Turndown safety cap (#1157)', () => {
   let captured: CapturedStderr;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-html-cap-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-html-cap-')));
     exportFile = join(cwd, 'export.json');
     captured = captureStderr();
   });
@@ -4419,7 +4419,7 @@ describe('importGhostExport — image URL scheme sanitization (#562)', () => {
   let captured: CapturedStderr;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-img-sanitize-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-img-sanitize-')));
     exportFile = join(cwd, 'export.json');
     captured = captureStderr();
   });
@@ -4611,7 +4611,7 @@ describe('importGhostExport — code injection opt-in (#561)', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-ci-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-ci-')));
     exportFile = join(cwd, 'export.json');
   });
 
@@ -4714,7 +4714,7 @@ describe('importGhostExport — parallel render and write (#522, #523)', () => {
   let captured: CapturedStderr;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-ghost-parallel-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-parallel-')));
     exportFile = join(cwd, 'export.json');
     captured = captureStderr();
   });

@@ -1,6 +1,6 @@
 import matter from 'gray-matter';
 import yaml from 'js-yaml';
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 
 interface ParsedFrontmatter {
   data: Record<string, unknown>;
@@ -71,13 +71,13 @@ function rejectNonYamlFence(raw: string, filePath: string | undefined): void {
   if (!match) return;
   const lang = (match[1] ?? '').toLowerCase();
   if (lang === 'yaml' || lang === 'yml') return;
-  const init: ConstructorParameters<typeof NectarError>[0] = {
+  const init: ConstructorParameters<typeof LaurelError>[0] = {
     message: `unsupported frontmatter language: '${match[1]}' (only YAML is allowed)`,
     hint: 'Remove the language tag (use plain `---`) or convert the frontmatter to YAML.',
     code: 'content',
   };
   if (filePath) init.file = filePath;
-  throw new NectarError(init);
+  throw new LaurelError(init);
 }
 
 interface YamlMark {
@@ -85,13 +85,13 @@ interface YamlMark {
   column?: number;
 }
 
-function wrapYamlError(err: unknown, filePath: string | undefined): NectarError {
+function wrapYamlError(err: unknown, filePath: string | undefined): LaurelError {
   const e = err as Error & { mark?: YamlMark; reason?: string };
   const mark = e.mark;
   const message = e.reason
     ? `invalid frontmatter: ${e.reason}`
     : `invalid frontmatter: ${e.message ?? String(err)}`;
-  const init: ConstructorParameters<typeof NectarError>[0] = {
+  const init: ConstructorParameters<typeof LaurelError>[0] = {
     message,
     cause: err,
     code: 'content',
@@ -99,7 +99,7 @@ function wrapYamlError(err: unknown, filePath: string | undefined): NectarError 
   if (filePath) init.file = filePath;
   if (mark?.line !== undefined) init.line = mark.line + 1;
   if (mark?.column !== undefined) init.col = mark.column + 1;
-  return new NectarError(init);
+  return new LaurelError(init);
 }
 
 export function asString(value: unknown): string | undefined {
@@ -144,7 +144,7 @@ export function asBool(value: unknown, fallback: boolean): boolean {
 // an empty string, return `fallback` (or an undefined sentinel via
 // `new Date(0)` if no fallback is provided) — this is the "no date provided"
 // path and is silent. When `value` is present but cannot be parsed as a date,
-// throw a `NectarError` so the build fails with a useful pointer instead of
+// throw a `LaurelError` so the build fails with a useful pointer instead of
 // silently sorting the post to 1970-01-01 in feeds. The post path is included
 // in the error message (the outer `loadMarkdownDir` wraps the error to also
 // surface `file` separately, but embedding it in the message keeps it visible
@@ -173,10 +173,10 @@ function invalidDateError(
   context: string | undefined,
   value: unknown,
   reason: string,
-): NectarError {
+): LaurelError {
   const where = context ? ` (${context})` : '';
   const rendered = renderDateValue(value);
-  return new NectarError({
+  return new LaurelError({
     message: `Invalid date in frontmatter${where}: ${reason} — got ${rendered}`,
     hint: 'Use an ISO-8601 date such as 2026-01-02 or 2026-01-02T03:04:05Z, or remove the field to fall back to the file mtime.',
     code: 'content',

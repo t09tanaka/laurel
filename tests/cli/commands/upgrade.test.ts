@@ -24,54 +24,54 @@ function makeWriter() {
 describe('cli upgrade', () => {
   test('detects bun global installs', () => {
     const plan = detectUpgradePlan({
-      argv: ['bun', '/Users/me/.bun/bin/nectar'],
-      ...fakeFs('/Users/me/.bun/install/global/node_modules/nectar/dist/cli.mjs'),
+      argv: ['bun', '/Users/me/.bun/bin/laurel'],
+      ...fakeFs('/Users/me/.bun/install/global/node_modules/laurel/dist/cli.mjs'),
     });
 
     expect(plan.method).toBe('bun-global');
     expect(plan.selfUpdatable).toBe(true);
-    expect(plan.command).toEqual(['bun', 'install', '-g', 'nectar@latest']);
+    expect(plan.command).toEqual(['bun', 'install', '-g', 'laurel@latest']);
   });
 
   test('detects npm global installs', () => {
     const plan = detectUpgradePlan({
-      argv: ['node', '/usr/local/lib/node_modules/nectar/dist/cli.mjs'],
-      ...fakeFs('/usr/local/lib/node_modules/nectar/dist/cli.mjs'),
+      argv: ['node', '/usr/local/lib/node_modules/laurel/dist/cli.mjs'],
+      ...fakeFs('/usr/local/lib/node_modules/laurel/dist/cli.mjs'),
     });
 
     expect(plan.method).toBe('npm-global');
     expect(plan.selfUpdatable).toBe(true);
-    expect(plan.command).toEqual(['npm', 'install', '-g', 'nectar@latest']);
+    expect(plan.command).toEqual(['npm', 'install', '-g', 'laurel@latest']);
   });
 
   test('detects bunx one-shot installs as non-self-updatable', () => {
     const plan = detectUpgradePlan({
-      argv: ['bun', '/Users/me/.bun/install/cache/nectar@0.1.0/node_modules/.bin/nectar'],
-      ...fakeFs('/Users/me/.bun/install/cache/nectar@0.1.0/node_modules/nectar/dist/cli.mjs'),
+      argv: ['bun', '/Users/me/.bun/install/cache/laurel@0.1.0/node_modules/.bin/laurel'],
+      ...fakeFs('/Users/me/.bun/install/cache/laurel@0.1.0/node_modules/laurel/dist/cli.mjs'),
     });
 
     expect(plan.method).toBe('bunx');
     expect(plan.selfUpdatable).toBe(false);
-    expect(plan.command).toEqual(['bunx', 'nectar@latest']);
+    expect(plan.command).toEqual(['bunx', 'laurel@latest']);
   });
 
   test('detects Homebrew installs', () => {
     const plan = detectUpgradePlan({
-      argv: ['bun', '/opt/homebrew/bin/nectar'],
-      ...fakeFs('/opt/homebrew/Cellar/nectar/0.1.0/bin/nectar'),
+      argv: ['bun', '/opt/homebrew/bin/laurel'],
+      ...fakeFs('/opt/homebrew/Cellar/laurel/0.1.0/bin/laurel'),
     });
 
     expect(plan.method).toBe('homebrew');
     expect(plan.selfUpdatable).toBe(true);
-    expect(plan.command).toEqual(['brew', 'upgrade', 'nectar']);
+    expect(plan.command).toEqual(['brew', 'upgrade', 'laurel']);
   });
 
   test('dry-run prints the command without spawning it', async () => {
     const stdout = makeWriter();
     const calls: string[][] = [];
     const exitCode = await runUpgrade(['--dry-run'], {
-      argv: ['bun', '/Users/me/.bun/bin/nectar'],
-      ...fakeFs('/Users/me/.bun/install/global/node_modules/nectar/dist/cli.mjs'),
+      argv: ['bun', '/Users/me/.bun/bin/laurel'],
+      ...fakeFs('/Users/me/.bun/install/global/node_modules/laurel/dist/cli.mjs'),
       stdout: stdout.stream,
       spawn: ((command: string[]) => {
         calls.push(command);
@@ -81,16 +81,16 @@ describe('cli upgrade', () => {
 
     expect(exitCode).toBe(0);
     expect(calls).toEqual([]);
-    expect(stdout.read()).toContain('Run: bun install -g nectar@latest');
+    expect(stdout.read()).toContain('Run: bun install -g laurel@latest');
   });
 
-  test('NECTAR_NO_UPDATE_CHECK skips detection and command execution', async () => {
+  test('LAUREL_NO_UPDATE_CHECK skips detection and command execution', async () => {
     const stdout = makeWriter();
     const calls: string[][] = [];
     const exitCode = await runUpgrade([], {
-      env: { NECTAR_NO_UPDATE_CHECK: '1' },
-      argv: ['bun', '/Users/me/.bun/bin/nectar'],
-      ...fakeFs('/Users/me/.bun/install/global/node_modules/nectar/dist/cli.mjs'),
+      env: { LAUREL_NO_UPDATE_CHECK: '1' },
+      argv: ['bun', '/Users/me/.bun/bin/laurel'],
+      ...fakeFs('/Users/me/.bun/install/global/node_modules/laurel/dist/cli.mjs'),
       stdout: stdout.stream,
       spawn: ((command: string[]) => {
         calls.push(command);
@@ -100,15 +100,15 @@ describe('cli upgrade', () => {
 
     expect(exitCode).toBe(0);
     expect(calls).toEqual([]);
-    expect(stdout.read()).toContain('NECTAR_NO_UPDATE_CHECK=1');
+    expect(stdout.read()).toContain('LAUREL_NO_UPDATE_CHECK=1');
   });
 
   test('self-updatable installs run the detected command', async () => {
     const stdout = makeWriter();
     const calls: string[][] = [];
     const exitCode = await runUpgrade([], {
-      argv: ['node', '/usr/local/lib/node_modules/nectar/dist/cli.mjs'],
-      ...fakeFs('/usr/local/lib/node_modules/nectar/dist/cli.mjs'),
+      argv: ['node', '/usr/local/lib/node_modules/laurel/dist/cli.mjs'],
+      ...fakeFs('/usr/local/lib/node_modules/laurel/dist/cli.mjs'),
       stdout: stdout.stream,
       spawn: ((command: string[]) => {
         calls.push(command);
@@ -117,7 +117,7 @@ describe('cli upgrade', () => {
     });
 
     expect(exitCode).toBe(0);
-    expect(calls).toEqual([['npm', 'install', '-g', 'nectar@latest']]);
-    expect(stdout.read()).toContain('Running: npm install -g nectar@latest');
+    expect(calls).toEqual([['npm', 'install', '-g', 'laurel@latest']]);
+    expect(stdout.read()).toContain('Running: npm install -g laurel@latest');
   });
 });

@@ -1,5 +1,5 @@
 import type Handlebars from 'handlebars';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 
 // Ghost's `{{#contentFor "name"}}…{{/contentFor}}` + `{{{block "name"}}}` pair
 // is the canonical way for a child template (rendered first) to inject markup
@@ -22,7 +22,7 @@ interface BlocksData {
   __blocks?: Record<string, string>;
 }
 
-export function registerContentForHelpers(engine: NectarEngine): void {
+export function registerContentForHelpers(engine: LaurelEngine): void {
   engine.hb.registerHelper(
     'contentFor',
     function contentForHelper(this: unknown, name: unknown, options: Handlebars.HelperOptions) {

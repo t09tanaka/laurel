@@ -1,7 +1,7 @@
-Print Nectar, Bun, and project environment information
+Print Laurel, Bun, and project environment information
 
 Usage:
-  nectar info [--config <path>] [--json]
+  laurel info [--config <path>] [--json]
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -9,9 +9,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --config → NECTAR_INFO_CONFIG
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → LAUREL_INFO_CONFIG
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -19,6 +19,6 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar info                                  # human-readable summary
-  nectar info --json                           # machine-readable; same payload
-  nectar env                                   # alias for `nectar info`
+  laurel info                                  # human-readable summary
+  laurel info --json                           # machine-readable; same payload
+  laurel env                                   # alias for `laurel info`

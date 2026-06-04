@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 320" role="img" aria-label="Terminal showing the nectar import-ghost command output">
-  <title>Terminal — nectar import-ghost</title>
-  <desc>A terminal window running nectar import-ghost ghost-export.json. The output reports the number of posts, pages, tags, authors, and copied asset files.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 320" role="img" aria-label="Terminal showing the laurel import-ghost command output">
+  <title>Terminal — laurel import-ghost</title>
+  <desc>A terminal window running laurel import-ghost ghost-export.json. The output reports the number of posts, pages, tags, authors, and copied asset files.</desc>
   <rect width="720" height="320" fill="#1d1f21"/>
   <rect x="0" y="0" width="720" height="28" fill="#2b2f33"/>
   <circle cx="16" cy="14" r="6" fill="#ff5f57"/>
@@ -8,7 +8,7 @@
   <circle cx="56" cy="14" r="6" fill="#28c840"/>
   <text x="360" y="19" font-family="SF Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#c5c8c6" text-anchor="middle">~/my-blog — bun</text>
   <g font-family="SF Mono, ui-monospace, Menlo, monospace" font-size="13" fill="#c5c8c6">
-    <text x="20" y="60"><tspan fill="#81a2be">$</tspan> bunx nectar import-ghost ./ghost-export.json --assets ./ghost-media</text>
+    <text x="20" y="60"><tspan fill="#81a2be">$</tspan> bunx laurel import-ghost ./ghost-export.json --assets ./ghost-media</text>
     <text x="20" y="86"><tspan fill="#b5bd68">info</tspan> Reading Ghost export from ./ghost-export.json</text>
     <text x="20" y="106"><tspan fill="#b5bd68">info</tspan> Imported 142 posts, 6 pages, 28 tags, 3 authors</text>
     <text x="20" y="126"><tspan fill="#b5bd68">info</tspan> Copied 318 asset files into content/</text>

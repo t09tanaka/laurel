@@ -1,7 +1,7 @@
 import type Handlebars from 'handlebars';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 
-export function registerStringHelpers(engine: NectarEngine): void {
+export function registerStringHelpers(engine: LaurelEngine): void {
   engine.hb.registerHelper('concat', function concatHelper(...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
     const separator = stringifyConcatValue(options.hash.separator);

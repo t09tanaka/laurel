@@ -1,13 +1,13 @@
-Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>`
+Convert content from another platform into Laurel Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>`
 
 Usage:
-  nectar migrate [--on-conflict <skip|overwrite|rename>] [--dry-run] [--assets <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--max-size <size>] [--max-post-html-size <size>] [--keep-code-injection] [--json] <source-and-args...>
+  laurel migrate [--on-conflict <skip|overwrite|rename>] [--dry-run] [--assets <dir>] [--download-images] [--max-image-size <size>] [--source-url <url>] [--max-size <size>] [--max-post-html-size <size>] [--keep-code-injection] [--json] <source-and-args...>
 
 Arguments:
   source-and-args     `<source> <path>` where source is one of `ghost`, `wordpress`, `hugo`, `jekyll`, `eleventy`
 
 End of options:
-  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+  Use `--` before positional values that start with `-`, for example `laurel new post -- --config`.
 
 Options:
   --on-conflict <skip|overwrite|rename>  How to handle existing files when slugs collide: skip (default), overwrite, or rename (ghost/wordpress only)
@@ -23,9 +23,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --on-conflict → NECTAR_MIGRATE_ON_CONFLICT
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --on-conflict → LAUREL_MIGRATE_ON_CONFLICT
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -33,8 +33,8 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar migrate ghost export.json
-  nectar migrate ghost export.zip --on-conflict overwrite
-  nectar migrate wordpress export.xml
-  nectar migrate hugo ./old-hugo-site --dry-run
-  nectar migrate jekyll ./old-jekyll-site
+  laurel migrate ghost export.json
+  laurel migrate ghost export.zip --on-conflict overwrite
+  laurel migrate wordpress export.xml
+  laurel migrate hugo ./old-hugo-site --dry-run
+  laurel migrate jekyll ./old-jekyll-site

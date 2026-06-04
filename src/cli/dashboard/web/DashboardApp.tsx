@@ -190,7 +190,7 @@ export function DashboardApp(): JSX.Element {
   // title sync
   useEffect(() => {
     if (!state) return;
-    document.title = `${state.site.title} · ${viewHeadFor(ui.view).title} · Nectar Dashboard`;
+    document.title = `${state.site.title} · ${viewHeadFor(ui.view).title} · Laurel Dashboard`;
   }, [state, ui.view]);
 
   // open route editor if URL points to /:kind/:slug/edit on first mount only.
@@ -444,7 +444,7 @@ export function DashboardApp(): JSX.Element {
           : '';
     const confirmed = await confirmHost.api.ask({
       title: `Delete this ${label}?`,
-      body: `"${editor.slug}" moves to trash (.nectar/trash). You can restore it from there until it's purged. Any unsaved edits are discarded.${consequence}`,
+      body: `"${editor.slug}" moves to trash (.laurel/trash). You can restore it from there until it's purged. Any unsaved edits are discarded.${consequence}`,
       confirmLabel: 'Delete',
       cancelLabel: 'Keep editing',
       intent: 'danger',

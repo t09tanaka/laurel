@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 
 export interface VersionJson {
-  name: 'nectar';
+  name: 'laurel';
   version: string;
   bun: string | null;
   node: string;
@@ -9,7 +9,7 @@ export interface VersionJson {
 }
 
 const COMMIT_ENV_KEYS = [
-  'NECTAR_COMMIT_SHA',
+  'LAUREL_COMMIT_SHA',
   'GITHUB_SHA',
   'VERCEL_GIT_COMMIT_SHA',
   'CF_PAGES_COMMIT_SHA',
@@ -22,7 +22,7 @@ export function buildVersionJson(
   cwd: string = process.cwd(),
 ): VersionJson {
   return {
-    name: 'nectar',
+    name: 'laurel',
     version,
     bun: currentBunVersion(),
     node: process.version,

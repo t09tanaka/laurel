@@ -9,13 +9,13 @@ import { build } from '~/build/pipeline.ts';
 import type { BuildStats } from '~/build/profile.ts';
 
 async function makeMinimalSite(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'nectar-incremental-'));
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-incremental-'));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
 
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Incremental Test"',
@@ -186,7 +186,7 @@ Hello body, edited
   test('unchanged RSS and sitemap outputs are preserved across incremental builds', async () => {
     const cwd = await makeMinimalSite();
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
         '[site]',
         'title = "Incremental Test"',
@@ -296,7 +296,7 @@ Hello body, edited
       }),
     );
 
-    const cache = await Bun.file(join(cwd, 'dist/.nectar-manifest.json')).json();
+    const cache = await Bun.file(join(cwd, 'dist/.laurel-manifest.json')).json();
     expect(cache.themeFingerprint).toBe(routeThemeFingerprint);
     expect(cache.routes['/world/'].contentFingerprint).toBe(routeContentFingerprint);
 
@@ -306,7 +306,7 @@ Hello body, edited
   test('invalidates only routes whose content fingerprint changes', async () => {
     const cwd = await makeMinimalSite();
     await build({ cwd, profile: true });
-    const previous = await Bun.file(join(cwd, 'dist/.nectar-manifest.json')).json();
+    const previous = await Bun.file(join(cwd, 'dist/.laurel-manifest.json')).json();
 
     await Bun.sleep(20);
     await writeFile(
@@ -323,7 +323,7 @@ Hello body, edited for fingerprint invalidation
 
     await build({ cwd, profile: true });
     const stats = await readBuildStats(cwd);
-    const current = await Bun.file(join(cwd, 'dist/.nectar-manifest.json')).json();
+    const current = await Bun.file(join(cwd, 'dist/.laurel-manifest.json')).json();
 
     expect(stats.routes.find((route) => route.url === '/hello/')?.reused).toBeFalse();
     expect(stats.routes.find((route) => route.url === '/world/')?.reused).toBeTrue();
@@ -339,5 +339,5 @@ Hello body, edited for fingerprint invalidation
 });
 
 async function readBuildStats(cwd: string): Promise<BuildStats> {
-  return JSON.parse(await readFile(join(cwd, 'dist/.nectar-build-stats.json'), 'utf8'));
+  return JSON.parse(await readFile(join(cwd, 'dist/.laurel-build-stats.json'), 'utf8'));
 }

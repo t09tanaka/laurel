@@ -24,7 +24,7 @@ export const frontmatterVisibilityValues = [
 const slugSchema = z
   .string()
   .regex(/^[a-z0-9][a-z0-9-]*$/)
-  .describe('Kebab-case URL token. If omitted, Nectar derives it from the file name.');
+  .describe('Kebab-case URL token. If omitted, Laurel derives it from the file name.');
 
 const dateSchema = z
   .string()
@@ -82,7 +82,7 @@ const entryBaseFields = {
   uuid: z
     .string()
     .optional()
-    .describe('Stable Ghost UUID override. Omit to let Nectar derive one deterministically.'),
+    .describe('Stable Ghost UUID override. Omit to let Laurel derive one deterministically.'),
   title: z.string().describe('Entry title. Required for posts and pages.'),
   slug: slugSchema.optional(),
   date: dateSchema.optional().describe('Alias for published_at.'),
@@ -255,4 +255,4 @@ export const frontmatterSchema = z
     tagFrontmatterSchema,
     authorFrontmatterSchema,
   ])
-  .describe('Nectar YAML frontmatter for posts, pages, tags, and authors.');
+  .describe('Laurel YAML frontmatter for posts, pages, tags, and authors.');

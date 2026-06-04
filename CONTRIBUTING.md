@@ -1,6 +1,6 @@
-# Contributing to Nectar
+# Contributing to Laurel
 
-Thanks for your interest in Nectar — a Ghost-theme-compatible static site
+Thanks for your interest in Laurel — a Ghost-theme-compatible static site
 generator built on Bun + TypeScript. This document covers everything you need to
 get a working dev environment, send a change, and have it merged.
 
@@ -20,16 +20,16 @@ In short: be kind, assume good intent, and critique code rather than people.
 - **Bug reports** — open a GitHub issue with a minimal reproduction (a small
   theme/content pair that triggers the bug is gold).
 - **Questions / "how do I…?"** — use
-  [GitHub Discussions → Q&A](https://github.com/t09tanaka/nectar/discussions/categories/q-a)
+  [GitHub Discussions → Q&A](https://github.com/t09tanaka/laurel/discussions/categories/q-a)
   rather than the issue tracker. See [`.github/SUPPORT.md`](./.github/SUPPORT.md)
   for which venue fits which question.
 - **Feature ideas** — bounce them in
-  [Discussions → Ideas](https://github.com/t09tanaka/nectar/discussions/categories/ideas)
-  first so we can talk through scope before any code is written. Nectar
+  [Discussions → Ideas](https://github.com/t09tanaka/laurel/discussions/categories/ideas)
+  first so we can talk through scope before any code is written. Laurel
   deliberately keeps the Ghost compatibility surface focused; see
   [`CLAUDE.md`](./CLAUDE.md) for what's in and out of scope.
 - **Show off a site / theme you built** — post in
-  [Discussions → Show and tell](https://github.com/t09tanaka/nectar/discussions/categories/show-and-tell).
+  [Discussions → Show and tell](https://github.com/t09tanaka/laurel/discussions/categories/show-and-tell).
 - **Pull requests** — see [Pull Request workflow](#pull-request-workflow) below.
 - **Docs improvements** — `README.md`, `docs/`, and tutorial fixes are always
   welcome and tend to merge quickly.
@@ -49,8 +49,8 @@ and bundler for this repo.
 ### First-time clone
 
 ```bash
-git clone https://github.com/t09tanaka/nectar.git
-cd nectar
+git clone https://github.com/t09tanaka/laurel.git
+cd laurel
 bun install --frozen-lockfile
 ```
 
@@ -106,7 +106,7 @@ version:
 src/      # SSG implementation (cli, content, theme, render, build, ghost, config)
 tests/    # bun test suite — mirrors src/ layout 1:1
 docs/     # Design notes, tutorials, migration guide
-example/  # Reference blog: content + nectar.toml + vendored Source theme
+example/  # Reference blog: content + laurel.toml + vendored Source theme
 ```
 
 Tests are **colocated by mirror**: `src/render/helpers.ts` →
@@ -163,7 +163,7 @@ footer.
 ```
 feat(config)!: rename `output.dir` to `build.outDir`
 
-BREAKING CHANGE: `output.dir` in nectar.toml has been renamed to `build.outDir`.
+BREAKING CHANGE: `output.dir` in laurel.toml has been renamed to `build.outDir`.
 Update your config before upgrading.
 ```
 
@@ -172,7 +172,7 @@ not "added X" or "adds X").
 
 ### Sign-off / DCO
 
-Nectar does **not** currently require a Developer Certificate of Origin (DCO)
+Laurel does **not** currently require a Developer Certificate of Origin (DCO)
 sign-off on commits. You do not need to add `Signed-off-by:` trailers, and CI
 will not reject commits that lack them.
 
@@ -276,7 +276,7 @@ The same scan, plus [osv-scanner](https://github.com/google/osv-scanner) (for
 `bun.lock` vulnerabilities) and [CodeQL](https://codeql.github.com/), runs in
 CI via [`.github/workflows/security.yml`](./.github/workflows/security.yml).
 Treat any security finding as a release blocker — this matters more here than
-in a typical SSG because Nectar accepts raw HTML from theme content
+in a typical SSG because Laurel accepts raw HTML from theme content
 (`codeinjection_head` / `codeinjection_foot`).
 
 To skip the hook for one commit (rare — prefer fixing the finding):
@@ -339,7 +339,7 @@ project's [MIT License](./LICENSE).
 ### Source License Header Policy
 
 The root [`LICENSE`](./LICENSE) file is the canonical license notice for
-Nectar's original source. Do not add per-file license headers to ordinary
+Laurel's original source. Do not add per-file license headers to ordinary
 project-owned files under `src/`, `tests/`, `scripts/`, `docs/`, or examples.
 This keeps snippets easy to copy and avoids noisy mechanical diffs.
 
@@ -352,8 +352,8 @@ need a per-file marker for packaging or redistribution, use the short SPDX form:
 ## Questions
 
 If you're unsure whether a change is in scope or how to structure it, ask in
-[Discussions → Q&A](https://github.com/t09tanaka/nectar/discussions/categories/q-a)
-or [Discussions → Ideas](https://github.com/t09tanaka/nectar/discussions/categories/ideas)
+[Discussions → Q&A](https://github.com/t09tanaka/laurel/discussions/categories/q-a)
+or [Discussions → Ideas](https://github.com/t09tanaka/laurel/discussions/categories/ideas)
 before writing the code. Saving a wasted afternoon is worth a five-minute
 discussion. See [`.github/SUPPORT.md`](./.github/SUPPORT.md) if you're unsure
 which venue to use.

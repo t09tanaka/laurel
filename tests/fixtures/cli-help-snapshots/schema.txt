@@ -1,18 +1,18 @@
-Print JSON Schema for Nectar config, frontmatter, or theme package.json
+Print JSON Schema for Laurel config, frontmatter, or theme package.json
 
 Usage:
-  nectar schema <target>
+  laurel schema <target>
 
 Arguments:
   target              `config`, `frontmatter`, or `theme`
 
 End of options:
-  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+  Use `--` before positional values that start with `-`, for example `laurel new post -- --config`.
 
 Options:
   -h, --help          Show help for this command
 
 Examples:
-  nectar schema config > nectar.config.schema.json
-  nectar schema frontmatter > nectar.frontmatter.schema.json
-  nectar schema theme > nectar.theme.schema.json
+  laurel schema config > laurel.config.schema.json
+  laurel schema frontmatter > laurel.frontmatter.schema.json
+  laurel schema theme > laurel.theme.schema.json

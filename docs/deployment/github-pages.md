@@ -7,10 +7,10 @@ or project site.
 
 1. Set `site.url` to the final Pages or custom-domain URL.
 2. For project sites built in GitHub Actions, set `GITHUB_PAGES=true` so
-   Nectar derives `build.base_path` from `GITHUB_REPOSITORY`; set
+   Laurel derives `build.base_path` from `GITHUB_REPOSITORY`; set
    `build.base_path` manually only when overriding that path.
-3. Run `GITHUB_PAGES=true GITHUB_REPOSITORY=<owner>/<repo> bunx nectar build`
-   locally for project-site smoke tests, or plain `bunx nectar build` for
+3. Run `GITHUB_PAGES=true GITHUB_REPOSITORY=<owner>/<repo> bunx laurel build`
+   locally for project-site smoke tests, or plain `bunx laurel build` for
    custom domains and user / organization sites.
 4. Prefer the GitHub Actions artifact workflow for new sites.
 5. Enable Pages with source set to GitHub Actions.

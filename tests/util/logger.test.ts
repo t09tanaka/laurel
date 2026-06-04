@@ -168,7 +168,7 @@ describe('logger stream routing', () => {
 
 describe('logger text timestamps', () => {
   test('non-TTY text logs include a leading ISO timestamp and level', () => {
-    const { stdout, stderr } = withEnv('NECTAR_LOG_TIMESTAMPS', undefined, () =>
+    const { stdout, stderr } = withEnv('LAUREL_LOG_TIMESTAMPS', undefined, () =>
       withStreamTty(process.stdout, false, () =>
         withStreamTty(process.stderr, false, () =>
           captureStreams(() => {
@@ -186,7 +186,7 @@ describe('logger text timestamps', () => {
   });
 
   test('TTY text logs keep the existing human-readable default', () => {
-    const { stdout, stderr } = withEnv('NECTAR_LOG_TIMESTAMPS', undefined, () =>
+    const { stdout, stderr } = withEnv('LAUREL_LOG_TIMESTAMPS', undefined, () =>
       withStreamTty(process.stdout, true, () =>
         withStreamTty(process.stderr, true, () =>
           captureStreams(() => {
@@ -201,8 +201,8 @@ describe('logger text timestamps', () => {
     expect(stderr).toBe('[warn] build.warned\n');
   });
 
-  test('NECTAR_LOG_TIMESTAMPS=1 enables timestamps even for TTY text logs', () => {
-    const { stdout } = withEnv('NECTAR_LOG_TIMESTAMPS', '1', () =>
+  test('LAUREL_LOG_TIMESTAMPS=1 enables timestamps even for TTY text logs', () => {
+    const { stdout } = withEnv('LAUREL_LOG_TIMESTAMPS', '1', () =>
       withStreamTty(process.stdout, true, () =>
         captureStreams(() => {
           logger.info('build.done');
@@ -217,7 +217,7 @@ describe('logger text timestamps', () => {
     const prev = getOutputMode();
     setOutputMode('json');
     try {
-      const { stdout } = withEnv('NECTAR_LOG_TIMESTAMPS', '1', () =>
+      const { stdout } = withEnv('LAUREL_LOG_TIMESTAMPS', '1', () =>
         captureStreams(() => {
           logger.info('build.done');
         }),
@@ -290,14 +290,14 @@ describe('setLogLevel', () => {
     expect(getLogLevel()).toBe('trace');
   });
 
-  test('refreshLogLevelFromEnv warns on unknown NECTAR_LOG_LEVEL and falls back to info', () => {
+  test('refreshLogLevelFromEnv warns on unknown LAUREL_LOG_LEVEL and falls back to info', () => {
     setLogLevel('trace');
     const { stderr } = captureStreams(() => {
-      refreshLogLevelFromEnv({ NECTAR_LOG_LEVEL: 'verbose' });
+      refreshLogLevelFromEnv({ LAUREL_LOG_LEVEL: 'verbose' });
     });
 
     expect(getLogLevel()).toBe('info');
-    expect(stderr).toContain('Invalid NECTAR_LOG_LEVEL="verbose"');
+    expect(stderr).toContain('Invalid LAUREL_LOG_LEVEL="verbose"');
   });
 });
 
@@ -403,8 +403,8 @@ describe('logger color detection', () => {
     expect(colorize('hi', 'red')).toBe('hi');
   });
 
-  test('NECTAR_NO_COLOR=0 + FORCE_COLOR=1 re-enables even when NO_COLOR=1', () => {
-    refreshColorFromEnv({ NO_COLOR: '1', NECTAR_NO_COLOR: '0', FORCE_COLOR: '1' });
+  test('LAUREL_NO_COLOR=0 + FORCE_COLOR=1 re-enables even when NO_COLOR=1', () => {
+    refreshColorFromEnv({ NO_COLOR: '1', LAUREL_NO_COLOR: '0', FORCE_COLOR: '1' });
     expect(colorize('hi', 'red')).toContain('\x1b[31m');
   });
 

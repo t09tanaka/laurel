@@ -11,7 +11,7 @@ import {
 import { configSchema } from '~/config/schema.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-netlify-'));
+  return mkdtemp(join(tmpdir(), 'laurel-netlify-'));
 }
 
 const DEFAULT_HEADERS_CONFIG = configSchema.parse({ site: { title: 'x' } }).deploy.headers;
@@ -273,21 +273,21 @@ describe('netlify.toml sample', () => {
     expect(existsSync(NETLIFY_TOML_SAMPLE)).toBe(true);
   });
 
-  test('documents the current Nectar build command, publish directory, and Bun version', async () => {
+  test('documents the current Laurel build command, publish directory, and Bun version', async () => {
     const body = await readFile(NETLIFY_TOML_SAMPLE, 'utf8');
 
     expect(body).toContain('[build]');
-    expect(body).toContain('command = "bunx nectar build"');
+    expect(body).toContain('command = "bunx laurel build"');
     expect(body).toContain('publish = "dist"');
     expect(body).toContain('[build.environment]');
     expect(body).toContain('BUN_VERSION = "1.3.0"');
   });
 
-  test('keeps Netlify build plugins separate from Nectar build-time plugins', async () => {
+  test('keeps Netlify build plugins separate from Laurel build-time plugins', async () => {
     const body = await readFile(NETLIFY_TOML_SAMPLE, 'utf8');
 
     expect(body).toContain('[[plugins]]');
     expect(body).toContain('@netlify/plugin-lighthouse');
-    expect(body).toContain("nectar.toml's top-level `plugins` array");
+    expect(body).toContain("laurel.toml's top-level `plugins` array");
   });
 });

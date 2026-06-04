@@ -75,7 +75,7 @@ async function installCompletions(
   const targetPath = completionInstallPath(shell, process.env);
   await mkdir(dirname(targetPath), { recursive: true });
   await writeFile(targetPath, renderCompletionScript(shell), { mode: 0o644 });
-  process.stdout.write(`Installed nectar ${shell} completions to ${targetPath}\n`);
+  process.stdout.write(`Installed laurel ${shell} completions to ${targetPath}\n`);
   return 0;
 }
 
@@ -129,16 +129,16 @@ function completionInstallPath(shell: Shell, env: NodeJS.ProcessEnv): string {
   const xdgConfigHome = env.XDG_CONFIG_HOME || join(home, '.config');
   switch (shell) {
     case 'bash':
-      return join(xdgDataHome, 'bash-completion', 'completions', 'nectar');
+      return join(xdgDataHome, 'bash-completion', 'completions', 'laurel');
     case 'zsh':
-      return join(env.ZDOTDIR || join(home, '.zsh'), 'completions', '_nectar');
+      return join(env.ZDOTDIR || join(home, '.zsh'), 'completions', '_laurel');
     case 'fish':
-      return join(xdgConfigHome, 'fish', 'completions', 'nectar.fish');
+      return join(xdgConfigHome, 'fish', 'completions', 'laurel.fish');
     case 'pwsh':
       if (process.platform === 'win32') {
-        return join(env.USERPROFILE || home, 'Documents', 'PowerShell', 'nectar-completions.ps1');
+        return join(env.USERPROFILE || home, 'Documents', 'PowerShell', 'laurel-completions.ps1');
       }
-      return join(xdgConfigHome, 'powershell', 'nectar-completions.ps1');
+      return join(xdgConfigHome, 'powershell', 'laurel-completions.ps1');
   }
 }
 
@@ -163,8 +163,8 @@ function renderBash(commands: string[], flags: Record<string, string[]>): string
   const cases = commands
     .map((name) => `      ${name})\n        opts="${(flags[name] ?? []).join(' ')}";;`)
     .join('\n');
-  return `# nectar bash completion. Install with: nectar completions install --shell bash
-_nectar_completions() {
+  return `# laurel bash completion. Install with: laurel completions install --shell bash
+_laurel_completions() {
   local cur prev cmd opts
   COMPREPLY=()
   cur="\${COMP_WORDS[COMP_CWORD]}"
@@ -180,7 +180,7 @@ ${cases}
   COMPREPLY=( $(compgen -W "$opts" -- "$cur") )
   return 0
 }
-complete -F _nectar_completions nectar
+complete -F _laurel_completions laurel
 `;
 }
 
@@ -188,7 +188,7 @@ function renderZsh(commands: string[], flags: Record<string, string[]>): string 
   const subFns = commands
     .map((name) => {
       const flagList = (flags[name] ?? []).map((f) => `'${f}'`).join(' ');
-      return `__nectar_${name.replace(/-/g, '_')}() {
+      return `__laurel_${name.replace(/-/g, '_')}() {
   _arguments -s -S ${flagList} ':*::: :->args'
 }`;
     })
@@ -199,12 +199,12 @@ function renderZsh(commands: string[], flags: Record<string, string[]>): string 
     return `    '${n}:${summary}'`;
   });
   const cmdCases = commands
-    .map((n) => `      ${n}) __nectar_${n.replace(/-/g, '_')} ;;`)
+    .map((n) => `      ${n}) __laurel_${n.replace(/-/g, '_')} ;;`)
     .join('\n');
-  return `#compdef nectar
-# nectar zsh completion. Install with: nectar completions install --shell zsh
+  return `#compdef laurel
+# laurel zsh completion. Install with: laurel completions install --shell zsh
 ${subFns}
-_nectar() {
+_laurel() {
   local context state state_descr line
   typeset -A opt_args
   _arguments -C \\
@@ -212,7 +212,7 @@ _nectar() {
     '*::: :->args'
   case $state in
     command)
-      _values 'nectar command' \\
+      _values 'laurel command' \\
 ${cmdList.join(' \\\n')}
       ;;
     args)
@@ -222,25 +222,25 @@ ${cmdCases}
       ;;
   esac
 }
-_nectar "$@"
+_laurel "$@"
 `;
 }
 
 function renderFish(commands: string[], flags: Record<string, string[]>): string {
   const lines: string[] = [];
-  lines.push('# nectar fish completion. Install with: nectar completions install --shell fish.');
+  lines.push('# laurel fish completion. Install with: laurel completions install --shell fish.');
   lines.push(
-    "complete -c nectar -n '__fish_use_subcommand' -a 'help version' -d 'Built-in command'",
+    "complete -c laurel -n '__fish_use_subcommand' -a 'help version' -d 'Built-in command'",
   );
   for (const name of commands) {
     const spec = COMMAND_SPECS[canonicalCompletionCommand(name)];
     const summary = (spec?.summary ?? '').replace(/'/g, "\\'");
-    lines.push(`complete -c nectar -n '__fish_use_subcommand' -a '${name}' -d '${summary}'`);
+    lines.push(`complete -c laurel -n '__fish_use_subcommand' -a '${name}' -d '${summary}'`);
   }
   for (const name of commands) {
     for (const flag of flags[name] ?? []) {
       const bare = flag.replace(/^--/, '');
-      lines.push(`complete -c nectar -n '__fish_seen_subcommand_from ${name}' -l ${bare}`);
+      lines.push(`complete -c laurel -n '__fish_seen_subcommand_from ${name}' -l ${bare}`);
     }
   }
   return `${lines.join('\n')}\n`;
@@ -253,8 +253,8 @@ function renderPowerShell(commands: string[], flags: Record<string, string[]>): 
       return `    '${name}' { return @(${flagList}) }`;
     })
     .join('\n');
-  return `# nectar PowerShell completion. Install with: nectar completions install --shell pwsh
-Register-ArgumentCompleter -Native -CommandName nectar -ScriptBlock {
+  return `# laurel PowerShell completion. Install with: laurel completions install --shell pwsh
+Register-ArgumentCompleter -Native -CommandName laurel -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
   $tokens = $commandAst.CommandElements
   if ($tokens.Count -le 1) {

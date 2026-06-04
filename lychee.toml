@@ -39,5 +39,5 @@ exclude = [
   "^https?://(?:[a-z0-9-]+\\.)*example\\.org(?:/|$)",
   "^https?://localhost(?::\\d+)?(?:/|$)",
   "^https?://127\\.0\\.0\\.1(?::\\d+)?(?:/|$)",
-  "^https?://github\\.com/t09tanaka/nectar/discussions(?:/|$)",
+  "^https?://github\\.com/t09tanaka/laurel/discussions(?:/|$)",
 ]

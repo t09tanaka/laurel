@@ -10,7 +10,7 @@ import {
 import { configSchema } from '~/config/schema.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-cf-workers-'));
+  return mkdtemp(join(tmpdir(), 'laurel-cf-workers-'));
 }
 
 const DEFAULT_HEADERS_CONFIG = configSchema.parse({ site: { title: 'x' } }).deploy.headers;

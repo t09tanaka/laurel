@@ -6,12 +6,12 @@ import { createChangeBus, handleDashboardRequest } from '~/cli/commands/dashboar
 import { createDistZipStream } from '~/cli/dashboard/zip-writer.ts';
 
 async function makeBuildFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-dashboard-build-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-dashboard-build-')));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
   await mkdir(join(dir, 'themes/source/assets'), { recursive: true });
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Build Site"',
@@ -175,7 +175,7 @@ describe('dashboard build + export endpoints', () => {
 
 describe('zip writer', () => {
   test('round-trips a directory of small text files through the system unzip', async () => {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-zip-writer-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-zip-writer-')));
     const outZip = join(dir, 'out.zip');
     const source = join(dir, 'source');
     const restored = join(dir, 'restored');

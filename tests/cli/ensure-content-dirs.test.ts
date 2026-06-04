@@ -4,9 +4,9 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ensureContentDirs } from '~/cli/ensure-content-dirs.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 
-function fakeConfig(): NectarConfig {
+function fakeConfig(): LaurelConfig {
   return {
     content: {
       posts_dir: 'content/posts',
@@ -14,7 +14,7 @@ function fakeConfig(): NectarConfig {
       authors_dir: 'content/authors',
       tags_dir: 'content/tags',
     },
-  } as unknown as NectarConfig;
+  } as unknown as LaurelConfig;
 }
 
 describe('ensureContentDirs', () => {
@@ -26,7 +26,7 @@ describe('ensureContentDirs', () => {
   });
 
   test('creates missing directories under cwd', async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-ecd-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-ecd-')));
     const created = await ensureContentDirs(dir, fakeConfig());
     expect(created.length).toBe(4);
     expect(existsSync(join(dir, 'content/posts'))).toBe(true);
@@ -36,14 +36,14 @@ describe('ensureContentDirs', () => {
   });
 
   test('returns empty list when all dirs already exist', async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-ecd-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-ecd-')));
     await ensureContentDirs(dir, fakeConfig());
     const created2 = await ensureContentDirs(dir, fakeConfig());
     expect(created2).toEqual([]);
   });
 
   test('handles a subset of missing dirs', async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-ecd-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-ecd-')));
     await Bun.write(join(dir, 'content/posts/.keep'), '');
     const created = await ensureContentDirs(dir, fakeConfig());
     expect(created.length).toBe(3);

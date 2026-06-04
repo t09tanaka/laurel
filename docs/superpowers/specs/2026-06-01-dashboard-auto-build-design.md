@@ -4,7 +4,7 @@ Date: 2026-06-01
 
 ## Problem
 
-`nectar dashboard` (prod mode, the default) serves the dashboard frontend from
+`laurel dashboard` (prod mode, the default) serves the dashboard frontend from
 `src/cli/dashboard/bundled-assets.ts` — a generated module that embeds the
 minified JS/CSS as strings and is loaded into memory at import time. Editing
 `src/cli/dashboard/web/**` has no effect until that module is regenerated
@@ -12,7 +12,7 @@ minified JS/CSS as strings and is loaded into memory at import time. Editing
 
 In practice this means that when a contributor runs the dashboard from a repo
 checkout to inspect it, they frequently see a stale (or, if the bundle was never
-built, empty → HTTP 503) UI. The current escape hatch is `nectar dashboard --dev`
+built, empty → HTTP 503) UI. The current escape hatch is `laurel dashboard --dev`
 (Bun fullstack HMR), but that path is documented as unstable under long sessions
 (segfaults in `bake.DevServer.SourceMapStore`, intermittently dropped CSS;
 oven-sh/bun#23617).
@@ -138,6 +138,6 @@ Auto-build must never crash the server:
   the new prod-from-source auto-build (when to rely on it, the mtime fast path,
   `--no-build`, and that `--dev` remains the live hot-reload path). The existing
   "rebuild then RESTART the prod server" caveat stays for explicit-bundle /
-  visual-QA workflows but is reframed: a plain `nectar dashboard` from source now
+  visual-QA workflows but is reframed: a plain `laurel dashboard` from source now
   rebuilds on launch, so the manual step is only needed when serving the
   committed `dist/dashboard-bundle/` (e.g. the published CLI path).

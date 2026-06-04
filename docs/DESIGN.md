@@ -1,4 +1,4 @@
-# Nectar — Detailed Design
+# Laurel — Detailed Design
 
 ## 1. Goal & non-goals
 
@@ -18,8 +18,8 @@ published from Ghost — without running Ghost.
 - Multi-locale routing. A build produces exactly one locale, determined by
   `[site].locale`. There is no `/en/foo/` + `/ja/foo/` split, no per-locale
   content subdirectory convention, and no language switcher routing. Sites
-  that need multiple locales should run one Nectar build per locale (each
-  with its own `nectar.toml` and `content/` tree) and stitch the outputs
+  that need multiple locales should run one Laurel build per locale (each
+  with its own `laurel.toml` and `content/` tree) and stitch the outputs
   together at the hosting layer. The single-locale-per-build constraint
   keeps the content graph, routing, sitemap, RSS, and pagination logic
   unambiguous; bolting multi-locale routing on top would force every
@@ -30,7 +30,7 @@ published from Ghost — without running Ghost.
 
 ```mermaid
 flowchart TD
-    Config["nectar.toml"]
+    Config["laurel.toml"]
     Markdown["content/**/*.md"]
     Themes["themes/&lt;name&gt;/<br/>(*.hbs, locales, assets, package.json)"]
 
@@ -53,7 +53,7 @@ flowchart TD
 <summary>ASCII fallback (for terminals or markdown viewers without Mermaid)</summary>
 
 ```
-nectar.toml ──┐
+laurel.toml ──┐
               ▼
   ┌──────────────────┐
   │  Config loader   │
@@ -111,7 +111,7 @@ nectar.toml ──┐
 
 ### 3.1 `src/config`
 
-Loads `nectar.toml`. Schema (validated via Zod):
+Loads `laurel.toml`. Schema (validated via Zod):
 
 ```toml
 [site]
@@ -223,10 +223,10 @@ name: News
 description: "Site news"
 feature_image: /content/images/news.jpg
 accent_color: "#005f73"
-og_title: News from Nectar
+og_title: News from Laurel
 og_description: Product and release updates
 og_image: /content/images/news-share.jpg
-twitter_title: News from Nectar
+twitter_title: News from Laurel
 twitter_description: Product and release updates
 twitter_image: /content/images/news-twitter.jpg
 codeinjection_head: |
@@ -250,14 +250,14 @@ a minimal `Tag` with `name = slug` capitalised.
 - `config.ts` — parse `package.json`'s `config` block. Drive defaults for
   `posts_per_page`, `image_sizes`, `card_assets`, and **especially**
   `custom.*` (custom theme settings). Each custom setting becomes a key on
-  `@custom`. A user can override the default via `nectar.toml`'s
+  `@custom`. A user can override the default via `laurel.toml`'s
   `[theme.custom]` table.
 - `locales.ts` — load `locales/*.json`, expose to the `{{t}}` helper. The
   active locale comes from `[site].locale`.
 
 ### 3.4 `src/render`
 
-The renderer wires Handlebars to Nectar's context. We use `handlebars`
+The renderer wires Handlebars to Laurel's context. We use `handlebars`
 (reference engine) directly because Ghost uses it, so behavior matches.
 
 - `engine.ts` — creates a Handlebars instance per build, registers partials,
@@ -277,7 +277,7 @@ The renderer wires Handlebars to Nectar's context. We use `handlebars`
 
 Ghost-flavoured helpers and the `{{#get}}` query stub.
 
-`{{#get}}` is normally a Ghost Content API call. In Nectar it's served by an
+`{{#get}}` is normally a Ghost Content API call. In Laurel it's served by an
 in-memory **resource resolver** that understands a tiny subset of the API
 filter DSL:
 
@@ -306,13 +306,13 @@ empty array rather than crash.
 
 `src/cli/index.ts` is the Bun entry. Commands:
 
-- `nectar build`              — full static build
-- `nectar new post "Title"`   — scaffold a Markdown post
-- `nectar new page "About"`   — scaffold a page
-- `nectar serve`              — Bun.serve over `dist/` with watch + rebuild
-- `nectar import-ghost <file>` — convert a Ghost JSON export → Markdown
-- `nectar check`              — lint config + theme + content
-- `nectar version`
+- `laurel build`              — full static build
+- `laurel new post "Title"`   — scaffold a Markdown post
+- `laurel new page "About"`   — scaffold a page
+- `laurel serve`              — Bun.serve over `dist/` with watch + rebuild
+- `laurel import-ghost <file>` — convert a Ghost JSON export → Markdown
+- `laurel check`              — lint config + theme + content
+- `laurel version`
 
 Argument parsing: `bun`'s built-in `parseArgs` (Node-compat) is enough. No
 external CLI lib needed.
@@ -384,7 +384,7 @@ For each helper we track: **status** (✅ implemented / 🟡 partial / ⛔ stub 
 ## 5. Optional components
 
 Each is a TypeScript module that hooks into the build pipeline by adding
-routes, helpers, or post-build transformers. Configured via `nectar.toml`.
+routes, helpers, or post-build transformers. Configured via `laurel.toml`.
 
 ```toml
 [components.search]
@@ -417,11 +417,11 @@ emission; each component either adds files to `dist/` or rewrites HTML.
 
 Build-time probes that may later touch the network should use
 `src/build/cache.ts` rather than inventing per-feature files. The shared JSON
-cache keeps cacheable probe results under `.nectar/cache/<namespace>/`;
+cache keeps cacheable probe results under `.laurel/cache/<namespace>/`;
 bookmark and oEmbed metadata use the `embeds` namespace, so entries land at:
 
 ```
-.nectar/cache/embeds/<sha256>.json
+.laurel/cache/embeds/<sha256>.json
 ```
 
 The `<sha256>` is derived from the namespace plus a stable key. URL keys are
@@ -470,18 +470,18 @@ CI:
 7. Route planner + emitter.
 8. Asset pipeline + `{{asset}}` fingerprinting.
 9. Optional components: sitemap, rss.
-10. `example/` scaffold (sample content + nectar.toml) and a green
+10. `example/` scaffold (sample content + laurel.toml) and a green
     end-to-end build against Source.
 11. Ghost import tool (last; it's orthogonal to the render path).
 
 ## 9. Open questions
 
-- Do we want a `nectar dev` server with HMR? Probably yes eventually, but
-  not in scope for the bootstrap milestone — `bun --watch` over `nectar
+- Do we want a `laurel dev` server with HMR? Probably yes eventually, but
+  not in scope for the bootstrap milestone — `bun --watch` over `laurel
   build` is fine for now.
 - Image transforms (`{{img_url … size="m"}}`): do we transcode at build, or
   just pass through? **Decision:** pass through for v0; document the limitation.
   Add `sharp` as an optional component later.
 - Theme custom settings type validation: do we trust theme `package.json` and
-  warn, or hard-fail when `nectar.toml` overrides an undeclared key? **Warn.**
+  warn, or hard-fail when `laurel.toml` overrides an undeclared key? **Warn.**
 - Drafts: filtered out at build by `status: draft`. No preview server yet.

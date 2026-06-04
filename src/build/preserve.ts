@@ -13,7 +13,7 @@ import { logger } from '~/util/logger.ts';
  * Listing those paths here causes them to be copied from the previous
  * `finalOutputDir` into the staging dir just before the swap.
  */
-export const PRESERVE_FILE = '.nectarignore';
+export const PRESERVE_FILE = '.laurelignore';
 
 export async function loadPreservePatterns(cwd: string): Promise<string[]> {
   const file = Bun.file(join(cwd, PRESERVE_FILE));

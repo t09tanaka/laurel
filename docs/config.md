@@ -1,8 +1,8 @@
-# Nectar configuration reference
+# Laurel configuration reference
 
 <!-- AUTO-GENERATED FILE. Do not edit by hand. Regenerate with `bun run docs:config`. -->
 
-This page lists every key understood by Nectar config files. It is generated from the
+This page lists every key understood by Laurel config files. It is generated from the
 Zod schema in `src/config/schema.ts`; run `bun run docs:config` after changing a
 field to refresh it.
 
@@ -11,50 +11,50 @@ falls back to the listed default.
 
 ## File discovery and precedence
 
-When a caller does not provide an explicit config path, Nectar looks only in
-the current working directory. It checks `nectar.toml`, `nectar.config.toml`,
-then `nectar.config.json`; the first existing base file wins. If `NECTAR_ENV`
-is set, Nectar then appends `nectar.<env>.toml` when that file exists.
-Finally, `.nectar.local.toml` is appended when present so local overrides
-written by `nectar config set` win over the base and environment layers. If
+When a caller does not provide an explicit config path, Laurel looks only in
+the current working directory. It checks `laurel.toml`, `laurel.config.toml`,
+then `laurel.config.json`; the first existing base file wins. If `LAUREL_ENV`
+is set, Laurel then appends `laurel.<env>.toml` when that file exists.
+Finally, `.laurel.local.toml` is appended when present so local overrides
+written by `laurel config set` win over the base and environment layers. If
 no config file exists, the schema defaults shown below are used.
 
 Passing `--config <path>` on the CLI, setting the command-specific config
-environment variable such as `NECTAR_BUILD_CONFIG`, or passing
-`configPath` to the build API disables discovery and `NECTAR_ENV` file
+environment variable such as `LAUREL_BUILD_CONFIG`, or passing
+`configPath` to the build API disables discovery and `LAUREL_ENV` file
 selection. Repeat `--config` or comma-separate paths to load multiple files;
 later files deep-merge over earlier files, with arrays and scalar values
 replaced. Relative config paths are resolved from the command or API `cwd`.
 
 The value precedence for config-backed behaviour is: CLI flag, then
 command-specific env var, then config file, then schema default. Separately,
-`NECTAR_<SECTION>_<KEY>` environment variables override matching config
+`LAUREL_<SECTION>_<KEY>` environment variables override matching config
 keys after the file is parsed, for example
-`NECTAR_SITE_URL=https://preview.example`. String, number, boolean, and
+`LAUREL_SITE_URL=https://preview.example`. String, number, boolean, and
 array keys are coerced through the same schema parser as TOML config;
 primitive arrays may be comma-separated or JSON arrays, while object arrays
 must be JSON arrays.
 
 On Netlify `deploy-preview` and `branch-deploy` builds, `DEPLOY_PRIME_URL`
-is used as a `site.url` fallback when `NECTAR_SITE_URL` is unset; Nectar
+is used as a `site.url` fallback when `LAUREL_SITE_URL` is unset; Laurel
 falls back to `DEPLOY_URL`, then `URL`. Build-level `--base-url` and
-`NECTAR_BUILD_BASE_URL` still override that loaded config value.
+`LAUREL_BUILD_BASE_URL` still override that loaded config value.
 
 On Vercel builds, `VERCEL_URL` is used as the same `site.url` fallback
-when `NECTAR_SITE_URL` is unset; host-only values are treated as HTTPS.
+when `LAUREL_SITE_URL` is unset; host-only values are treated as HTTPS.
 `VERCEL_GIT_COMMIT_REF` and `VERCEL_GIT_COMMIT_SHA` populate
 `build.metadata.branch` and `build.metadata.commit_sha`, unless an
-explicit Nectar build metadata env var overrides them.
+explicit Laurel build metadata env var overrides them.
 
 On Cloudflare Pages builds, `CF_PAGES_URL` is used as the same `site.url`
-fallback when `NECTAR_SITE_URL` is unset. `CF_PAGES_BRANCH` and
+fallback when `LAUREL_SITE_URL` is unset. `CF_PAGES_BRANCH` and
 `CF_PAGES_COMMIT_SHA` populate `build.metadata.branch` and
-`build.metadata.commit_sha`, unless an explicit Nectar build metadata env
+`build.metadata.commit_sha`, unless an explicit Laurel build metadata env
 var overrides them.
 
 `build.metadata` is surfaced to templates as `@site.build`. Precedence for
-branch / build ID / commit SHA is: `NECTAR_BUILD_METADATA_*` env vars,
-short Nectar aliases such as `NECTAR_BUILD_ID` and `NECTAR_COMMIT_SHA`,
+branch / build ID / commit SHA is: `LAUREL_BUILD_METADATA_*` env vars,
+short Laurel aliases such as `LAUREL_BUILD_ID` and `LAUREL_COMMIT_SHA`,
 provider env such as `VERCEL_GIT_COMMIT_SHA` or `CF_PAGES_COMMIT_SHA`,
 then generic CI env such as `BUILD_ID`, `COMMIT_SHA`, `COMMIT_REF`, and
 `GITHUB_SHA`.
@@ -73,24 +73,24 @@ must stay inside that root.
 | `theme` | `object` | Theme selection and `@custom` settings. |
 | `content` | `object` | Where Markdown content lives and how members-only posts are handled. |
 | `build` | `object` | Build pipeline options that shape the emitted site. |
-| `hooks` | `object` | Project-local lifecycle commands for integrating Nectar builds with external systems such as notifications, deploy tooling, or newsletter delivery. |
+| `hooks` | `object` | Project-local lifecycle commands for integrating Laurel builds with external systems such as notifications, deploy tooling, or newsletter delivery. |
 | `image_cdn` | `object` | Optional HTML post-process that rewrites local content image URLs through a deployment image CDN. It only touches relative or same-site URLs under `path_prefixes` and leaves third-party, protocol-relative, data/blob, and fragment URLs unchanged. |
 | `performance` | `object` | Resource-hint and HTML post-process knobs that shape network-time performance without touching theme markup. All toggles operate on already-rendered HTML so they compose with arbitrary `.hbs` templates. The defaults bias toward the LCP / Lighthouse-friendly behaviour modern Ghost themes already expect. |
 | `navigation[]` | `array<object>` | Primary navigation items, exposed to themes via `{{navigation}}`. |
 | `secondary_navigation[]` | `array<object>` | Secondary navigation items, exposed to themes via `{{navigation type="secondary"}}`. |
-| `recommendations[]` | `array<object>` | External sites surfaced through Ghost's `{{recommendations}}` helper. When non-empty, the site exposes `@site.recommendations_enabled = true` so themes like Source render the sidebar block, and Nectar auto-emits a `/recommendations/` page listing all entries inside a `<section id="all-recommendations">` block. The Source theme's "See all" button (`data-portal="recommendations"`) is rewritten to deep-link into that section. |
+| `recommendations[]` | `array<object>` | External sites surfaced through Ghost's `{{recommendations}}` helper. When non-empty, the site exposes `@site.recommendations_enabled = true` so themes like Source render the sidebar block, and Laurel auto-emits a `/recommendations/` page listing all entries inside a `<section id="all-recommendations">` block. The Source theme's "See all" button (`data-portal="recommendations"`) is rewritten to deep-link into that section. |
 | `tiers[]` | `array<object>` | Declarative membership tiers exposed to themes via `{{#get "tiers"}}` and `{{tiers}}`. Each entry becomes a Ghost-shaped tier object (with `id`, `slug`, `type`, `active`, `visibility`, `monthly_price`, `yearly_price`, `currency`, `welcome_page_url`, `benefits`) so pricing tables in Ghost themes render against a static config without a live Portal backend. Tiers without a `monthly_price` are typed as `free`; any positive price flips the entry to `paid`. When empty, `{{#get "tiers"}}` resolves to an empty list and the block silently no-ops. |
 | `deploy` | `object` | Deploy-target-specific hints that influence files emitted alongside the site. |
 | `components` | `object` | Optional components that emit extra files or inject markup. |
-| `plugins` | `array<string>` | Ordered list of plugin specs to load. Each entry is either a file path relative to the project root (e.g. `./plugins/my-plugin.ts`) or a bare module specifier resolvable by Bun/Node (e.g. `nectar-plugin-foo`). The module must export a `Plugin` object (or a factory returning one) as its `default` / `plugin` named export. Hooks fire in registration order; a plugin that fails to load logs a warning and is skipped so a broken plugin never bricks the build. |
-| `plugin_auto_detect` | `boolean` | Auto-discover plugins in `node_modules/` whose package name starts with `nectar-plugin-` (or `@scope/nectar-plugin-*`). Off by default because a one-time install of an unrelated package should not flip a site into running new build-time code without an explicit config edit. Set to `true` to opt into auto-loading. |
+| `plugins` | `array<string>` | Ordered list of plugin specs to load. Each entry is either a file path relative to the project root (e.g. `./plugins/my-plugin.ts`) or a bare module specifier resolvable by Bun/Node (e.g. `laurel-plugin-foo`). The module must export a `Plugin` object (or a factory returning one) as its `default` / `plugin` named export. Hooks fire in registration order; a plugin that fails to load logs a warning and is skipped so a broken plugin never bricks the build. |
+| `plugin_auto_detect` | `boolean` | Auto-discover plugins in `node_modules/` whose package name starts with `laurel-plugin-` (or `@scope/laurel-plugin-*`). Off by default because a one-time install of an unrelated package should not flip a site into running new build-time code without an explicit config edit. Set to `true` to opt into auto-loading. |
 
 ## Top-level fields
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `plugins` | `array<string>` | no | `[]` | Ordered list of plugin specs to load. Each entry is either a file path relative to the project root (e.g. `./plugins/my-plugin.ts`) or a bare module specifier resolvable by Bun/Node (e.g. `nectar-plugin-foo`). The module must export a `Plugin` object (or a factory returning one) as its `default` / `plugin` named export. Hooks fire in registration order; a plugin that fails to load logs a warning and is skipped so a broken plugin never bricks the build. |
-| `plugin_auto_detect` | `boolean` | no | `false` | Auto-discover plugins in `node_modules/` whose package name starts with `nectar-plugin-` (or `@scope/nectar-plugin-*`). Off by default because a one-time install of an unrelated package should not flip a site into running new build-time code without an explicit config edit. Set to `true` to opt into auto-loading. |
+| `plugins` | `array<string>` | no | `[]` | Ordered list of plugin specs to load. Each entry is either a file path relative to the project root (e.g. `./plugins/my-plugin.ts`) or a bare module specifier resolvable by Bun/Node (e.g. `laurel-plugin-foo`). The module must export a `Plugin` object (or a factory returning one) as its `default` / `plugin` named export. Hooks fire in registration order; a plugin that fails to load logs a warning and is skipped so a broken plugin never bricks the build. |
+| `plugin_auto_detect` | `boolean` | no | `false` | Auto-discover plugins in `node_modules/` whose package name starts with `laurel-plugin-` (or `@scope/laurel-plugin-*`). Off by default because a one-time install of an unrelated package should not flip a site into running new build-time code without an explicit config edit. Set to `true` to opt into auto-loading. |
 
 ## `site`
 
@@ -100,7 +100,7 @@ Site-wide metadata exposed to themes as `@site` and `@blog`.
 | --- | --- | --- | --- | --- |
 | `site.title` | `string` | yes | — | Display title of the site, used by themes and feeds. |
 | `site.description` | `string` | no | `""` | Short tagline rendered alongside the title in many themes and in feed metadata. |
-| `site.url` | `string` | no | `"http://localhost:4321"` | Public absolute URL of the deployed site. Used to build canonical links, sitemap entries, and RSS GUIDs. Validated as a parseable absolute URL at config-load time so canonical links and sitemap entries cannot be poisoned with arbitrary attribute payloads. Trailing slashes are stripped on load so the same value works whether the user wrote `https://example.com` or `https://example.com/` — URL joins in the pipeline assume no trailing slash, and a doubled `https://example.com//` would otherwise produce `https://example.com//foo/` links (#854). Netlify `deploy-preview` and `branch-deploy` builds automatically use `DEPLOY_PRIME_URL` here, falling back to `DEPLOY_URL` and `URL`; Vercel builds use `VERCEL_URL`; Cloudflare Pages builds use `CF_PAGES_URL`. Explicit overrides still win in this order: `--base-url`, `NECTAR_BUILD_BASE_URL`, `NECTAR_SITE_URL`, provider deploy URL, configured `site.url`. |
+| `site.url` | `string` | no | `"http://localhost:4321"` | Public absolute URL of the deployed site. Used to build canonical links, sitemap entries, and RSS GUIDs. Validated as a parseable absolute URL at config-load time so canonical links and sitemap entries cannot be poisoned with arbitrary attribute payloads. Trailing slashes are stripped on load so the same value works whether the user wrote `https://example.com` or `https://example.com/` — URL joins in the pipeline assume no trailing slash, and a doubled `https://example.com//` would otherwise produce `https://example.com//foo/` links (#854). Netlify `deploy-preview` and `branch-deploy` builds automatically use `DEPLOY_PRIME_URL` here, falling back to `DEPLOY_URL` and `URL`; Vercel builds use `VERCEL_URL`; Cloudflare Pages builds use `CF_PAGES_URL`. Explicit overrides still win in this order: `--base-url`, `LAUREL_BUILD_BASE_URL`, `LAUREL_SITE_URL`, provider deploy URL, configured `site.url`. |
 | `site.locale` | `string` | no | `"en"` | BCP 47 language tag for the site. Drives `{{lang}}` and selects the theme's `locales/<tag>.json` translation file. Validated against a BCP 47-shaped regex (e.g. `en`, `en-US`, `zh-Hant-TW`) so the value is safe to interpolate into `<html lang="…">` without HTML escaping. |
 | `site.cdn_url` | `string` | no | — | Optional absolute CDN origin used by `{{img_url ... absolute=true}}` for `/content/images/` paths. Canonical links, sitemap entries, and page URLs still use `site.url`. |
 | `site.timezone` | `string` | no | `"UTC"` | IANA timezone used when formatting dates in templates via `{{date}}`. |
@@ -111,8 +111,8 @@ Site-wide metadata exposed to themes as `@site` and `@blog`.
 | `site.icon` | `string` | no | — | Optional URL or content-relative path to the favicon / app icon. |
 | `site.accent_color` | `string` | no | `"#222222"` | Brand accent color as a CSS hex color string (`#RGB`, `#RRGGBB`, or `#RRGGBBAA`). Surfaced to themes as `@site.accent_color` and dropped into theme CSS without escaping, so the schema rejects anything that is not a literal hex triplet to prevent CSS injection. |
 | `site.referrer_policy` | `"no-referrer" \| "no-referrer-when-downgrade" \| "origin" \| "origin-when-cross-origin" \| "same-origin" \| "strict-origin" \| "strict-origin-when-cross-origin" \| "unsafe-url"` | no | `"strict-origin-when-cross-origin"` | Referrer policy emitted by `{{ghost_head}}` as `<meta name="referrer">`. Defaults to `strict-origin-when-cross-origin` so cross-site requests keep only the origin while same-site navigation retains full referrers. |
-| `site.private` | `boolean` | no | `false` | Whether the publication should be treated as Ghost password-protected for theme compatibility. Static Nectar does not enforce HTTP authentication; this only surfaces `@site.private` and drives `{{#is "private"}}` so themes can render their private-site branch when an external host handles access control. |
-| `site.twitter` | `string` | no | — | Optional Twitter / X handle (e.g. `@nectar`). Used to populate `twitter:site` meta tags. |
+| `site.private` | `boolean` | no | `false` | Whether the publication should be treated as Ghost password-protected for theme compatibility. Static Laurel does not enforce HTTP authentication; this only surfaces `@site.private` and drives `{{#is "private"}}` so themes can render their private-site branch when an external host handles access control. |
+| `site.twitter` | `string` | no | — | Optional Twitter / X handle (e.g. `@laurel`). Used to populate `twitter:site` meta tags. |
 | `site.facebook` | `string` | no | — | Optional Facebook page slug. Used to populate `og:article:publisher` meta tags. |
 | `site.linkedin` | `string` | no | — | Optional LinkedIn profile slug or URL. |
 | `site.bluesky` | `string` | no | — | Optional Bluesky handle or URL. |
@@ -135,9 +135,9 @@ Site-wide metadata exposed to themes as `@site` and `@blog`.
 | `site.members_enabled` | `boolean` | no | — | Override for `@site.members_enabled`. Defaults to whatever `[components.portal].provider != "none"` implies; set explicitly to force the Source theme's sign-in / subscribe UI on or off regardless of the Portal provider. |
 | `site.paid_members_enabled` | `boolean` | no | — | Override for `@site.paid_members_enabled`. Defaults to `members_enabled && components.portal.paid`; set explicitly to force the paid CTA state. |
 | `site.members_invite_only` | `boolean` | no | — | Override for `@site.members_invite_only`. Defaults to `members_enabled && components.portal.invite_only`; set explicitly to flip the Source theme's sign-in-only behavior. |
-| `site.comments_enabled` | `boolean` | no | `false` | Surface a `@site.comments_enabled` flag so themes can branch on whether to render the (out-of-scope) comments block. Nectar's `{{comments}}` helper still emits nothing — this flag only controls theme UI guards. |
-| `site.comments_access` | `"all" \| "members" \| "paid"` | no | `"all"` | Ghost comments access mode surfaced as `@site.comments_access` so themes can branch on public, members-only, or paid-only comment UI. Static Nectar still does not render a comments backend; this is a theme-compatibility field. |
-| `site.stripe_publishable_key` | `string` | no | — | Optional Stripe publishable key surfaced as `@site.stripe_publishable_key`. Static-only: Nectar settles no payments — exposing this is a theme-compatibility stub for embedders wiring their own client-only checkout widget. Never put a secret key here; this value is rendered into HTML. |
+| `site.comments_enabled` | `boolean` | no | `false` | Surface a `@site.comments_enabled` flag so themes can branch on whether to render the (out-of-scope) comments block. Laurel's `{{comments}}` helper still emits nothing — this flag only controls theme UI guards. |
+| `site.comments_access` | `"all" \| "members" \| "paid"` | no | `"all"` | Ghost comments access mode surfaced as `@site.comments_access` so themes can branch on public, members-only, or paid-only comment UI. Static Laurel still does not render a comments backend; this is a theme-compatibility field. |
+| `site.stripe_publishable_key` | `string` | no | — | Optional Stripe publishable key surfaced as `@site.stripe_publishable_key`. Static-only: Laurel settles no payments — exposing this is a theme-compatibility stub for embedders wiring their own client-only checkout widget. Never put a secret key here; this value is rendered into HTML. |
 
 ## `site.portal`
 
@@ -145,11 +145,11 @@ Ghost Portal settings mirrored into the flat `@site.portal_*` / `@site.signup_ur
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `site.portal.portal_button` | `boolean` | no | `false` | Ghost Portal floating-button visibility surfaced as `@site.portal_button`. Static Nectar defaults it off; set true only when a Portal-compatible runtime is wired separately. |
+| `site.portal.portal_button` | `boolean` | no | `false` | Ghost Portal floating-button visibility surfaced as `@site.portal_button`. Static Laurel defaults it off; set true only when a Portal-compatible runtime is wired separately. |
 | `site.portal.portal_button_icon` | `string` | no | `""` | Ghost Portal floating-button icon identifier surfaced as `@site.portal_button_icon`. |
 | `site.portal.portal_button_signup_text` | `string` | no | `""` | Ghost Portal floating-button signup label surfaced as `@site.portal_button_signup_text`. |
 | `site.portal.portal_button_style` | `string` | no | `""` | Ghost Portal floating-button style identifier surfaced as `@site.portal_button_style`. |
-| `site.portal.portal_name` | `boolean \| string` | no | `false` | Ghost Portal display-name toggle or label surfaced as `@site.portal_name`. Defaults false to match Nectar's static-only Portal stance. |
+| `site.portal.portal_name` | `boolean \| string` | no | `false` | Ghost Portal display-name toggle or label surfaced as `@site.portal_name`. Defaults false to match Laurel's static-only Portal stance. |
 | `site.portal.portal_plans` | `array<string>` | no | `[]` | Ghost Portal plan handles surfaced as `@site.portal_plans`. |
 | `site.portal.portal_signup_checkbox_required` | `boolean` | no | `false` | Ghost Portal signup terms checkbox requirement surfaced as `@site.portal_signup_checkbox_required`. |
 | `site.portal.portal_signup_terms_html` | `string` | no | `""` | Ghost Portal signup terms HTML surfaced as `@site.portal_signup_terms_html`. The value is theme-facing compatibility data; themes are responsible for escaping when rendering raw HTML. |
@@ -176,9 +176,9 @@ Where Markdown content lives and how members-only posts are handled.
 | `content.authors_dir` | `string` | no | `"content/authors"` | Directory of author profile Markdown files, relative to the project root. |
 | `content.tags_dir` | `string` | no | `"content/tags"` | Directory of tag profile Markdown files, relative to the project root. |
 | `content.components_dir` | `string` | no | `"content/components"` | Directory of reusable HTML/CSS component Markdown files, relative to the project root. Each file defines a {slug}-keyed snippet that posts and pages can embed. |
-| `content.kinds` | `record<string, object>` | no | `{}` | Additional Markdown content kinds accepted by `nectar new <kind> <title>`. Each entry declares the destination directory and optional title frontmatter field. |
+| `content.kinds` | `record<string, object>` | no | `{}` | Additional Markdown content kinds accepted by `laurel new <kind> <title>`. Each entry declares the destination directory and optional title frontmatter field. |
 | `content.assets_dir` | `string` | no | `"content/images"` | Directory of content-bundled image and binary assets, relative to the project root. |
-| `content.static_dir` | `string` | no | `"static"` | Directory of arbitrary passthrough files, relative to the project root. The entire tree is copied verbatim into the output root after every other build step, so files dropped here win over both theme assets and generated platform files (`_headers`, `_redirects`, `robots.txt`, …). Use it for ad-hoc files that need to live at the publish root without going through Markdown — `.well-known/acme-challenge/*`, `.well-known/mta-sts.txt`, `.well-known/security.txt`, `favicon.ico`, `humans.txt`, deploy-platform metadata, verification files, vendored third-party widgets. The default convention reads `static/`; if that directory is absent and top-level `public/` exists, Nectar copies `public/` instead. Set to an empty string to disable the passthrough. |
+| `content.static_dir` | `string` | no | `"static"` | Directory of arbitrary passthrough files, relative to the project root. The entire tree is copied verbatim into the output root after every other build step, so files dropped here win over both theme assets and generated platform files (`_headers`, `_redirects`, `robots.txt`, …). Use it for ad-hoc files that need to live at the publish root without going through Markdown — `.well-known/acme-challenge/*`, `.well-known/mta-sts.txt`, `.well-known/security.txt`, `favicon.ico`, `humans.txt`, deploy-platform metadata, verification files, vendored third-party widgets. The default convention reads `static/`; if that directory is absent and top-level `public/` exists, Laurel copies `public/` instead. Set to an empty string to disable the passthrough. |
 | `content.visibility_policy` | `"truncate" \| "render-full" \| "skip"` | no | `"truncate"` | How to render posts whose `visibility` is `members` or `paid`. `truncate` cuts the body at `paywall_word_count`, `render-full` keeps the body intact (losing the paywall), and `skip` drops the post entirely. |
 | `content.paywall_word_count` | `number` | no | `0` | Number of words emitted as a free preview before the paywall cut when `visibility_policy` is `truncate` and the post body has no paywall marker (`<!-- members -->`, `<!-- members-only -->`, or `<!--kg-card-begin: paywall-->`). Defaults to `0` so members/paid posts never leak body content to anonymous readers without an explicit marker; raise it to opt into a fixed-word preview. |
 | `content.max_markdown_bytes` | `number` | no | `5242880` | Refuse to load a single Markdown source file larger than this many bytes. `marked.parse` is CPU-bound and quadratic on some pathological inputs (deeply nested blockquotes / lists), so a 500 MB or even a much smaller adversarial post can OOM or hang the build runner. The cap is enforced via `stat()` before the file is read into memory, so an outsized post fails fast with a useful error pointing at the offending path. `0` disables the check entirely. Default is 5 MiB. |
@@ -200,27 +200,27 @@ Build pipeline options that shape the emitted site.
 | `build.emit_email_only_stub` | `boolean` | no | `false` | Emit a placeholder `/email-only/<slug>/` route for posts with `email_only: true` in frontmatter. Default is `false` so email-only posts produce no web artifact at all, matching Ghost's web-side behavior where the same flag suppresses the post from every public surface. Set to `true` to render a minimal canonical stub so newsletter recipients clicking through from a delivered email land on something rather than a 404. The stub is intentionally excluded from index pages, tag/author archives, RSS, and sitemap regardless of this flag; only the direct `/email-only/<slug>/` URL is emitted. |
 | `build.minify_html` | `boolean` | no | `false` | Run rendered HTML through `html-minifier-terser` before writing it to disk. Collapses whitespace, whitespace-only blocks, and comments to trim payload size for production deploys. Disabled by default because the minifier adds a small build-time cost and most local dev iterations do not need it. Requires the optional `html-minifier-terser` dependency; when missing, the build logs a warning once and emits unminified HTML instead of failing. |
 | `build.precompress` | `boolean` | no | `false` | Pre-compress text outputs (`.html`, `.css`, `.js`, `.json`, `.svg`, `.xml`, `.txt`, `.map`) with Brotli (quality 11) and Gzip (level 9), emitting `<file>.br` and `<file>.gz` siblings. Static hosts that support `brotli_static` / `gzip_static` (Cloudflare Pages, Netlify, nginx) serve the precompressed copy directly when `Accept-Encoding` matches, skipping per-request compression. Off by default because Brotli q=11 adds noticeable build time on large sites; flip on for production builds where transfer size matters more than rebuild latency. Files below 256 bytes are skipped (envelope overhead beats savings) and already-encoded outputs (`.br` / `.gz`) are excluded from a rerun. |
-| `build.csp_nonce` | `string` | no | — | CSP nonce stamped onto every inline `<script>` and `<style>` tag Nectar emits (JSON-LD blocks in `{{ghost_head}}`, the accessibility skip-link style, Disqus bootstrap, default 404 / recommendations page styles). Pair with a `Content-Security-Policy` header that lists `'nonce-<value>' 'strict-dynamic'` for `script-src` / `style-src` so a strict policy doesn't block these tags. Leave unset to skip nonce emission. Because this is a static build the same nonce is baked into every page, so rotate it per deploy and serve a matching CSP header — a static, never-rotated nonce defeats the purpose. Validated as a base64 / base64url value (`[A-Za-z0-9+/\-_]+={0,2}`) to keep the attribute safe to inject without HTML escaping. |
+| `build.csp_nonce` | `string` | no | — | CSP nonce stamped onto every inline `<script>` and `<style>` tag Laurel emits (JSON-LD blocks in `{{ghost_head}}`, the accessibility skip-link style, Disqus bootstrap, default 404 / recommendations page styles). Pair with a `Content-Security-Policy` header that lists `'nonce-<value>' 'strict-dynamic'` for `script-src` / `style-src` so a strict policy doesn't block these tags. Leave unset to skip nonce emission. Because this is a static build the same nonce is baked into every page, so rotate it per deploy and serve a matching CSP header — a static, never-rotated nonce defeats the purpose. Validated as a base64 / base64url value (`[A-Za-z0-9+/\-_]+={0,2}`) to keep the attribute safe to inject without HTML escaping. |
 
 ## `build.metadata`
 
-Build/deploy metadata surfaced to templates as `@site.build` when non-empty. Provider env populates `provider` / `environment`; branch, `build_id`, and `commit_sha` are read from explicit Nectar aliases (`NECTAR_BRANCH`, `NECTAR_BUILD_ID`, `NECTAR_COMMIT_SHA`), provider env (`CF_PAGES_BRANCH`, `CF_PAGES_COMMIT_SHA`, `VERCEL_GIT_COMMIT_REF`, `VERCEL_GIT_COMMIT_SHA`), and generic CI env (`BUILD_ID`, `COMMIT_SHA`, `COMMIT_REF`, `GITHUB_SHA`, `CI_COMMIT_SHA`). Explicit `NECTAR_BUILD_METADATA_*` env overrides still win last. When `environment` is anything other than `production`, Nectar injects `noindex` robots metadata and headers so preview deploys are not indexed.
+Build/deploy metadata surfaced to templates as `@site.build` when non-empty. Provider env populates `provider` / `environment`; branch, `build_id`, and `commit_sha` are read from explicit Laurel aliases (`LAUREL_BRANCH`, `LAUREL_BUILD_ID`, `LAUREL_COMMIT_SHA`), provider env (`CF_PAGES_BRANCH`, `CF_PAGES_COMMIT_SHA`, `VERCEL_GIT_COMMIT_REF`, `VERCEL_GIT_COMMIT_SHA`), and generic CI env (`BUILD_ID`, `COMMIT_SHA`, `COMMIT_REF`, `GITHUB_SHA`, `CI_COMMIT_SHA`). Explicit `LAUREL_BUILD_METADATA_*` env overrides still win last. When `environment` is anything other than `production`, Laurel injects `noindex` robots metadata and headers so preview deploys are not indexed.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `build.metadata.provider` | `"cloudflare_pages" \| "netlify" \| "vercel"` | no | — | Deploy provider that populated this build metadata. Cloudflare Pages builds set this to `cloudflare_pages`; Netlify preview builds set this to `netlify`; Vercel builds set this to `vercel`. |
 | `build.metadata.environment` | `"production" \| "preview" \| "development"` | no | — | Deploy environment for the current build. Netlify deploy-preview / branch-deploy builds set this to `preview`; Vercel copies `VERCEL_ENV`; Cloudflare Pages infers `production` for `main` / `master` (or `CF_PAGES_PRODUCTION_BRANCH`) and `preview` for other branches. |
-| `build.metadata.branch` | `string` | no | — | Source branch for the current deploy. Explicit `NECTAR_BRANCH` / `NECTAR_GIT_BRANCH` values win, followed by provider env such as `CF_PAGES_BRANCH` and `VERCEL_GIT_COMMIT_REF`, then generic CI branch env such as `BRANCH`, `HEAD`, `GITHUB_REF_NAME`, and `CI_COMMIT_REF_NAME`. |
-| `build.metadata.build_id` | `string` | no | — | Deploy/build identifier for the current build. Explicit `NECTAR_BUILD_ID` wins, followed by generic `BUILD_ID` and provider IDs such as `VERCEL_DEPLOYMENT_ID` or `DEPLOY_ID`. |
-| `build.metadata.commit_sha` | `string` | no | — | Source commit SHA for the current deploy. Explicit `NECTAR_COMMIT_SHA` / `NECTAR_GIT_COMMIT_SHA` values win, followed by provider env such as `CF_PAGES_COMMIT_SHA` and `VERCEL_GIT_COMMIT_SHA`, then generic CI commit env such as `COMMIT_SHA`, `COMMIT_REF`, `GITHUB_SHA`, and `CI_COMMIT_SHA`. |
+| `build.metadata.branch` | `string` | no | — | Source branch for the current deploy. Explicit `LAUREL_BRANCH` / `LAUREL_GIT_BRANCH` values win, followed by provider env such as `CF_PAGES_BRANCH` and `VERCEL_GIT_COMMIT_REF`, then generic CI branch env such as `BRANCH`, `HEAD`, `GITHUB_REF_NAME`, and `CI_COMMIT_REF_NAME`. |
+| `build.metadata.build_id` | `string` | no | — | Deploy/build identifier for the current build. Explicit `LAUREL_BUILD_ID` wins, followed by generic `BUILD_ID` and provider IDs such as `VERCEL_DEPLOYMENT_ID` or `DEPLOY_ID`. |
+| `build.metadata.commit_sha` | `string` | no | — | Source commit SHA for the current deploy. Explicit `LAUREL_COMMIT_SHA` / `LAUREL_GIT_COMMIT_SHA` values win, followed by provider env such as `CF_PAGES_COMMIT_SHA` and `VERCEL_GIT_COMMIT_SHA`, then generic CI commit env such as `COMMIT_SHA`, `COMMIT_REF`, `GITHUB_SHA`, and `CI_COMMIT_SHA`. |
 
 ## `hooks`
 
-Project-local lifecycle commands for integrating Nectar builds with external systems such as notifications, deploy tooling, or newsletter delivery.
+Project-local lifecycle commands for integrating Laurel builds with external systems such as notifications, deploy tooling, or newsletter delivery.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `hooks.post_build` | `string` | no | — | Shell command to run after a successful non-dry-run build has been fully written to `build.output_dir` (for example `./scripts/notify-discord.sh`). The command runs from the project root with `NECTAR_OUTPUT_DIR` set to the final output directory, so it is suitable for deployment notifications or a newsletter-send command that should fire only after fresh content has built. |
+| `hooks.post_build` | `string` | no | — | Shell command to run after a successful non-dry-run build has been fully written to `build.output_dir` (for example `./scripts/notify-discord.sh`). The command runs from the project root with `LAUREL_OUTPUT_DIR` set to the final output directory, so it is suitable for deployment notifications or a newsletter-send command that should fire only after fresh content has built. |
 
 ## `image_cdn`
 
@@ -234,7 +234,7 @@ Optional HTML post-process that rewrites local content image URLs through a depl
 | `image_cdn.quality` | `number` | no | `85` | Image quality passed to adapters that support a quality parameter. |
 | `image_cdn.format` | `"auto" \| "avif" \| "webp" \| "jpg" \| "jpeg" \| "png"` | no | `"auto"` | Preferred output format passed to adapters. `auto` lets the CDN negotiate a modern format when the adapter supports it. |
 | `image_cdn.default_width` | `number` | no | — | Fallback width for single image URLs that do not carry a `width` attribute or `srcset` descriptor. Vercel URLs require a width, so Vercel rewrites only width-bearing URLs unless this is set. |
-| `image_cdn.path_prefixes` | `array<string>` | no | `["/content/images/"]` | Root-relative image URL prefixes eligible for CDN rewriting. Defaults to Nectar content images only. Prefix matching also accepts the same paths under `build.base_path`. |
+| `image_cdn.path_prefixes` | `array<string>` | no | `["/content/images/"]` | Root-relative image URL prefixes eligible for CDN rewriting. Defaults to Laurel content images only. Prefix matching also accepts the same paths under `build.base_path`. |
 | `image_cdn.signature` | `string` | no | `"insecure"` | imgproxy signature segment. Defaults to `insecure` for unsigned development deployments; set this to your signed segment when imgproxy signature validation is enabled. |
 
 ## `performance`
@@ -275,7 +275,7 @@ Secondary navigation items, exposed to themes via `{{navigation type="secondary"
 
 ## `recommendations[]`
 
-External sites surfaced through Ghost's `{{recommendations}}` helper. When non-empty, the site exposes `@site.recommendations_enabled = true` so themes like Source render the sidebar block, and Nectar auto-emits a `/recommendations/` page listing all entries inside a `<section id="all-recommendations">` block. The Source theme's "See all" button (`data-portal="recommendations"`) is rewritten to deep-link into that section.
+External sites surfaced through Ghost's `{{recommendations}}` helper. When non-empty, the site exposes `@site.recommendations_enabled = true` so themes like Source render the sidebar block, and Laurel auto-emits a `/recommendations/` page listing all entries inside a `<section id="all-recommendations">` block. The Source theme's "See all" button (`data-portal="recommendations"`) is rewritten to deep-link into that section.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
@@ -306,7 +306,7 @@ Deploy-target-specific hints that influence files emitted alongside the site.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `deploy.merge` | `boolean` | no | `false` | Merge hand-written deploy artifacts from the static passthrough directory with generated `_headers`, `_redirects`, and `vercel.json` instead of failing on conflicts. Text artifacts keep the hand-written rules first so first-match hosts preserve explicit user intent; `vercel.json` keeps hand-written scalar keys and prepends hand-written `headers` / `redirects` arrays. Leave disabled to fail loudly when static files would replace generated deploy metadata; `nectar build --force` remains the explicit overwrite escape hatch. |
+| `deploy.merge` | `boolean` | no | `false` | Merge hand-written deploy artifacts from the static passthrough directory with generated `_headers`, `_redirects`, and `vercel.json` instead of failing on conflicts. Text artifacts keep the hand-written rules first so first-match hosts preserve explicit user intent; `vercel.json` keeps hand-written scalar keys and prepends hand-written `headers` / `redirects` arrays. Leave disabled to fail loudly when static files would replace generated deploy metadata; `laurel build --force` remains the explicit overwrite escape hatch. |
 
 ## `deploy.github_pages`
 
@@ -316,8 +316,8 @@ GitHub Pages-specific deploy hints.
 | --- | --- | --- | --- | --- |
 | `deploy.github_pages.redirects` | `boolean` | no | `false` | Emit GitHub Pages-compatible static HTML redirect stubs from `redirects.yaml` and Ghost-style `content/data/redirects.*`. GitHub Pages has no server-side redirects backend, so each supported source path is materialized as `<from>/index.html` (or the exact file path for file-like sources such as `/old.html`) with a meta refresh and canonical link to the destination. Root and `404.html` sources are skipped so Pages home and not-found behavior stay intact. Leave disabled when another host will consume `_redirects`, `vercel.json`, or server config instead. |
 | `deploy.github_pages.custom_domain` | `string` | no | — | Apex or subdomain host to bind to a GitHub Pages site (e.g. `blog.example.com`). When set, the build emits a `CNAME` file at the output root so GitHub Pages picks up the custom domain. Leave unset for `*.github.io` deployments. |
-| `deploy.github_pages.branch` | `string` | no | `"gh-pages"` | Branch `nectar deploy github-pages` pushes the built site to. Defaults to `gh-pages` (the historical convention). Override when the repo serves Pages from a different branch. |
-| `deploy.github_pages.remote` | `string` | no | `"origin"` | Git remote name `nectar deploy github-pages` pushes to. Defaults to `origin`. Override for forks or mirrored workflows that publish from a non-default remote. |
+| `deploy.github_pages.branch` | `string` | no | `"gh-pages"` | Branch `laurel deploy github-pages` pushes the built site to. Defaults to `gh-pages` (the historical convention). Override when the repo serves Pages from a different branch. |
+| `deploy.github_pages.remote` | `string` | no | `"origin"` | Git remote name `laurel deploy github-pages` pushes to. Defaults to `origin`. Override for forks or mirrored workflows that publish from a non-default remote. |
 
 ## `deploy.cloudflare_pages`
 
@@ -342,8 +342,8 @@ Netlify-specific deploy hints.
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `deploy.netlify.enabled` | `boolean` | no | `false` | Emit Netlify `_headers` and (when a `redirects.yaml` exists at the project root) `_redirects` at the output root. `_headers` defaults pin fingerprinted asset URLs (`/assets/*`, `/_images/*`, `/content/images/*`) to a year of immutable caching and force HTML responses to revalidate every request, plus a minimal set of security headers (`X-Content-Type-Options`, `Referrer-Policy`). The `_redirects` emitter loads rules from `redirects.yaml` (`[{from, to, status, force}]` with status one of 301/302/307/308, default 301), maps `force: true` to a Netlify `!` suffix on the status (e.g. `301!`) so the rule fires even when a static file exists at `from`, drops later rules whose `from` repeats an earlier one (Netlify uses first-match), and prepends them before any existing `_redirects` entries. Leave disabled when deploying somewhere other than Netlify. |
-| `deploy.netlify.site_id` | `string` | no | — | Optional Netlify site id forwarded to `netlify deploy --site=<id>` when `nectar deploy netlify` runs. When unset, the Netlify CLI uses the linked site in the local `.netlify/state.json`. |
-| `deploy.netlify.prod` | `boolean` | no | `true` | Pass `--prod` to `netlify deploy` when running `nectar deploy netlify`. Default `true` so the command publishes to production; set `false` for draft preview URLs. |
+| `deploy.netlify.site_id` | `string` | no | — | Optional Netlify site id forwarded to `netlify deploy --site=<id>` when `laurel deploy netlify` runs. When unset, the Netlify CLI uses the linked site in the local `.netlify/state.json`. |
+| `deploy.netlify.prod` | `boolean` | no | `true` | Pass `--prod` to `netlify deploy` when running `laurel deploy netlify`. Default `true` so the command publishes to production; set `false` for draft preview URLs. |
 
 ## `deploy.vercel`
 
@@ -352,8 +352,8 @@ Vercel-specific deploy hints.
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `deploy.vercel.enabled` | `boolean` | no | `false` | Emit a single `vercel.json` at the output root folding both `deploy.headers` and `redirects.yaml` into Vercel's native config shape. `headers` mirrors the cross-cutting cache + security rules (with glob `*` translated to path-to-regexp `(.*)` so the same patterns match the same paths on every deploy target). `redirects` mirrors `redirects.yaml` ([{from, to, status, force}] with status one of 301/302/307/308) using `statusCode` for the HTTP status. Vercel always honors redirects regardless of static-file collisions (the same semantics as Cloudflare Pages), so the `force` flag is informational on this target. Leave disabled when deploying somewhere other than Vercel. |
-| `deploy.vercel.project` | `string` | no | — | Optional Vercel project slug forwarded as `--scope=<project>` when running `nectar deploy vercel`. Leave unset to let the Vercel CLI infer the project from the linked `.vercel/project.json`. |
-| `deploy.vercel.prod` | `boolean` | no | `true` | Pass `--prod` to `vercel deploy` when running `nectar deploy vercel`. Default `true` so the command ships to the production alias; set `false` for preview-only deploys. |
+| `deploy.vercel.project` | `string` | no | — | Optional Vercel project slug forwarded as `--scope=<project>` when running `laurel deploy vercel`. Leave unset to let the Vercel CLI infer the project from the linked `.vercel/project.json`. |
+| `deploy.vercel.prod` | `boolean` | no | `true` | Pass `--prod` to `vercel deploy` when running `laurel deploy vercel`. Default `true` so the command ships to the production alias; set `false` for preview-only deploys. |
 
 ## `deploy.firebase`
 
@@ -361,7 +361,7 @@ Firebase Hosting-specific deploy hints.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `deploy.firebase.enabled` | `boolean` | no | `false` | Emit a Firebase Hosting `firebase.json` at the output root folding `deploy.headers`, canonical redirect rules from `redirects.yaml` / Ghost-style redirects, `cleanUrls: true`, and the build trailing-slash policy into the native `hosting` config shape. The generated config sets `hosting.public` to `.` so the built output directory is self-contained for Firebase CLI deploys. `hosting.rewrites` is emitted as an empty array because Nectar is a static multi-page site and should not add a catch-all SPA rewrite by default. Leave disabled when deploying somewhere other than Firebase Hosting. |
+| `deploy.firebase.enabled` | `boolean` | no | `false` | Emit a Firebase Hosting `firebase.json` at the output root folding `deploy.headers`, canonical redirect rules from `redirects.yaml` / Ghost-style redirects, `cleanUrls: true`, and the build trailing-slash policy into the native `hosting` config shape. The generated config sets `hosting.public` to `.` so the built output directory is self-contained for Firebase CLI deploys. `hosting.rewrites` is emitted as an empty array because Laurel is a static multi-page site and should not add a catch-all SPA rewrite by default. Leave disabled when deploying somewhere other than Firebase Hosting. |
 
 ## `deploy.apache`
 
@@ -369,7 +369,7 @@ Apache HTTPD-specific deploy hints.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `deploy.apache.enabled` | `boolean` | no | `false` | Emit an Apache HTTPD `.htaccess` file at the output root folding both `deploy.headers` and `redirects.yaml` into per-directory directives. The file enables `DirectoryIndex index.html`, resolves Nectar's `slug/index.html` output for clean URLs, wires `ErrorDocument 404 /404.html`, sets practical `AddType` / pre-compressed sidecar hints, maps `deploy.headers.cache_rules` to first-match `mod_rewrite` environment markers consumed by `mod_headers`, attaches configured security headers globally, and translates each redirect into a `RewriteRule ... [R=<status>,L]`. Leave disabled when deploying somewhere other than Apache with `.htaccess` support. |
+| `deploy.apache.enabled` | `boolean` | no | `false` | Emit an Apache HTTPD `.htaccess` file at the output root folding both `deploy.headers` and `redirects.yaml` into per-directory directives. The file enables `DirectoryIndex index.html`, resolves Laurel's `slug/index.html` output for clean URLs, wires `ErrorDocument 404 /404.html`, sets practical `AddType` / pre-compressed sidecar hints, maps `deploy.headers.cache_rules` to first-match `mod_rewrite` environment markers consumed by `mod_headers`, attaches configured security headers globally, and translates each redirect into a `RewriteRule ... [R=<status>,L]`. Leave disabled when deploying somewhere other than Apache with `.htaccess` support. |
 
 ## `deploy.nginx`
 
@@ -377,8 +377,8 @@ Self-hosted nginx-specific deploy hints.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `deploy.nginx.enabled` | `boolean` | no | `false` | Emit a self-hosted nginx server block at `<output>/.nectar/nginx.conf` folding both `deploy.headers` and `redirects.yaml` into a single config snippet. The block sets `gzip_static on; brotli_static on;` for pre-compressed assets, emits one `location` per `deploy.headers.cache_rules` entry with the matching `Cache-Control` header, attaches every configured security header to each `location` (nginx `add_header` does not merge with parent blocks, so they are repeated rather than inherited), serves SPA-style routes with `try_files $uri $uri/ $uri/index.html =404;` (the `$uri/` middle term is the trailing-slash variant so a request to `/about` falls through `/about/` — which triggers the `index` directive's canonical-slug redirect — before resolving `/about/index.html`), wires `error_page 404 /404.html;` to an internal exact-match location so Nectar's generated `dist/404.html` becomes the nginx 404 response body, and translates each `redirects.yaml` entry into a `location { return <status> <to>; }` rule. Output lives under `.nectar/` (not the publish root) so the file is never served over HTTP. Leave disabled when deploying somewhere other than self-hosted nginx. |
-| `deploy.nginx.root` | `string` | no | `"/var/www/nectar"` | Filesystem path nginx should serve from, emitted as the `root` directive in the generated server block. Defaults to `/var/www/nectar` — adjust to match wherever you rsync `dist/` on the host. |
+| `deploy.nginx.enabled` | `boolean` | no | `false` | Emit a self-hosted nginx server block at `<output>/.laurel/nginx.conf` folding both `deploy.headers` and `redirects.yaml` into a single config snippet. The block sets `gzip_static on; brotli_static on;` for pre-compressed assets, emits one `location` per `deploy.headers.cache_rules` entry with the matching `Cache-Control` header, attaches every configured security header to each `location` (nginx `add_header` does not merge with parent blocks, so they are repeated rather than inherited), serves SPA-style routes with `try_files $uri $uri/ $uri/index.html =404;` (the `$uri/` middle term is the trailing-slash variant so a request to `/about` falls through `/about/` — which triggers the `index` directive's canonical-slug redirect — before resolving `/about/index.html`), wires `error_page 404 /404.html;` to an internal exact-match location so Laurel's generated `dist/404.html` becomes the nginx 404 response body, and translates each `redirects.yaml` entry into a `location { return <status> <to>; }` rule. Output lives under `.laurel/` (not the publish root) so the file is never served over HTTP. Leave disabled when deploying somewhere other than self-hosted nginx. |
+| `deploy.nginx.root` | `string` | no | `"/var/www/laurel"` | Filesystem path nginx should serve from, emitted as the `root` directive in the generated server block. Defaults to `/var/www/laurel` — adjust to match wherever you rsync `dist/` on the host. |
 | `deploy.nginx.server_name` | `string` | no | `"_"` | Value of the `server_name` directive in the generated server block. Defaults to `_` (nginx's catch-all hostname) so the snippet drops onto a fresh VPS without editing. Override with the actual hostname when serving multiple sites from one nginx instance. |
 
 ## `deploy.caddy`
@@ -387,51 +387,51 @@ Self-hosted Caddy-specific deploy hints.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `deploy.caddy.enabled` | `boolean` | no | `false` | Emit a self-hosted Caddyfile at `<output>/.nectar/Caddyfile` folding both `deploy.headers` and `redirects.yaml` into a single site block. The file sets `root`, enables `encode zstd gzip`, serves pre-compressed `.br` / `.gz` sidecars with `file_server`, resolves Nectar's `slug/index.html` output with `try_files {path} {path}/index.html =404`, emits one path matcher per `deploy.headers.cache_rules` entry with the matching `Cache-Control` header, attaches configured security headers globally, translates each `redirects.yaml` entry into a named matcher plus `redir`, and serves `/404.html` from `handle_errors`. Output lives under `.nectar/` (not the publish root) so the file is never served over HTTP. Leave disabled when deploying somewhere other than self-hosted Caddy. |
-| `deploy.caddy.root` | `string` | no | `"/var/www/nectar"` | Filesystem path Caddy should serve from, emitted as the `root *` directive in the generated Caddyfile. Defaults to `/var/www/nectar` — adjust to match wherever you rsync `dist/` on the host. |
+| `deploy.caddy.enabled` | `boolean` | no | `false` | Emit a self-hosted Caddyfile at `<output>/.laurel/Caddyfile` folding both `deploy.headers` and `redirects.yaml` into a single site block. The file sets `root`, enables `encode zstd gzip`, serves pre-compressed `.br` / `.gz` sidecars with `file_server`, resolves Laurel's `slug/index.html` output with `try_files {path} {path}/index.html =404`, emits one path matcher per `deploy.headers.cache_rules` entry with the matching `Cache-Control` header, attaches configured security headers globally, translates each `redirects.yaml` entry into a named matcher plus `redir`, and serves `/404.html` from `handle_errors`. Output lives under `.laurel/` (not the publish root) so the file is never served over HTTP. Leave disabled when deploying somewhere other than self-hosted Caddy. |
+| `deploy.caddy.root` | `string` | no | `"/var/www/laurel"` | Filesystem path Caddy should serve from, emitted as the `root *` directive in the generated Caddyfile. Defaults to `/var/www/laurel` — adjust to match wherever you rsync `dist/` on the host. |
 | `deploy.caddy.site_address` | `string` | no | `":80"` | Caddy site address for the generated site block. Use a hostname such as `example.com` when Caddy should provision HTTPS automatically, or leave the default `:80` for a plain HTTP listener behind another TLS terminator. |
 
 ## `deploy.cloudflare`
 
-Cloudflare Pages deploy target consumed by `nectar deploy cloudflare`. Wraps `wrangler pages deploy dist`.
+Cloudflare Pages deploy target consumed by `laurel deploy cloudflare`. Wraps `wrangler pages deploy dist`.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `deploy.cloudflare.project_name` | `string` | no | — | Cloudflare Pages project name used by `nectar deploy cloudflare`. Forwarded to `wrangler pages deploy --project-name=<name>`. Required when targeting cloudflare; can also be supplied via `--project-name` on the CLI. |
+| `deploy.cloudflare.project_name` | `string` | no | — | Cloudflare Pages project name used by `laurel deploy cloudflare`. Forwarded to `wrangler pages deploy --project-name=<name>`. Required when targeting cloudflare; can also be supplied via `--project-name` on the CLI. |
 | `deploy.cloudflare.branch` | `string` | no | — | Optional branch name forwarded to `wrangler pages deploy --branch=<name>`. Use to distinguish preview vs production environments in the Cloudflare dashboard. |
 
 ## `deploy.s3`
 
-AWS S3 deploy target consumed by `nectar deploy s3`. Syncs `dist` to S3 and uploads pre-compressed `.br` / `.gz` sidecars with `Content-Encoding` metadata so CloudFront can serve origin-compressed assets correctly.
+AWS S3 deploy target consumed by `laurel deploy s3`. Syncs `dist` to S3 and uploads pre-compressed `.br` / `.gz` sidecars with `Content-Encoding` metadata so CloudFront can serve origin-compressed assets correctly.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `deploy.s3.bucket` | `string` | no | — | S3 bucket name for `nectar deploy s3`. Used for the base `aws s3 sync dist s3://<bucket>` upload and for metadata-correct `.br` / `.gz` sidecar uploads. |
+| `deploy.s3.bucket` | `string` | no | — | S3 bucket name for `laurel deploy s3`. Used for the base `aws s3 sync dist s3://<bucket>` upload and for metadata-correct `.br` / `.gz` sidecar uploads. |
 | `deploy.s3.region` | `string` | no | — | Optional AWS region forwarded as `--region <region>` to S3 sync and sidecar upload commands. |
 | `deploy.s3.delete` | `boolean` | no | `false` | Pass `--delete` to `aws s3 sync` so the remote bucket mirrors the local `dist/` exactly, removing stale objects. Default `false` to avoid surprise deletions; opt in when stale files at the bucket root are a problem. |
 
 ## `deploy.r2`
 
-Cloudflare R2 deploy target consumed by `nectar deploy r2`. Wraps `aws s3 sync` with the R2 endpoint.
+Cloudflare R2 deploy target consumed by `laurel deploy r2`. Wraps `aws s3 sync` with the R2 endpoint.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `deploy.r2.bucket` | `string` | no | — | Cloudflare R2 bucket name for `nectar deploy r2`. Forwarded to `aws s3 sync dist s3://<bucket>` with the R2 S3-compatible endpoint. |
+| `deploy.r2.bucket` | `string` | no | — | Cloudflare R2 bucket name for `laurel deploy r2`. Forwarded to `aws s3 sync dist s3://<bucket>` with the R2 S3-compatible endpoint. |
 | `deploy.r2.endpoint` | `string` | no | — | R2 S3-compatible endpoint URL (e.g. `https://<account>.r2.cloudflarestorage.com`). Forwarded as `--endpoint-url <url>` to `aws s3 sync`. Required so the AWS CLI targets R2 instead of S3. |
 | `deploy.r2.delete` | `boolean` | no | `false` | Pass `--delete` to `aws s3 sync` so the R2 bucket mirrors `dist/` exactly. Default `false`; opt in when stale files at the bucket root are a problem. |
 
 ## `deploy.rsync`
 
-rsync deploy target consumed by `nectar deploy rsync`. Wraps `rsync <flags> dist/ <destination>`.
+rsync deploy target consumed by `laurel deploy rsync`. Wraps `rsync <flags> dist/ <destination>`.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `deploy.rsync.destination` | `string` | no | — | rsync destination string for `nectar deploy rsync`, e.g. `user@host:/var/www/site/`. Forwarded verbatim as the last argument of `rsync -avz dist/ <destination>`. |
+| `deploy.rsync.destination` | `string` | no | — | rsync destination string for `laurel deploy rsync`, e.g. `user@host:/var/www/site/`. Forwarded verbatim as the last argument of `rsync -avz dist/ <destination>`. |
 | `deploy.rsync.flags` | `array<string>` | no | `["-avz","--delete"]` | Flags passed to `rsync` before the source and destination. Defaults to `-avz --delete` to mirror the local `dist/` over SSH. Override to drop `--delete`, add `--exclude=…` rules, or pin a specific SSH command via `-e`. |
 
 ## `deploy.headers`
 
-Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.cloudflare_workers`, `deploy.netlify`, `deploy.vercel`, `deploy.firebase`, `deploy.apache`, `deploy.nginx`) into its native format. Builds also emit `dist/.nectar/cloudfront-response-headers-policy.json` from `deploy.headers.security` for S3 + CloudFront response headers policies; URL-specific cache rules still belong in S3 object metadata or CloudFront cache behaviors.
+Cross-cutting HTTP response headers (security + cache rules) translated by each platform emitter (`deploy.cloudflare_pages`, `deploy.cloudflare_workers`, `deploy.netlify`, `deploy.vercel`, `deploy.firebase`, `deploy.apache`, `deploy.nginx`) into its native format. Builds also emit `dist/.laurel/cloudfront-response-headers-policy.json` from `deploy.headers.security` for S3 + CloudFront response headers policies; URL-specific cache rules still belong in S3 object metadata or CloudFront cache behaviors.
 
 
 ## `deploy.headers.security`
@@ -444,7 +444,7 @@ Security-related response headers attached to the catch-all (`/*`) route. Each p
 | `deploy.headers.security.frame_options` | `string` | no | `null` | Value of the legacy `X-Frame-Options` header (e.g. `DENY`, `SAMEORIGIN`). Off by default because modern sites prefer `frame-ancestors` in CSP; set when older browsers still matter. |
 | `deploy.headers.security.referrer_policy` | `string` | no | `"strict-origin-when-cross-origin"` | Value of the `Referrer-Policy` header applied to the catch-all route. `null` omits the header. |
 | `deploy.headers.security.strict_transport_security` | `string` | no | `null` | Value of the `Strict-Transport-Security` header. Off by default; set to e.g. `max-age=63072000; includeSubDomains` once you are confident the site only serves over HTTPS. |
-| `deploy.headers.security.content_security_policy` | `string` | no | `null` | Value of the `Content-Security-Policy` header. Off by default because a strict CSP can break themes that inline scripts; configure once you have audited theme markup. When set, Nectar scans rendered HTML and appends build-time `sha256-...` hash sources for inline `<script>` bodies to `script-src` so strict deploy artifacts can allow the exact scripts the build produced without `unsafe-inline`. |
+| `deploy.headers.security.content_security_policy` | `string` | no | `null` | Value of the `Content-Security-Policy` header. Off by default because a strict CSP can break themes that inline scripts; configure once you have audited theme markup. When set, Laurel scans rendered HTML and appends build-time `sha256-...` hash sources for inline `<script>` bodies to `script-src` so strict deploy artifacts can allow the exact scripts the build produced without `unsafe-inline`. |
 | `deploy.headers.security.permissions_policy` | `string` | no | `null` | Value of the `Permissions-Policy` header (e.g. `camera=(), microphone=(), geolocation=()`). Off by default; opt in to deny features the site does not need. |
 | `deploy.headers.security.cross_origin_opener_policy` | `string` | no | `null` | Value of the `Cross-Origin-Opener-Policy` header. Off by default; set to `same-origin` to isolate the browsing context group for stronger XS-Leak protection. |
 | `deploy.headers.security.cross_origin_embedder_policy` | `string` | no | `null` | Value of the `Cross-Origin-Embedder-Policy` header. Off by default; pair with `cross_origin_opener_policy` to enable cross-origin isolation. Can break themes that load third-party assets without CORP, so opt in deliberately. |
@@ -461,14 +461,14 @@ Ordered list of `Cache-Control` rules emitted into the deploy platform `_headers
 
 ## `deploy.early_hints`
 
-Optional 103 Early Hints support for static deployments. Nectar does not run an HTTP server; this emits deploy artifacts that compatible hosts can consume.
+Optional 103 Early Hints support for static deployments. Laurel does not run an HTTP server; this emits deploy artifacts that compatible hosts can consume.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `deploy.early_hints.enabled` | `boolean` | no | `false` | Emit per-route Early Hints artifacts from rendered `<link rel="preload">` tags. Disabled by default because static hosts differ in 103 Early Hints support and unsupported hosts will simply serve the JSON artifacts as ordinary files. |
 | `deploy.early_hints.artifacts` | `boolean` | no | `true` | Write an `early-hints.json` artifact beside each HTML route that has conservative same-origin preload hints. Index routes write `<route>/early-hints.json`; flat HTML routes write `<name>.early-hints.json`. |
 | `deploy.early_hints.headers` | `boolean` | no | `true` | When Netlify or Cloudflare Pages header output is enabled, add route-specific `Link: <...>; rel=preload` entries to the generated `_headers` file so hosts that translate Link preload headers into 103 Early Hints can advertise critical CSS/JS/font/image assets. |
-| `deploy.early_hints.max_links` | `number` | no | `8` | Maximum preload Link entries emitted per route. Nectar only includes same-origin preloads that match known built theme/card assets, then stops at this cap to keep `_headers` and JSON artifacts small. |
+| `deploy.early_hints.max_links` | `number` | no | `8` | Maximum preload Link entries emitted per route. Laurel only includes same-origin preloads that match known built theme/card assets, then stops at this cap to keep `_headers` and JSON artifacts small. |
 
 ## `components`
 
@@ -531,28 +531,28 @@ JSON content API component.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `components.content_api.enabled` | `boolean` | no | `false` | Emit Ghost-style Content API JSON snapshots in two layouts. (1) Per-resource shadows under `ghost/api/content/{posts,pages,authors,tags}.json` and `{resource}/slug/{slug}.json` for clients written against the Ghost Content API SDK. (2) Flat dumps directly under `content/posts.json` and `content/settings.json` (plus CORS `_headers` and `_headers.cf` twin files for Netlify and Cloudflare Pages) so a browser-only consumer can fetch `/content/posts.json` cross-origin without any SDK. Members fields in `settings.json` are hardcoded false / empty because Nectar is static-only. Off by default because most sites do not consume their own JSON shadows: a stock build would otherwise emit the full SDK shadow tree, the flat dump, an `_headers`/`_headers.cf` CORS pair, a `_redirects` block for trailing-slash routing, and `.well-known/ghost.json` — easily half of the output file count for a small site. Opt in when you are wiring a Ghost Content API SDK client, a browser-only fetcher, or a Netlify/Cloudflare deploy that needs the CORS rules. |
+| `components.content_api.enabled` | `boolean` | no | `false` | Emit Ghost-style Content API JSON snapshots in two layouts. (1) Per-resource shadows under `ghost/api/content/{posts,pages,authors,tags}.json` and `{resource}/slug/{slug}.json` for clients written against the Ghost Content API SDK. (2) Flat dumps directly under `content/posts.json` and `content/settings.json` (plus CORS `_headers` and `_headers.cf` twin files for Netlify and Cloudflare Pages) so a browser-only consumer can fetch `/content/posts.json` cross-origin without any SDK. Members fields in `settings.json` are hardcoded false / empty because Laurel is static-only. Off by default because most sites do not consume their own JSON shadows: a stock build would otherwise emit the full SDK shadow tree, the flat dump, an `_headers`/`_headers.cf` CORS pair, a `_redirects` block for trailing-slash routing, and `.well-known/ghost.json` — easily half of the output file count for a small site. Opt in when you are wiring a Ghost Content API SDK client, a browser-only fetcher, or a Netlify/Cloudflare deploy that needs the CORS rules. |
 | `components.content_api.absolute_urls` | `boolean` | no | `false` | Rewrite relative URLs in serialized `html` fields to absolute URLs using `[site].url` + `[build].base_path`. Mirrors the Ghost Content API `?absolute_urls=true` query parameter as a build-time switch. Affects `posts`, `pages`, per-tag, paginated, and per-slug/per-id shards across both the flat `/content/*` dump and the `/ghost/api/content/*` SDK shadow tree. Has no effect on absolute URLs already present in the body. |
 | `components.content_api.posts_per_page` | `number` | no | `15` | Page size for the paginated posts shards (`content/posts/page/<n>.json` and `ghost/api/content/posts/page/<n>.json`). Matches Ghost's default Content API `limit=15`. Use `meta.pagination.next` / `meta.pagination.prev` (numbers, not URLs) to walk pages from the consumer. |
 | `components.content_api.emit_htaccess` | `boolean` | no | `false` | Emit `dist/content/.htaccess` with the same Content API CORS and per-resource Cache-Control headers as the generated `_headers` / `_headers.cf` files. Use this only on Apache hosts with `AllowOverride FileInfo`; leave it off for hosts that may serve dotfiles or do not read `.htaccess`. |
-| `components.content_api.emit_key_registry` | `boolean` | no | `false` | Emit `dist/.well-known/ghost-content-keys.json`, a static compatibility registry declaring that Nectar accepts any Ghost Content API key. This does not validate or publish secret keys; it only helps integrations that probe key policy before fetching static JSON. |
+| `components.content_api.emit_key_registry` | `boolean` | no | `false` | Emit `dist/.well-known/ghost-content-keys.json`, a static compatibility registry declaring that Laurel accepts any Ghost Content API key. This does not validate or publish secret keys; it only helps integrations that probe key policy before fetching static JSON. |
 
 ## `components.search`
 
-Client-side search component. Emits a flat `content/search.json`, runs Pagefind, and/or emits a Lunr index. NOT a drop-in replacement for Ghost's `/search/` endpoint; the JSON shape is divergent. Nectar wires Ghost-style `[data-ghost-search]` buttons to a static modal for JSON/Lunr search and to Pagefind UI for Pagefind search.
+Client-side search component. Emits a flat `content/search.json`, runs Pagefind, and/or emits a Lunr index. NOT a drop-in replacement for Ghost's `/search/` endpoint; the JSON shape is divergent. Laurel wires Ghost-style `[data-ghost-search]` buttons to a static modal for JSON/Lunr search and to Pagefind UI for Pagefind search.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `components.search.enabled` | `boolean` | no | `true` | Emit a client-side search index. When `engine` is `json`, `json+pagefind`, or `json+lunr`, writes a flat `content/search.json` ({ posts, pages, tags, authors }) suitable for fuzzy-search libraries (lunr / Fuse / minisearch) and wires Ghost-style `[data-ghost-search]` buttons to a static modal. When `engine` is `pagefind` or `json+pagefind`, additionally shells out to the `pagefind` CLI over the staged output to emit `pagefind/*` and routes the same buttons to Pagefind UI. When `engine` is `lunr` or `json+lunr`, builds a pre-serialized Lunr index at `search-index.json` and ships a tiny vanilla-JS widget (`search/widget.js` + `search/lunr.min.js`) so themes can wire a client-only search box without the Pagefind WASM overhead; plain `lunr` also routes Ghost-style buttons to a Lunr-backed modal. Nectar does NOT replicate Ghost's `/search/` endpoint shape; the JSON field set is divergent. |
-| `components.search.engine` | `"json" \| "pagefind" \| "json+pagefind" \| "lunr" \| "json+lunr" \| "sodo-search" \| "json+sodo-search"` | no | `"json"` | Search backend. `json` emits the flat index and Nectar's static `[data-ghost-search]` modal (cheap, zero deps, works for small/medium sites). `pagefind` skips the JSON and runs the `pagefind` CLI for a chunked index that scales to large archives. `json+pagefind` emits both so the consumer can pick at runtime, while Ghost-style buttons use Pagefind UI. `lunr` pre-builds a Lunr index (`search-index.json`) and ships a tiny vanilla-JS widget plus a Lunr-backed Ghost search modal — meant for sites under a few hundred posts where Pagefind's WASM overhead is overkill. `json+lunr` emits both the raw fuzzy-search index and the pre-built Lunr index plus widget; Ghost-style buttons use the JSON modal. `sodo-search` injects a configured Ghost `@tryghost/sodo-search` client script into `{{ghost_head}}`; Nectar does not vendor that script, so pin or self-host `sodo_search_src` if you opt in. Combine with `json+sodo-search` if you want both the raw index file and the external Sodo UI script. |
+| `components.search.enabled` | `boolean` | no | `true` | Emit a client-side search index. When `engine` is `json`, `json+pagefind`, or `json+lunr`, writes a flat `content/search.json` ({ posts, pages, tags, authors }) suitable for fuzzy-search libraries (lunr / Fuse / minisearch) and wires Ghost-style `[data-ghost-search]` buttons to a static modal. When `engine` is `pagefind` or `json+pagefind`, additionally shells out to the `pagefind` CLI over the staged output to emit `pagefind/*` and routes the same buttons to Pagefind UI. When `engine` is `lunr` or `json+lunr`, builds a pre-serialized Lunr index at `search-index.json` and ships a tiny vanilla-JS widget (`search/widget.js` + `search/lunr.min.js`) so themes can wire a client-only search box without the Pagefind WASM overhead; plain `lunr` also routes Ghost-style buttons to a Lunr-backed modal. Laurel does NOT replicate Ghost's `/search/` endpoint shape; the JSON field set is divergent. |
+| `components.search.engine` | `"json" \| "pagefind" \| "json+pagefind" \| "lunr" \| "json+lunr" \| "sodo-search" \| "json+sodo-search"` | no | `"json"` | Search backend. `json` emits the flat index and Laurel's static `[data-ghost-search]` modal (cheap, zero deps, works for small/medium sites). `pagefind` skips the JSON and runs the `pagefind` CLI for a chunked index that scales to large archives. `json+pagefind` emits both so the consumer can pick at runtime, while Ghost-style buttons use Pagefind UI. `lunr` pre-builds a Lunr index (`search-index.json`) and ships a tiny vanilla-JS widget plus a Lunr-backed Ghost search modal — meant for sites under a few hundred posts where Pagefind's WASM overhead is overkill. `json+lunr` emits both the raw fuzzy-search index and the pre-built Lunr index plus widget; Ghost-style buttons use the JSON modal. `sodo-search` injects a configured Ghost `@tryghost/sodo-search` client script into `{{ghost_head}}`; Laurel does not vendor that script, so pin or self-host `sodo_search_src` if you opt in. Combine with `json+sodo-search` if you want both the raw index file and the external Sodo UI script. |
 | `components.search.sodo_search_src` | `string` | no | `"https://unpkg.com/@tryghost/sodo-search@latest/umd/sodo-search.min.js"` | URL of the Sodo Search client script injected when `engine` is `sodo-search` or `json+sodo-search`. Defaults to the unpkg-hosted `@tryghost/sodo-search` bundle; override to self-host the file or pin a specific version. The URL is emitted verbatim into a `<script src="…">` attribute, so it must be a value the operator trusts. |
 | `components.search.excerpt_words` | `number` | no | `30` | Maximum number of words from `custom_excerpt` (or auto-excerpt) included in each entry. Keeps `search.json` small so a multi-hundred-post site still ships in a single fetch. `0` omits excerpts entirely. |
 | `components.search.include_pages` | `boolean` | no | `true` | Include static pages in `search.json`. Set to `false` to index posts only. |
 | `components.search.include_tags` | `boolean` | no | `true` | Include public tags in `search.json` so a search UI can surface tag pages alongside posts. |
 | `components.search.include_authors` | `boolean` | no | `true` | Include authors in `search.json` so a search UI can surface author pages. |
 | `components.search.pagefind_bin` | `string` | no | — | Optional path or command for the `pagefind` CLI. Defaults to `pagefind` resolved via `PATH`. Only consulted when `engine` includes `pagefind`. |
-| `components.search.emit_algolia_records` | `boolean` | no | `false` | Emit `dist/.nectar/algolia-records.json` — a flat array of posts/pages/tags/authors with `objectID`, `url`, `title`, `content`, `type`, `tags`, `authors`. Push to your Algolia index with the `algoliasearch` CLI / SDK; Nectar does not push for you. Independent of `engine`: combine with any engine to get Algolia-pushable records alongside the on-site widget. A starter DocSearch-compatible stylesheet ships at `search/algolia-docsearch.css`. |
-| `components.search.emit_meilisearch_records` | `boolean` | no | `false` | Emit `dist/.nectar/meilisearch-records.json` — the same flat document set used for Algolia but with Meilisearch-safe IDs (colon-free, `[a-zA-Z0-9-_]` only) under the `id` primary key. Push with the `meilisearch-js` SDK or HTTP API; Nectar does not push for you. Independent of `engine`. |
+| `components.search.emit_algolia_records` | `boolean` | no | `false` | Emit `dist/.laurel/algolia-records.json` — a flat array of posts/pages/tags/authors with `objectID`, `url`, `title`, `content`, `type`, `tags`, `authors`. Push to your Algolia index with the `algoliasearch` CLI / SDK; Laurel does not push for you. Independent of `engine`: combine with any engine to get Algolia-pushable records alongside the on-site widget. A starter DocSearch-compatible stylesheet ships at `search/algolia-docsearch.css`. |
+| `components.search.emit_meilisearch_records` | `boolean` | no | `false` | Emit `dist/.laurel/meilisearch-records.json` — the same flat document set used for Algolia but with Meilisearch-safe IDs (colon-free, `[a-zA-Z0-9-_]` only) under the `id` primary key. Push with the `meilisearch-js` SDK or HTTP API; Laurel does not push for you. Independent of `engine`. |
 
 ## `components.robots`
 
@@ -605,7 +605,7 @@ Per-format image transcoder. Generates WebP/AVIF variants of responsive widths a
 | `components.images.lqip_width` | `number` | no | `16` | Width in pixels used for generated LQIP placeholder JPEGs. |
 | `components.images.lqip_quality` | `number` | no | `40` | JPEG quality used for generated LQIP placeholder data URIs. |
 | `components.images.strip_metadata` | `boolean` | no | `true` | Strip EXIF and other embedded image metadata from copied content images and generated resize/transcode variants. Enabled by default to avoid publishing private camera/GPS metadata; set false only when preserving metadata is intentional. |
-| `components.images.cache_dir` | `string` | no | `".nectar/cache/images"` | Directory (relative to the project root) where transcoded variants are cached by content hash so unchanged sources skip re-encoding on the next build. |
+| `components.images.cache_dir` | `string` | no | `".laurel/cache/images"` | Directory (relative to the project root) where transcoded variants are cached by content hash so unchanged sources skip re-encoding on the next build. |
 
 ## `components.comments`
 
@@ -643,11 +643,11 @@ Component-level redirects emitter. Loads Ghost-compatible `content/data/redirect
 
 ## `components.portal`
 
-Ghost Members / Portal compatibility. Static-only, but the flags it exposes on `@site` (`members_enabled`, `paid_members_enabled`, `members_invite_only`) are what Source-style themes branch on for sign-in UI, sidebar CTAs, and footer links. When `@site.members_enabled` is true, Nectar also emits `assets/nectar-portal.js` and injects it through `{{ghost_foot}}` so `[data-portal]` buttons warn or navigate instead of becoming silent no-ops. When `provider` names an external newsletter service (buttondown / beehiiv / substack / convertkit / bentonow / mailerlite / mailchimp / emailoctopus) or `custom` with explicit URLs, Nectar additionally rewrites the dead `data-portal="signup"` / `"signin"` / `"account"` / `"upgrade"` buttons shipped by Ghost themes so they deep-link to the configured backend.
+Ghost Members / Portal compatibility. Static-only, but the flags it exposes on `@site` (`members_enabled`, `paid_members_enabled`, `members_invite_only`) are what Source-style themes branch on for sign-in UI, sidebar CTAs, and footer links. When `@site.members_enabled` is true, Laurel also emits `assets/laurel-portal.js` and injects it through `{{ghost_foot}}` so `[data-portal]` buttons warn or navigate instead of becoming silent no-ops. When `provider` names an external newsletter service (buttondown / beehiiv / substack / convertkit / bentonow / mailerlite / mailchimp / emailoctopus) or `custom` with explicit URLs, Laurel additionally rewrites the dead `data-portal="signup"` / `"signin"` / `"account"` / `"upgrade"` buttons shipped by Ghost themes so they deep-link to the configured backend.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `components.portal.provider` | `"none" \| "ghost" \| "custom" \| "buttondown" \| "beehiiv" \| "substack" \| "convertkit" \| "bentonow" \| "mailerlite" \| "mailchimp" \| "emailoctopus"` | no | `"none"` | Members / Portal backend. `none` keeps `@site.members_enabled` off so Source theme hides every sign-in / subscribe button. `ghost` wires the `#/portal/*` href hashes that Ghost's own Portal script intercepts (no rewrite). `custom` keeps the same UI surface but lets the embedder swap in their own client-side handler — if any `*_url` field is set the corresponding `data-portal` button is rewritten to that link, otherwise the original href is left alone. The remaining providers (`buttondown`, `beehiiv`, `substack`, `convertkit`, `bentonow`, `mailerlite`, `mailchimp`, `emailoctopus`) are external newsletter / membership services: Nectar rewrites the dead `data-portal="signup"` / `"signin"` / `"account"` / `"upgrade"` buttons emitted by Ghost themes to point at the provider's hosted pages, inferring URLs from `publication` for providers with conventional URL shapes and falling back to the explicit `*_url` overrides otherwise. |
+| `components.portal.provider` | `"none" \| "ghost" \| "custom" \| "buttondown" \| "beehiiv" \| "substack" \| "convertkit" \| "bentonow" \| "mailerlite" \| "mailchimp" \| "emailoctopus"` | no | `"none"` | Members / Portal backend. `none` keeps `@site.members_enabled` off so Source theme hides every sign-in / subscribe button. `ghost` wires the `#/portal/*` href hashes that Ghost's own Portal script intercepts (no rewrite). `custom` keeps the same UI surface but lets the embedder swap in their own client-side handler — if any `*_url` field is set the corresponding `data-portal` button is rewritten to that link, otherwise the original href is left alone. The remaining providers (`buttondown`, `beehiiv`, `substack`, `convertkit`, `bentonow`, `mailerlite`, `mailchimp`, `emailoctopus`) are external newsletter / membership services: Laurel rewrites the dead `data-portal="signup"` / `"signin"` / `"account"` / `"upgrade"` buttons emitted by Ghost themes to point at the provider's hosted pages, inferring URLs from `publication` for providers with conventional URL shapes and falling back to the explicit `*_url` overrides otherwise. |
 | `components.portal.paid` | `boolean` | no | `false` | Whether paid tiers are available. Drives `@site.paid_members_enabled`, which Source's sidebar uses to decide between Subscribe and Upgrade CTAs. Only meaningful when `provider != "none"`. |
 | `components.portal.invite_only` | `boolean` | no | `false` | When true, hide the public Subscribe button and only expose Sign in (Ghost's invite-only mode). Drives `@site.members_invite_only`. Only meaningful when `provider != "none"`. |
 | `components.portal.member_count` | `number` | no | — | Manual static override for `{{member_count}}` / `@site.member_count`. Static builds cannot know live member totals, so the helper renders an empty string unless this value is set. |
@@ -686,7 +686,7 @@ Author archive emission knobs. Mirrors `[components.tags]` for the per-author ar
 
 ## `components.analytics`
 
-Drop-in analytics snippet. When `provider` is set, the corresponding script tag (and any `<noscript>` fallback) is appended to every page's `{{ghost_head}}` output. Privacy concerns (Do-Not-Track honouring, IP anonymisation, cookie banners) are the provider's responsibility — Nectar only emits the documented embed snippet verbatim.
+Drop-in analytics snippet. When `provider` is set, the corresponding script tag (and any `<noscript>` fallback) is appended to every page's `{{ghost_head}}` output. Privacy concerns (Do-Not-Track honouring, IP anonymisation, cookie banners) are the provider's responsibility — Laurel only emits the documented embed snippet verbatim.
 
 | Key | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |

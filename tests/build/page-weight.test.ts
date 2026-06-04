@@ -9,7 +9,7 @@ import {
 } from '~/build/page-weight.ts';
 
 function makeDist(): string {
-  return mkdtempSync(join(tmpdir(), 'nectar-page-weight-'));
+  return mkdtempSync(join(tmpdir(), 'laurel-page-weight-'));
 }
 
 function writeAsset(distRoot: string, path: string, bytes: number): void {

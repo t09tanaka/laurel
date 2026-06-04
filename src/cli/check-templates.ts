@@ -25,7 +25,7 @@ const REQUIRED_TEMPLATES: readonly string[] = ['index', 'default'];
 
 // Optional but commonly expected templates. We warn (not error) so a theme
 // missing one of these still builds (renderer falls back to `default` or
-// `index`), but the author sees the gap during `nectar check`. Author /
+// `index`), but the author sees the gap during `laurel check`. Author /
 // tag templates are conditional on whether the site has any authors/tags.
 const OPTIONAL_TEMPLATES: readonly string[] = ['post', 'page', 'tag', 'author'];
 

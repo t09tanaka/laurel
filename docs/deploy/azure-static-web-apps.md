@@ -1,7 +1,7 @@
-# Deploying Nectar to Azure Static Web Apps
+# Deploying Laurel to Azure Static Web Apps
 
 Azure Static Web Apps (SWA) hosts pre-built static sites and routes them
-through Azure's global edge. Nectar's build pipeline emits a minimal
+through Azure's global edge. Laurel's build pipeline emits a minimal
 `staticwebapp.config.json` that SWA picks up automatically; the rest of this
 guide is the GitHub Actions wiring and the gotchas.
 
@@ -21,16 +21,16 @@ guide is the GitHub Actions wiring and the gotchas.
    [`examples/ci/azure-static-web-apps.yml`](../../examples/ci/azure-static-web-apps.yml)
    to `.github/workflows/azure-static-web-apps.yml`.
 
-5. Push to `main`. The workflow runs `nectar build`, then uploads `dist/`
+5. Push to `main`. The workflow runs `laurel build`, then uploads `dist/`
    via the official `Azure/static-web-apps-deploy@v1` action.
 
-## What nectar emits for Azure
+## What laurel emits for Azure
 
-Every `nectar build` writes a `staticwebapp.config.json` at the publish
+Every `laurel build` writes a `staticwebapp.config.json` at the publish
 root. The file is azure-specific (other hosts ignore it) and configures:
 
 - `navigationFallback.rewrite = "/404.html"` so missing paths serve the
-  themed 404 page nectar emits (`emitDefault404`), not Azure's default
+  themed 404 page laurel emits (`emitDefault404`), not Azure's default
   HTML.
 - `navigationFallback.exclude` listing fingerprinted asset paths, content
   images, the Pagefind index dir, and XML/JSON/text/compression sidecars —
@@ -40,15 +40,15 @@ root. The file is azure-specific (other hosts ignore it) and configures:
   config; if you don't, the rule is a no-op.
 
 To override the defaults, drop your own `staticwebapp.config.json` into
-nectar's static-passthrough dir (default: `<cwd>/static/`). The
+laurel's static-passthrough dir (default: `<cwd>/static/`). The
 post-emit passthrough step runs after every other emitter, so user-owned
 files win over the built-in defaults.
 
 ## Security headers and redirects
 
 Azure SWA reads response headers and redirects from
-`staticwebapp.config.json`, **not** from nectar's `_headers` / `_redirects`
-files. The default config nectar emits only carries routing rules — for
+`staticwebapp.config.json`, **not** from laurel's `_headers` / `_redirects`
+files. The default config laurel emits only carries routing rules — for
 security headers, extend the file via a passthrough override:
 
 ```json

@@ -102,23 +102,23 @@ jobs:
       matrix:
         include:
           - target: bun-linux-x64
-            artifact: nectar-linux-x64
+            artifact: laurel-linux-x64
             platform: linux
             runner: ubuntu-latest
           - target: bun-linux-arm64
-            artifact: nectar-linux-arm64
+            artifact: laurel-linux-arm64
             platform: linux
             runner: ubuntu-latest
           - target: bun-darwin-x64
-            artifact: nectar-darwin-x64
+            artifact: laurel-darwin-x64
             platform: darwin
             runner: macos-14
           - target: bun-darwin-arm64
-            artifact: nectar-darwin-arm64
+            artifact: laurel-darwin-arm64
             platform: darwin
             runner: macos-14
           - target: bun-windows-x64
-            artifact: nectar-windows-x64.exe
+            artifact: laurel-windows-x64.exe
             platform: windows
             runner: windows-latest
     steps:
@@ -195,7 +195,7 @@ jobs:
           fi
 
           cert_path="$RUNNER_TEMP/apple-developer-id.p12"
-          keychain_path="$RUNNER_TEMP/nectar-signing.keychain-db"
+          keychain_path="$RUNNER_TEMP/laurel-signing.keychain-db"
           keychain_password="$(openssl rand -hex 24)"
           notary_zip="$RUNNER_TEMP/${{ matrix.artifact }}.zip"
           cleanup() {
@@ -259,7 +259,7 @@ jobs:
           }
 
           $cert = $null
-          $pfxPath = Join-Path $env:RUNNER_TEMP "nectar-windows-signing.pfx"
+          $pfxPath = Join-Path $env:RUNNER_TEMP "laurel-windows-signing.pfx"
           try {
             [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WINDOWS_SIGNING_CERT_BASE64))
             $securePassword = ConvertTo-SecureString $env:WINDOWS_SIGNING_CERT_PASSWORD -AsPlainText -Force
@@ -297,7 +297,7 @@ jobs:
       # SLSA build provenance attestation (#512).
       # Produces a signed, Sigstore-backed statement that this exact binary
       # was built by this workflow run from this commit. Consumers can verify
-      # with `gh attestation verify <binary> --repo t09tanaka/nectar`. The
+      # with `gh attestation verify <binary> --repo t09tanaka/laurel`. The
       # attestation is stored in the GitHub attestations registry, not the
       # release assets, so it survives even if the release is edited.
       - name: Attest binary build provenance
@@ -356,10 +356,10 @@ jobs:
       - name: Collect binaries and generate SHASUMS256.txt
         run: |
           mkdir -p release
-          find artifacts -type f -name 'nectar-*' -exec cp {} release/ \;
+          find artifacts -type f -name 'laurel-*' -exec cp {} release/ \;
           cd release
           ls -la
-          sha256sum nectar-* > SHASUMS256.txt
+          sha256sum laurel-* > SHASUMS256.txt
           cat SHASUMS256.txt
 
       - name: Generate Homebrew formula
@@ -367,22 +367,22 @@ jobs:
           bun run scripts/generate-homebrew-formula.ts \
             --version "$TAG_NAME" \
             --shasums release/SHASUMS256.txt \
-            --output release/nectar.rb
-          ruby -c release/nectar.rb
+            --output release/laurel.rb
+          ruby -c release/laurel.rb
 
       - name: Generate Scoop manifest
         run: |
           bun run scripts/generate-scoop-manifest.ts \
             --version "$TAG_NAME" \
             --shasums release/SHASUMS256.txt \
-            --output release/nectar.json
-          bun -e 'JSON.parse(await Bun.file("release/nectar.json").text())'
+            --output release/laurel.json
+          bun -e 'JSON.parse(await Bun.file("release/laurel.json").text())'
 
       - name: Generate CycloneDX SBOM
         run: |
           bun run sbom:cyclonedx
-          cp dist-sbom/nectar.cyclonedx.json release/nectar.cyclonedx.json
-          bun -e 'const bom = JSON.parse(await Bun.file("release/nectar.cyclonedx.json").text()); if (bom.bomFormat !== "CycloneDX") throw new Error("invalid CycloneDX SBOM");'
+          cp dist-sbom/laurel.cyclonedx.json release/laurel.cyclonedx.json
+          bun -e 'const bom = JSON.parse(await Bun.file("release/laurel.cyclonedx.json").text()); if (bom.bomFormat !== "CycloneDX") throw new Error("invalid CycloneDX SBOM");'
 
       # Signed checksums (cosign / minisign) are intentionally out of scope for now.
       # Platform binaries are signed in the build job before upload.
@@ -418,7 +418,7 @@ jobs:
             echo "## Verification"
             echo ""
             echo "Each release includes a \`SHASUMS256.txt\` listing SHA-256 hashes of every binary."
-            echo "The \`nectar.cyclonedx.json\` asset is a CycloneDX SBOM generated from the locked Bun dependency graph."
+            echo "The \`laurel.cyclonedx.json\` asset is a CycloneDX SBOM generated from the locked Bun dependency graph."
             echo "Download \`SHASUMS256.txt\` and the binary you want, then verify:"
             echo ""
             echo "\`\`\`sh"
@@ -432,7 +432,7 @@ jobs:
             echo "commit, install the GitHub CLI and run:"
             echo ""
             echo "\`\`\`sh"
-            echo "gh attestation verify <binary> --repo t09tanaka/nectar"
+            echo "gh attestation verify <binary> --repo t09tanaka/laurel"
             echo "\`\`\`"
             echo ""
             echo "Public npm releases use \`npm publish --provenance\` and can be verified"
@@ -480,7 +480,7 @@ jobs:
             echo "## Verification"
             echo ""
             echo "Each release includes a \`SHASUMS256.txt\` listing SHA-256 hashes of every binary."
-            echo "The \`nectar.cyclonedx.json\` asset is a CycloneDX SBOM generated from the locked Bun dependency graph."
+            echo "The \`laurel.cyclonedx.json\` asset is a CycloneDX SBOM generated from the locked Bun dependency graph."
             echo "Download \`SHASUMS256.txt\` and the binary you want, then verify:"
             echo ""
             echo "\`\`\`sh"
@@ -494,7 +494,7 @@ jobs:
             echo "commit, install the GitHub CLI and run:"
             echo ""
             echo "\`\`\`sh"
-            echo "gh attestation verify <binary> --repo t09tanaka/nectar"
+            echo "gh attestation verify <binary> --repo t09tanaka/laurel"
             echo "\`\`\`"
             echo ""
             echo "Public npm releases use \`npm publish --provenance\` and can be verified"
@@ -520,13 +520,13 @@ jobs:
       contents: read
     env:
       TAG_NAME: ${{ needs.resolve-ref.outputs.tag }}
-      HOMEBREW_TAP_REPOSITORY: t09tanaka/homebrew-nectar
+      HOMEBREW_TAP_REPOSITORY: t09tanaka/homebrew-laurel
     steps:
       - name: Checkout release source
         uses: actions/checkout@v6
         with:
           ref: ${{ needs.resolve-ref.outputs.ref }}
-          path: nectar
+          path: laurel
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -545,41 +545,41 @@ jobs:
         with:
           repository: ${{ env.HOMEBREW_TAP_REPOSITORY }}
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          path: homebrew-nectar
+          path: homebrew-laurel
 
       - name: Download release checksums
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p nectar/release-tap
+          mkdir -p laurel/release-tap
           gh release download "$TAG_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --pattern SHASUMS256.txt \
-            --dir nectar/release-tap \
+            --dir laurel/release-tap \
             --clobber
 
       - name: Generate tap formula
         run: |
-          cd nectar
+          cd laurel
           bun run scripts/generate-homebrew-formula.ts \
             --version "$TAG_NAME" \
             --shasums release-tap/SHASUMS256.txt \
-            --output ../homebrew-nectar/Formula/nectar.rb
+            --output ../homebrew-laurel/Formula/laurel.rb
 
       - name: Validate tap formula
         run: |
-          cd homebrew-nectar
-          ruby -c Formula/nectar.rb
-          brew audit --strict --online --formula Formula/nectar.rb
+          cd homebrew-laurel
+          ruby -c Formula/laurel.rb
+          brew audit --strict --online --formula Formula/laurel.rb
 
       - name: Open tap bump pull request
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
           set -euo pipefail
-          cd homebrew-nectar
+          cd homebrew-laurel
 
-          if git diff --quiet -- Formula/nectar.rb; then
+          if git diff --quiet -- Formula/laurel.rb; then
             echo "Homebrew tap formula already matches ${TAG_NAME}."
             exit 0
           fi
@@ -587,11 +587,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          branch="nectar-${TAG_NAME}"
+          branch="laurel-${TAG_NAME}"
           git fetch origin "$branch:refs/remotes/origin/$branch" || true
           git checkout -B "$branch"
-          git add Formula/nectar.rb
-          git commit -m "nectar ${TAG_NAME#v}"
+          git add Formula/laurel.rb
+          git commit -m "laurel ${TAG_NAME#v}"
           git push --force-with-lease origin "$branch"
 
           existing_pr="$(gh pr list \
@@ -608,8 +608,8 @@ jobs:
             --repo "$HOMEBREW_TAP_REPOSITORY" \
             --base main \
             --head "$branch" \
-            --title "nectar ${TAG_NAME#v}" \
-            --body "Bumps the Nectar Homebrew formula to ${TAG_NAME} using the signed Darwin and Linux binaries from the GitHub Release."
+            --title "laurel ${TAG_NAME#v}" \
+            --body "Bumps the Laurel Homebrew formula to ${TAG_NAME} using the signed Darwin and Linux binaries from the GitHub Release."
 
   publish-docker:
     name: Publish Docker image
@@ -660,7 +660,7 @@ jobs:
         with:
           images: |
             ghcr.io/${{ github.repository }}
-            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/nectar
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/laurel
           tags: |
             type=raw,value=${{ needs.resolve-ref.outputs.tag }}
             type=raw,value=latest

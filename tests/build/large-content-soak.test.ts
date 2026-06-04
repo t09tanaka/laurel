@@ -1,17 +1,17 @@
 import { describe, expect, test } from 'bun:test';
 import { planRoutes } from '~/build/routes.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ContentGraph, Post, SiteData } from '~/content/model.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 
-function makeConfig(): NectarConfig {
+function makeConfig(): LaurelConfig {
   return {
     site: { title: 'Large', url: 'https://example.com', locale: 'en', timezone: 'UTC' },
     theme: { dir: 'themes', name: 'source', custom: {} },
     content: { dir: 'content' },
     build: { output_dir: 'dist', posts_per_page: 25, base_path: '/' },
     components: { tags: { min_posts_per_tag: 1 }, authors: { min_posts_per_author: 1 } },
-  } as unknown as NectarConfig;
+  } as unknown as LaurelConfig;
 }
 
 function makeTheme(): ThemeBundle {

@@ -2,7 +2,7 @@
 title: "Second take"
 slug: second-take
 date: 2026-01-10T10:00:00Z
-authors: [nectar-bot]
+authors: [laurel-bot]
 tags: [general]
 custom_excerpt: "A second post so pagination has something to chew on."
 ---
@@ -12,5 +12,5 @@ one. No feature image on purpose — themes should tolerate posts without one.
 
 ## Body section
 
-A short paragraph with a [link](https://nectar.example.com) and an inline
+A short paragraph with a [link](https://laurel.example.com) and an inline
 `backtick` snippet.

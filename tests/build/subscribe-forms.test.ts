@@ -167,7 +167,7 @@ describe('transformSubscribeForms', () => {
     const out = transformSubscribeForms(SAMPLE_FORM, { provider: 'none' });
     expect(containsSubscribeFormMarkup(SAMPLE_FORM)).toBe(true);
     expect(out).toMatch(/<form[^>]*\baction="#"/);
-    expect(out).toContain(`data-nectar-noop="${SUBSCRIBE_NOOP_REASON}"`);
+    expect(out).toContain(`data-laurel-noop="${SUBSCRIBE_NOOP_REASON}"`);
     expect(out).toContain('window.console.warn');
     expect(out).toContain(SUBSCRIBE_NOOP_RUNTIME_WARNING);
     expect(out).toMatch(/<input[^>]*\bname="email"/);
@@ -189,7 +189,7 @@ describe('transformSubscribeForms', () => {
     expect(out).toContain('data-members-success');
     expect(out).toContain('data-members-error');
     expect(out).toMatch(/<form[^>]*\baction="#"/);
-    expect(out).toContain(`data-nectar-noop="${SUBSCRIBE_NOOP_REASON}"`);
+    expect(out).toContain(`data-laurel-noop="${SUBSCRIBE_NOOP_REASON}"`);
     expect(out).toContain('window.console.warn');
     expect(out).toMatch(/<input[^>]*\bname="email"/);
   });

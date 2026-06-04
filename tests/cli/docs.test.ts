@@ -15,7 +15,7 @@ describe('renderCliReference', () => {
     for (const name of COMMAND_NAMES) {
       const spec = COMMAND_SPECS[name];
       if (!spec) continue;
-      expect(md).toContain(`### \`nectar ${name}\``);
+      expect(md).toContain(`### \`laurel ${name}\``);
       expect(md).toContain(spec.summary);
     }
   });
@@ -40,7 +40,7 @@ describe('renderCliReference', () => {
   test('documents interleaved flag and positional parsing', () => {
     const md = renderCliReference();
     expect(md).toContain('## Argument order');
-    expect(md).toContain('nectar new --slug foo post "Hello"');
+    expect(md).toContain('laurel new --slug foo post "Hello"');
     expect(md).toContain('`--` still ends option parsing');
   });
 
@@ -69,9 +69,9 @@ describe('renderCliReference', () => {
   test('documents standard input support and exclusions', () => {
     const md = renderCliReference();
     expect(md).toContain('## Standard input');
-    expect(md).toContain('nectar new <kind> --stdin');
-    expect(md).toContain('nectar import-ghost -');
-    expect(md).toContain('Most Nectar commands do not consume piped stdin');
+    expect(md).toContain('laurel new <kind> --stdin');
+    expect(md).toContain('laurel import-ghost -');
+    expect(md).toContain('Most Laurel commands do not consume piped stdin');
   });
 
   test('escapes pipe characters inside option descriptions', () => {
@@ -94,8 +94,8 @@ describe('renderCliReference', () => {
 
   test('honors the order argument', () => {
     const md = renderCliReference(COMMAND_SPECS, ['build', 'init']);
-    const buildIdx = md.indexOf('### `nectar build`');
-    const initIdx = md.indexOf('### `nectar init`');
+    const buildIdx = md.indexOf('### `laurel build`');
+    const initIdx = md.indexOf('### `laurel init`');
     expect(buildIdx).toBeGreaterThan(-1);
     expect(initIdx).toBeGreaterThan(-1);
     expect(buildIdx).toBeLessThan(initIdx);

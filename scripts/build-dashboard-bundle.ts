@@ -2,7 +2,7 @@
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
-const outdir = process.env.NECTAR_BUILD_OUTDIR?.trim() || 'dist';
+const outdir = process.env.LAUREL_BUILD_OUTDIR?.trim() || 'dist';
 const bundleDir = join(outdir, 'dashboard-bundle');
 const generatedAssetsModule = resolve('src/cli/dashboard/bundled-assets.ts');
 await mkdir(bundleDir, { recursive: true });

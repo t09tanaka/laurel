@@ -4,13 +4,13 @@ import { joinPath } from '~/theme/assets.ts';
 import { ensureDir } from '~/util/fs.ts';
 import type { ResolvedPortalUrls } from './portal-urls.ts';
 
-export const PORTAL_RUNTIME_PATH = 'assets/nectar-portal.js';
+export const PORTAL_RUNTIME_PATH = 'assets/laurel-portal.js';
 export const PORTAL_RUNTIME_VERSION = '1';
 
-export const INLINE_SUBMIT_RUNTIME_JS = `/* Nectar inline members form submit runtime. */
+export const INLINE_SUBMIT_RUNTIME_JS = `/* Laurel inline members form submit runtime. */
 (function () {
   if (typeof window === 'undefined' || !window.fetch || !window.FormData) return;
-  window.NectarInlineSubmit = true;
+  window.LaurelInlineSubmit = true;
 
   function find(form, selector) {
     return form.querySelector ? form.querySelector(selector) : null;
@@ -43,7 +43,7 @@ export const INLINE_SUBMIT_RUNTIME_JS = `/* Nectar inline members form submit ru
     if (event.defaultPrevented) return;
     var form = event.target;
     if (!form || !form.matches || !form.matches('form[data-members-form]')) return;
-    if (form.hasAttribute('data-nectar-noop') || form.classList.contains('loading')) return;
+    if (form.hasAttribute('data-laurel-noop') || form.classList.contains('loading')) return;
 
     var action = form.getAttribute('action') || '';
     if (!action || action === '#') return;
@@ -81,9 +81,9 @@ export const INLINE_SUBMIT_RUNTIME_JS = `/* Nectar inline members form submit ru
 })();
 `;
 
-export const PORTAL_RUNTIME_JS = `/* Nectar static Portal runtime. */
+export const PORTAL_RUNTIME_JS = `/* Laurel static Portal runtime. */
 (function () {
-  var cfg = (typeof window !== 'undefined' && window.NectarPortal) || {};
+  var cfg = (typeof window !== 'undefined' && window.LaurelPortal) || {};
   var actions = cfg.actions || {};
   var supported = {
     signup: true,
@@ -96,7 +96,7 @@ export const PORTAL_RUNTIME_JS = `/* Nectar static Portal runtime. */
 
   function warn(action) {
     if (typeof console !== 'undefined' && console.warn) {
-      console.warn('[nectar-portal] data-portal="' + action + '" has no configured static destination');
+      console.warn('[laurel-portal] data-portal="' + action + '" has no configured static destination');
     }
   }
 
@@ -123,7 +123,7 @@ export const PORTAL_RUNTIME_JS = `/* Nectar static Portal runtime. */
       ? event.target.closest('[data-portal]')
       : null;
     if (!trigger) return;
-    if (trigger.hasAttribute && trigger.hasAttribute('data-nectar-recommendations-link')) return;
+    if (trigger.hasAttribute && trigger.hasAttribute('data-laurel-recommendations-link')) return;
 
     var rawAction = trigger.getAttribute('data-portal') || '';
     if (!supported[rawAction]) return;
@@ -132,7 +132,7 @@ export const PORTAL_RUNTIME_JS = `/* Nectar static Portal runtime. */
 
     var customEvent;
     if (typeof window.CustomEvent === 'function') {
-      customEvent = new CustomEvent('nectar:portal', {
+      customEvent = new CustomEvent('laurel:portal', {
         bubbles: true,
         cancelable: true,
         detail: { action: rawAction, resolvedAction: action, url: url || null, trigger: trigger }

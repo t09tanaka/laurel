@@ -15,7 +15,7 @@ afterEach(async () => {
 });
 
 async function makeTempDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'nectar-sourcemap-'));
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-sourcemap-'));
   tempDirs.push(dir);
   return dir;
 }

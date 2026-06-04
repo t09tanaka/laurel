@@ -6,7 +6,7 @@ import { GhostImageDownloader } from '~/ghost/image-downloader.ts';
 
 describe('GhostImageDownloader', () => {
   test('leaves third-party service image URLs untouched without fetching them', async () => {
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-image-dl-third-party-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-image-dl-third-party-')));
     const url = 'https://images.unsplash.com/photo-12345?w=1200';
     const fetcher = (async (): Promise<Response> => {
       throw new Error('third-party service images should not be fetched');
@@ -27,7 +27,7 @@ describe('GhostImageDownloader', () => {
   });
 
   test('serializes concurrent image downloads through one shared downloader', async () => {
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-image-dl-serial-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-image-dl-serial-')));
     const urls = [
       'https://example.com/content/images/2026/05/a.jpg',
       'https://example.com/content/images/2026/05/b.jpg',
@@ -66,7 +66,7 @@ describe('GhostImageDownloader', () => {
   });
 
   test('reads response bodies as streams without using response.arrayBuffer()', async () => {
-    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-image-dl-stream-')));
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-image-dl-stream-')));
     const url = 'https://example.com/content/images/2026/05/streamed.jpg';
     const fetcher = (async (): Promise<Response> => {
       const response = new Response(

@@ -61,7 +61,7 @@ describe('resolveOutputDir', () => {
 
 describe('clearDirContents', () => {
   test('creates the directory when missing', async () => {
-    const base = await mkdtemp(join(tmpdir(), 'nectar-clear-'));
+    const base = await mkdtemp(join(tmpdir(), 'laurel-clear-'));
     const target = join(base, 'dist');
     expect(existsSync(target)).toBe(false);
     await clearDirContents(target);
@@ -69,7 +69,7 @@ describe('clearDirContents', () => {
   });
 
   test('removes children but preserves the directory itself', async () => {
-    const target = await mkdtemp(join(tmpdir(), 'nectar-clear-'));
+    const target = await mkdtemp(join(tmpdir(), 'laurel-clear-'));
     await writeFile(join(target, 'a.txt'), 'a', 'utf8');
     await mkdir(join(target, 'sub'), { recursive: true });
     await writeFile(join(target, 'sub/b.txt'), 'b', 'utf8');
@@ -83,7 +83,7 @@ describe('clearDirContents', () => {
 
 describe('cleanupStaleOutput', () => {
   test('removes only files outside the current build keep set', async () => {
-    const target = await mkdtemp(join(tmpdir(), 'nectar-stale-'));
+    const target = await mkdtemp(join(tmpdir(), 'laurel-stale-'));
     await writeFile(join(target, 'index.html'), '<new/>', 'utf8');
     await mkdir(join(target, 'old-post'), { recursive: true });
     await writeFile(join(target, 'old-post/index.html'), '<old/>', 'utf8');
@@ -103,8 +103,8 @@ describe('cleanupStaleOutput', () => {
     expect(existsSync(join(target, 'old-post'))).toBe(false);
   });
 
-  test('honours .nectarignore-style preserve patterns', async () => {
-    const target = await mkdtemp(join(tmpdir(), 'nectar-stale-preserve-'));
+  test('honours .laurelignore-style preserve patterns', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'laurel-stale-preserve-'));
     await writeFile(join(target, 'index.html'), '<new/>', 'utf8');
     await writeFile(join(target, 'CNAME'), 'blog.example.com', 'utf8');
     await mkdir(join(target, '.well-known'), { recursive: true });
@@ -121,7 +121,7 @@ describe('cleanupStaleOutput', () => {
   });
 
   test('uses previous manifest candidates without deleting user-managed files', async () => {
-    const target = await mkdtemp(join(tmpdir(), 'nectar-stale-manifest-'));
+    const target = await mkdtemp(join(tmpdir(), 'laurel-stale-manifest-'));
     await writeFile(join(target, 'index.html'), '<new/>', 'utf8');
     await mkdir(join(target, 'old-post'), { recursive: true });
     await writeFile(join(target, 'old-post/index.html'), '<old/>', 'utf8');
@@ -139,7 +139,7 @@ describe('cleanupStaleOutput', () => {
   });
 
   test('applies preserve patterns to previous manifest cleanup candidates', async () => {
-    const target = await mkdtemp(join(tmpdir(), 'nectar-stale-manifest-preserve-'));
+    const target = await mkdtemp(join(tmpdir(), 'laurel-stale-manifest-preserve-'));
     await writeFile(join(target, 'index.html'), '<new/>', 'utf8');
     await writeFile(join(target, 'CNAME'), 'blog.example.com', 'utf8');
     await mkdir(join(target, 'old-post'), { recursive: true });
@@ -161,8 +161,8 @@ describe('cleanupStaleOutput', () => {
   });
 
   test('unlinks stale symlinks without following their targets', async () => {
-    const target = await mkdtemp(join(tmpdir(), 'nectar-stale-symlink-'));
-    const outside = await mkdtemp(join(tmpdir(), 'nectar-stale-outside-'));
+    const target = await mkdtemp(join(tmpdir(), 'laurel-stale-symlink-'));
+    const outside = await mkdtemp(join(tmpdir(), 'laurel-stale-outside-'));
     await writeFile(join(outside, 'secret.txt'), 'SECRET', 'utf8');
     await symlink(join(outside, 'secret.txt'), join(target, 'leak.txt'));
     await writeFile(join(target, 'index.html'), '<new/>', 'utf8');
@@ -177,8 +177,8 @@ describe('cleanupStaleOutput', () => {
   });
 
   test('preserves kept symlinks as links', async () => {
-    const target = await mkdtemp(join(tmpdir(), 'nectar-stale-kept-symlink-'));
-    const outside = await mkdtemp(join(tmpdir(), 'nectar-stale-outside-'));
+    const target = await mkdtemp(join(tmpdir(), 'laurel-stale-kept-symlink-'));
+    const outside = await mkdtemp(join(tmpdir(), 'laurel-stale-outside-'));
     const source = join(outside, 'asset.txt');
     await writeFile(source, 'ASSET', 'utf8');
     await symlink(source, join(target, 'asset.txt'));
@@ -194,7 +194,7 @@ describe('cleanupStaleOutput', () => {
 
 describe('prepareStagingDir', () => {
   test('creates a sibling temp directory next to finalDir', async () => {
-    const parent = await mkdtemp(join(tmpdir(), 'nectar-stage-'));
+    const parent = await mkdtemp(join(tmpdir(), 'laurel-stage-'));
     const finalDir = join(parent, 'dist');
     const staging = await prepareStagingDir(finalDir);
     expect(existsSync(staging)).toBe(true);
@@ -203,7 +203,7 @@ describe('prepareStagingDir', () => {
   });
 
   test('creates the parent directory when missing', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'nectar-stage-'));
+    const root = await mkdtemp(join(tmpdir(), 'laurel-stage-'));
     const finalDir = join(root, 'nested/build/dist');
     const staging = await prepareStagingDir(finalDir);
     expect(existsSync(staging)).toBe(true);
@@ -211,7 +211,7 @@ describe('prepareStagingDir', () => {
   });
 
   test('returns unique paths on repeated calls', async () => {
-    const parent = await mkdtemp(join(tmpdir(), 'nectar-stage-'));
+    const parent = await mkdtemp(join(tmpdir(), 'laurel-stage-'));
     const finalDir = join(parent, 'dist');
     const a = await prepareStagingDir(finalDir);
     const b = await prepareStagingDir(finalDir);
@@ -221,7 +221,7 @@ describe('prepareStagingDir', () => {
 
 describe('commitStagingDir', () => {
   test('moves staging into place when finalDir does not exist', async () => {
-    const parent = await mkdtemp(join(tmpdir(), 'nectar-commit-'));
+    const parent = await mkdtemp(join(tmpdir(), 'laurel-commit-'));
     const finalDir = join(parent, 'dist');
     const staging = await prepareStagingDir(finalDir);
     await writeFile(join(staging, 'index.html'), '<new/>', 'utf8');
@@ -234,7 +234,7 @@ describe('commitStagingDir', () => {
   });
 
   test('replaces an existing finalDir without leaving the old tree behind', async () => {
-    const parent = await mkdtemp(join(tmpdir(), 'nectar-commit-'));
+    const parent = await mkdtemp(join(tmpdir(), 'laurel-commit-'));
     const finalDir = join(parent, 'dist');
     await mkdir(finalDir, { recursive: true });
     await writeFile(join(finalDir, 'index.html'), '<old/>', 'utf8');

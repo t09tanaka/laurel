@@ -39,14 +39,14 @@ function parseLastJsonLine<T>(stdout: string): T {
 }
 
 async function makeFixture(files: Record<string, string>): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-build-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-build-')));
   for (const [path, body] of Object.entries(files)) {
     await Bun.write(join(dir, path), body);
   }
   return dir;
 }
 
-describe('nectar build exit codes', () => {
+describe('laurel build exit codes', () => {
   const cleanups: string[] = [];
   afterEach(async () => {
     while (cleanups.length > 0) {
@@ -56,14 +56,14 @@ describe('nectar build exit codes', () => {
   });
 
   test('returns 2 on usage error (unknown flag)', async () => {
-    const dir = await makeFixture({ 'nectar.toml': '[site]\ntitle = "x"\n' });
+    const dir = await makeFixture({ 'laurel.toml': '[site]\ntitle = "x"\n' });
     cleanups.push(dir);
     const result = await runCli(['build', '--no-such-flag'], dir);
     expect(result.exitCode).toBe(2);
   });
 
   test('returns 3 on config error (invalid TOML)', async () => {
-    const dir = await makeFixture({ 'nectar.toml': 'this is = not = valid TOML\n' });
+    const dir = await makeFixture({ 'laurel.toml': 'this is = not = valid TOML\n' });
     cleanups.push(dir);
     const result = await runCli(['build'], dir);
     expect(result.exitCode).toBe(3);
@@ -71,7 +71,7 @@ describe('nectar build exit codes', () => {
 
   test('returns 5 on theme error (missing theme directory)', async () => {
     const dir = await makeFixture({
-      'nectar.toml': '[site]\ntitle = "x"\n\n[theme]\nname = "does-not-exist"\ndir = "themes"\n',
+      'laurel.toml': '[site]\ntitle = "x"\n\n[theme]\nname = "does-not-exist"\ndir = "themes"\n',
     });
     cleanups.push(dir);
     const result = await runCli(['build'], dir);
@@ -80,11 +80,11 @@ describe('nectar build exit codes', () => {
 });
 
 async function makeDryRunFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-build-dryrun-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-build-dryrun-')));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
   await Bun.write(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Dry Run Test"',
@@ -113,11 +113,11 @@ async function makeDryRunFixture(): Promise<string> {
 }
 
 async function makePreviewFeedFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-build-preview-feeds-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-build-preview-feeds-')));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
   await Bun.write(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Preview Feed Test"',
@@ -139,7 +139,7 @@ async function makePreviewFeedFixture(): Promise<string> {
   return dir;
 }
 
-describe('nectar build --dry-run (#252)', () => {
+describe('laurel build --dry-run (#252)', () => {
   const cleanups: string[] = [];
   afterEach(async () => {
     while (cleanups.length > 0) {
@@ -264,7 +264,7 @@ describe('nectar build --dry-run (#252)', () => {
   });
 });
 
-describe('nectar build:email', () => {
+describe('laurel build:email', () => {
   const cleanups: string[] = [];
   afterEach(async () => {
     while (cleanups.length > 0) {
@@ -274,11 +274,11 @@ describe('nectar build:email', () => {
   });
 
   async function makeEmailFixture(): Promise<string> {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-build-email-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-build-email-')));
     await mkdir(join(dir, 'content/posts'), { recursive: true });
     await mkdir(join(dir, 'themes/source'), { recursive: true });
     await Bun.write(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       [
         '[site]',
         'title = "Email Test"',
@@ -340,7 +340,7 @@ describe('nectar build:email', () => {
   });
 });
 
-describe('nectar build --no-clean (#831)', () => {
+describe('laurel build --no-clean (#831)', () => {
   const cleanups: string[] = [];
   afterEach(async () => {
     while (cleanups.length > 0) {
@@ -364,7 +364,7 @@ describe('nectar build --no-clean (#831)', () => {
   });
 });
 
-describe('nectar build --profile', () => {
+describe('laurel build --profile', () => {
   const cleanups: string[] = [];
   afterEach(async () => {
     while (cleanups.length > 0) {
@@ -380,7 +380,7 @@ describe('nectar build --profile', () => {
     const result = await runCli(['build', '--profile'], dir);
 
     expect(result.exitCode).toBe(0);
-    const statsPath = join(dir, 'dist/.nectar-build-stats.json');
+    const statsPath = join(dir, 'dist/.laurel-build-stats.json');
     expect(result.stdout).toContain(`Build stats: ${statsPath}`);
     expect(result.stdout).toContain('Peak RSS:');
     expect(existsSync(statsPath)).toBe(true);
@@ -428,12 +428,12 @@ describe('nectar build --profile', () => {
     const payload = parseLastJsonLine<{ profilePath?: string; peakRssBytes?: number }>(
       result.stdout,
     );
-    expect(payload.profilePath).toBe(join(dir, 'dist/.nectar-build-stats.json'));
+    expect(payload.profilePath).toBe(join(dir, 'dist/.laurel-build-stats.json'));
     expect(payload.peakRssBytes).toBeGreaterThan(0);
   });
 });
 
-describe('nectar build base URL precedence', () => {
+describe('laurel build base URL precedence', () => {
   const cleanups: string[] = [];
   afterEach(async () => {
     while (cleanups.length > 0) {
@@ -523,14 +523,14 @@ describe('nectar build base URL precedence', () => {
     expect(explicitHtml).not.toContain('deploy-preview-42--site.netlify.app');
   });
 
-  test('keeps NECTAR_BUILD_BASE_URL ahead of Netlify preview URL', async () => {
+  test('keeps LAUREL_BUILD_BASE_URL ahead of Netlify preview URL', async () => {
     const dir = await makeDryRunFixture();
     cleanups.push(dir);
     const result = await runCli(['build'], dir, {
       NETLIFY: 'true',
       CONTEXT: 'branch-deploy',
       DEPLOY_PRIME_URL: 'https://branch--site.netlify.app',
-      NECTAR_BUILD_BASE_URL: 'https://build-env.example',
+      LAUREL_BUILD_BASE_URL: 'https://build-env.example',
     });
     expect(result.exitCode).toBe(0);
     const html = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
@@ -554,7 +554,7 @@ describe('nectar build base URL precedence', () => {
 
     const explicitEnv = await runCli(['build'], dir, {
       ...cloudflare,
-      NECTAR_SITE_URL: 'https://explicit-env.example',
+      LAUREL_SITE_URL: 'https://explicit-env.example',
     });
     expect(explicitEnv.exitCode).toBe(0);
     const explicitEnvHtml = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
@@ -563,7 +563,7 @@ describe('nectar build base URL precedence', () => {
 
     const cli = await runCli(['build', '--base-url', 'https://cli-preview.example'], dir, {
       ...cloudflare,
-      NECTAR_SITE_URL: 'https://explicit-env.example',
+      LAUREL_SITE_URL: 'https://explicit-env.example',
     });
     expect(cli.exitCode).toBe(0);
     const cliHtml = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
@@ -588,7 +588,7 @@ describe('nectar build base URL precedence', () => {
 
     const buildEnv = await runCli(['build'], dir, {
       ...vercel,
-      NECTAR_BUILD_BASE_URL: 'https://build-env.example',
+      LAUREL_BUILD_BASE_URL: 'https://build-env.example',
     });
     expect(buildEnv.exitCode).toBe(0);
     const buildEnvHtml = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
@@ -597,7 +597,7 @@ describe('nectar build base URL precedence', () => {
 
     const explicitEnv = await runCli(['build'], dir, {
       ...vercel,
-      NECTAR_SITE_URL: 'https://explicit-env.example',
+      LAUREL_SITE_URL: 'https://explicit-env.example',
     });
     expect(explicitEnv.exitCode).toBe(0);
     const explicitEnvHtml = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
@@ -606,8 +606,8 @@ describe('nectar build base URL precedence', () => {
 
     const cli = await runCli(['build', '--base-url', 'https://cli-preview.example'], dir, {
       ...vercel,
-      NECTAR_BUILD_BASE_URL: 'https://build-env.example',
-      NECTAR_SITE_URL: 'https://explicit-env.example',
+      LAUREL_BUILD_BASE_URL: 'https://build-env.example',
+      LAUREL_SITE_URL: 'https://explicit-env.example',
     });
     expect(cli.exitCode).toBe(0);
     const cliHtml = readFileSync(join(dir, 'dist/hello/index.html'), 'utf8');
@@ -618,7 +618,7 @@ describe('nectar build base URL precedence', () => {
   });
 });
 
-describe('nectar build --config layering (#801)', () => {
+describe('laurel build --config layering (#801)', () => {
   const cleanups: string[] = [];
   afterEach(async () => {
     while (cleanups.length > 0) {
@@ -678,7 +678,7 @@ describe('nectar build --config layering (#801)', () => {
   });
 });
 
-describe('nectar build preview noindex protection', () => {
+describe('laurel build preview noindex protection', () => {
   const cleanups: string[] = [];
   afterEach(async () => {
     while (cleanups.length > 0) {
@@ -811,7 +811,7 @@ describe('formatDryRunRouteTable', () => {
   });
 });
 
-describe('nectar build --include-drafts (#253)', () => {
+describe('laurel build --include-drafts (#253)', () => {
   const cleanups: string[] = [];
   afterEach(async () => {
     while (cleanups.length > 0) {
@@ -821,11 +821,11 @@ describe('nectar build --include-drafts (#253)', () => {
   });
 
   async function makeSiteWithDraft(): Promise<string> {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-build-drafts-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-build-drafts-')));
     await mkdir(join(dir, 'content/posts'), { recursive: true });
     await mkdir(join(dir, 'content/authors'), { recursive: true });
     await writeFile(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       [
         '[site]',
         'title = "Drafts"',
@@ -870,10 +870,10 @@ Not ready.
     expect(result.stderr).toContain('Building with drafts');
   });
 
-  test('NECTAR_DRAFTS=1 env alias also opts in', async () => {
+  test('LAUREL_DRAFTS=1 env alias also opts in', async () => {
     const dir = await makeSiteWithDraft();
     cleanups.push(dir);
-    const result = await runCli(['build'], dir, { NECTAR_DRAFTS: '1' });
+    const result = await runCli(['build'], dir, { LAUREL_DRAFTS: '1' });
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toContain('Building with drafts');
   });
@@ -888,11 +888,11 @@ Not ready.
 });
 
 async function makeWatchFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-build-watch-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-build-watch-')));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
   await Bun.write(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Watch Test"',
@@ -920,7 +920,7 @@ async function makeWatchFixture(): Promise<string> {
   return dir;
 }
 
-describe('nectar build --watch (#254)', () => {
+describe('laurel build --watch (#254)', () => {
   const cleanups: string[] = [];
   afterEach(async () => {
     while (cleanups.length > 0) {
@@ -937,7 +937,7 @@ describe('nectar build --watch (#254)', () => {
   });
 
   test('--watch and --dry-run together exit 2 (usage)', async () => {
-    const dir = await makeFixture({ 'nectar.toml': '[site]\ntitle = "x"\n' });
+    const dir = await makeFixture({ 'laurel.toml': '[site]\ntitle = "x"\n' });
     cleanups.push(dir);
     const { stderr, exitCode } = await runCli(['build', '--watch', '--dry-run'], dir);
     expect(exitCode).toBe(2);
@@ -1014,7 +1014,7 @@ describe('nectar build --watch (#254)', () => {
   });
 });
 
-describe('nectar build --emit-content-api (#214)', () => {
+describe('laurel build --emit-content-api (#214)', () => {
   const cleanups: string[] = [];
   afterEach(async () => {
     while (cleanups.length > 0) {
@@ -1024,11 +1024,11 @@ describe('nectar build --emit-content-api (#214)', () => {
   });
 
   async function makeSite(opts: { contentApiEnabled: boolean }): Promise<string> {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-build-emit-capi-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-build-emit-capi-')));
     await mkdir(join(dir, 'content/posts'), { recursive: true });
     await mkdir(join(dir, 'content/authors'), { recursive: true });
     await writeFile(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       [
         '[site]',
         'title = "Emit CAPI"',
@@ -1074,10 +1074,10 @@ describe('nectar build --emit-content-api (#214)', () => {
     );
   });
 
-  test('NECTAR_BUILD_EMIT_CONTENT_API=0 forces shadows OFF even when config enables them', async () => {
+  test('LAUREL_BUILD_EMIT_CONTENT_API=0 forces shadows OFF even when config enables them', async () => {
     const dir = await makeSite({ contentApiEnabled: true });
     cleanups.push(dir);
-    const result = await runCli(['build'], dir, { NECTAR_BUILD_EMIT_CONTENT_API: '0' });
+    const result = await runCli(['build'], dir, { LAUREL_BUILD_EMIT_CONTENT_API: '0' });
     expect(result.exitCode).toBe(0);
     expect(existsSync(join(dir, 'dist', 'content', 'posts.json'))).toBe(false);
     expect(existsSync(join(dir, 'dist', 'ghost', 'api', 'content', 'posts.json'))).toBe(false);
@@ -1125,6 +1125,6 @@ describe('isIgnoredChange (build --watch)', () => {
     expect(isIgnoredChange('posts/hello.md')).toBe(false);
     expect(isIgnoredChange('index.hbs')).toBe(false);
     expect(isIgnoredChange('locales/en.json')).toBe(false);
-    expect(isIgnoredChange('nectar.toml')).toBe(false);
+    expect(isIgnoredChange('laurel.toml')).toBe(false);
   });
 });

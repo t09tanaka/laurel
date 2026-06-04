@@ -8,7 +8,7 @@ status: scheduled
 tags:
   - launch
 authors:
-  - nectar
+  - laurel
 ---
 
 Future post used to exercise scheduled content indicators.

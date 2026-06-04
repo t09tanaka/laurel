@@ -1,13 +1,13 @@
 # Migration
 
-Nectar's supported Ghost migration path is one-way:
+Laurel's supported Ghost migration path is one-way:
 
 1. Export content from Ghost Admin.
-2. Run `nectar import-ghost`.
-3. Review the generated Markdown and `nectar.toml`.
+2. Run `laurel import-ghost`.
+3. Review the generated Markdown and `laurel.toml`.
 4. Build and deploy the static site.
 
-Nectar does not write back to Ghost and does not replace Ghost Admin. Treat the
+Laurel does not write back to Ghost and does not replace Ghost Admin. Treat the
 import as a content conversion step from a Ghost export into files that live in
 Git.
 
@@ -26,47 +26,47 @@ looks for these subdirectories:
 - `files/`
 - `media/`
 
-Run the importer from the root of a Nectar project:
+Run the importer from the root of a Laurel project:
 
 ```bash
-nectar import-ghost ./your-site.ghost.2026-05-20.json --assets ./ghost-content
+laurel import-ghost ./your-site.ghost.2026-05-20.json --assets ./ghost-content
 ```
 
 You can also pass an unzipped Ghost export directory or the export ZIP itself:
 
 ```bash
-nectar import-ghost ./ghost-export/
-nectar import-ghost ./ghost-export.zip
+laurel import-ghost ./ghost-export/
+laurel import-ghost ./ghost-export.zip
 ```
 
 Useful review-first options:
 
 ```bash
-nectar import-ghost ./ghost-export.zip --dry-run
-nectar import-ghost ./ghost-export.zip --output ./review-import
-nectar import-ghost ./ghost-export.zip --on-conflict rename
+laurel import-ghost ./ghost-export.zip --dry-run
+laurel import-ghost ./ghost-export.zip --output ./review-import
+laurel import-ghost ./ghost-export.zip --on-conflict rename
 ```
 
-See [`docs/cli.md`](./cli.md#nectar-import-ghost) for every flag.
+See [`docs/cli.md`](./cli.md#laurel-import-ghost) for every flag.
 
 ## Hugo / Jekyll Markdown posts
 
-`nectar import-hugo <dir>` and `nectar import-jekyll <dir>` provide a
+`laurel import-hugo <dir>` and `laurel import-jekyll <dir>` provide a
 conservative first-pass import for Markdown posts. They are intended for review
-imports into a Nectar project, not a full static-site migration.
+imports into a Laurel project, not a full static-site migration.
 
 ```bash
-nectar import-hugo ../old-hugo-site --dry-run
-nectar import-hugo ../old-hugo-site --on-conflict rename
-nectar import-jekyll ../old-jekyll-site --dry-run
-nectar import-jekyll ../old-jekyll-site
+laurel import-hugo ../old-hugo-site --dry-run
+laurel import-hugo ../old-hugo-site --on-conflict rename
+laurel import-jekyll ../old-jekyll-site --dry-run
+laurel import-jekyll ../old-jekyll-site
 ```
 
 The Hugo importer scans `content/posts/`, `content/post/`, `content/blog/`, then
 `content/`. The Jekyll importer scans `_posts/`. Both import Markdown files into
 `content/posts/<slug>.md`, preserve the body, and remap common frontmatter:
 
-| Source frontmatter | Nectar output |
+| Source frontmatter | Laurel output |
 | --- | --- |
 | `categories` | Merged into `tags` as slug-normalized values |
 | `aliases` | Appended to root `redirects.yaml` as 301 redirects to `/<slug>/` |
@@ -82,7 +82,7 @@ asset pipelines, or custom collections. Review the generated Markdown and
 
 `src/ghost/import.ts` currently imports these Ghost export records and assets:
 
-| Ghost export data | Nectar output |
+| Ghost export data | Laurel output |
 | --- | --- |
 | Posts | `content/posts/<slug>.md` with Markdown body and frontmatter |
 | Pages | `content/pages/<slug>.md` with Markdown body and frontmatter |
@@ -97,12 +97,12 @@ asset pipelines, or custom collections. Review the generated Markdown and
 
 Posts with `status: published` and `status: draft` are imported. Other statuses
 such as `scheduled` are filtered out. Drafts remain drafts in frontmatter, so a
-normal `nectar build` still excludes them unless you opt into draft builds.
+normal `laurel build` still excludes them unless you opt into draft builds.
 
 ## Manual after import
 
-Ghost settings are not converted into `nectar.toml`. After import, copy the
-settings that matter to your static site into the Nectar config:
+Ghost settings are not converted into `laurel.toml`. After import, copy the
+settings that matter to your static site into the Laurel config:
 
 - `[site]` title, description, URL, logo, icon, cover image, locale, timezone,
   and accent color.
@@ -117,19 +117,19 @@ and point `[theme].path` at it, or start from the bundled Source example.
 ## Not imported
 
 These Ghost features either require a server runtime or do not have a stable
-Markdown/frontmatter representation in Nectar:
+Markdown/frontmatter representation in Laurel:
 
 - Members, subscribers, member labels, customer records, sessions, comped
   subscriptions, and Stripe billing state.
 - Custom integrations from Ghost Admin, including Zapier, Slack, webhooks, and
   Admin API credentials.
 - Snippets and editor-only reusable content records.
-- Custom fields or plugin-owned tables that are not represented in Nectar
+- Custom fields or plugin-owned tables that are not represented in Laurel
   frontmatter.
 - Ghost Admin users' permissions, roles, staff invites, and authentication
   settings.
 - Ghost settings as an automatic config migration. Move the values you need to
-  `nectar.toml` manually.
+  `laurel.toml` manually.
 - Newsletter sending state, email-only delivery settings, and per-recipient
   email analytics.
 - Server-side paywall decisions. `visibility` and `tiers` are preserved as

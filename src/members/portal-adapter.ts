@@ -1,7 +1,7 @@
 // Portal adapter interface for newsletter / membership backends.
 //
 // Ghost themes ship dead `data-members-form`, `data-members-email`,
-// `data-portal` markers that the runtime Ghost Portal script wires up. Nectar
+// `data-portal` markers that the runtime Ghost Portal script wires up. Laurel
 // is static-only, so each adapter inspects the rendered HTML and rewrites
 // those markers to point at the configured backend (or strips them entirely
 // when the provider is `none`).

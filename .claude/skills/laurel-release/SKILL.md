@@ -1,11 +1,11 @@
 ---
-name: nectar-release
-description: Use when preparing a new npm release of the Nectar CLI. Runs the prepublish chain (skill bundle, dashboard bundle, CLI bundle, types), validates with check/typecheck/test, bumps the package version, creates a release commit + tag, and primes the repo so `npm publish` is the only remaining manual step. Explicitly does NOT publish on CI — every release is a deliberate manual act.
+name: laurel-release
+description: Use when preparing a new npm release of the Laurel CLI. Runs the prepublish chain (skill bundle, dashboard bundle, CLI bundle, types), validates with check/typecheck/test, bumps the package version, creates a release commit + tag, and primes the repo so `npm publish` is the only remaining manual step. Explicitly does NOT publish on CI — every release is a deliberate manual act.
 ---
 
-# Releasing Nectar to npm
+# Releasing Laurel to npm
 
-Nectar's only first-class distribution channel is npm (the GitHub Release binary and Homebrew/Scoop tap are convenience wrappers around the published package). There is no CI workflow that publishes on tag — every release is a deliberate manual act so a half-baked merge can never accidentally ship.
+Laurel's only first-class distribution channel is npm (the GitHub Release binary and Homebrew/Scoop tap are convenience wrappers around the published package). There is no CI workflow that publishes on tag — every release is a deliberate manual act so a half-baked merge can never accidentally ship.
 
 The `prepublishOnly` hook in `package.json` already runs the full bundle chain (`build:dashboard-bundle && build:skill-bundle && build:cli && build:types`), so `npm publish` from a clean checkout is sufficient to produce a correct artifact. This skill walks through the safety gates that go around that.
 
@@ -89,8 +89,8 @@ npm publish
 ### 8. Verify
 
 ```sh
-npm view nectar version          # should match the new tag
-npx nectar@latest --version      # round-trip through the registry
+npm view laurel version          # should match the new tag
+npx laurel@latest --version      # round-trip through the registry
 ```
 
 Then create a GitHub Release for the tag (optional but recommended):

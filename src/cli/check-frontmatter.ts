@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import {
   frontmatterStatusValues,
   frontmatterVisibilityValues,
@@ -8,9 +8,9 @@ import {
 import { parseFrontmatter } from '~/content/frontmatter.ts';
 import { scanGlob } from '~/util/fs.ts';
 
-// Frontmatter schema for posts/pages. Centralised here so `nectar check
+// Frontmatter schema for posts/pages. Centralised here so `laurel check
 // --check-frontmatter` and downstream linting can share the field list
-// without re-deriving it from the larger NectarConfig schema. Keep the rules
+// without re-deriving it from the larger LaurelConfig schema. Keep the rules
 // intentionally narrow (required-ness + type sniff + enum values) so the
 // check is cheap and the warnings are precise. Full content normalisation
 // already happens inside `loadContent` — this just surfaces problems before
@@ -34,7 +34,7 @@ const hasVisibilityValue = (value: string): boolean => VISIBILITY_VALUES.has(val
 
 interface CheckFrontmatterOptions {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
 }
 
 export async function checkFrontmatterSchemas(

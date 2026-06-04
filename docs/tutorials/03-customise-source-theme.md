@@ -7,7 +7,7 @@ This tutorial covers the day-one customisations that 90% of users want. For
 the full helper reference, partial system, and asset pipeline details, read
 [`docs/THEME_DEV.md`](../THEME_DEV.md) afterwards.
 
-You should already have a Nectar site that builds and serves locally. If not,
+You should already have a Laurel site that builds and serves locally. If not,
 do [Tutorial 1 — Start a blog from scratch](./01-start-a-blog.md) first.
 
 ---
@@ -28,7 +28,7 @@ Reach for them in that order — most tweaks are a config change, not a code cha
 
 ---
 
-## Step 1 — Set the brand basics in `nectar.toml`
+## Step 1 — Set the brand basics in `laurel.toml`
 
 ```toml
 [site]
@@ -108,12 +108,12 @@ footer:
 <footer class="site-footer">
   <div class="inner">
     &copy; {{date format="YYYY"}} {{@site.title}}.
-    Built with <a href="https://bun.sh">Bun</a> + Nectar.
+    Built with <a href="https://bun.sh">Bun</a> + Laurel.
   </div>
 </footer>
 ```
 
-Edit, save, re-run `bunx nectar build`, refresh. Partials are loaded from
+Edit, save, re-run `bunx laurel build`, refresh. Partials are loaded from
 `themes/<name>/partials/**` and addressable by their relative path without
 the extension, e.g. `{{> "footer"}}` or `{{> "components/header"}}`.
 
@@ -148,7 +148,7 @@ Source's CSS lives at `themes/source/assets/css/`. After editing, rebuild —
 
 If Source ships pre-built CSS (`assets/built/screen.css`) and you'd rather
 work in the source files, run Source's own build step (`cd themes/source &&
-yarn build`) — that pipeline is independent of Nectar.
+yarn build`) — that pipeline is independent of Laurel.
 
 For one-off overrides, drop a `<style>` block into `default.hbs` inside the
 `{{ghost_head}}` region, or use post-level code injection (Step 7).
@@ -202,9 +202,9 @@ Either way, the path inside your project is the same: `themes/<name>/`.
 ## Step 9 — Verify before you commit
 
 ```bash
-bunx nectar check       # fast: config + theme + content validation
-bunx nectar build
-bunx nectar serve
+bunx laurel check       # fast: config + theme + content validation
+bunx laurel build
+bunx laurel serve
 ```
 
 Click through home, a post, a tag page, and an author page. Watch the
@@ -212,7 +212,7 @@ terminal for warnings — they don't fail the build by default. Re-run with
 `--strict` if you want CI to refuse to ship on a warning:
 
 ```bash
-bunx nectar build --strict
+bunx laurel build --strict
 ```
 
 ---

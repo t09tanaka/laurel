@@ -1,10 +1,10 @@
-// Dev-server side of the incremental build hand-off. `nectar dev` keeps the
+// Dev-server side of the incremental build hand-off. `laurel dev` keeps the
 // previous `build()`'s config + theme bundle in memory and feeds them back to
 // the next rebuild via `BuildOptions.reuse`, skipping `loadConfig` and
 // `loadTheme` (and the template-compilation work inside `createEngine`).
 //
 // The classification rules here are intentionally conservative: a single
-// `nectar.toml` save invalidates everything, because the config drives both
+// `laurel.toml` save invalidates everything, because the config drives both
 // the theme dir and the content roots. A pure content edit is the biggest win
 // (theme + config reused), since theme compile is the costliest load step.
 

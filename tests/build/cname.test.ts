@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { emitCname } from '~/build/cname.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-cname-'));
+  return mkdtemp(join(tmpdir(), 'laurel-cname-'));
 }
 
 describe('emitCname', () => {

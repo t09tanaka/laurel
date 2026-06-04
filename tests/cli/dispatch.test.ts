@@ -42,7 +42,7 @@ describe('cli dispatch', () => {
     expect(exitCode).toBe(2);
     expect(stdout).toBe('');
     expect(stderr).toContain('Usage:');
-    expect(stderr).toContain('nectar <command>');
+    expect(stderr).toContain('laurel <command>');
   });
 
   test.each([['-h'], ['help']])('%s prints top-level help and exits 0', async (arg) => {
@@ -50,7 +50,7 @@ describe('cli dispatch', () => {
     expect(exitCode).toBe(0);
     expect(stderr).toBe('');
     expect(stdout).toContain('Usage:');
-    expect(stdout).toContain('nectar <command>');
+    expect(stdout).toContain('laurel <command>');
   });
 
   test('version prints the version number', async () => {
@@ -79,7 +79,7 @@ describe('cli dispatch', () => {
       node: string;
       commit: string | null;
     };
-    expect(parsed.name).toBe('nectar');
+    expect(parsed.name).toBe('laurel');
     expect(parsed.version).toBe(pkg.version);
     expect(typeof parsed.bun === 'string' || parsed.bun === null).toBe(true);
     expect(parsed.node).toBe(process.version);
@@ -92,7 +92,7 @@ describe('cli dispatch', () => {
     expect(stderr).toBe('');
 
     const parsed = JSON.parse(stdout) as { name: string; version: string };
-    expect(parsed.name).toBe('nectar');
+    expect(parsed.name).toBe('laurel');
     expect(parsed.version).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
@@ -100,24 +100,24 @@ describe('cli dispatch', () => {
     const pkg = JSON.parse(await readFile(PACKAGE_JSON, 'utf8')) as { version: string };
     const { stdout, exitCode } = await runCli(['--help']);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain(`Nectar ${pkg.version}`);
+    expect(stdout).toContain(`Laurel ${pkg.version}`);
   });
 
-  test('version --check respects NECTAR_NO_UPDATE_CHECK', async () => {
+  test('version --check respects LAUREL_NO_UPDATE_CHECK', async () => {
     const { stdout, stderr, exitCode } = await runCli(['version', '--check'], {
-      NECTAR_NO_UPDATE_CHECK: '1',
+      LAUREL_NO_UPDATE_CHECK: '1',
     });
     expect(exitCode).toBe(0);
     expect(stderr).toBe('');
-    expect(stdout).toContain('Update check disabled by NECTAR_NO_UPDATE_CHECK');
+    expect(stdout).toContain('Update check disabled by LAUREL_NO_UPDATE_CHECK');
   });
 
   test('version --help documents the update check flag', async () => {
     const { stdout, stderr, exitCode } = await runCli(['version', '--help']);
     expect(exitCode).toBe(0);
     expect(stderr).toBe('');
-    expect(stdout).toContain('nectar version [--json]');
-    expect(stdout).toContain('nectar version --check');
+    expect(stdout).toContain('laurel version [--json]');
+    expect(stdout).toContain('laurel version --check');
     expect(stdout).toContain('--json');
     expect(stdout).toContain('--check');
   });
@@ -126,7 +126,7 @@ describe('cli dispatch', () => {
     const { stderr, exitCode } = await runCli(['buld']);
     expect(exitCode).toBe(2);
     expect(stderr).toContain('Unknown command: buld');
-    expect(stderr).toContain('Did you mean `nectar build`');
+    expect(stderr).toContain('Did you mean `laurel build`');
   });
 
   test('unknown command suggests top-level utility commands', async () => {
@@ -134,7 +134,7 @@ describe('cli dispatch', () => {
     expect(exitCode).toBe(2);
     expect(stdout).toBe('');
     expect(stderr).toContain('Unknown command: versoin');
-    expect(stderr).toContain('Did you mean `nectar version`');
+    expect(stderr).toContain('Did you mean `laurel version`');
   });
 
   test('unknown command without close match still prints usage', async () => {
@@ -173,7 +173,7 @@ describe('cli dispatch', () => {
     expect(exitCode).toBe(0);
     expect(stderr).toBe('');
     expect(stdout).toContain('Usage:');
-    expect(stdout).toContain(`nectar ${command}`);
+    expect(stdout).toContain(`laurel ${command}`);
     expect(stdout).toContain('-h, --help');
   });
 
@@ -219,7 +219,7 @@ describe('cli dispatch', () => {
   });
 
   test('build with a close-typo flag suggests the intended flag', async () => {
-    const { stderr, exitCode } = await runCli(['build', '--conifg', 'nectar.toml']);
+    const { stderr, exitCode } = await runCli(['build', '--conifg', 'laurel.toml']);
     expect(exitCode).toBe(2);
     expect(stderr).toContain('Unknown option: --conifg');
     expect(stderr).toContain('Did you mean --config?');
@@ -295,11 +295,11 @@ describe('cli dispatch', () => {
     expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
-  test('NECTAR_LOG_FORMAT=json emits JSON Lines logs without forcing command json output', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-json-log-init-'));
+  test('LAUREL_LOG_FORMAT=json emits JSON Lines logs without forcing command json output', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-json-log-init-'));
     try {
       const { stdout, stderr, exitCode } = await runCli(['init', '--yes', '--dir', dir], {
-        NECTAR_LOG_FORMAT: 'json',
+        LAUREL_LOG_FORMAT: 'json',
       });
       expect(exitCode).toBe(0);
       expect(stderr).toBe('');
@@ -309,7 +309,7 @@ describe('cli dispatch', () => {
       const records = lines.map((line) => JSON.parse(line) as Record<string, unknown>);
       expect(records[0]).toMatchObject({
         level: 'info',
-        msg: `Initialised Nectar project in ${dir}`,
+        msg: `Initialised Laurel project in ${dir}`,
       });
       expect(records.every((record) => typeof record.ts === 'string')).toBe(true);
       expect(stdout).not.toContain('\x1b[');
@@ -318,16 +318,16 @@ describe('cli dispatch', () => {
     }
   });
 
-  test('--log-format=pretty overrides NECTAR_LOG_FORMAT=json for human logs', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-pretty-log-init-'));
+  test('--log-format=pretty overrides LAUREL_LOG_FORMAT=json for human logs', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-pretty-log-init-'));
     try {
       const { stdout, stderr, exitCode } = await runCli(
         ['--log-format=pretty', 'init', '--yes', '--dir', dir],
-        { NECTAR_LOG_FORMAT: 'json' },
+        { LAUREL_LOG_FORMAT: 'json' },
       );
       expect(exitCode).toBe(0);
       expect(stderr).toBe('');
-      expect(stdout).toContain('Nectar project initialised');
+      expect(stdout).toContain('Laurel project initialised');
       expect(stdout).toContain(dir);
       expect(() => JSON.parse(stdout.trim().split('\n')[0] ?? '')).toThrow();
     } finally {
@@ -339,20 +339,20 @@ describe('cli dispatch', () => {
     const { stdout, exitCode } = await runCli(['build', '--help']);
     expect(exitCode).toBe(0);
     expect(stdout).toContain('Environment variables:');
-    expect(stdout).toContain('NECTAR_<COMMAND>_<FLAG>');
-    expect(stdout).toContain('NECTAR_BUILD_CONFIG');
+    expect(stdout).toContain('LAUREL_<COMMAND>_<FLAG>');
+    expect(stdout).toContain('LAUREL_BUILD_CONFIG');
   });
 
-  test('invalid NECTAR_QUIET surfaces a usage error from the global flag parser', async () => {
-    const { stderr, exitCode } = await runCli(['build', '--help'], { NECTAR_QUIET: 'maybe' });
+  test('invalid LAUREL_QUIET surfaces a usage error from the global flag parser', async () => {
+    const { stderr, exitCode } = await runCli(['build', '--help'], { LAUREL_QUIET: 'maybe' });
     expect(exitCode).toBe(2);
-    expect(stderr).toContain('NECTAR_QUIET');
+    expect(stderr).toContain('LAUREL_QUIET');
   });
 
   test('invalid boolean env var on a subcommand surfaces a usage error', async () => {
-    const { stderr, exitCode } = await runCli(['build'], { NECTAR_BUILD_STRICT: 'maybe' });
+    const { stderr, exitCode } = await runCli(['build'], { LAUREL_BUILD_STRICT: 'maybe' });
     expect(exitCode).toBe(2);
-    expect(stderr).toContain('NECTAR_BUILD_STRICT');
+    expect(stderr).toContain('LAUREL_BUILD_STRICT');
   });
 
   test('top-level --help advertises the new global flags', async () => {
@@ -367,7 +367,7 @@ describe('cli dispatch', () => {
   test('per-command --help renders an Examples: block', async () => {
     const { stdout } = await runCli(['build', '--help']);
     expect(stdout).toContain('Examples:');
-    expect(stdout).toContain('nectar build');
+    expect(stdout).toContain('laurel build');
   });
 
   test('global --json before subcommand flows through to the subcommand parser', async () => {
@@ -385,23 +385,23 @@ describe('cli dispatch', () => {
     expect(stdout.trim().startsWith('{')).toBe(true);
   });
 
-  test('top-level help carries the Nectar brand header and tagline', async () => {
+  test('top-level help carries the Laurel brand header and tagline', async () => {
     const { stdout, exitCode } = await runCli(['--help'], {
       NO_COLOR: '1',
       FORCE_COLOR: '0',
-      NECTAR_NO_COLOR: '1',
+      LAUREL_NO_COLOR: '1',
     });
     expect(exitCode).toBe(0);
-    // Brand line: capitalised "Nectar", version, dim separator (ASCII `-` when
+    // Brand line: capitalised "Laurel", version, dim separator (ASCII `-` when
     // color is off), and the tagline that matches package.json description.
-    expect(stdout).toMatch(/Nectar \d+\.\d+\.\d+ {2}- {2}Ghost-theme-compatible/);
+    expect(stdout).toMatch(/Laurel \d+\.\d+\.\d+ {2}- {2}Ghost-theme-compatible/);
     // Section labels and footer hint.
     expect(stdout).toContain('Usage:');
     expect(stdout).toContain('Commands:');
     expect(stdout).toContain('Global options:');
-    expect(stdout).toContain('Run `nectar <command> --help` for details on each command.');
+    expect(stdout).toContain('Run `laurel <command> --help` for details on each command.');
     // Lines are indented with three spaces like the dev banner.
-    expect(stdout).toMatch(/^ {3}Nectar /m);
+    expect(stdout).toMatch(/^ {3}Laurel /m);
   });
 
   test('top-level help lists every command from COMMAND_SPECS', async () => {
@@ -419,8 +419,8 @@ describe('cli dispatch', () => {
   test('top-level help uses ANSI color when FORCE_COLOR is set', async () => {
     const { stdout, exitCode } = await runCli(['--help'], { FORCE_COLOR: '1' });
     expect(exitCode).toBe(0);
-    // Cyan accent wraps the "Nectar" word.
-    expect(stdout).toContain('\x1b[36mNectar\x1b[0m');
+    // Cyan accent wraps the "Laurel" word.
+    expect(stdout).toContain('\x1b[36mLaurel\x1b[0m');
     // Color mode swaps the ASCII `-` separator for the middot used by the banner.
     expect(stdout).toContain('·');
   });

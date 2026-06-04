@@ -4,7 +4,7 @@ description: Aside callout box for inline asides in posts.
 ---
 
 ```css
-.nectar-callout {
+.laurel-callout {
   border-left: 3px solid var(--ghost-accent-color, #d63f00);
   background: rgba(214, 63, 0, 0.04);
   padding: 14px 18px;
@@ -15,7 +15,7 @@ description: Aside callout box for inline asides in posts.
 ```
 
 ```html
-<aside class="nectar-callout">
+<aside class="laurel-callout">
   <strong>Heads up.</strong> Drop <code>{callout}</code> into any post body to surface a tinted aside in line with the rest of the prose.
 </aside>
 ```

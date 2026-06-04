@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import { registerColorHelpers } from '~/render/helpers/color.ts';
 import { registerHelpers } from '~/render/helpers/index.ts';
 
-function makeEngine(): NectarEngine {
+function makeEngine(): LaurelEngine {
   const hb = Handlebars.create();
   return {
     hb,
@@ -12,7 +12,7 @@ function makeEngine(): NectarEngine {
       build: { base_path: '/' },
       components: {},
       theme: { custom: {} },
-    } as unknown as NectarEngine['config'],
+    } as unknown as LaurelEngine['config'],
     content: {
       site: {
         title: 'Example',
@@ -25,7 +25,7 @@ function makeEngine(): NectarEngine {
       tags: [],
       authors: [],
       tiers: [],
-    } as unknown as NectarEngine['content'],
+    } as unknown as LaurelEngine['content'],
     theme: {
       name: 'test',
       partials: {},
@@ -38,14 +38,14 @@ function makeEngine(): NectarEngine {
         customDefaults: {},
       },
       locales: {},
-    } as unknown as NectarEngine['theme'],
+    } as unknown as LaurelEngine['theme'],
     templates: {},
     layouts: {},
     sortedCache: new Map<string, readonly unknown[]>(),
     render() {
       throw new Error('not used');
     },
-  } as unknown as NectarEngine;
+  } as unknown as LaurelEngine;
 }
 
 describe('color helpers', () => {

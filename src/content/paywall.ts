@@ -1,5 +1,5 @@
 // Markdown paywall split markers. We accept three spellings:
-//   - `<!-- members -->`   Nectar's own convention (the original; still works).
+//   - `<!-- members -->`   Laurel's own convention (the original; still works).
 //   - `<!-- members-only -->`  Mirrors the documented #206 convention.
 //   - `<!--kg-card-begin: paywall-->`  Matches Ghost's Koenig editor output so
 //     posts pasted from a Ghost export keep their split point.
@@ -38,7 +38,7 @@ export function truncateMarkdownForPaywall(body: string, wordCount: number): str
 
 // `tiers` (visibility restricted to specific tiers) and `filter` (visibility
 // gated by a NQL filter expression) are both Ghost-side concepts that require a
-// signed-in viewer to evaluate. Nectar's static runtime has no such viewer, so
+// signed-in viewer to evaluate. Laurel's static runtime has no such viewer, so
 // both are rendered as members-grade gating: the same paywall stub copy as
 // `members`. The `data-paywall-visibility` attribute still carries the exact
 // upstream value so theme JS or analytics can branch if they need to.

@@ -1,6 +1,6 @@
 # Supply Chain Integrity
 
-Nectar treats `bun.lock` as the source of truth for package resolution. Install dependencies with:
+Laurel treats `bun.lock` as the source of truth for package resolution. Install dependencies with:
 
 ```sh
 bun install --frozen-lockfile

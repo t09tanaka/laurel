@@ -3,7 +3,7 @@ import { logger } from '~/util/logger.ts';
 /**
  * Normalise a user-supplied base path so the rest of the build pipeline can
  * assume the canonical `"/segment/.../"` shape (or `"/"`). Used for both
- * `build.base_path` from nectar.toml and the `--base-path` CLI override so
+ * `build.base_path` from laurel.toml and the `--base-path` CLI override so
  * the two stay byte-identical downstream.
  *
  * Warns (rather than errors) when the input is missing the leading `/`,

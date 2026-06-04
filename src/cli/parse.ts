@@ -27,7 +27,7 @@ export interface CommandSpec {
   positionals: PositionalSpec[];
   // Per-command usage examples rendered as an `Examples:` block in
   // `formatCommandHelp`. Each entry is a complete shell invocation (e.g.
-  // `nectar build --strict`) optionally followed by `  # comment` on the same
+  // `laurel build --strict`) optionally followed by `  # comment` on the same
   // line. Empty / missing → the block is omitted.
   examples?: string[];
 }
@@ -231,7 +231,7 @@ function applyRcFallbacks(
   for (const [name, opt] of Object.entries(spec.options)) {
     if (name === 'help') continue;
     if (values[name] !== undefined) continue;
-    const source = `.nectarrc ${spec.name}.${name}`;
+    const source = `.laurelrc ${spec.name}.${name}`;
     if (hasRcKey(defaults, name)) {
       try {
         values[name] = coerceRcValue(rcValue(defaults, name), opt, source);
@@ -247,7 +247,7 @@ function applyRcFallbacks(
       values[name] = !coerceRcValue(
         rcValue(defaults, negativeName),
         { ...opt, type: 'boolean' },
-        `.nectarrc ${spec.name}.${negativeName}`,
+        `.laurelrc ${spec.name}.${negativeName}`,
       );
     } catch (err) {
       throw new CliUsageError(err instanceof Error ? err.message : String(err));
@@ -256,11 +256,11 @@ function applyRcFallbacks(
 }
 
 export function envVarName(commandName: string, flagName: string): string {
-  return `NECTAR_${toEnvSegment(commandName)}_${toEnvSegment(flagName)}`;
+  return `LAUREL_${toEnvSegment(commandName)}_${toEnvSegment(flagName)}`;
 }
 
 export function globalEnvVarName(flagName: string): string {
-  return `NECTAR_${toEnvSegment(flagName)}`;
+  return `LAUREL_${toEnvSegment(flagName)}`;
 }
 
 function toEnvSegment(s: string): string {
@@ -293,7 +293,7 @@ function validatePositionals(spec: CommandSpec, positionals: string[]): void {
 }
 
 export function formatUsageLine(spec: CommandSpec): string {
-  const parts = [`nectar ${spec.name}`];
+  const parts = [`laurel ${spec.name}`];
   for (const [name, def] of optionEntriesForDisplay(spec)) {
     const placeholder = def.type === 'string' ? ` ${def.placeholder ?? '<value>'}` : '';
     parts.push(`[--${name}${placeholder}]`);
@@ -323,7 +323,7 @@ export function formatCommandHelp(spec: CommandSpec, width = helpWidth()): strin
     lines.push('End of options:');
     lines.push(
       ...wrapPlainText(
-        '  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.',
+        '  Use `--` before positional values that start with `-`, for example `laurel new post -- --config`.',
         width,
       ),
     );
@@ -343,7 +343,7 @@ export function formatCommandHelp(spec: CommandSpec, width = helpWidth()): strin
     lines.push('Environment variables:');
     lines.push(
       ...wrapPlainText(
-        'Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).',
+        'Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).',
         width,
         '  ',
         '  ',
@@ -351,7 +351,7 @@ export function formatCommandHelp(spec: CommandSpec, width = helpWidth()): strin
     );
     lines.push(
       ...wrapPlainText(
-        'Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).',
+        'Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).',
         width,
         '  ',
         '  ',
@@ -475,7 +475,7 @@ function formatParseArgsError(err: unknown, spec: CommandSpec): string {
   const knownFlags = collectKnownFlagNames(spec);
   const stripped = unknownFlag.replace(/^-+/, '').replace(/=.*$/, '');
   const suggestion = suggestFlag(stripped, knownFlags);
-  const lines = [`Unknown option: ${unknownFlag} (on \`nectar ${spec.name}\`)`];
+  const lines = [`Unknown option: ${unknownFlag} (on \`laurel ${spec.name}\`)`];
   if (suggestion) {
     lines.push(`Did you mean --${suggestion}?`);
   }

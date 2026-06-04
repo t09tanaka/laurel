@@ -5,12 +5,12 @@ import type {
   BuildOptions,
   BuildSummary,
   ContentGraph,
+  LaurelConfig,
+  LaurelEngine,
+  LaurelHelper,
+  LaurelPlugin,
   MarkdownTransformContext,
   NavigationItem,
-  NectarConfig,
-  NectarEngine,
-  NectarHelper,
-  NectarPlugin,
   Page,
   PaginationInfo,
   Plugin,
@@ -39,8 +39,8 @@ describe('public types barrel', () => {
     expect(ownKeys).toEqual([]);
   });
 
-  test('NectarPlugin shape is usable', () => {
-    const plugin: NectarPlugin = {
+  test('LaurelPlugin shape is usable', () => {
+    const plugin: LaurelPlugin = {
       name: 'example-plugin',
       setup(ctx: BuildContext) {
         expect(ctx.cwd).toBeDefined();
@@ -50,7 +50,7 @@ describe('public types barrel', () => {
   });
 
   test('helper signature accepts arbitrary args', () => {
-    const helper: NectarHelper = function (this: unknown, ...args: unknown[]) {
+    const helper: LaurelHelper = function (this: unknown, ...args: unknown[]) {
       return args.length;
     };
     expect(helper.call(null, 1, 2, 3)).toBe(3);
@@ -67,8 +67,8 @@ describe('public types barrel', () => {
       ContentGraph,
       MarkdownTransformContext,
       NavigationItem,
-      NectarConfig,
-      NectarEngine,
+      LaurelConfig,
+      LaurelEngine,
       Page,
       PaginationInfo,
       Plugin,

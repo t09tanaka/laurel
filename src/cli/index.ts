@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { EXIT_CODES } from '~/util/errors.ts';
+import { getLaurelVersion } from '~/util/laurel-version.ts';
 import {
   colorize,
   hasWarningsAsErrorsFailure,
@@ -10,7 +11,6 @@ import {
   setOutputMode,
   setWarningsAsErrors,
 } from '~/util/logger.ts';
-import { getNectarVersion } from '~/util/nectar-version.ts';
 import { checkLatestRelease, formatReleaseCheck } from '~/util/release-check.ts';
 import { warnIfBunEngineMismatch } from './bun-engine.ts';
 import { devGlyphs } from './commands/startup-banner.ts';
@@ -46,8 +46,8 @@ const SUGGESTABLE_COMMAND_NAMES = [...COMMAND_NAMES, 'version', 'help'];
 // exit code (sometimes 0 in older Node builds). We install explicit hooks at
 // the CLI entrypoint so:
 //   - The rejection / exception is reported through the same `reportError`
-//     pipeline as a normal command failure (respects --json, NECTAR_DEBUG=1,
-//     and the docs/hint annotations on NectarError).
+//     pipeline as a normal command failure (respects --json, LAUREL_DEBUG=1,
+//     and the docs/hint annotations on LaurelError).
 //   - The process exits with status 1 deterministically.
 // Listeners are installed at module load time so they cover dynamic imports
 // in `dispatch()`, not just synchronous code paths in `main()`.
@@ -67,7 +67,7 @@ async function handleFatalCrash(err: unknown): Promise<void> {
   fatalExitStarted = true;
   let version = 'unknown';
   try {
-    version = await getNectarVersion();
+    version = await getLaurelVersion();
   } catch {
     // Keep crash handling best-effort: version lookup must not mask the crash.
   }
@@ -82,7 +82,7 @@ async function handleFatalCrash(err: unknown): Promise<void> {
 
 // Top-level help layout. Mirrors the visual family established by the dev /
 // dashboard startup banner (src/cli/commands/startup-banner.ts): three-space
-// indent, cyan "Nectar" accent, dim middot separator with `-` fallback when
+// indent, cyan "Laurel" accent, dim middot separator with `-` fallback when
 // color is off, dim section labels. The command list is pulled from
 // COMMAND_SPECS so new subcommands appear here automatically.
 const TOP_LEVEL_TAGLINE = 'Ghost-theme-compatible static site generator';
@@ -94,10 +94,10 @@ function printTopUsage(version: string, stream: NodeJS.WriteStream = process.std
 
   const lines: string[] = [];
   lines.push('');
-  lines.push(`   ${accent('Nectar')} ${version}  ${dim(g.separator)}  ${dim(TOP_LEVEL_TAGLINE)}`);
+  lines.push(`   ${accent('Laurel')} ${version}  ${dim(g.separator)}  ${dim(TOP_LEVEL_TAGLINE)}`);
   lines.push('');
   lines.push(`   ${dim('Usage:')}`);
-  lines.push('     nectar [global options] <command> [options]');
+  lines.push('     laurel [global options] <command> [options]');
   lines.push('');
   lines.push(`   ${dim('Commands:')}`);
 
@@ -131,11 +131,11 @@ function printTopUsage(version: string, stream: NodeJS.WriteStream = process.std
     ['--locale <tag>', 'Set the process locale for CLI diagnostics and locale-sensitive output'],
     [
       '--no-color',
-      'Disable ANSI color (also NO_COLOR=1 / NECTAR_NO_COLOR=1; FORCE_COLOR overrides)',
+      'Disable ANSI color (also NO_COLOR=1 / LAUREL_NO_COLOR=1; FORCE_COLOR overrides)',
     ],
     [
       '--debug',
-      'Show full stack traces on error (also NECTAR_DEBUG=1; default prints a short message)',
+      'Show full stack traces on error (also LAUREL_DEBUG=1; default prints a short message)',
     ],
     [
       '--warnings-as-errors',
@@ -148,7 +148,7 @@ function printTopUsage(version: string, stream: NodeJS.WriteStream = process.std
   }
 
   lines.push('');
-  lines.push('   Run `nectar <command> --help` for details on each command.');
+  lines.push('   Run `laurel <command> --help` for details on each command.');
   lines.push('');
   stream.write(lines.join('\n'));
 }
@@ -170,7 +170,7 @@ function printUnknownCommand(command: string, version: string): void {
   process.stderr.write(`Unknown command: ${command}\n`);
   const suggestion = suggestCommand(command, SUGGESTABLE_COMMAND_NAMES);
   if (suggestion) {
-    process.stderr.write(`Did you mean \`nectar ${suggestion}\`?\n`);
+    process.stderr.write(`Did you mean \`laurel ${suggestion}\`?\n`);
   }
   process.stderr.write('\n');
   printTopUsage(version, process.stderr);
@@ -198,8 +198,8 @@ async function printCommandHelp(
 function printVersionUsage(stream: NodeJS.WriteStream = process.stdout): void {
   const lines: string[] = [];
   lines.push('Usage:');
-  lines.push('  nectar version [--json]');
-  lines.push('  nectar version --check');
+  lines.push('  laurel version [--json]');
+  lines.push('  laurel version --check');
   lines.push('');
   lines.push('Options:');
   lines.push('  --json      Print machine-readable version metadata');
@@ -388,9 +388,9 @@ function applyGlobalFlags(flags: GlobalFlags): void {
   }
   if (flags.debug) {
     // `--debug` is shorthand for "show me the stack and bump log level".
-    // Setting the env here also reaches modules that read NECTAR_DEBUG at
+    // Setting the env here also reaches modules that read LAUREL_DEBUG at
     // call time (e.g. report.ts).
-    process.env.NECTAR_DEBUG = '1';
+    process.env.LAUREL_DEBUG = '1';
     if (!flags.quiet && flags.verboseCount === 0) {
       setLogLevel('debug');
     }
@@ -406,7 +406,7 @@ function applyGlobalFlags(flags: GlobalFlags): void {
 
 async function main(argv: string[]): Promise<number> {
   const raw = argv.slice(2);
-  const version = await getNectarVersion();
+  const version = await getLaurelVersion();
 
   let filtered: string[];
   let globalJson = false;
@@ -467,7 +467,7 @@ async function main(argv: string[]): Promise<number> {
     return finishWithWarningPolicy(2, warningsAsErrors);
   }
 
-  // `env` is an alias for `info` so the second-nature `nectar env` lands on
+  // `env` is an alias for `info` so the second-nature `laurel env` lands on
   // the same renderer without duplicating the spec in COMMAND_SPECS (which
   // would re-render the help block twice in `docs/cli.md`).
   //

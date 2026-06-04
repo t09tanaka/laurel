@@ -1,8 +1,8 @@
-# Terraform fragment for an aws_cloudfront_distribution serving Nectar from S3.
+# Terraform fragment for an aws_cloudfront_distribution serving Laurel from S3.
 #
 # Copy these blocks into the distribution resource that uses your private S3
 # origin. Private S3 REST origins can return either 403 or 404 for a missing
-# key, depending on bucket permissions, so map both errors to Nectar's generated
+# key, depending on bucket permissions, so map both errors to Laurel's generated
 # /404.html page while preserving a 404 viewer response.
 
 custom_error_response {

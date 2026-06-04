@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { OptionSpec } from './parse.ts';
 
-export const RC_CANDIDATES = ['.nectarrc.json', '.nectarrc'] as const;
+export const RC_CANDIDATES = ['.laurelrc.json', '.laurelrc'] as const;
 
 export interface RcDiscovery {
   path: string | null;
@@ -23,7 +23,7 @@ export function loadMergedRcDefaults(
   env: Record<string, string | undefined> = process.env,
 ): RcObject | undefined {
   const user = loadJsonRc(discoverUserConfigPath(env), 'user config');
-  const project = loadJsonRc(discoverRcPath(cwd), 'project .nectarrc');
+  const project = loadJsonRc(discoverRcPath(cwd), 'project .laurelrc');
   return mergeRcObjects(user, project);
 }
 
@@ -66,12 +66,12 @@ export function globalRcDefaults(
 function discoverUserConfigPath(env: Record<string, string | undefined>): string | null {
   const xdg = env.XDG_CONFIG_HOME?.trim();
   if (xdg) {
-    const candidate = join(xdg, 'nectar', 'config.json');
+    const candidate = join(xdg, 'laurel', 'config.json');
     if (existsSync(candidate)) return candidate;
   }
   const home = env.HOME?.trim();
   if (home) {
-    const candidate = join(home, '.config', 'nectar', 'config.json');
+    const candidate = join(home, '.config', 'laurel', 'config.json');
     if (existsSync(candidate)) return candidate;
   }
   return null;

@@ -1,8 +1,8 @@
 import type { DashboardContentItem, DraftPayload, RevisionPayload } from '../types.ts';
 import { fingerprintToken } from './format.ts';
 
-const DRAFT_PREFIX = 'nectar:dashboard:draft:';
-const REVISION_PREFIX = 'nectar:dashboard:revision:';
+const DRAFT_PREFIX = 'laurel:dashboard:draft:';
+const REVISION_PREFIX = 'laurel:dashboard:revision:';
 const REVISION_LIMIT = 5;
 
 function storageAreas(): Storage[] {

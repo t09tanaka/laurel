@@ -107,7 +107,7 @@ describe('createProfiler', () => {
 
 describe('writeProfile', () => {
   test(`writes ${BUILD_STATS_FILENAME} under <outputDir>`, async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-profile-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-profile-'));
     const p = createProfiler();
     p.startPhase('load')();
     p.startRoute({

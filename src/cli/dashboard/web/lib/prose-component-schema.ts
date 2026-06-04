@@ -28,7 +28,7 @@ export const componentNodeSpec: NodeSpec = {
   },
   parseDOM: [
     {
-      tag: 'div[data-nectar-component]',
+      tag: 'div[data-laurel-component]',
       getAttrs(dom): ComponentAttrs {
         const el = dom as {
           getAttribute?: (name: string) => string | null;
@@ -36,7 +36,7 @@ export const componentNodeSpec: NodeSpec = {
         };
         if (typeof el.getAttribute !== 'function') return EMPTY_COMPONENT_ATTRS;
         return {
-          slug: el.getAttribute('data-nectar-component') ?? '',
+          slug: el.getAttribute('data-laurel-component') ?? '',
           description: el.getAttribute('data-description') ?? '',
           css: '',
           html: el.innerHTML ?? '',
@@ -46,6 +46,6 @@ export const componentNodeSpec: NodeSpec = {
   ],
   toDOM(node) {
     const slug = String(node.attrs.slug ?? '');
-    return ['div', { 'data-nectar-component': slug }, `{${slug}}`];
+    return ['div', { 'data-laurel-component': slug }, `{${slug}}`];
   },
 };

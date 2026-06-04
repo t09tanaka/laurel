@@ -34,9 +34,9 @@ async function runCli(
 }
 
 async function makeFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-diagnostics-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-diagnostics-')));
   await Bun.write(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     ['[site]', 'title = "Diagnostics"', '', '[theme]', 'name = "minimal"', 'dir = "themes"'].join(
       '\n',
     ),
@@ -50,9 +50,9 @@ async function makeFixture(): Promise<string> {
     join(dir, 'content/posts/secret-post.md'),
     ['---', 'title: Secret Post', 'date: 2024-01-01', '---', '', 'PRIVATE BODY TOKEN'].join('\n'),
   );
-  await Bun.write(join(dir, 'dist/.nectar/manifest.json'), '{"schema_version":2}\n');
-  await Bun.write(join(dir, 'dist/.nectar-manifest.json'), '{"version":1}\n');
-  await Bun.write(join(dir, 'nectar.log'), 'first line\ntoken=log-secret\nlast line\n');
+  await Bun.write(join(dir, 'dist/.laurel/manifest.json'), '{"schema_version":2}\n');
+  await Bun.write(join(dir, 'dist/.laurel-manifest.json'), '{"version":1}\n');
+  await Bun.write(join(dir, 'laurel.log'), 'first line\ntoken=log-secret\nlast line\n');
   return dir;
 }
 
@@ -104,7 +104,7 @@ describe('cli diagnostics bundle', () => {
 
   test('writes a redacted tar.gz without content bodies', async () => {
     dir = await makeFixture();
-    extractDir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-diagnostics-extract-')));
+    extractDir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-diagnostics-extract-')));
     const output = join(dir, 'support.tar.gz');
 
     const { stdout, stderr, exitCode } = await runCli(

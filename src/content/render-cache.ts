@@ -39,7 +39,7 @@ export async function renderMarkdownWithCache({
   options,
   render,
 }: RenderCacheOptions): Promise<RenderedMarkdown> {
-  const cacheDir = join(cwd, '.nectar/cache/markdown');
+  const cacheDir = join(cwd, '.laurel/cache/markdown');
   const source = resolve(sourcePath);
   const contentSha = sha256(body);
   const cacheOptions = normalizeOptions(options);

@@ -1,17 +1,17 @@
 const vscode = require('vscode');
-const configSchema = require('./schemas/nectar.config.schema.json');
+const configSchema = require('./schemas/laurel.config.schema.json');
 
-const NECTAR_TASKS = [
-  { task: 'build', label: 'nectar build', group: 'build', command: 'nectar build' },
-  { task: 'dev', label: 'nectar dev', group: 'build', command: 'nectar dev' },
-  { task: 'check', label: 'nectar check', group: 'test', command: 'nectar check' },
+const LAUREL_TASKS = [
+  { task: 'build', label: 'laurel build', group: 'build', command: 'laurel build' },
+  { task: 'dev', label: 'laurel dev', group: 'build', command: 'laurel dev' },
+  { task: 'check', label: 'laurel check', group: 'test', command: 'laurel check' },
 ];
 
 function activate(context) {
   context.subscriptions.push(
     vscode.languages.registerCompletionItemProvider(
-      { language: 'nectar-config', scheme: 'file' },
-      new NectarConfigCompletionProvider(configSchema),
+      { language: 'laurel-config', scheme: 'file' },
+      new LaurelConfigCompletionProvider(configSchema),
       '.',
       '[',
       '"',
@@ -19,13 +19,13 @@ function activate(context) {
   );
 
   context.subscriptions.push(
-    vscode.tasks.registerTaskProvider('nectar', {
+    vscode.tasks.registerTaskProvider('laurel', {
       provideTasks() {
-        return NECTAR_TASKS.map(createTask);
+        return LAUREL_TASKS.map(createTask);
       },
       resolveTask(task) {
         const requested = task.definition.task;
-        const spec = NECTAR_TASKS.find((candidate) => candidate.task === requested);
+        const spec = LAUREL_TASKS.find((candidate) => candidate.task === requested);
         return spec ? createTask(spec) : undefined;
       },
     }),
@@ -34,7 +34,7 @@ function activate(context) {
 
 function deactivate() {}
 
-class NectarConfigCompletionProvider {
+class LaurelConfigCompletionProvider {
   constructor(schema) {
     this.schema = schema;
   }
@@ -69,7 +69,7 @@ class NectarConfigCompletionProvider {
       )
       .map(([key, property]) => {
         const item = new vscode.CompletionItem(key, vscode.CompletionItemKind.Module);
-        item.detail = 'Nectar config section';
+        item.detail = 'Laurel config section';
         item.documentation = new vscode.MarkdownString(property.description || '');
         item.insertText = key;
         return item;
@@ -79,12 +79,12 @@ class NectarConfigCompletionProvider {
 
 function createTask(spec) {
   const task = new vscode.Task(
-    { type: 'nectar', task: spec.task },
+    { type: 'laurel', task: spec.task },
     vscode.TaskScope.Workspace,
     spec.label,
-    'nectar',
+    'laurel',
     new vscode.ShellExecution(spec.command),
-    ['$nectar'],
+    ['$laurel'],
   );
   if (spec.group === 'build') task.group = vscode.TaskGroup.Build;
   if (spec.group === 'test') task.group = vscode.TaskGroup.Test;
@@ -190,7 +190,7 @@ function describeType(property) {
   if (Array.isArray(resolved.type)) return resolved.type.join(' | ');
   if (resolved.type) return resolved.type;
   if (resolved.anyOf) return 'multiple types';
-  return 'Nectar config property';
+  return 'Laurel config property';
 }
 
 function isTableHeaderLine(text, character) {

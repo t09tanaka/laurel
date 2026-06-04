@@ -14,7 +14,7 @@ import {
 function tmpDir(): string {
   return join(
     process.env.TMPDIR ?? '/tmp',
-    `nectar-card-assets-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    `laurel-card-assets-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
 }
 

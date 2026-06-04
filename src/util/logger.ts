@@ -14,10 +14,10 @@ function parseLevel(raw: string | undefined): Level | undefined {
   return normalized in order ? (normalized as Level) : undefined;
 }
 
-const envLevel = parseLevel(process.env.NECTAR_LOG_LEVEL);
-if (process.env.NECTAR_LOG_LEVEL !== undefined && !envLevel) {
+const envLevel = parseLevel(process.env.LAUREL_LOG_LEVEL);
+if (process.env.LAUREL_LOG_LEVEL !== undefined && !envLevel) {
   process.stderr.write(
-    `Invalid NECTAR_LOG_LEVEL=${JSON.stringify(process.env.NECTAR_LOG_LEVEL)}; expected one of ${Object.keys(order).join(', ')}. Falling back to info.\n`,
+    `Invalid LAUREL_LOG_LEVEL=${JSON.stringify(process.env.LAUREL_LOG_LEVEL)}; expected one of ${Object.keys(order).join(', ')}. Falling back to info.\n`,
   );
 }
 let threshold = envLevel ? order[envLevel] : order.info;
@@ -26,7 +26,7 @@ let warningCount = 0;
 let warningsAsErrors = false;
 let warningsAsErrorsFailure = false;
 
-// `nectar dev` sets a subscriber during the initial build so warnings can be
+// `laurel dev` sets a subscriber during the initial build so warnings can be
 // suppressed in real time and re-emitted as a tidy summary block under the
 // Ready banner. Returning true tells the logger to skip writing the warning
 // to the underlying stream; anything else lets it through unchanged. The
@@ -43,15 +43,15 @@ export function setWarningSubscriber(subscriber: WarningSubscriber | undefined):
 // default) keeps human-readable info/debug/trace output on stdout and
 // warning/error output on stderr.
 // `json` switches to one JSON object per line ({ts,level,msg,...fields}) so CI
-// pipelines and log aggregators can consume nectar output without parsing
+// pipelines and log aggregators can consume laurel output without parsing
 // the surface text. Toggled by `--log-format=json` (global), legacy `--json`,
-// env `NECTAR_LOG_FORMAT=json`, or legacy env `NECTAR_JSON=1`.
+// env `LAUREL_LOG_FORMAT=json`, or legacy env `LAUREL_JSON=1`.
 export type LogOutputMode = 'text' | 'json';
 let outputMode: LogOutputMode = parseInitialJsonMode(process.env);
 
 // Whether ANSI color codes are emitted in human text mode. Detection rules
 // follow widely-adopted conventions:
-//   - `--no-color` CLI flag (or `NECTAR_NO_COLOR=1`)        → off
+//   - `--no-color` CLI flag (or `LAUREL_NO_COLOR=1`)        → off
 //   - `NO_COLOR` env var set (any non-empty value)          → off
 //   - `FORCE_COLOR` set to truthy or a level (1/2/3/true)   → on
 //   - otherwise: enabled when stderr is a TTY
@@ -60,10 +60,10 @@ let outputMode: LogOutputMode = parseInitialJsonMode(process.env);
 let colorEnabled: boolean = detectColorEnabled(process.env);
 
 function parseInitialJsonMode(env: NodeJS.ProcessEnv): LogOutputMode {
-  const format = env.NECTAR_LOG_FORMAT;
+  const format = env.LAUREL_LOG_FORMAT;
   if (format === 'json') return 'json';
   if (format === 'pretty') return 'text';
-  const raw = env.NECTAR_JSON;
+  const raw = env.LAUREL_JSON;
   if (raw === undefined || raw === '') return 'text';
   if (/^(1|true|yes|on)$/i.test(raw.trim())) return 'json';
   return 'text';
@@ -82,14 +82,14 @@ function detectColorEnabled(env: NodeJS.ProcessEnv): boolean {
     if (v === '' || v === '1' || v === '2' || v === '3' || v === 'true') return true;
   }
 
-  // NECTAR_NO_COLOR is the project-namespaced override. Parse it as boolean
-  // so `NECTAR_NO_COLOR=0` (explicit re-enable) wins over a globally-set
+  // LAUREL_NO_COLOR is the project-namespaced override. Parse it as boolean
+  // so `LAUREL_NO_COLOR=0` (explicit re-enable) wins over a globally-set
   // `NO_COLOR=1`. Anything truthy -> off; explicit `0`/`false`/empty -> leave
   // color detection to the remaining environment / TTY checks.
-  const nectarNoColor = env.NECTAR_NO_COLOR;
-  if (nectarNoColor !== undefined && nectarNoColor !== '') {
-    if (/^(1|true|yes|on)$/i.test(nectarNoColor.trim())) return false;
-    if (/^(0|false|no|off)$/i.test(nectarNoColor.trim())) {
+  const laurelNoColor = env.LAUREL_NO_COLOR;
+  if (laurelNoColor !== undefined && laurelNoColor !== '') {
+    if (/^(1|true|yes|on)$/i.test(laurelNoColor.trim())) return false;
+    if (/^(0|false|no|off)$/i.test(laurelNoColor.trim())) {
       // Explicit re-enable: jump past the NO_COLOR check and fall through to
       // TTY detection.
     } else {
@@ -219,7 +219,7 @@ function formatTextLine(level: Level, message: string, trailing: string): string
 }
 
 function shouldPrefixTextTimestamp(level: Level): boolean {
-  if (parseEnvFlag(process.env.NECTAR_LOG_TIMESTAMPS)) return true;
+  if (parseEnvFlag(process.env.LAUREL_LOG_TIMESTAMPS)) return true;
   return levelStream(level).isTTY !== true;
 }
 
@@ -306,10 +306,10 @@ export function setLogLevel(level: Level): void {
 }
 
 export function refreshLogLevelFromEnv(env: NodeJS.ProcessEnv = process.env): void {
-  const level = parseLevel(env.NECTAR_LOG_LEVEL);
-  if (env.NECTAR_LOG_LEVEL !== undefined && !level) {
+  const level = parseLevel(env.LAUREL_LOG_LEVEL);
+  if (env.LAUREL_LOG_LEVEL !== undefined && !level) {
     logger.warn(
-      `Invalid NECTAR_LOG_LEVEL=${JSON.stringify(env.NECTAR_LOG_LEVEL)}; expected one of ${Object.keys(order).join(', ')}. Falling back to info.`,
+      `Invalid LAUREL_LOG_LEVEL=${JSON.stringify(env.LAUREL_LOG_LEVEL)}; expected one of ${Object.keys(order).join(', ')}. Falling back to info.`,
     );
   }
   threshold = level ? order[level] : order.info;

@@ -22,7 +22,7 @@ const activeQueues = new Map<string, Promise<void>>();
 const requestedRuns = new Map<string, number>();
 
 export function dashboardPreviewImageOutputDir(cwd: string): string {
-  return resolve(cwd, '.nectar/cache/dashboard-preview-images');
+  return resolve(cwd, '.laurel/cache/dashboard-preview-images');
 }
 
 export function enqueueDashboardImageVariantGeneration(opts: DashboardImageVariantOptions): void {

@@ -1,8 +1,8 @@
-# Deploying Nectar behind Fastly
+# Deploying Laurel behind Fastly
 
-Fastly can serve a Nectar build from an origin you control, such as S3,
-Cloudflare R2, nginx, or another static file host. Nectar does not currently
-emit Fastly VCL, Compute config, or a `nectar deploy fastly` target, so Fastly
+Fastly can serve a Laurel build from an origin you control, such as S3,
+Cloudflare R2, nginx, or another static file host. Laurel does not currently
+emit Fastly VCL, Compute config, or a `laurel deploy fastly` target, so Fastly
 is best treated as the CDN layer in front of `dist/`.
 
 ## Quickstart
@@ -10,8 +10,8 @@ is best treated as the CDN layer in front of `dist/`.
 1. Build the site and upload `dist/` to your origin:
 
    ```sh
-   bunx nectar build
-   test -f dist/.nectar-manifest.json
+   bunx laurel build
+   test -f dist/.laurel-manifest.json
    ```
 
 2. Create a Fastly service and add the static origin. If the origin is an
@@ -39,9 +39,9 @@ is best treated as the CDN layer in front of `dist/`.
 
 ## Redirects and headers
 
-Nectar's generated `_headers`, `_redirects`, `vercel.json`, and nginx/Caddy
+Laurel's generated `_headers`, `_redirects`, `vercel.json`, and nginx/Caddy
 artifacts are not consumed by Fastly automatically. Keep the source of truth in
-Nectar (`redirects.yaml`, `[deploy.headers]`) and translate the required subset
+Laurel (`redirects.yaml`, `[deploy.headers]`) and translate the required subset
 into Fastly service configuration, VCL snippets, or Compute code.
 
 When strict security headers matter, configure them at Fastly so they apply to

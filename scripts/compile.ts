@@ -9,11 +9,11 @@ type Target = {
 };
 
 const TARGETS: ReadonlyArray<Target> = [
-  { triple: 'linux-x64', bunTarget: 'bun-linux-x64', outfile: 'nectar-linux-x64' },
-  { triple: 'linux-arm64', bunTarget: 'bun-linux-arm64', outfile: 'nectar-linux-arm64' },
-  { triple: 'darwin-x64', bunTarget: 'bun-darwin-x64', outfile: 'nectar-darwin-x64' },
-  { triple: 'darwin-arm64', bunTarget: 'bun-darwin-arm64', outfile: 'nectar-darwin-arm64' },
-  { triple: 'windows-x64', bunTarget: 'bun-windows-x64', outfile: 'nectar-windows-x64.exe' },
+  { triple: 'linux-x64', bunTarget: 'bun-linux-x64', outfile: 'laurel-linux-x64' },
+  { triple: 'linux-arm64', bunTarget: 'bun-linux-arm64', outfile: 'laurel-linux-arm64' },
+  { triple: 'darwin-x64', bunTarget: 'bun-darwin-x64', outfile: 'laurel-darwin-x64' },
+  { triple: 'darwin-arm64', bunTarget: 'bun-darwin-arm64', outfile: 'laurel-darwin-arm64' },
+  { triple: 'windows-x64', bunTarget: 'bun-windows-x64', outfile: 'laurel-windows-x64.exe' },
 ];
 
 function resolveHostTriple(): string {

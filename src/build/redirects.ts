@@ -7,7 +7,7 @@ import { logger } from '~/util/logger.ts';
 import { withBasePath } from '~/util/url.ts';
 
 // Cross-cutting `redirects.yaml` schema. Ghost exports persist custom redirects
-// as a JSON list with `{from, to, permanent}`; Nectar consumes the same idea as
+// as a JSON list with `{from, to, permanent}`; Laurel consumes the same idea as
 // a YAML file at the project root and re-exposes it to every deploy target
 // emitter (Cloudflare Pages `_redirects`, Netlify `_redirects`, Vercel
 // `vercel.json`, Apache `.htaccess`, nginx `try_files`, S3 routing rules). The

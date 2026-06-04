@@ -7,7 +7,7 @@ import { emitCloudflarePagesHeaders } from '~/build/cloudflare-pages.ts';
 import { configSchema } from '~/config/schema.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-cf-pages-'));
+  return mkdtemp(join(tmpdir(), 'laurel-cf-pages-'));
 }
 
 const DEFAULT_HEADERS_CONFIG = configSchema.parse({ site: { title: 'x' } }).deploy.headers;
@@ -125,7 +125,7 @@ describe('emitCloudflarePagesHeaders', () => {
 });
 
 describe('Cloudflare deployment docs', () => {
-  test('document Workers Static Assets 404 handling for Nectar output', async () => {
+  test('document Workers Static Assets 404 handling for Laurel output', async () => {
     const root = join(import.meta.dir, '..', '..');
     const guide = await readFile(join(root, 'docs', 'deploy', 'cloudflare-pages.md'), 'utf8');
     const tutorial = await readFile(join(root, 'docs', 'tutorials', '04-deploy.md'), 'utf8');
@@ -133,7 +133,7 @@ describe('Cloudflare deployment docs', () => {
     expect(guide).toContain('Cloudflare Workers Static Assets');
     expect(guide).toContain('not_found_handling = "404-page"');
     expect(guide).toContain('run_worker_first = true');
-    expect(guide).toContain('Nectar emits separate');
+    expect(guide).toContain('Laurel emits separate');
     expect(guide).toContain('dist/404.html');
     expect(guide).toContain('not_found_handling = "single-page-application"');
     expect(guide).toContain('direct navigation / 404 semantics');
@@ -178,7 +178,7 @@ describe('Cloudflare Pages deploy samples', () => {
     const body = await readFile(samplePath, 'utf8');
 
     expect(existsSync(samplePath)).toBe(true);
-    expect(body).toContain('name = "my-nectar-site"');
+    expect(body).toContain('name = "my-laurel-site"');
     expect(body).toContain('pages_build_output_dir = "./dist"');
     expect(body).toContain('compatibility_date = "2026-05-20"');
   });
