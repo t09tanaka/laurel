@@ -2,15 +2,15 @@
 title: "Helper matrix"
 slug: helper-matrix
 date: 2026-05-20T00:00:00Z
-authors: [nectar]
-meta_title: "Helper matrix | Nectar Docs"
-meta_description: "Which Ghost helpers Nectar implements, and which it deliberately does not."
+authors: [laurel]
+meta_title: "Helper matrix | Laurel Docs"
+meta_description: "Which Ghost helpers Laurel implements, and which it deliberately does not."
 ---
 
 # Helper matrix
 
 The full Ghost helper coverage map lives in
-[`docs/GHOST_COMPATIBILITY.md`](https://github.com/t09tanaka/nectar/blob/main/docs/GHOST_COMPATIBILITY.md)
+[`docs/GHOST_COMPATIBILITY.md`](https://github.com/t09tanaka/laurel/blob/main/docs/GHOST_COMPATIBILITY.md)
 and is regenerated as the implementation evolves.
 
 ## Implemented (MVP)
@@ -44,5 +44,5 @@ and is regenerated as the implementation evolves.
 - Multi-locale routing. One build = one locale.
 
 If a Ghost helper you depend on is missing, please
-[open an issue](https://github.com/t09tanaka/nectar/issues/new/choose) so it
+[open an issue](https://github.com/t09tanaka/laurel/issues/new/choose) so it
 can be prioritised against the next milestone.

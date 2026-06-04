@@ -1,7 +1,7 @@
 [site]
-title = "Nectar Docs"
-description = "Documentation for Nectar — the Ghost-theme-compatible static site generator powered by Markdown and Bun."
-url = "https://nectar.dev"
+title = "Laurel Docs"
+description = "Documentation for Laurel — the Ghost-theme-compatible static site generator powered by Markdown and Bun."
+url = "https://laurel.dev"
 locale = "en"
 timezone = "UTC"
 accent_color = "#FF5722"
@@ -75,7 +75,7 @@ url = "/faq/"
 
 [[secondary_navigation]]
 label = "GitHub"
-url = "https://github.com/t09tanaka/nectar"
+url = "https://github.com/t09tanaka/laurel"
 
 [[secondary_navigation]]
 label = "RSS"
