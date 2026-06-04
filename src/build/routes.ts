@@ -1,8 +1,8 @@
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ContentGraph, Page, Post } from '~/content/model.ts';
 import type { PaginationInfo, RouteContext } from '~/render/types.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
 import { absoluteUrlWithBasePath, withBasePath } from '~/util/url.ts';
 import { type PostUrlAssignment, assignPostUrls, parseFilter } from './permalinks.ts';
@@ -21,12 +21,12 @@ import {
 } from './routes-yaml.ts';
 
 const defaultMetaBaseCache = new WeakMap<
-  NectarConfig,
+  LaurelConfig,
   { description: string; siteUrl: string; basePath: string }
 >();
 
 export function planRoutes(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   theme: ThemeBundle;
   routesYaml?: RoutesYaml;
@@ -733,7 +733,7 @@ function withLocaleRoutePrefix(locale: string | undefined, path: string): string
 
 function attachLocaleAlternates(
   routes: RouteContext[],
-  config: NectarConfig,
+  config: LaurelConfig,
   basePath: string,
 ): void {
   const groups = new Map<string, RouteContext[]>();
@@ -806,7 +806,7 @@ function assertNoRouteCollisions(routes: readonly RouteContext[]): void {
     collisions.length === 1
       ? 'route output path collision detected:'
       : `route output path collisions detected (${collisions.length}):`;
-  throw new NectarError({
+  throw new LaurelError({
     message: `${headline}\n${lines.join('\n')}`,
     hint: 'Each route must emit a unique output path. Rename the conflicting post/page slug or routes.yaml entry.',
     code: 'content',
@@ -937,13 +937,13 @@ function paginationInfo(
   };
 }
 
-function homeTitle(config: NectarConfig): string {
+function homeTitle(config: LaurelConfig): string {
   const desc = config.site.description?.trim();
   return desc ? `${config.site.title} — ${desc}` : config.site.title;
 }
 
 function defaultMeta(
-  config: NectarConfig,
+  config: LaurelConfig,
   routeUrl: string,
   title: string,
   description?: string,
@@ -963,7 +963,7 @@ function defaultMeta(
   };
 }
 
-function defaultMetaBase(config: NectarConfig): {
+function defaultMetaBase(config: LaurelConfig): {
   description: string;
   siteUrl: string;
   basePath: string;

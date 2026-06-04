@@ -1,6 +1,6 @@
-# Deploying Nectar to Apache HTTPD
+# Deploying Laurel to Apache HTTPD
 
-Nectar builds a fully static site. Apache serves it as plain files. This guide
+Laurel builds a fully static site. Apache serves it as plain files. This guide
 covers the quickstart, the generated `.htaccess` that turns on redirects,
 Cache-Control, MIME hints, and ETag, plus the gotchas that bite Ghost
 migrations.
@@ -10,7 +10,7 @@ migrations.
 1. Build the site:
 
    ```sh
-   nectar build
+   laurel build
    ```
 
 2. Copy `dist/` to your Apache document root, for example via rsync:
@@ -19,8 +19,8 @@ migrations.
    rsync -avz --delete dist/ user@host:/var/www/yoursite/
    ```
 
-   Nectar's `[deploy.rsync]` target wraps the same command — set
-   `destination` in `nectar.toml` and run `nectar deploy rsync`.
+   Laurel's `[deploy.rsync]` target wraps the same command — set
+   `destination` in `laurel.toml` and run `laurel deploy rsync`.
 
 3. Confirm Apache is configured with at least `mod_headers`, `mod_expires`,
    and `mod_rewrite` enabled. On Debian/Ubuntu:
@@ -30,15 +30,15 @@ migrations.
    sudo systemctl reload apache2
    ```
 
-4. Enable the Apache emitter in `nectar.toml`, then rebuild:
+4. Enable the Apache emitter in `laurel.toml`, then rebuild:
 
    ```toml
    [deploy.apache]
    enabled = true
    ```
 
-   Nectar writes `dist/.htaccess`. The generated file pins fingerprinted assets
-   to a year of immutable caching, forces HTML to revalidate, resolves Nectar's
+   Laurel writes `dist/.htaccess`. The generated file pins fingerprinted assets
+   to a year of immutable caching, forces HTML to revalidate, resolves Laurel's
    `slug/index.html` output for clean URLs, translates `redirects.yaml` into
    `RewriteRule` redirects, sets configured security headers, adds common static
    MIME types, enables pre-compressed sidecar hints, and wires Apache to
@@ -52,15 +52,15 @@ migrations.
 Apache's defaults serve every file with no `Cache-Control` header at all, and
 ETags that include the inode number (so the same file behind two load
 balancers serves under two different ETags). Both behaviours undo the work
-Nectar already did on the build side:
+Laurel already did on the build side:
 
-- Nectar fingerprints `/assets/built/screen.css` → `/assets/built/screen-<hash>.css`.
+- Laurel fingerprints `/assets/built/screen.css` → `/assets/built/screen-<hash>.css`.
   Without `Cache-Control: public, max-age=31536000, immutable`, browsers
   re-validate every request and the fingerprint is wasted.
 - Without `FileETag MTime Size` (or `None`), Apache's default `INode MTime Size`
   ETag changes between filesystems, breaking conditional GETs across hosts.
 
-The generated `.htaccess` fixes both. The cache rules mirror what nectar's
+The generated `.htaccess` fixes both. The cache rules mirror what laurel's
 `_headers` emitter ships for Netlify / Cloudflare Pages so the same site
 behaves the same on every host:
 
@@ -70,14 +70,14 @@ behaves the same on every host:
 | `/content/images/*` | `public, max-age=31536000, immutable`      |
 | `/*` (HTML)         | `public, max-age=0, must-revalidate`       |
 
-For browser clients that fetch Nectar's emitted `/content/*` JSON from another
+For browser clients that fetch Laurel's emitted `/content/*` JSON from another
 origin, see [`cors-apache.md`](./cors-apache.md). You can either copy the
 virtual-host snippet there or set `[components.content_api].emit_htaccess =
 true` to write `dist/content/.htaccess` with the Content API CORS rules.
 
 ## Pretty URLs
 
-Nectar emits posts and pages as `slug/index.html`. The generated `.htaccess`
+Laurel emits posts and pages as `slug/index.html`. The generated `.htaccess`
 keeps `DirectoryIndex index.html` for canonical directory requests like
 `/about/`, and also adds a `mod_rewrite` fallback so `/about` resolves to
 `about/index.html` without requiring a separate trailing-slash redirect.
@@ -88,13 +88,13 @@ not an existing file and the matching `index.html` exists, so direct assets and
 index-less directories are left alone.
 
 If you have redirects from a Ghost migration, drop a `redirects.yaml` into the
-project root before building. With `[deploy.apache].enabled = true`, Nectar
+project root before building. With `[deploy.apache].enabled = true`, Laurel
 translates the canonical redirect list into Apache `RewriteRule` directives in
 `dist/.htaccess`, preserving the configured 301 / 302 / 307 / 308 status code.
 
 ## Gzip / Brotli
 
-Enable `[build].precompress = true` in `nectar.toml` so the build emits
+Enable `[build].precompress = true` in `laurel.toml` so the build emits
 `.br` + `.gz` sidecars next to every text artifact. The generated `.htaccess`
 includes `AddEncoding` directives for those sidecars; pair that with
 `mod_negotiation` / `mod_brotli` on the server to avoid per-request
@@ -102,7 +102,7 @@ compression work.
 
 ## Logs and the 404 page
 
-Nectar emits `404.html`. Tell Apache to use it:
+Laurel emits `404.html`. Tell Apache to use it:
 
 ```apache
 ErrorDocument 404 /404.html

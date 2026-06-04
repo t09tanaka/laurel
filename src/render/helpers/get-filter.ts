@@ -1,4 +1,4 @@
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 
 type IndexedKey = 'id' | 'slug' | 'tag' | 'tags' | 'author' | 'authors' | 'featured';
 
@@ -50,7 +50,7 @@ interface FilterTree {
 // `{{#get "posts" filter="tags:foo+id:-{{post.id}}"}}` on every article render
 // is O(N) per call — 10k posts blow up to 10^8 ops over a full build.
 export function applyGetFilter(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   resource: string,
   items: readonly unknown[],
   filter: string,
@@ -82,7 +82,7 @@ export function applyGetFilter(
 }
 
 function applyAndBranch(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   resource: string,
   items: readonly unknown[],
   clauses: ParsedClause[],
@@ -138,7 +138,7 @@ function applyAndBranch(
   return filtered.filter((item) => unindexed.every((c) => evaluateClause(item, c)));
 }
 
-function getFilterIndex(engine: NectarEngine, resource: string): FilterIndex | undefined {
+function getFilterIndex(engine: LaurelEngine, resource: string): FilterIndex | undefined {
   if (!engine.filterIndexCache) engine.filterIndexCache = new Map<string, FilterIndex>();
   const cached = engine.filterIndexCache.get(resource);
   if (cached) return cached;
@@ -149,7 +149,7 @@ function getFilterIndex(engine: NectarEngine, resource: string): FilterIndex | u
   return built;
 }
 
-function baseResource(engine: NectarEngine, resource: string): readonly unknown[] | undefined {
+function baseResource(engine: LaurelEngine, resource: string): readonly unknown[] | undefined {
   switch (resource) {
     case 'posts':
       return engine.content.posts;

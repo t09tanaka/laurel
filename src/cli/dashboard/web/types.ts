@@ -129,7 +129,7 @@ export interface ThemeOption {
 }
 
 // Mirrors `DashboardThemeStatus` from src/cli/commands/dashboard.ts. Used by
-// the top-of-dashboard banner that fires when [theme] in nectar.toml points
+// the top-of-dashboard banner that fires when [theme] in laurel.toml points
 // at a directory that doesn't exist on disk.
 export interface ThemeStatus {
   missing: boolean;

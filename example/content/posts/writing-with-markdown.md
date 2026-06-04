@@ -5,8 +5,8 @@ date: 2026-05-10T15:00:00Z
 authors: [honeybee]
 tags: [getting-started]
 feature_image: "/content/images/markdown-cover.svg"
-feature_image_alt: "Markdown symbols on a document beside the Nectar logo"
-custom_excerpt: "A short primer on the frontmatter conventions Nectar expects."
+feature_image_alt: "Markdown symbols on a document beside the Laurel logo"
+custom_excerpt: "A short primer on the frontmatter conventions Laurel expects."
 ---
 
 Posts are Markdown files with YAML frontmatter. The frontmatter is the same

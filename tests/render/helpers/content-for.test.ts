@@ -1,28 +1,28 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
 import type { ContentGraph } from '~/content/model.ts';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import { registerContentForHelpers } from '~/render/helpers/content-for.ts';
 
-function makeEngine(): NectarEngine {
+function makeEngine(): LaurelEngine {
   const hb = Handlebars.create();
   return {
     hb,
-    config: {} as NectarEngine['config'],
+    config: {} as LaurelEngine['config'],
     content: {
       posts: [],
       pages: [],
       tags: [],
       authors: [],
     } as unknown as ContentGraph,
-    theme: {} as NectarEngine['theme'],
+    theme: {} as LaurelEngine['theme'],
     templates: {},
     layouts: {},
     sortedCache: new Map<string, readonly unknown[]>(),
     render() {
       throw new Error('not used');
     },
-  } as unknown as NectarEngine;
+  } as unknown as LaurelEngine;
 }
 
 describe('contentFor / block helpers', () => {

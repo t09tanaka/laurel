@@ -92,7 +92,7 @@ export function createDashboardVisualPlan({
     commands: [
       'bun scripts/dashboard-visual-qa.ts --project tests/fixtures/dashboard-visual-project',
       'bun scripts/dashboard-visual-qa.ts --project tests/fixtures/dashboard-visual-project --smoke-only',
-      'NECTAR_CHROME_PATH=/path/to/chrome bun scripts/dashboard-visual-qa.ts --project tests/fixtures/dashboard-visual-project',
+      'LAUREL_CHROME_PATH=/path/to/chrome bun scripts/dashboard-visual-qa.ts --project tests/fixtures/dashboard-visual-project',
     ],
   };
 }
@@ -173,8 +173,8 @@ function startDashboardServer(cwd: string): {
 
 async function smokeDashboard(origin: string): Promise<Record<string, unknown>> {
   const html = await fetchText(`${origin}/`);
-  if (!html.includes('Nectar Dashboard')) {
-    throw new Error('Dashboard HTML smoke failed: missing Nectar Dashboard title.');
+  if (!html.includes('Laurel Dashboard')) {
+    throw new Error('Dashboard HTML smoke failed: missing Laurel Dashboard title.');
   }
   const state = (await fetchJson(`${origin}/api/state?per_page=12`)) as {
     site?: { title?: unknown };
@@ -193,7 +193,7 @@ async function smokeDashboard(origin: string): Promise<Record<string, unknown>> 
     throw new Error('Dashboard API smoke failed: missing Markdown preview URL for the first post.');
   }
   const previewHtml = await fetchText(`${origin}${previewUrl}`);
-  if (!previewHtml.includes('<html') || !previewHtml.includes('Nectar')) {
+  if (!previewHtml.includes('<html') || !previewHtml.includes('Laurel')) {
     throw new Error('Dashboard preview smoke failed: active theme preview did not render HTML.');
   }
   return {
@@ -281,7 +281,7 @@ async function prepareScenario(
     // dashboard listens on `input` and debounces a `/api/state?search=...`
     // request that returns zero results, surfacing `.statePanel.empty`.
     await page.evaluate(
-      "(()=>{ const s=document.getElementById('search'); s.value='__nectar_visual_qa_empty__'; s.dispatchEvent(new Event('input',{bubbles:true})); })()",
+      "(()=>{ const s=document.getElementById('search'); s.value='__laurel_visual_qa_empty__'; s.dispatchEvent(new Event('input',{bubbles:true})); })()",
     );
     await page.waitFor("document.querySelector('.statePanel.empty') !== null");
     return;
@@ -409,7 +409,7 @@ async function waitForDashboard(page: CdpPage): Promise<void> {
 async function launchChrome(): Promise<ChromeSession> {
   const chromePath = await findChromeExecutable();
   const port = await reservePort();
-  const profile = resolve('.nectar', `dashboard-visual-chrome-${randomUUID()}`);
+  const profile = resolve('.laurel', `dashboard-visual-chrome-${randomUUID()}`);
   await mkdir(profile, { recursive: true });
   const proc = Bun.spawn({
     cmd: [
@@ -473,7 +473,7 @@ async function waitForChrome(versionUrl: string, proc: Bun.Subprocess): Promise<
 }
 
 async function findChromeExecutable(): Promise<string> {
-  if (process.env.NECTAR_CHROME_PATH) return process.env.NECTAR_CHROME_PATH;
+  if (process.env.LAUREL_CHROME_PATH) return process.env.LAUREL_CHROME_PATH;
   const macCandidates = [
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/Applications/Chromium.app/Contents/MacOS/Chromium',
@@ -495,7 +495,7 @@ async function findChromeExecutable(): Promise<string> {
   const path = stdout.trim().split('\n')[0];
   if (path) return path;
   throw new Error(
-    'Chrome executable not found. Install Chrome/Chromium or set NECTAR_CHROME_PATH=/path/to/chrome. Use --smoke-only for HTML/API smoke without screenshots.',
+    'Chrome executable not found. Install Chrome/Chromium or set LAUREL_CHROME_PATH=/path/to/chrome. Use --smoke-only for HTML/API smoke without screenshots.',
   );
 }
 
@@ -521,7 +521,7 @@ function toRelativePlan(plan: DashboardVisualPlan): DashboardVisualPlan {
 function parseArgs(args: string[]): DashboardVisualOptions {
   const options: DashboardVisualOptions = {
     project: 'tests/fixtures/dashboard-visual-project',
-    output: '.nectar/dashboard-visual-qa',
+    output: '.laurel/dashboard-visual-qa',
     dryRun: false,
     smokeOnly: false,
     screenshots: true,
@@ -549,7 +549,7 @@ function printHelp(): void {
 
 Options:
   --project <path>      Dashboard project fixture (default: tests/fixtures/dashboard-visual-project)
-  --out <path>          Artifact directory (default: .nectar/dashboard-visual-qa)
+  --out <path>          Artifact directory (default: .laurel/dashboard-visual-qa)
   --dry-run             Print planned screenshots and HTML snapshots without starting a server
   --smoke-only          Run dashboard HTML/API smoke without launching Chrome
   --no-screenshots      Alias for smoke-only artifact generation without browser captures

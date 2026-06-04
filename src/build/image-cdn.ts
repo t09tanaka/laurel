@@ -1,7 +1,7 @@
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 
 interface RewriteOptions {
-  config: NectarConfig;
+  config: LaurelConfig;
 }
 
 interface TagSpan {
@@ -59,7 +59,7 @@ export function rewriteImageCdnUrls(html: string, { config }: RewriteOptions): s
   return out;
 }
 
-function rewriteTag(tag: TagSpan, config: NectarConfig): string {
+function rewriteTag(tag: TagSpan, config: LaurelConfig): string {
   if (tag.name !== 'img' && tag.name !== 'source' && tag.name !== 'link' && tag.name !== 'meta') {
     return tag.openTag;
   }
@@ -89,7 +89,7 @@ function rewriteTag(tag: TagSpan, config: NectarConfig): string {
 function rewriteAttr(
   attr: AttrSpan | undefined,
   replacements: Map<AttrSpan, string>,
-  config: NectarConfig,
+  config: LaurelConfig,
   context: RewriteContext,
 ): void {
   if (!attr) return;
@@ -100,14 +100,14 @@ function rewriteAttr(
 function rewriteSrcsetAttr(
   attr: AttrSpan | undefined,
   replacements: Map<AttrSpan, string>,
-  config: NectarConfig,
+  config: LaurelConfig,
 ): void {
   if (!attr) return;
   const rewritten = rewriteSrcset(attr.value, config);
   if (rewritten !== attr.value) replacements.set(attr, rewritten);
 }
 
-function rewriteSrcset(value: string, config: NectarConfig): string {
+function rewriteSrcset(value: string, config: LaurelConfig): string {
   if (/\bdata:/i.test(value)) return value;
   let touched = false;
   const rewritten = value
@@ -132,7 +132,7 @@ function rewriteSrcset(value: string, config: NectarConfig): string {
 
 function rewriteImageUrl(
   raw: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   context: RewriteContext,
 ): string | undefined {
   const source = resolveImageSource(raw, config);
@@ -154,7 +154,7 @@ function rewriteImageUrl(
   }
 }
 
-function resolveImageSource(raw: string, config: NectarConfig): ImageSource | undefined {
+function resolveImageSource(raw: string, config: LaurelConfig): ImageSource | undefined {
   const decoded = decodeHtmlAttr(raw).trim();
   if (!decoded || decoded.startsWith('//')) return undefined;
   if (/^(data|blob):/i.test(decoded)) return undefined;
@@ -177,7 +177,7 @@ function resolveImageSource(raw: string, config: NectarConfig): ImageSource | un
 }
 
 function buildCloudflareUrl(
-  config: NectarConfig,
+  config: LaurelConfig,
   source: ImageSource,
   width: number | undefined,
 ): string {
@@ -187,7 +187,7 @@ function buildCloudflareUrl(
 }
 
 function buildQueryAdapterUrl(
-  config: NectarConfig,
+  config: LaurelConfig,
   endpoint: string,
   source: ImageSource,
   width: number | undefined,
@@ -202,7 +202,7 @@ function buildQueryAdapterUrl(
 }
 
 function buildCloudinaryUrl(
-  config: NectarConfig,
+  config: LaurelConfig,
   source: ImageSource,
   width: number | undefined,
 ): string | undefined {
@@ -217,7 +217,7 @@ function buildCloudinaryUrl(
 }
 
 function buildImgproxyUrl(
-  config: NectarConfig,
+  config: LaurelConfig,
   source: ImageSource,
   width: number | undefined,
 ): string | undefined {
@@ -315,7 +315,7 @@ function isImageMeta(attrs: Map<string, AttrSpan>): boolean {
   return IMAGE_META_NAMES.has(key);
 }
 
-function isEligibleImagePath(pathname: string, config: NectarConfig): boolean {
+function isEligibleImagePath(pathname: string, config: LaurelConfig): boolean {
   const paths = [pathname];
   const basePath = normalizeBasePath(config.build.base_path);
   if (basePath !== '/' && pathname.startsWith(basePath)) {
@@ -353,7 +353,7 @@ function parsePositiveInt(value: string | undefined): number | undefined {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-function adapterBase(config: NectarConfig): string {
+function adapterBase(config: LaurelConfig): string {
   return (config.image_cdn.base_url ?? '').replace(/\/+$/, '');
 }
 

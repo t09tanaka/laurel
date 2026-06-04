@@ -1,18 +1,18 @@
-# Threat model — trust boundaries in a Nectar build
+# Threat model — trust boundaries in a Laurel build
 
-Nectar is a static site generator. Everything inside this document is about
+Laurel is a static site generator. Everything inside this document is about
 **what runs at build time** on the operator's machine (or in CI) and **what
-ends up in the static HTML/CSS/JS** that visitors see. There is no Nectar
+ends up in the static HTML/CSS/JS** that visitors see. There is no Laurel
 process at request time — see [hosting.md](./hosting.md) for the headers the
-host has to set on top of what Nectar emits.
+host has to set on top of what Laurel emits.
 
-This document exists because Nectar deliberately consumes three different kinds
-of input — Markdown content, a Ghost theme, and `nectar.toml` config — and the
+This document exists because Laurel deliberately consumes three different kinds
+of input — Markdown content, a Ghost theme, and `laurel.toml` config — and the
 trust each one carries is wildly different. A blog operator who accepts outside
 contributions to `content/` is not necessarily extending the same trust to
 whoever wrote the theme, and the threat surface differs accordingly.
 
-If you maintain a Nectar site and merge PRs from people other than yourself,
+If you maintain a Laurel site and merge PRs from people other than yourself,
 read this end-to-end. Most issues here boil down to "review the diff" — but
 you have to know which lines in the diff matter.
 
@@ -23,8 +23,8 @@ you have to know which lines in the diff matter.
 | `content/**/*.md` body              | Untrusted by default  | Markdown is sanitized; raw HTML stripped unless `unsafe_html: true` set per post | Markdown sanitizer + per-post `unsafe_html` opt-in            |
 | `content/**/*.md` frontmatter       | Semi-trusted          | Most fields land in `<meta>` / `<title>` (HTML-escaped). A few fields are render-sensitive — see below | Per-field sanitization + `build.allow_code_injection` gate    |
 | `themes/<name>/**`                  | **Fully trusted (= code)** | Theme `.hbs` templates are Handlebars code with access to the full site graph; theme `assets/` ship as-is | Treat as code. Review like code. Pin like code.               |
-| `nectar.toml`                       | **Fully trusted (= site owner)** | `site.url`, `theme.custom.*`, `build.allow_code_injection` flip site-wide behavior | Operator-only. Not a contributor-editable file in normal flow. |
-| Host HTTP response headers          | Operator-controlled, out of Nectar | Missing CSP/HSTS weakens defense-in-depth | See [hosting.md](./hosting.md)                                  |
+| `laurel.toml`                       | **Fully trusted (= site owner)** | `site.url`, `theme.custom.*`, `build.allow_code_injection` flip site-wide behavior | Operator-only. Not a contributor-editable file in normal flow. |
+| Host HTTP response headers          | Operator-controlled, out of Laurel | Missing CSP/HSTS weakens defense-in-depth | See [hosting.md](./hosting.md)                                  |
 
 The rest of this page expands each row.
 
@@ -62,11 +62,11 @@ reviewers should flag:
 
 | Field                          | Why it's dangerous                                                                                                                                                 | Default state           | What to look for in a PR diff                                                                                                                          |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `codeinjection_head`           | Spliced verbatim into `<head>` via `{{ghost_head}}` when `build.allow_code_injection = true`. Equivalent to a `<script>` tag the contributor controls.             | Disabled (stripped with a warning unless the operator opts in via `nectar.toml`) | Any non-empty value. Especially `<script>`, `<iframe>`, `<link rel=preload as=script>`. Treat as code change.                                          |
+| `codeinjection_head`           | Spliced verbatim into `<head>` via `{{ghost_head}}` when `build.allow_code_injection = true`. Equivalent to a `<script>` tag the contributor controls.             | Disabled (stripped with a warning unless the operator opts in via `laurel.toml`) | Any non-empty value. Especially `<script>`, `<iframe>`, `<link rel=preload as=script>`. Treat as code change.                                          |
 | `codeinjection_foot`           | Same as `codeinjection_head` but inserted via `{{ghost_foot}}`, typically just before `</body>`. Same blast radius — ships site-wide JS once merged.               | Disabled (stripped with a warning unless `allow_code_injection = true`) | Same as above.                                                                                                                                         |
-| `feature_image_caption`        | Themes typically render this with `{{{feature_image_caption}}}` (triple-stash, no escaping). Nectar pre-sanitizes to inline-only HTML at load time, so `<script>` / `<iframe>` cannot reach the DOM — but the field is still HTML, not plain text. | Sanitized to inline tags | Suspicious patterns that hint someone is probing the sanitizer (encoded payloads, weird nesting). Plain `<em>`/`<a>` is fine.                          |
+| `feature_image_caption`        | Themes typically render this with `{{{feature_image_caption}}}` (triple-stash, no escaping). Laurel pre-sanitizes to inline-only HTML at load time, so `<script>` / `<iframe>` cannot reach the DOM — but the field is still HTML, not plain text. | Sanitized to inline tags | Suspicious patterns that hint someone is probing the sanitizer (encoded payloads, weird nesting). Plain `<em>`/`<a>` is fine.                          |
 | `unsafe_html: true`            | Lets the post body contain raw HTML (see previous section).                                                                                                        | Off                     | Any PR adding this. Review the body that follows as if it were JS.                                                                                     |
-| `slug`                         | Becomes a path segment. Nectar runs every user-supplied slug through `slugify(..., { strict: true })`, so traversal (`../`) and HTML are flattened out — but two contributors can still race to claim the same slug and shadow each other's content. | Slugified                | Slugs colliding with existing posts/pages (`index`, `tag`, `author`, `rss`, `sitemap`, etc.).                                                          |
+| `slug`                         | Becomes a path segment. Laurel runs every user-supplied slug through `slugify(..., { strict: true })`, so traversal (`../`) and HTML are flattened out — but two contributors can still race to claim the same slug and shadow each other's content. | Slugified                | Slugs colliding with existing posts/pages (`index`, `tag`, `author`, `rss`, `sitemap`, etc.).                                                          |
 | `visibility: members` / `paid` | Drives whether the post body gets truncated, dropped, or rendered in full. Set globally via `content.visibility_policy`. Not an XSS vector, but a contributor can silently flip a post to `members` and hide content from readers. | `public`                | Changes to `visibility` on a previously-public post.                                                                                                   |
 
 The thing to internalize: **if a contributor can merge a PR that adds
@@ -78,12 +78,12 @@ as a change to a JavaScript bundle.
 ### Render-side raw-HTML exits — `{{ghost_head}}` / `{{ghost_foot}}`
 
 `{{ghost_head}}` and `{{ghost_foot}}` are the **only two render helpers in
-Nectar that emit author-controlled HTML verbatim**, with no escaping. That is
+Laurel that emit author-controlled HTML verbatim**, with no escaping. That is
 intentional and required for Ghost theme compatibility — themes rely on these
 helpers to splice analytics tags, comments bootstraps, and other inline
 `<script>` / `<link>` snippets that the post author configured. Every other
 Ghost helper (`title`, `excerpt`, `meta_description`, `feature_image`, …) is
-either HTML-escaped or passes through Nectar's content sanitizer first.
+either HTML-escaped or passes through Laurel's content sanitizer first.
 
 In other words: the render layer has exactly **one explicit XSS exit, and it
 is gated behind `build.allow_code_injection`**. When the gate is off, the
@@ -104,13 +104,13 @@ scripts can do. Two viable approaches for a static deploy:
 
 - **Edge-injected nonces.** A Cloudflare Worker / Vercel Edge / Netlify Edge
   function rewrites the response per request: generate a fresh nonce, attach
-  it to every legitimate `<script>` / `<style>` tag emitted by Nectar, and
+  it to every legitimate `<script>` / `<style>` tag emitted by Laurel, and
   emit a matching `script-src 'nonce-…'; style-src 'nonce-…'` header. This
   is the cleanest path because it does not require build-time bookkeeping
   and works with arbitrary `codeinjection_*` content.
 - **Precomputed hashes.** Run a post-build step that hashes every inline
   `<style>` block in `dist/` and emits a matching `style-src` policy.
-  Nectar handles the script half automatically when
+  Laurel handles the script half automatically when
   `[deploy.headers].security.content_security_policy` is set: it scans the
   final rendered HTML, computes `sha256-...` for every inline `<script>` body,
   and appends those sources to `script-src` in generated deploy artifacts. This
@@ -194,11 +194,11 @@ translation deliberately ships markup.
 
 Interpolated values are deliberately not a way to smuggle HTML through
 `{{{t}}}`. If a theme writes `{{{t "Hello {name}" name=user.name}}}` and
-`user.name` contains `<img onerror=...>`, Nectar strips the tag and emits only
+`user.name` contains `<img onerror=...>`, Laurel strips the tag and emits only
 text. Themes that need link markup in translations should keep that markup in
 trusted locale files rather than content-derived helper arguments.
 
-## Surface 3: `nectar.toml`
+## Surface 3: `laurel.toml`
 
 The config file is the operator's lever. A few fields have site-wide
 security-relevant effects:
@@ -211,7 +211,7 @@ security-relevant effects:
 | `build.max_image_bytes`            | Cap on per-file raster image size when copying content assets.                                                                                                                  | 5 MiB default. Don't disable (`0`) unless you have a separate image pipeline.                                                                            |
 | `content.visibility_policy`        | What happens to `visibility: members` / `paid` posts in a static build. `truncate` cuts the body, `render-full` ships the whole body, `skip` drops the post.                    | If you import from a Ghost site that had paid posts, default `truncate` is the safe option — `render-full` will leak content meant to be paywalled.       |
 
-`nectar.toml` is not a file outside contributors should be able to merge
+`laurel.toml` is not a file outside contributors should be able to merge
 changes to without explicit operator review. In practice this is enforced by
 the same code-review process that protects the theme.
 
@@ -222,7 +222,7 @@ Even if every input above is trusted, set the headers documented in
 `X-Content-Type-Options`, and friends turn many of the failure modes above
 into bounded incidents rather than full site compromise.
 
-The realistic attack on a static blog isn't "Nectar has an RCE." It's
+The realistic attack on a static blog isn't "Laurel has an RCE." It's
 "a contributor merged a `codeinjection_foot` PR while
 `allow_code_injection = true` and shipped a cryptominer to every page."
 A CSP that disallows `script-src` from untrusted origins limits the damage
@@ -232,7 +232,7 @@ the operator has to configure it.
 
 ## Local preview server path confinement
 
-`nectar serve` is a local preview server for the generated `dist/` directory,
+`laurel serve` is a local preview server for the generated `dist/` directory,
 not a production server. By default it binds to `127.0.0.1` only; pass
 `--host 0.0.0.0` only when you intentionally want to expose the preview to
 your LAN. It must not be treated as a production edge, but it does enforce one
@@ -242,14 +242,14 @@ escape the configured build output directory, including encoded traversal such
 as `/..%2f..%2fetc%2fpasswd`, is rejected with `403 Forbidden` instead of
 falling through to the host filesystem.
 
-That confinement applies to files served by `nectar serve` itself. It does
+That confinement applies to files served by `laurel serve` itself. It does
 not replace the normal static-hosting controls for production deploys, and it
 does not grant any special protection to files that you intentionally copy
 into `dist/`.
 
 ## Quick PR-review checklist
 
-When reviewing a PR against a Nectar repo, scan for:
+When reviewing a PR against a Laurel repo, scan for:
 
 - [ ] `unsafe_html: true` added to any post → review body as if it were JS.
 - [ ] Any non-empty `codeinjection_head` / `codeinjection_foot` → review as code; confirm `build.allow_code_injection` policy.
@@ -257,7 +257,7 @@ When reviewing a PR against a Nectar repo, scan for:
 - [ ] Slug collisions with existing routes (`index`, `tag/*`, `author/*`, `rss`, `sitemap`).
 - [ ] Edits under `themes/<name>/**` → treat as code review, including `assets/`.
 - [ ] New or changed theme `package.json`, `gulpfile.js`, `yarn.lock`, or build scripts → install with `--ignore-scripts` until reviewed.
-- [ ] Edits to `nectar.toml`, especially `site.url`, `theme.custom.*`, `build.allow_code_injection` → operator-level decisions.
+- [ ] Edits to `laurel.toml`, especially `site.url`, `theme.custom.*`, `build.allow_code_injection` → operator-level decisions.
 - [ ] New / replaced files in `content/images/` larger than expected.
 
 If a PR touches none of the above, it's a content change and standard editorial

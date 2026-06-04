@@ -43,8 +43,8 @@ async function runCli(args: string[], cwd?: string): Promise<RunResult> {
 }
 
 async function makeServeFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-serve-')));
-  await Bun.write(join(dir, 'nectar.toml'), '[site]\ntitle = "x"\n');
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-serve-')));
+  await Bun.write(join(dir, 'laurel.toml'), '[site]\ntitle = "x"\n');
   await Bun.write(join(dir, 'dist/index.html'), '<!doctype html><title>ok</title>');
   return dir;
 }
@@ -504,7 +504,7 @@ describe('cli serve — compression', () => {
         cwd: dir,
         stdout: 'ignore',
         stderr: 'ignore',
-        env: { ...process.env, NECTAR_SERVE_MAX_RESPONSE_BYTES: '32' },
+        env: { ...process.env, LAUREL_SERVE_MAX_RESPONSE_BYTES: '32' },
       },
     );
     try {
@@ -526,7 +526,7 @@ describe('cli serve — verbose examples', () => {
   beforeEach(async () => {
     dir = await makeServeFixture();
     await Bun.write(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       ['[site]', 'title = "x"', '', '[build]', 'base_path = "/blog/"'].join('\n'),
     );
   });
@@ -750,7 +750,7 @@ describe('cli serve — content types', () => {
     const dir = await makeServeFixture();
     await Bun.write(join(dir, 'dist/sitemap.xml'), '<sitemapindex></sitemapindex>');
     await Bun.write(join(dir, 'dist/rss.xml'), '<rss></rss>');
-    await Bun.write(join(dir, 'dist/site.webmanifest'), '{"name":"Nectar"}');
+    await Bun.write(join(dir, 'dist/site.webmanifest'), '{"name":"Laurel"}');
     await Bun.write(join(dir, 'dist/assets/app.css'), 'body { color: black; }');
     await Bun.write(join(dir, 'dist/assets/app.js'), 'console.log("ok");');
     await Bun.write(join(dir, 'dist/assets/data.json'), '{"ok":true}');
@@ -848,11 +848,11 @@ describe('cli serve — cached 404 fallback headers', () => {
 
 describe('cli serve — auto-build when dist/ is missing', () => {
   async function makeServeFixtureWithoutDist(): Promise<string> {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-serve-nodist-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-serve-nodist-')));
     await mkdir(join(dir, 'content/posts'), { recursive: true });
     await mkdir(join(dir, 'content/authors'), { recursive: true });
     await writeFile(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       [
         '[site]',
         'title = "Auto Build Test"',
@@ -915,7 +915,7 @@ describe('isIgnoredChange', () => {
     expect(isIgnoredChange('posts/hello.md')).toBe(false);
     expect(isIgnoredChange('index.hbs')).toBe(false);
     expect(isIgnoredChange('locales/en.json')).toBe(false);
-    expect(isIgnoredChange('nectar.toml')).toBe(false);
+    expect(isIgnoredChange('laurel.toml')).toBe(false);
   });
 });
 
@@ -923,15 +923,15 @@ describe('injectLiveReloadScript', () => {
   test('injects the client script before </body>', () => {
     const html = '<!doctype html><html><body><h1>hi</h1></body></html>';
     const out = injectLiveReloadScript(html);
-    expect(out).toContain('__nectar_livereload');
-    expect(out.indexOf('__nectar_livereload')).toBeLessThan(out.indexOf('</body>'));
+    expect(out).toContain('__laurel_livereload');
+    expect(out.indexOf('__laurel_livereload')).toBeLessThan(out.indexOf('</body>'));
   });
 
   test('appends the script when </body> is missing', () => {
     const html = '<!doctype html><p>fragment</p>';
     const out = injectLiveReloadScript(html);
     expect(out.startsWith(html)).toBe(true);
-    expect(out).toContain('__nectar_livereload');
+    expect(out).toContain('__laurel_livereload');
   });
 });
 
@@ -974,9 +974,9 @@ describe('cli serve — --port validation', () => {
 
 describe('cli serve — base_path in startup log', () => {
   async function makeFixtureWithBasePath(basePath: string): Promise<string> {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-serve-bp-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-serve-bp-')));
     await Bun.write(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       `[site]\ntitle = "x"\n\n[build]\nbase_path = "${basePath}"\n`,
     );
     await Bun.write(join(dir, 'dist/index.html'), '<!doctype html>ok');
@@ -1009,11 +1009,11 @@ describe('cli serve — base_path in startup log', () => {
 
 describe('cli serve — --build', () => {
   async function makeFixtureWithBuiltSite(): Promise<string> {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-serve-build-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-serve-build-')));
     await mkdir(join(dir, 'content/posts'), { recursive: true });
     await mkdir(join(dir, 'content/authors'), { recursive: true });
     await writeFile(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       [
         '[site]',
         'title = "Force Build Test"',

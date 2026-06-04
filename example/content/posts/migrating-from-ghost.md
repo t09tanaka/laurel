@@ -1,7 +1,7 @@
 ---
 authors:
   - honeybee
-custom_excerpt: How `nectar import-ghost` turns a Ghost JSON export into Markdown.
+custom_excerpt: How `laurel import-ghost` turns a Ghost JSON export into Markdown.
 date: 2026-05-15T11:30:00.000Z
 feature_image: /content/images/migration-cover.svg
 feature_image_alt: A bee flying between two flowers
@@ -14,7 +14,7 @@ title: Migrating from Ghost
 updated_at: 2026-05-25T05:47:06.337Z
 ---
 
-Run `nectar import-ghost ghost-export.json` from your project root. The
+Run `laurel import-ghost ghost-export.json` from your project root. The
 importer reads your Ghost admin export, converts each post's HTML body to
 Markdown via [turndown](https://github.com/mixmark-io/turndown), and writes:
 
@@ -26,11 +26,11 @@ Markdown via [turndown](https://github.com/mixmark-io/turndown), and writes:
 
 Image URLs are kept as-is. If your Ghost site served them from
 `/content/images/`, copy the `content/images/` directory from your Ghost
-backup into your Nectar project, and the URLs will continue to resolve.
+backup into your Laurel project, and the URLs will continue to resolve.
 
 ## Frontmatter mapping
 
-| Ghost field        | Nectar frontmatter   |
+| Ghost field        | Laurel frontmatter   |
 |--------------------|----------------------|
 | `published_at`     | `date`               |
 | `feature_image`    | `feature_image`      |

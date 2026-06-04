@@ -7,12 +7,12 @@ import {
   buildFediverseDiscovery,
   emitFediverseDiscovery,
 } from '~/build/fediverse.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 
-function makeConfig(): NectarConfig {
+function makeConfig(): LaurelConfig {
   return {
     site: { url: 'https://example.com' },
-  } as unknown as NectarConfig;
+  } as unknown as LaurelConfig;
 }
 
 describe('fediverse discovery', () => {
@@ -26,12 +26,12 @@ describe('fediverse discovery', () => {
   });
 
   test('emits the .well-known non-support artifact', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-fediverse-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-fediverse-'));
     try {
       await emitFediverseDiscovery({ config: makeConfig(), outputDir });
 
       const body = JSON.parse(await readFile(join(outputDir, FEDIVERSE_DISCOVERY_PATH), 'utf8'));
-      expect(body.schema).toBe('nectar.fediverse.v1');
+      expect(body.schema).toBe('laurel.fediverse.v1');
       expect(body.activitypub.supported).toBe(false);
     } finally {
       await rm(outputDir, { recursive: true, force: true });

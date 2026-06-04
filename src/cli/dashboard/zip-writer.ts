@@ -13,7 +13,7 @@ import { deflateRawSync } from 'node:zlib';
 //
 // Limitations: no Zip64, no encryption, no extra fields. Output dirs that
 // exceed 2^32 bytes total or contain >65535 files will hit the spec's 32-bit
-// caps — Nectar dist outputs are nowhere near either ceiling.
+// caps — Laurel dist outputs are nowhere near either ceiling.
 
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);

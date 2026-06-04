@@ -14,7 +14,7 @@ const external = [
   ...Object.keys(pkg.peerDependencies ?? {}),
   ...Object.keys(pkg.optionalDependencies ?? {}),
 ];
-const outdir = process.env.NECTAR_BUILD_OUTDIR?.trim() || 'dist';
+const outdir = process.env.LAUREL_BUILD_OUTDIR?.trim() || 'dist';
 
 const entries: Array<{ entrypoint: string; outName: string; bin?: true }> = [
   { entrypoint: 'src/cli/index.ts', outName: 'cli.mjs', bin: true },

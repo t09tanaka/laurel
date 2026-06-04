@@ -2,19 +2,19 @@ import { describe, expect, it } from 'bun:test';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { NectarConfig } from '../../src/config/schema.ts';
+import type { LaurelConfig } from '../../src/config/schema.ts';
 import { loadComponents } from '../../src/content/components.ts';
 
-function fakeConfig(componentsDir: string): NectarConfig {
+function fakeConfig(componentsDir: string): LaurelConfig {
   return {
     content: { components_dir: componentsDir },
-  } as unknown as NectarConfig;
+  } as unknown as LaurelConfig;
 }
 
 async function withTempProject(
   files: Record<string, string>,
-): Promise<{ cwd: string; config: NectarConfig }> {
-  const cwd = await mkdtemp(join(tmpdir(), 'nectar-components-'));
+): Promise<{ cwd: string; config: LaurelConfig }> {
+  const cwd = await mkdtemp(join(tmpdir(), 'laurel-components-'));
   const componentsDir = 'content/components';
   await mkdir(join(cwd, componentsDir), { recursive: true });
   for (const [name, body] of Object.entries(files)) {

@@ -210,7 +210,7 @@ describe('emitRss', () => {
   });
 
   test('declares atom namespace and emits atom:link rel="self"', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
 
@@ -224,7 +224,7 @@ describe('emitRss', () => {
   });
 
   test('skips rewriting unchanged RSS files when the feed hash matches', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-cache-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-cache-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
     content.sources = {
@@ -256,7 +256,7 @@ describe('emitRss', () => {
   });
 
   test('uses post.feed_html instead of post.html so paywalled bodies do not leak', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({
       site: { title: 'T', url: 'https://example.com' },
       components: { rss: { full_content: true } },
@@ -281,7 +281,7 @@ describe('emitRss', () => {
   });
 
   test('atom:link self honors trailing slash on site.url', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com/' } });
     const content = makeGraph();
 
@@ -294,7 +294,7 @@ describe('emitRss', () => {
   });
 
   test('canonicalizes RSS route URLs with trailing_slash = never', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-canonical-never-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-canonical-never-'));
     const config = configSchema.parse({
       site: { title: 'T', url: 'https://example.com/' },
       build: { trailing_slash: 'never' },
@@ -317,7 +317,7 @@ describe('emitRss', () => {
   });
 
   test('single-page feeds emit only rss.xml without prev/next atom links', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
 
@@ -330,7 +330,7 @@ describe('emitRss', () => {
   });
 
   test('paginates overflow posts into rss-N.xml with atom prev/next links', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
     content.posts = Array.from({ length: 5 }, (_, i) =>
@@ -378,7 +378,7 @@ describe('emitRss', () => {
   });
 
   test('hard-clamps items per page to RSS_MAX_ITEMS_PER_PAGE', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
     content.posts = Array.from({ length: RSS_MAX_ITEMS_PER_PAGE + 5 }, (_, i) =>
@@ -403,7 +403,7 @@ describe('emitRss', () => {
   });
 
   test('non-positive limit falls back to a single item per page', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
 
@@ -414,7 +414,7 @@ describe('emitRss', () => {
   });
 
   test('splits literal "]]>" inside post html so CDATA does not terminate early', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({
       site: { title: 'T', url: 'https://example.com' },
       components: { rss: { full_content: true } },
@@ -437,7 +437,7 @@ describe('emitRss', () => {
   });
 
   test('empty content emits a single rss.xml with no items', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
     content.posts = [];
@@ -451,7 +451,7 @@ describe('emitRss', () => {
   });
 
   test('empty content uses a deterministic epoch lastBuildDate', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
     content.posts = [];
@@ -463,7 +463,7 @@ describe('emitRss', () => {
   });
 
   test('emits <lastBuildDate> derived from the most recent post timestamp', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
     content.posts = [
@@ -493,7 +493,7 @@ describe('emitRss', () => {
   });
 
   test('emits <image> when site.logo is configured', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({
       site: {
         title: 'My Site',
@@ -515,7 +515,7 @@ describe('emitRss', () => {
   });
 
   test('preserves absolute logo URLs without rewriting against site.url', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({
       site: {
         title: 'T',
@@ -532,7 +532,7 @@ describe('emitRss', () => {
   });
 
   test('uses the post UUID as the RSS guid when available', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
     const uuid = '11111111-2222-5333-8444-555555555555';
@@ -555,7 +555,7 @@ describe('emitRss', () => {
   test('declares dc and media namespaces and emits channel metadata', async () => {
     // Issue #428: Ghost-conformant channel declares dc / atom / media / content
     // namespaces and a <generator> element.
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
 
@@ -566,13 +566,13 @@ describe('emitRss', () => {
     expect(xml).toContain('xmlns:media="http://search.yahoo.com/mrss/"');
     expect(xml).toContain('xmlns:content="http://purl.org/rss/1.0/modules/content/"');
     expect(xml).toContain('xmlns:atom="http://www.w3.org/2005/Atom"');
-    expect(xml).toContain('<generator>Nectar</generator>');
+    expect(xml).toContain('<generator>Laurel</generator>');
     expect(xml).toContain('<docs>https://www.rssboard.org/rss-specification</docs>');
     expect(xml).toContain('<ttl>60</ttl>');
   });
 
   test('emits configured RSS ttl in channel metadata', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-ttl-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-ttl-'));
     const config = configSchema.parse({
       site: { title: 'T', url: 'https://example.com' },
       components: { rss: { ttl: 15 } },
@@ -587,7 +587,7 @@ describe('emitRss', () => {
 
   test('wraps content:encoded HTML in CDATA, not entity-escaped', async () => {
     // Issue #427: entity-escaping makes Feedly show literal <p> tags as text.
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({
       site: { title: 'T', url: 'https://example.com' },
       components: { rss: { full_content: true } },
@@ -610,7 +610,7 @@ describe('emitRss', () => {
   test('wraps title and description in CDATA even with special characters', async () => {
     // Issue #427: titles with `&`/`<` should not be entity-escaped — Ghost
     // wraps them in CDATA so readers render them verbatim.
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
     content.posts = [
@@ -630,7 +630,7 @@ describe('emitRss', () => {
   test('emits <category> per public tag, skipping internal tags', async () => {
     // Issue #428: Ghost emits <category> per tag, with internal tags
     // ('hash'-prefixed slug, visibility=internal) skipped.
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
     const newsTag = makeTag({ id: 't-news', slug: 'news', name: 'News' });
@@ -659,7 +659,7 @@ describe('emitRss', () => {
   test('emits <dc:creator> per author', async () => {
     // Issue #428: Ghost emits <dc:creator> for each author. Authors come in
     // primary-first order from the content graph.
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
     const casper = makeAuthor({ id: 'a-1', slug: 'casper', name: 'Casper' });
@@ -684,7 +684,7 @@ describe('emitRss', () => {
 
   test('emits <media:content> when post.feature_image is set', async () => {
     // Issue #428: Feedly/Inoreader surface media:content as the item thumbnail.
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
     content.posts = [makePost({ feature_image: '/content/images/cover.jpg' })];
@@ -698,7 +698,7 @@ describe('emitRss', () => {
   });
 
   test('preserves absolute feature_image URLs without rewriting against site.url', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
     content.posts = [makePost({ feature_image: 'https://cdn.example.org/c.jpg' })];
@@ -710,7 +710,7 @@ describe('emitRss', () => {
   });
 
   test('omits <media:content> when post.feature_image is not set', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
     content.posts = [makePost({ feature_image: undefined })];
@@ -722,7 +722,7 @@ describe('emitRss', () => {
   });
 
   test('omits <image> when site.logo is not set', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
 
@@ -735,7 +735,7 @@ describe('emitRss', () => {
   test('full_content=false (default) emits only <description>, never <content:encoded>', async () => {
     // Backlog #517: 10k items * 30KB inline body = 300MB feeds.
     // Default keeps the feed lean; aggregators that need the body re-fetch.
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const content = makeGraph();
     const post = content.posts[0];
@@ -754,7 +754,7 @@ describe('emitRss', () => {
   test('full_content=true emits <content:encoded> with the post HTML body', async () => {
     // Backlog #517: opt-in for the Ghost-default behavior. Bandwidth-heavy
     // but useful when aggregators rely on the full body in the feed.
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-'));
     const config = configSchema.parse({
       site: { title: 'T', url: 'https://example.com' },
       components: { rss: { full_content: true } },
@@ -775,7 +775,7 @@ describe('emitRss', () => {
   });
 
   test('full_content=true emits feed-safe Koenig card HTML without mutating page HTML', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-feed-safe-cards-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-feed-safe-cards-'));
     const config = configSchema.parse({
       site: { title: 'T', url: 'https://example.com' },
       components: { rss: { full_content: true } },
@@ -821,7 +821,7 @@ describe('emitRss', () => {
 // `/tag/<slug>/rss/` and `/author/<slug>/rss/` routes.
 describe('emitRss per-tag and per-author feeds (issue #786)', () => {
   test('emits tag/<slug>/rss/index.xml with only posts tagged with that tag', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-pertag-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-pertag-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const news = makeTag({
       id: 'tag-news',
@@ -879,7 +879,7 @@ describe('emitRss per-tag and per-author feeds (issue #786)', () => {
   });
 
   test('skips internal tags and tags with no posts', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-pertag-skip-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-pertag-skip-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const internalTag = makeTag({
       id: 'tag-internal',
@@ -909,7 +909,7 @@ describe('emitRss per-tag and per-author feeds (issue #786)', () => {
   });
 
   test('emits author/<slug>/rss/index.xml with only posts authored by that author', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-perauthor-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-perauthor-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const alice = makeAuthor({
       id: 'a-alice',
@@ -966,7 +966,7 @@ describe('emitRss per-tag and per-author feeds (issue #786)', () => {
   });
 
   test('per_tag = false suppresses tag feeds; per_author = false suppresses author feeds', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-disabled-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-disabled-'));
     const config = configSchema.parse({
       site: { title: 'T', url: 'https://example.com' },
       components: { rss: { per_tag: false, per_author: false } },
@@ -985,7 +985,7 @@ describe('emitRss per-tag and per-author feeds (issue #786)', () => {
 
 describe('emitRss per-collection feeds (issue #967)', () => {
   test('emits collection/rss/index.xml with only posts assigned to that collection', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-collection-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-collection-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const blogTag = makeTag({
       id: 'tag-blog',
@@ -1054,7 +1054,7 @@ describe('emitRss per-collection feeds (issue #967)', () => {
   });
 
   test('skips collections with rss disabled', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-rss-collection-off-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-rss-collection-off-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const hiddenTag = makeTag({
       id: 'tag-hidden',
@@ -1092,7 +1092,7 @@ describe('emitRss per-collection feeds (issue #967)', () => {
 
 describe('emitSitemap', () => {
   test('sitemap.xml is always a <sitemapindex> referencing all four Ghost sub-sitemaps', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
 
     await emitSitemap({
@@ -1125,7 +1125,7 @@ describe('emitSitemap', () => {
   });
 
   test('per-kind sub-sitemaps emit <lastmod>, <changefreq>, <priority> for every entry', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
 
     await emitSitemap({
@@ -1164,7 +1164,7 @@ describe('emitSitemap', () => {
   });
 
   test('post sub-sitemap emits image extension entries for feature images', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
 
     await emitSitemap({
@@ -1211,7 +1211,7 @@ describe('emitSitemap', () => {
   });
 
   test('post sub-sitemap skips feature image URLs that cannot be sitemap image loc values', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
 
     await emitSitemap({
@@ -1233,7 +1233,7 @@ describe('emitSitemap', () => {
   });
 
   test('sitemap XML escapes values and strips XML-forbidden control characters', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-xml-escape-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-sitemap-xml-escape-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
 
     await emitSitemap({
@@ -1255,7 +1255,7 @@ describe('emitSitemap', () => {
   });
 
   test('canonicalizes sitemap route URLs with trailing_slash = never', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-canonical-never-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-sitemap-canonical-never-'));
     const config = configSchema.parse({
       site: { title: 'T', url: 'https://example.com/' },
       build: { trailing_slash: 'never' },
@@ -1284,7 +1284,7 @@ describe('emitSitemap', () => {
   });
 
   test('uses Ghost priorities: posts 0.7, pages 0.6, tags 0.6, authors 0.6', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
 
     await emitSitemap({
@@ -1313,7 +1313,7 @@ describe('emitSitemap', () => {
   });
 
   test('non-ISO lastmod strings pass through unchanged', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
 
     await emitSitemap({
@@ -1327,7 +1327,7 @@ describe('emitSitemap', () => {
   });
 
   test('unclassified entries fall back to monthly/0.5 defaults under sitemap-pages', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
 
     await emitSitemap({
@@ -1345,7 +1345,7 @@ describe('emitSitemap', () => {
   });
 
   test('caller can override changefreq and priority per entry', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
 
     await emitSitemap({
@@ -1360,7 +1360,7 @@ describe('emitSitemap', () => {
   });
 
   test('clamps out-of-range priority into [0.0, 1.0]', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
 
     await emitSitemap({
@@ -1381,7 +1381,7 @@ describe('emitSitemap', () => {
   });
 
   test('above the 50k URL cap, per-kind sub-sitemaps split into -2.xml, -3.xml ...', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
 
     const overflow = SITEMAP_MAX_URLS_PER_FILE + 1;
@@ -1419,7 +1419,7 @@ describe('emitSitemap', () => {
   }, 15000);
 
   test('empty per-kind buckets still emit a sub-sitemap with no urls', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
 
     // Only feed posts. Pages, tags, authors must still get their canonical
@@ -1449,7 +1449,7 @@ describe('emitSitemap', () => {
   });
 
   test('emits gzip companions for every sitemap and the index', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-sitemap-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
 
     await emitSitemap({
@@ -1480,7 +1480,7 @@ describe('emitSitemap', () => {
   });
 
   test('skips rewriting unchanged sitemap files and gzip companions when hashes match', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-cache-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-sitemap-cache-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const urls: SitemapEntry[] = [{ url: '/hello/', kind: 'posts' }];
     const firstFeeds = {};
@@ -1504,7 +1504,7 @@ describe('emitSitemap', () => {
   });
 
   test('sitemap cache ignores content source fingerprints when rendered entries are unchanged (#1747)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-sitemap-cache-no-content-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-sitemap-cache-no-content-'));
     const config = configSchema.parse({ site: { title: 'T', url: 'https://example.com' } });
     const urls: SitemapEntry[] = [{ url: '/hello/', kind: 'posts' }];
     const firstFeeds = {};

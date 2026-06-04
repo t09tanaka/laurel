@@ -29,7 +29,7 @@ describe('cli integration — root usage', () => {
     expect(exitCode).toBe(2);
     expect(stdout).toBe('');
     expect(stderr).toContain('Usage:');
-    expect(stderr).toContain('nectar <command>');
+    expect(stderr).toContain('laurel <command>');
   });
 
   test.each([['--help'], ['-h'], ['help']])('%s exits 0 and prints top-level help', async (arg) => {
@@ -38,6 +38,6 @@ describe('cli integration — root usage', () => {
     expect(exitCode).toBe(0);
     expect(stderr).toBe('');
     expect(stdout).toContain('Usage:');
-    expect(stdout).toContain('nectar <command>');
+    expect(stdout).toContain('laurel <command>');
   });
 });

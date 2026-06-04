@@ -604,7 +604,7 @@ export interface FetchOgpOptions {
   maxRedirects: number;
 }
 
-const USER_AGENT = 'Nectar-OGP/1.0 (+nectar)';
+const USER_AGENT = 'Laurel-OGP/1.0 (+laurel)';
 
 function parseUrl(raw: string): URL | null {
   try {
@@ -828,7 +828,7 @@ export type OgpFetchResult =
 export async function fetchOgp(url: string): Promise<OgpFetchResult> {
   const res = await fetch('/api/ogp', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-nectar-dashboard-token': TOKEN },
+    headers: { 'content-type': 'application/json', 'x-laurel-dashboard-token': TOKEN },
     body: JSON.stringify({ url }),
   });
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;

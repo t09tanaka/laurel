@@ -1,9 +1,9 @@
 import { describe, expect, spyOn, test } from 'bun:test';
 import Handlebars from 'handlebars';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, Tag, Tier } from '~/content/model.ts';
 import { computePostClass } from '~/render/class-names.ts';
-import { type NectarEngine, buildContext, buildRootData, createEngine } from '~/render/engine.ts';
+import { type LaurelEngine, buildContext, buildRootData, createEngine } from '~/render/engine.ts';
 import { registerBlockHelpers } from '~/render/helpers/blocks.ts';
 import { registerFlowHelpers } from '~/render/helpers/flow.ts';
 import { isMemberStubLeaf } from '~/render/member-stub.ts';
@@ -11,7 +11,7 @@ import type { RouteContext } from '~/render/types.ts';
 import type { ThemeBundle, ThemePackage } from '~/theme/types.ts';
 import { logger } from '~/util/logger.ts';
 
-const engine = {} as NectarEngine;
+const engine = {} as LaurelEngine;
 
 const baseMeta: RouteContext['meta'] = {
   title: '',
@@ -842,7 +842,7 @@ describe('buildContext', () => {
           data: { pagination: makePagination(2) },
           meta: baseMeta,
         },
-        expected: ['nectar-route-home', 'archive-template', 'paged'],
+        expected: ['laurel-route-home', 'archive-template', 'paged'],
         absent: ['home-template'],
       },
       {
@@ -854,7 +854,7 @@ describe('buildContext', () => {
           data: { tag: makeTag({ slug: 'news' }), pagination: makePagination(2) },
           meta: baseMeta,
         },
-        expected: ['nectar-route-tag', 'tag-template', 'archive-template', 'tag-news', 'paged'],
+        expected: ['laurel-route-tag', 'tag-template', 'archive-template', 'tag-news', 'paged'],
       },
       {
         route: {
@@ -866,7 +866,7 @@ describe('buildContext', () => {
           meta: baseMeta,
         },
         expected: [
-          'nectar-route-author',
+          'laurel-route-author',
           'author-template',
           'archive-template',
           'author-jane',
@@ -1103,7 +1103,7 @@ describe('buildContext', () => {
       hb,
       content: { posts: [], pages: [], tags: [], authors: [], tiers: [] },
       sortedCache: new Map<string, readonly unknown[]>(),
-    } as unknown as NectarEngine;
+    } as unknown as LaurelEngine;
     registerBlockHelpers(blockEngine);
 
     const ctx = buildContext(blockEngine, route);
@@ -1136,7 +1136,7 @@ describe('buildContext', () => {
       hb,
       content: { posts: [post], pages: [], tags: [], authors: [], tiers: [] },
       sortedCache: new Map<string, readonly unknown[]>(),
-    } as unknown as NectarEngine;
+    } as unknown as LaurelEngine;
     registerBlockHelpers(blockEngine);
 
     const ctx = buildContext(blockEngine, route);
@@ -1166,7 +1166,7 @@ describe('buildContext', () => {
       hb,
       content: { posts: [], pages: [], tags: [], authors: [author], tiers: [] },
       sortedCache: new Map<string, readonly unknown[]>(),
-    } as unknown as NectarEngine;
+    } as unknown as LaurelEngine;
     registerBlockHelpers(blockEngine);
 
     const ctx = buildContext(blockEngine, route);
@@ -1191,7 +1191,7 @@ function makePagination(page: number): RouteContext['data']['pagination'] {
 }
 
 describe('buildRootData', () => {
-  function makeEngine(pkg: Partial<ThemePackage> = {}): NectarEngine {
+  function makeEngine(pkg: Partial<ThemePackage> = {}): LaurelEngine {
     const themePkg: ThemePackage = {
       name: 'theme',
       version: '0.0.0',
@@ -1206,12 +1206,12 @@ describe('buildRootData', () => {
       config: {
         theme: { custom: {} },
         build: { posts_per_page: 99 },
-      } as unknown as NectarEngine['config'],
+      } as unknown as LaurelEngine['config'],
       content: {
         site: { locale: 'en' },
-      } as unknown as NectarEngine['content'],
-      theme: { pkg: themePkg } as unknown as NectarEngine['theme'],
-    } as NectarEngine;
+      } as unknown as LaurelEngine['content'],
+      theme: { pkg: themePkg } as unknown as LaurelEngine['theme'],
+    } as LaurelEngine;
   }
 
   function makeRoute(kind: RouteContext['kind'] = 'home'): RouteContext {
@@ -1243,7 +1243,7 @@ describe('buildRootData', () => {
     });
   });
 
-  test('@config does not leak the raw NectarConfig shape (no nested build/theme keys)', () => {
+  test('@config does not leak the raw LaurelConfig shape (no nested build/theme keys)', () => {
     const engine = makeEngine();
     const route = makeRoute();
     const data = buildRootData(engine, route);
@@ -1270,7 +1270,7 @@ describe('buildRootData', () => {
     engine.config = {
       ...engine.config,
       site: { accent_color: '#111111' },
-    } as unknown as NectarEngine['config'];
+    } as unknown as LaurelEngine['config'];
     const data = buildRootData(engine, makeRoute());
 
     expect(data.text_color_class).toBe('has-light-text');
@@ -1283,7 +1283,7 @@ describe('buildRootData', () => {
       site: {
         icon: '/content/images/site-icon.svg',
       },
-    } as unknown as NectarEngine['config'];
+    } as unknown as LaurelEngine['config'];
     const route: RouteContext = {
       kind: 'home',
       url: '/',
@@ -1311,7 +1311,7 @@ describe('buildRootData', () => {
         paid_members_enabled: true,
         navigation: [{ label: 'Members', url: '/members/' }],
       },
-    } as unknown as NectarEngine['content'];
+    } as unknown as LaurelEngine['content'];
     const route: RouteContext = {
       kind: 'page',
       url: '/members/',
@@ -1346,7 +1346,7 @@ describe('buildRootData', () => {
         title: 'Theme URL Site',
         url: 'https://example.com/blog//',
       },
-    } as unknown as NectarEngine['content'];
+    } as unknown as LaurelEngine['content'];
     const data = buildRootData(engine, makeRoute());
     const site = data.site as { url: string };
 
@@ -1371,7 +1371,7 @@ describe('buildRootData', () => {
         url: 'https://example.com/blog/',
         members_enabled: true,
       },
-    } as unknown as NectarEngine['content'];
+    } as unknown as LaurelEngine['content'];
     const data = buildRootData(engine, makeRoute());
     const site = data.site as Record<string, unknown>;
 
@@ -1430,7 +1430,7 @@ describe('buildRootData', () => {
           title: 'Journal Alias Site',
           paid_members_enabled,
         },
-      } as unknown as NectarEngine['content'];
+      } as unknown as LaurelEngine['content'];
       const data = buildRootData(engine, makeRoute());
       const hb = Handlebars.create();
       const tpl = hb.compile(
@@ -1454,7 +1454,7 @@ describe('buildRootData', () => {
         comments_enabled: false,
         comments_access: 'members',
       },
-    } as unknown as NectarEngine['content'];
+    } as unknown as LaurelEngine['content'];
     const data = buildRootData(engine, makeRoute());
     const hb = Handlebars.create();
     const tpl = hb.compile(
@@ -1475,13 +1475,13 @@ describe('buildRootData', () => {
         portal_button_icon: 'icon-2',
         portal_button_signup_text: 'Join now',
         portal_button_style: 'icon-and-text',
-        portal_name: 'Nectar Portal',
+        portal_name: 'Laurel Portal',
         portal_plans: ['free', 'monthly'],
         portal_signup_checkbox_required: true,
         portal_signup_terms_html: '<p>Terms apply</p>',
         signup_url: 'https://portal.example/signup/',
       },
-    } as unknown as NectarEngine['content'];
+    } as unknown as LaurelEngine['content'];
     const data = buildRootData(engine, makeRoute());
     const hb = Handlebars.create();
     const tpl = hb.compile(
@@ -1489,7 +1489,7 @@ describe('buildRootData', () => {
     );
 
     expect(tpl({}, { data })).toBe(
-      'button|icon-2|Join now|icon-and-text|Nectar Portal|2|terms|&lt;p&gt;Terms apply&lt;/p&gt;|https://portal.example/signup/',
+      'button|icon-2|Join now|icon-and-text|Laurel Portal|2|terms|&lt;p&gt;Terms apply&lt;/p&gt;|https://portal.example/signup/',
     );
   });
 
@@ -1519,20 +1519,20 @@ describe('buildRootData', () => {
       config: {
         theme: { custom: {} },
         build: { posts_per_page: 99 },
-      } as unknown as NectarEngine['config'],
+      } as unknown as LaurelEngine['config'],
       content: {
         site: { locale: 'en' },
         posts,
         pages: [],
         tags: [],
         authors: [],
-      } as unknown as NectarEngine['content'],
-      theme: { pkg: themePkg } as unknown as NectarEngine['theme'],
+      } as unknown as LaurelEngine['content'],
+      theme: { pkg: themePkg } as unknown as LaurelEngine['theme'],
       templates: {},
       layouts: {},
       sortedCache: new Map<string, readonly unknown[]>(),
       render: () => '',
-    } as NectarEngine;
+    } as LaurelEngine;
     registerBlockHelpers(engine);
     const route: RouteContext = {
       kind: 'home',
@@ -1573,20 +1573,20 @@ describe('buildRootData', () => {
       config: {
         theme: { custom: {} },
         build: { posts_per_page: 99 },
-      } as unknown as NectarEngine['config'],
+      } as unknown as LaurelEngine['config'],
       content: {
         site: { locale: 'en' },
         posts,
         pages: [],
         tags: [],
         authors: [],
-      } as unknown as NectarEngine['content'],
-      theme: { pkg: themePkg } as unknown as NectarEngine['theme'],
+      } as unknown as LaurelEngine['content'],
+      theme: { pkg: themePkg } as unknown as LaurelEngine['theme'],
       templates: {},
       layouts: {},
       sortedCache: new Map<string, readonly unknown[]>(),
       render: () => '',
-    } as NectarEngine;
+    } as LaurelEngine;
     registerBlockHelpers(engine);
     const route: RouteContext = {
       kind: 'index',
@@ -1612,7 +1612,7 @@ describe('buildRootData', () => {
   });
 
   // Issue #122 / #974: Source theme reads `@member` in header / footer / CTA /
-  // nav / post-list. Nectar has no logged-in viewer, so `@member` must behave
+  // nav / post-list. Laurel has no logged-in viewer, so `@member` must behave
   // falsy on every route while still allowing strict path access such as
   // `@member.paid`.
   test('@member is a safe unauthenticated stub on every route kind (issues #122, #974)', () => {
@@ -1645,7 +1645,7 @@ describe('buildRootData', () => {
     };
     const data = buildRootData(engine, route);
     const hb = Handlebars.create();
-    registerFlowHelpers({ hb } as NectarEngine);
+    registerFlowHelpers({ hb } as LaurelEngine);
     const tpl = hb.compile(
       [
         '{{#unless @member}}signin{{/unless}}',
@@ -1669,7 +1669,7 @@ describe('buildRootData', () => {
     };
     const data = buildRootData(engine, route);
     const hb = Handlebars.create();
-    registerFlowHelpers({ hb } as NectarEngine);
+    registerFlowHelpers({ hb } as LaurelEngine);
     const tpl = hb.compile(
       [
         '{{#unless @member}}signin{{else}}account{{/unless}}',
@@ -1695,7 +1695,7 @@ describe('buildRootData', () => {
     };
     const data = buildRootData(engine, route);
     const hb = Handlebars.create();
-    registerFlowHelpers({ hb } as NectarEngine);
+    registerFlowHelpers({ hb } as LaurelEngine);
     const tpl = hb.compile('{{^if @member.paid}}upsell{{/if}}');
     expect(tpl({}, { data })).toBe('upsell');
   });
@@ -1711,7 +1711,7 @@ describe('buildRootData', () => {
       components: {
         preview: { member: { paid: true, name: 'Preview User' } },
       },
-    } as unknown as NectarEngine['config'];
+    } as unknown as LaurelEngine['config'];
     const route: RouteContext = {
       kind: 'home',
       url: '/',
@@ -1738,7 +1738,7 @@ describe('buildRootData', () => {
     engine.config = {
       ...engine.config,
       components: { preview: { member: { paid: false } } },
-    } as unknown as NectarEngine['config'];
+    } as unknown as LaurelEngine['config'];
     const route: RouteContext = {
       kind: 'home',
       url: '/',
@@ -1765,7 +1765,7 @@ describe('buildRootData', () => {
     engine.config = {
       ...engine.config,
       components: { preview: { member: { paid: true, name: 'Preview User' } } },
-    } as unknown as NectarEngine['config'];
+    } as unknown as LaurelEngine['config'];
     const route: RouteContext = {
       kind: 'home',
       url: '/',
@@ -1824,10 +1824,10 @@ describe('buildRootData', () => {
           },
         },
       },
-    } as unknown as NectarEngine['config'];
+    } as unknown as LaurelEngine['config'];
     const data = buildRootData(engine, makeRoute());
     const hb = Handlebars.create();
-    registerBlockHelpers({ ...engine, hb } as NectarEngine);
+    registerBlockHelpers({ ...engine, hb } as LaurelEngine);
     const tpl = hb.compile(
       [
         'card:{{@member.default_payment_card_last4}}',
@@ -1854,7 +1854,7 @@ describe('buildRootData', () => {
           },
         },
       },
-    } as unknown as NectarEngine['config'];
+    } as unknown as LaurelEngine['config'];
     const data = buildRootData(engine, makeRoute());
     const member = data.member as unknown as Record<string, unknown> & {
       subscriptions: Array<{
@@ -1866,7 +1866,7 @@ describe('buildRootData', () => {
     expect(() => member.subscriptions[0]?.plan.currency_symbol).not.toThrow();
 
     const hb = Handlebars.create();
-    registerBlockHelpers({ ...engine, hb } as NectarEngine);
+    registerBlockHelpers({ ...engine, hb } as LaurelEngine);
     const tpl = hb.compile(
       '{{#foreach @member.subscriptions}}[{{cancel_at_period_end}}][{{current_period_end}}][{{plan.currency_symbol}}][{{plan.interval}}]{{/foreach}}',
     );
@@ -1875,7 +1875,7 @@ describe('buildRootData', () => {
   });
 
   // Issue #418: themes branch on `@labs` to gate features behind a Ghost
-  // "Labs" toggle. Nectar has no labs surface, so the data frame must still
+  // "Labs" toggle. Laurel has no labs surface, so the data frame must still
   // ship an empty object so `{{#if @labs.foo}}` is deterministically falsy.
   test('@labs is exposed as an empty object so {{#if @labs.*}} is always falsy', () => {
     const engine = makeEngine();
@@ -1911,7 +1911,7 @@ describe('buildRootData', () => {
       config: {
         theme: { custom: {} },
         build: {},
-      } as unknown as NectarEngine['config'],
+      } as unknown as LaurelEngine['config'],
       content: {
         site: {
           locale: 'en',
@@ -1922,9 +1922,9 @@ describe('buildRootData', () => {
           ],
           secondary_navigation: [{ label: 'RSS Feed', url: '/rss.xml' }],
         },
-      } as unknown as NectarEngine['content'],
-      theme: { pkg: themePkg } as unknown as NectarEngine['theme'],
-    } as NectarEngine;
+      } as unknown as LaurelEngine['content'],
+      theme: { pkg: themePkg } as unknown as LaurelEngine['theme'],
+    } as LaurelEngine;
     const route: RouteContext = {
       kind: 'page',
       url: '/about/',
@@ -1967,16 +1967,16 @@ describe('buildRootData', () => {
       customDefaults: {},
     };
     const engine = {
-      config: { theme: { custom: {} }, build: {} } as unknown as NectarEngine['config'],
+      config: { theme: { custom: {} }, build: {} } as unknown as LaurelEngine['config'],
       content: {
         site: {
           locale: 'en',
           navigation: [],
           secondary_navigation: [],
         },
-      } as unknown as NectarEngine['content'],
-      theme: { pkg: themePkg } as unknown as NectarEngine['theme'],
-    } as NectarEngine;
+      } as unknown as LaurelEngine['content'],
+      theme: { pkg: themePkg } as unknown as LaurelEngine['theme'],
+    } as LaurelEngine;
     const route: RouteContext = {
       kind: 'home',
       url: '/',
@@ -2008,7 +2008,7 @@ describe('buildRootData', () => {
       customDefaults: {},
     };
     const engine = {
-      config: { theme: { custom: {} }, build: {} } as unknown as NectarEngine['config'],
+      config: { theme: { custom: {} }, build: {} } as unknown as LaurelEngine['config'],
       content: {
         site: {
           locale: 'en',
@@ -2021,9 +2021,9 @@ describe('buildRootData', () => {
             commit_sha: 'abc123def456',
           },
         },
-      } as unknown as NectarEngine['content'],
-      theme: { pkg: themePkg } as unknown as NectarEngine['theme'],
-    } as NectarEngine;
+      } as unknown as LaurelEngine['content'],
+      theme: { pkg: themePkg } as unknown as LaurelEngine['theme'],
+    } as LaurelEngine;
     const route: RouteContext = {
       kind: 'home',
       url: '/',
@@ -2073,7 +2073,7 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     };
   }
 
-  function makeConfig(): NectarConfig {
+  function makeConfig(): LaurelConfig {
     return {
       site: {
         title: 'Example',
@@ -2089,7 +2089,7 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
       components: {},
       theme: { dir: 'themes', name: 'fixture', custom: {} },
       recommendations: [],
-    } as unknown as NectarConfig;
+    } as unknown as LaurelConfig;
   }
 
   function makeContent(): ContentGraph {
@@ -2153,7 +2153,7 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
     const partial = engine.hb.partials.post;
     expect(typeof partial).toBe('function');
-    const partialSource = (partial as { __nectarSource?: string }).__nectarSource ?? '';
+    const partialSource = (partial as { __laurelSource?: string }).__laurelSource ?? '';
     expect(partialSource).not.toContain('{{!< default}}');
     expect(partialSource).toContain('<article>{{post.title}}</article>');
   });
@@ -2165,7 +2165,7 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
     const engine = createEngine({ config: makeConfig(), content: makeContent(), theme });
     const partial = engine.hb.partials.home as Handlebars.TemplateDelegate;
     expect(typeof partial).toBe('function');
-    expect((partial as { __nectarSource?: string }).__nectarSource).toBe(
+    expect((partial as { __laurelSource?: string }).__laurelSource).toBe(
       '<section>{{@site.title}}</section>',
     );
   });
@@ -2973,7 +2973,7 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
   });
 
   // Biron uses `{{{error.message}}}` for a runtime subscribe POST error
-  // display. Nectar does not seed that context on normal static routes, and
+  // display. Laurel does not seed that context on normal static routes, and
   // Handlebars should resolve the missing path to an empty string rather than
   // crashing the render.
   test('missing runtime error context renders empty on normal routes (issue #1704)', () => {
@@ -3040,7 +3040,7 @@ describe('createEngine — template-as-partial namespace collision (issue #552)'
     };
   }
 
-  function makeConfig(): NectarConfig {
+  function makeConfig(): LaurelConfig {
     return {
       site: {
         title: 'Example',
@@ -3056,7 +3056,7 @@ describe('createEngine — template-as-partial namespace collision (issue #552)'
       components: {},
       theme: { dir: 'themes', name: 'fixture', custom: {} },
       recommendations: [],
-    } as unknown as NectarConfig;
+    } as unknown as LaurelConfig;
   }
 
   function makeContent(): ContentGraph {
@@ -3175,7 +3175,7 @@ describe('createEngine — template-as-partial namespace collision (issue #552)'
   });
 });
 
-// Issue #1135: Nectar ships a default `{{> search}}` partial so themes can
+// Issue #1135: Laurel ships a default `{{> search}}` partial so themes can
 // drop in the search widget without authoring markup themselves. Themes that
 // prefer their own UI must still be able to override by shipping
 // `partials/search.hbs`.
@@ -3204,7 +3204,7 @@ describe('createEngine — default search partial (issue #1135)', () => {
     };
   }
 
-  function makeConfig(): NectarConfig {
+  function makeConfig(): LaurelConfig {
     return {
       site: {
         title: 'Example',
@@ -3220,7 +3220,7 @@ describe('createEngine — default search partial (issue #1135)', () => {
       components: {},
       theme: { dir: 'themes', name: 'fixture', custom: {} },
       recommendations: [],
-    } as unknown as NectarConfig;
+    } as unknown as LaurelConfig;
   }
 
   function makeContent(): ContentGraph {
@@ -3284,8 +3284,8 @@ describe('createEngine — default search partial (issue #1135)', () => {
     const source = partial as string;
     expect(source).toContain('<search');
     expect(source).toContain('</search>');
-    expect(source).toContain('data-nectar-search');
-    expect(source).toContain('data-nectar-search-results');
+    expect(source).toContain('data-laurel-search');
+    expect(source).toContain('data-laurel-search-results');
   });
 
   test('the default `search` partial is also reachable as `partials/search`', () => {
@@ -3321,12 +3321,12 @@ describe('createEngine — default search partial (issue #1135)', () => {
       meta: baseMeta,
     };
     const html = engine.render(route);
-    expect(html).toContain('<search class="nectar-search" data-nectar-search-root>');
-    expect(html).toContain('data-nectar-search');
-    expect(html).toContain('data-nectar-search-results');
+    expect(html).toContain('<search class="laurel-search" data-laurel-search-root>');
+    expect(html).toContain('data-laurel-search');
+    expect(html).toContain('data-laurel-search-results');
   });
 
-  // Issue #207: Nectar also ships a default `{{> paywall}}` partial used in
+  // Issue #207: Laurel also ships a default `{{> paywall}}` partial used in
   // place of gated content. Same override semantics as the search partial.
   test('registers a default `paywall` partial themes can include via {{> paywall}}', () => {
     const theme = makeTheme({});
@@ -3395,7 +3395,7 @@ describe('createEngine — Bulletin feature image width custom setting', () => {
     };
   }
 
-  function makeConfig(custom: Record<string, unknown> = {}): NectarConfig {
+  function makeConfig(custom: Record<string, unknown> = {}): LaurelConfig {
     return {
       site: {
         title: 'Example',
@@ -3411,7 +3411,7 @@ describe('createEngine — Bulletin feature image width custom setting', () => {
       components: {},
       theme: { dir: 'themes', name: 'bulletin', custom },
       recommendations: [],
-    } as unknown as NectarConfig;
+    } as unknown as LaurelConfig;
   }
 
   function makeContent(): ContentGraph {
@@ -3515,7 +3515,7 @@ describe('createEngine — Solo header section layout custom setting', () => {
     };
   }
 
-  function makeConfig(custom: Record<string, unknown> = {}): NectarConfig {
+  function makeConfig(custom: Record<string, unknown> = {}): LaurelConfig {
     return {
       site: {
         title: 'Example',
@@ -3531,7 +3531,7 @@ describe('createEngine — Solo header section layout custom setting', () => {
       components: {},
       theme: { dir: 'themes', name: 'solo', custom },
       recommendations: [],
-    } as unknown as NectarConfig;
+    } as unknown as LaurelConfig;
   }
 
   function makeContent(): ContentGraph {
@@ -3623,7 +3623,7 @@ describe('createEngine — precompiled template+layout cache (issue #150)', () =
     };
   }
 
-  function makeConfig(): NectarConfig {
+  function makeConfig(): LaurelConfig {
     return {
       site: {
         title: 'Example',
@@ -3639,7 +3639,7 @@ describe('createEngine — precompiled template+layout cache (issue #150)', () =
       components: {},
       theme: { dir: 'themes', name: 'fixture', custom: {} },
       recommendations: [],
-    } as unknown as NectarConfig;
+    } as unknown as LaurelConfig;
   }
 
   function makeContent(): ContentGraph {

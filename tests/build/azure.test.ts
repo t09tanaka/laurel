@@ -24,7 +24,7 @@ describe('azure staticwebapp.config.json', () => {
   });
 
   test('emits the config as JSON with a trailing newline', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-azure-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-azure-'));
     try {
       await emitAzureStaticWebAppConfig({ outputDir: dir });
       const body = await readFile(join(dir, 'staticwebapp.config.json'), 'utf8');

@@ -13,7 +13,7 @@ import {
 function tmpDir(): string {
   return join(
     process.env.TMPDIR ?? '/tmp',
-    `nectar-portal-runtime-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    `laurel-portal-runtime-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
 }
 
@@ -28,7 +28,7 @@ describe('emitPortalRuntime', () => {
     await Bun.$`rm -rf ${outputDir}`.quiet().nothrow();
   });
 
-  test('writes assets/nectar-portal.js when members are enabled', async () => {
+  test('writes assets/laurel-portal.js when members are enabled', async () => {
     const wrote = await emitPortalRuntime({ outputDir, enabled: true });
 
     expect(wrote).toBe(true);
@@ -58,7 +58,7 @@ describe('PORTAL_RUNTIME_JS', () => {
   });
 
   test('offers a cancelable custom-provider event before fallback navigation', () => {
-    expect(PORTAL_RUNTIME_JS).toContain("'nectar:portal'");
+    expect(PORTAL_RUNTIME_JS).toContain("'laurel:portal'");
     expect(PORTAL_RUNTIME_JS).toContain('cancelable: true');
     expect(PORTAL_RUNTIME_JS).toContain('preventDefault');
   });
@@ -83,7 +83,7 @@ describe('INLINE_SUBMIT_RUNTIME_JS', () => {
   });
 
   test('does not hijack disabled no-op forms or empty actions', () => {
-    expect(INLINE_SUBMIT_RUNTIME_JS).toContain('data-nectar-noop');
+    expect(INLINE_SUBMIT_RUNTIME_JS).toContain('data-laurel-noop');
     expect(INLINE_SUBMIT_RUNTIME_JS).toContain("action === '#'");
   });
 });

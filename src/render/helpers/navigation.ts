@@ -1,9 +1,9 @@
 import type Handlebars from 'handlebars';
 import { sanitizeHref } from '~/util/safe-href.ts';
 import { withBasePath } from '~/util/url.ts';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 
-export function registerNavigationHelpers(engine: NectarEngine): void {
+export function registerNavigationHelpers(engine: LaurelEngine): void {
   // Resolve a translator lazily from the engine state. Tests register
   // navigation helpers against a partial engine where `content.site` and
   // `theme.locales` are `{}` placeholders, so we always fall through to the

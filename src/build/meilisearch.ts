@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { truncateExcerpt } from './search.ts';
@@ -86,7 +86,7 @@ function authorDoc(author: Author): MeilisearchDocument {
 }
 
 export function buildMeilisearchDocuments(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
 }): MeilisearchBundle {
   const { config, content } = opts;
@@ -118,13 +118,13 @@ export function buildMeilisearchDocuments(opts: {
     meta: {
       generated_at: new Date().toISOString(),
       site_url: config.site.url,
-      note: "Meilisearch documents emitted by Nectar. Push with the `meilisearch-js` SDK (or the Meilisearch HTTP API); pushing is the user's responsibility.",
+      note: "Meilisearch documents emitted by Laurel. Push with the `meilisearch-js` SDK (or the Meilisearch HTTP API); pushing is the user's responsibility.",
     },
   };
 }
 
 export async function emitMeilisearchRecords(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   outputDir: string;
 }): Promise<string | null> {
@@ -133,7 +133,7 @@ export async function emitMeilisearchRecords(opts: {
   if (!cfg.enabled) return null;
   if (!cfg.emit_meilisearch_records) return null;
   const bundle = buildMeilisearchDocuments({ config, content });
-  const dir = join(outputDir, '.nectar');
+  const dir = join(outputDir, '.laurel');
   await ensureDir(dir);
   const dest = join(dir, 'meilisearch-records.json');
   await writeFile(dest, `${JSON.stringify(bundle)}\n`, 'utf8');

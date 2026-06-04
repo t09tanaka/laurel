@@ -1,14 +1,14 @@
 # Apache deployment recipe
 
 Use this target when a Ghost migration lands on an existing Apache virtual host
-and you want Nectar to generate the Apache rewrite, redirect, cache, and header
+and you want Laurel to generate the Apache rewrite, redirect, cache, and header
 rules beside the built site.
 
 ## Recipe
 
-1. Set the final `site.url` in `nectar.toml`.
-2. Enable Apache output with `[deploy.apache]` in `nectar.toml`.
-3. Run `bunx nectar build`.
+1. Set the final `site.url` in `laurel.toml`.
+2. Enable Apache output with `[deploy.apache]` in `laurel.toml`.
+3. Run `bunx laurel build`.
 4. Copy `dist/` to the Apache document root.
 5. Confirm the generated `.htaccess` is deployed with the rest of `dist/`.
 6. Request a deep page, a missing page, and any migrated Ghost redirect.

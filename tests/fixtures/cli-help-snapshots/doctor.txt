@@ -1,7 +1,7 @@
 Run health checks on the project (bun, config, theme, content, network)
 
 Usage:
-  nectar doctor [--config <path>] [--json] [--network] [--no-network]
+  laurel doctor [--config <path>] [--json] [--network] [--no-network]
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -11,9 +11,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --config → NECTAR_DOCTOR_CONFIG
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → LAUREL_DOCTOR_CONFIG
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -21,6 +21,6 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar doctor                                # full project health check
-  nectar doctor --no-network                   # skip the connectivity probe
-  nectar doctor --json                         # machine-readable for CI
+  laurel doctor                                # full project health check
+  laurel doctor --no-network                   # skip the connectivity probe
+  laurel doctor --json                         # machine-readable for CI

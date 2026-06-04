@@ -51,21 +51,21 @@ describe('cli init', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-init-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-init-')));
   });
 
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  test('--yes scaffolds nectar.toml, .gitignore, README, and starter content', async () => {
+  test('--yes scaffolds laurel.toml, .gitignore, README, and starter content', async () => {
     const { exitCode } = await runCli(['init', '--yes'], dir);
     expect(exitCode).toBe(0);
 
-    const toml = await readFile(join(dir, 'nectar.toml'), 'utf8');
+    const toml = await readFile(join(dir, 'laurel.toml'), 'utf8');
     expect(toml).toContain('[site]');
-    // Title is derived from the target directory (here: `nectar-init-XXXXXX`
-    // from mkdtemp) → title-cased. No hardcoded "My Nectar Site" default.
+    // Title is derived from the target directory (here: `laurel-init-XXXXXX`
+    // from mkdtemp) → title-cased. No hardcoded "My Laurel Site" default.
     expect(toml).toMatch(/title = "[A-Z][^"]+"/);
     expect(toml).toContain('url = "http://localhost:4321"');
     expect(toml).toContain('[theme]');
@@ -76,12 +76,12 @@ describe('cli init', () => {
     const gitignore = await readFile(join(dir, '.gitignore'), 'utf8');
     expect(gitignore).toContain('node_modules/');
     expect(gitignore).toContain('dist/');
-    expect(gitignore).toContain('.nectar/');
+    expect(gitignore).toContain('.laurel/');
 
     const readme = await readFile(join(dir, 'README.md'), 'utf8');
     expect(readme).toMatch(/^# [A-Z]/m);
-    expect(readme).toContain('nectar build');
-    expect(readme).toContain('nectar dashboard');
+    expect(readme).toContain('laurel build');
+    expect(readme).toContain('laurel dashboard');
 
     // Every content/ subdirectory is seeded with a .gitkeep so git tracks
     // the layout even when the operator skipped starter content.
@@ -105,7 +105,7 @@ describe('cli init', () => {
     expect(exitCode).toBe(0);
 
     for (const path of [
-      'nectar.toml',
+      'laurel.toml',
       '.gitignore',
       'README.md',
       'content/posts/welcome.md',
@@ -117,25 +117,25 @@ describe('cli init', () => {
   });
 
   test('refuses to overwrite existing files without --force', async () => {
-    await writeFile(join(dir, 'nectar.toml'), 'pre-existing config');
+    await writeFile(join(dir, 'laurel.toml'), 'pre-existing config');
 
     const { stderr, exitCode } = await runCli(['init', '--yes'], dir);
     expect(exitCode).toBe(1);
     expect(stderr).toContain('Refusing to overwrite');
-    expect(stderr).toContain('nectar.toml');
+    expect(stderr).toContain('laurel.toml');
     expect(stderr).toContain('--force');
 
-    const toml = await readFile(join(dir, 'nectar.toml'), 'utf8');
+    const toml = await readFile(join(dir, 'laurel.toml'), 'utf8');
     expect(toml).toBe('pre-existing config');
   });
 
   test('--force overwrites existing files', async () => {
-    await writeFile(join(dir, 'nectar.toml'), 'pre-existing config');
+    await writeFile(join(dir, 'laurel.toml'), 'pre-existing config');
 
     const { exitCode } = await runCli(['init', '--yes', '--force'], dir);
     expect(exitCode).toBe(0);
 
-    const toml = await readFile(join(dir, 'nectar.toml'), 'utf8');
+    const toml = await readFile(join(dir, 'laurel.toml'), 'utf8');
     expect(toml).not.toBe('pre-existing config');
     expect(toml).toContain('[site]');
   });
@@ -144,9 +144,9 @@ describe('cli init', () => {
     const sub = join(dir, 'newsite');
     const { exitCode } = await runCli(['init', '--yes', '--dir', sub], dir);
     expect(exitCode).toBe(0);
-    expect(await fileExists(join(sub, 'nectar.toml'))).toBe(true);
+    expect(await fileExists(join(sub, 'laurel.toml'))).toBe(true);
     expect(await fileExists(join(sub, 'README.md'))).toBe(true);
-    expect(await fileExists(join(dir, 'nectar.toml'))).toBe(false);
+    expect(await fileExists(join(dir, 'laurel.toml'))).toBe(false);
   });
 
   test('interactive mode reads answers from stdin', async () => {
@@ -162,7 +162,7 @@ describe('cli init', () => {
     const { exitCode } = await runCli(['init'], dir, stdin);
     expect(exitCode).toBe(0);
 
-    const toml = await readFile(join(dir, 'nectar.toml'), 'utf8');
+    const toml = await readFile(join(dir, 'laurel.toml'), 'utf8');
     expect(toml).toContain('title = "My Blog"');
     expect(toml).toContain('url = "https://example.com"');
     expect(toml).toContain('name = "casper"');
@@ -187,7 +187,7 @@ describe('cli init', () => {
     const { exitCode, stderr } = await runCli(['init'], dir, stdin);
     expect(exitCode).toBe(0);
     expect(stderr).not.toContain('Invalid choice');
-    const toml = await readFile(join(dir, 'nectar.toml'), 'utf8');
+    const toml = await readFile(join(dir, 'laurel.toml'), 'utf8');
     expect(toml).toContain('name = "casper"');
   });
 
@@ -196,7 +196,7 @@ describe('cli init', () => {
     const { exitCode } = await runCli(['init'], dir, stdin);
     expect(exitCode).toBe(0);
 
-    const toml = await readFile(join(dir, 'nectar.toml'), 'utf8');
+    const toml = await readFile(join(dir, 'laurel.toml'), 'utf8');
     // Empty title input → derive from target directory name (title-cased).
     expect(toml).toMatch(/title = "[A-Z][^"]+"/);
     expect(toml).toContain('name = "source"');
@@ -215,7 +215,7 @@ describe('cli init', () => {
     expect(readme).toBe('# pre-existing\n');
     const gitignore = await readFile(join(dir, '.gitignore'), 'utf8');
     expect(gitignore).toBe('custom\n');
-    expect(await fileExists(join(dir, 'nectar.toml'))).toBe(true);
+    expect(await fileExists(join(dir, 'laurel.toml'))).toBe(true);
   });
 
   test('--agent claude creates CLAUDE.md and installs Claude skills only', async () => {
@@ -296,7 +296,7 @@ describe('cli init', () => {
   test('--help prints subcommand help', async () => {
     const { stdout, exitCode } = await runCli(['init', '--help'], dir);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain('Scaffold a new Nectar project');
+    expect(stdout).toContain('Scaffold a new Laurel project');
     expect(stdout).toContain('--yes');
     expect(stdout).toContain('--force');
     expect(stdout).toContain('--dir <path>');
@@ -306,7 +306,7 @@ describe('cli init', () => {
   test('appears in top-level usage', async () => {
     const { stdout } = await runCli(['--help'], dir);
     expect(stdout).toContain('init');
-    expect(stdout).toContain('Scaffold a new Nectar project');
+    expect(stdout).toContain('Scaffold a new Laurel project');
   });
 });
 

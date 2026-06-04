@@ -1,4 +1,4 @@
-# Deploy a pre-built Nectar site to Netlify with the Netlify CLI.
+# Deploy a pre-built Laurel site to Netlify with the Netlify CLI.
 #
 # Copy this file to .github/workflows/netlify.yml in your repo. In Netlify,
 # create a site with "no repository" so GitHub Actions is the only deploy
@@ -47,7 +47,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build site
-        run: bunx nectar build
+        run: bunx laurel build
 
       - name: Deploy production to Netlify
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

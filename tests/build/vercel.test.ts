@@ -12,7 +12,7 @@ import {
 import { configSchema } from '~/config/schema.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-vercel-'));
+  return mkdtemp(join(tmpdir(), 'laurel-vercel-'));
 }
 
 const DEFAULT_HEADERS_CONFIG = configSchema.parse({ site: { title: 'x' } }).deploy.headers;
@@ -294,13 +294,13 @@ describe('examples/ci/vercel.yml', () => {
 });
 
 describe('Vercel deployment docs', () => {
-  test('document Vercel 404.html behavior for Nectar output', async () => {
+  test('document Vercel 404.html behavior for Laurel output', async () => {
     const root = join(import.meta.dir, '..', '..');
     const guide = await readFile(join(root, 'docs', 'deploy', 'vercel.md'), 'utf8');
     const security = await readFile(join(root, 'docs', 'security', 'hosting.md'), 'utf8');
     const tutorial = await readFile(join(root, 'docs', 'tutorials', '04-deploy.md'), 'utf8');
 
-    expect(guide).toContain('Nectar always emits `dist/404.html`');
+    expect(guide).toContain('Laurel always emits `dist/404.html`');
     expect(guide).toContain('Vercel treats a `404.html` file at the output root');
     expect(guide).toContain('No extra rewrite or `routes` entry');
     expect(guide).toContain('## Clean URLs and trailing slashes');
@@ -308,7 +308,7 @@ describe('Vercel deployment docs', () => {
     expect(guide).toContain('`trailingSlash: false`');
     expect(security).toContain('Keep `cleanUrls: true` with');
     expect(security).toContain('for no-slash builds, use `trailingSlash: false`');
-    expect(tutorial).toContain('Every Nectar build includes `dist/404.html`');
+    expect(tutorial).toContain('Every Laurel build includes `dist/404.html`');
     expect(tutorial).toContain('does not need a catch-all rewrite for');
   });
 });

@@ -1,7 +1,7 @@
 variable "site_name" {
   description = "Short name used for AWS resource labels."
   type        = string
-  default     = "nectar-site"
+  default     = "laurel-site"
 }
 
 variable "aws_region" {
@@ -11,7 +11,7 @@ variable "aws_region" {
 }
 
 variable "bucket_name" {
-  description = "Globally unique S3 bucket name that stores the built Nectar dist/ files."
+  description = "Globally unique S3 bucket name that stores the built Laurel dist/ files."
   type        = string
 }
 

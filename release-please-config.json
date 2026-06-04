@@ -22,7 +22,7 @@
   ],
   "packages": {
     ".": {
-      "package-name": "nectar",
+      "package-name": "laurel",
       "changelog-path": "CHANGELOG.md"
     }
   }

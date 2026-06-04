@@ -3,12 +3,12 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { findMissingAssetReferences } from '~/build/asset-references.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ContentGraph, Post } from '~/content/model.ts';
 
 describe('findMissingAssetReferences', () => {
   test('does not warn for generated output images that are absent from source assets', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-asset-refs-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-asset-refs-'));
     const outputDir = join(cwd, 'dist');
     await mkdir(join(outputDir, 'content/images'), { recursive: true });
     await writeFile(join(outputDir, 'content/images/cover.og.png'), 'png');
@@ -26,7 +26,7 @@ describe('findMissingAssetReferences', () => {
   });
 
   test('still reports local content images missing from both source and generated output', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-asset-refs-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-asset-refs-'));
     const outputDir = join(cwd, 'dist');
 
     const missing = findMissingAssetReferences({
@@ -45,12 +45,12 @@ describe('findMissingAssetReferences', () => {
   });
 });
 
-function makeConfig(): NectarConfig {
+function makeConfig(): LaurelConfig {
   return {
     content: {
       assets_dir: 'content/images',
     },
-  } as unknown as NectarConfig;
+  } as unknown as LaurelConfig;
 }
 
 function makeContent(post: Partial<Post>): ContentGraph {

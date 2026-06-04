@@ -213,7 +213,7 @@ export interface FetchOgpOptions {
   maxRedirects: number;
 }
 
-const USER_AGENT = 'Nectar-OGP/1.0 (+nectar)';
+const USER_AGENT = 'Laurel-OGP/1.0 (+laurel)';
 
 function parseUrl(raw: string): URL | null {
   try {

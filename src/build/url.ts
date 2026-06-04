@@ -1,8 +1,8 @@
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { withBasePath } from '~/util/url.ts';
 import { type TrailingSlashPolicy, canonicalRouteUrl } from './routes-yaml.ts';
 
-type PublicUrlConfig = Pick<NectarConfig, 'site' | 'build'>;
+type PublicUrlConfig = Pick<LaurelConfig, 'site' | 'build'>;
 
 interface PublicUrlParts {
   siteUrl: string | undefined;

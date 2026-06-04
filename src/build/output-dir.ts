@@ -2,26 +2,26 @@ import { randomBytes } from 'node:crypto';
 import type { Dirent } from 'node:fs';
 import { mkdir, mkdtemp, readdir, rename, rm, rmdir } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
 
 /**
  * Validate a user-supplied `build.output_dir` and resolve it to an absolute
  * path inside `cwd`. Refuses absolute paths, empty strings, the project root
  * itself, and any path that escapes `cwd` (e.g. `..`). This is the only thing
- * standing between a misconfigured nectar.toml and a stray `rm -rf` on the
+ * standing between a misconfigured laurel.toml and a stray `rm -rf` on the
  * user's filesystem.
  */
 export function resolveOutputDir(cwd: string, configuredOutputDir: string): string {
   if (typeof configuredOutputDir !== 'string') {
-    throw new NectarError({ message: 'build.output_dir must be a string', code: 'config' });
+    throw new LaurelError({ message: 'build.output_dir must be a string', code: 'config' });
   }
   const trimmed = configuredOutputDir.trim();
   if (trimmed === '') {
-    throw new NectarError({ message: 'build.output_dir must not be empty', code: 'config' });
+    throw new LaurelError({ message: 'build.output_dir must not be empty', code: 'config' });
   }
   if (isAbsolute(trimmed)) {
-    throw new NectarError({
+    throw new LaurelError({
       message: `build.output_dir must be a relative path inside the project root; got absolute path ${JSON.stringify(configuredOutputDir)}`,
       code: 'config',
     });
@@ -30,13 +30,13 @@ export function resolveOutputDir(cwd: string, configuredOutputDir: string): stri
   const absolute = resolve(absoluteCwd, trimmed);
   const rel = relative(absoluteCwd, absolute);
   if (rel === '' || rel === '.') {
-    throw new NectarError({
+    throw new LaurelError({
       message: `build.output_dir must not point at the project root; got ${JSON.stringify(configuredOutputDir)}`,
       code: 'config',
     });
   }
   if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
-    throw new NectarError({
+    throw new LaurelError({
       message: `build.output_dir must resolve inside the project root; got ${JSON.stringify(configuredOutputDir)} (resolves to ${absolute})`,
       code: 'config',
     });
@@ -195,7 +195,7 @@ function normalizePreservePatterns(outputDir: string, patterns: readonly string[
   for (const pattern of patterns) {
     if (isAbsolute(pattern)) {
       logger.warn(
-        `.nectarignore: ignoring absolute path ${JSON.stringify(pattern)} (paths must be relative to build.output_dir)`,
+        `.laurelignore: ignoring absolute path ${JSON.stringify(pattern)} (paths must be relative to build.output_dir)`,
       );
       continue;
     }
@@ -203,7 +203,7 @@ function normalizePreservePatterns(outputDir: string, patterns: readonly string[
     const rel = relative(root, target);
     const normalized = normalizeOutputRelPath(rel);
     if (!normalized || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
-      logger.warn(`.nectarignore: ${JSON.stringify(pattern)} escapes build.output_dir; skipped`);
+      logger.warn(`.laurelignore: ${JSON.stringify(pattern)} escapes build.output_dir; skipped`);
       continue;
     }
     out.add(normalized);

@@ -5,10 +5,10 @@ Status: Approved (brainstorming) → implementation
 
 ## Problem
 
-Favicon support already exists in the build pipeline: `nectar.toml`'s `[site].icon`
+Favicon support already exists in the build pipeline: `laurel.toml`'s `[site].icon`
 is resolved by `src/build/favicons.ts`, copied to the dist root at a stable URL, and
 emitted as `<link rel="icon">` via `{{ghost_head}}`. But the only way to set it today
-is to hand-edit `nectar.toml`. Operators using the dashboard (e.g. the ストークモバイル
+is to hand-edit `laurel.toml`. Operators using the dashboard (e.g. the ストークモバイル
 blog, which already sets `icon = "/content/images/2025/04/favicon-60x60.png"`) have to
 drop to the file to change their favicon.
 
@@ -87,7 +87,7 @@ Editorial-restraint default favors the minimal diff.
 ## Testing (`tests/cli/commands/dashboard.test.ts`)
 
 - `PATCH /api/settings/site` with `{ icon: "/content/images/x.png" }` writes
-  `icon = "/content/images/x.png"` into `[site]` of nectar.toml.
+  `icon = "/content/images/x.png"` into `[site]` of laurel.toml.
 - Clearing with `{ icon: "" }` writes `icon = ""`.
 - `POST /api/images` accepts an `image/x-icon` file and stores it as `*.ico`.
 - `GET /api/settings/site` / bootstrap surfaces the configured `icon`.

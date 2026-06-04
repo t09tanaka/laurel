@@ -23,7 +23,7 @@ describe('theme-bundle-size script', () => {
   test('measures raw, gzip, and Brotli sizes for an explicit bundle', async () => {
     const dir = join(
       tmpdir(),
-      `nectar-theme-size-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `laurel-theme-size-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     );
     const bundle = join(dir, 'casper.js');
     await mkdir(dir, { recursive: true });
@@ -47,7 +47,7 @@ describe('theme-bundle-size script', () => {
   test('detects a fingerprinted Casper bundle in example/dist', async () => {
     const dir = join(
       tmpdir(),
-      `nectar-theme-size-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `laurel-theme-size-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     );
     const builtDir = join(dir, 'example/dist/assets/built');
     await mkdir(builtDir, { recursive: true });

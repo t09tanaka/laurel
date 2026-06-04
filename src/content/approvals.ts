@@ -30,7 +30,7 @@ interface ApprovalBuildGate {
 }
 
 export function approvalDir(cwd: string, kind: ApprovalKind): string {
-  return join(cwd, '.nectar', 'approvals', kind);
+  return join(cwd, '.laurel', 'approvals', kind);
 }
 
 export function approvalReceiptPath(cwd: string, kind: ApprovalKind, slug: string): string {
@@ -177,7 +177,7 @@ function approvalSnapshotRelativePath(
   slug: string,
   ext: 'json' | 'md',
 ): string {
-  return `.nectar/approvals/${kind}/${slug}.${ext}`;
+  return `.laurel/approvals/${kind}/${slug}.${ext}`;
 }
 
 function normalizeApprover(value: string | undefined): string {

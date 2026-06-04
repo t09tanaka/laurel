@@ -1,13 +1,13 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import yaml from 'js-yaml';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { scanGlob } from '~/util/fs.ts';
 import { parseFrontmatter } from './frontmatter.ts';
 
 interface FormatContentOptions {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   check?: boolean;
 }
 
@@ -56,7 +56,7 @@ export function formatContentSource(raw: string, options: { filePath?: string } 
   return ensureTrailingNewline(`---\n${frontmatter}\n---\n${parsed.body}`);
 }
 
-async function listContentMarkdown(cwd: string, config: NectarConfig): Promise<string[]> {
+async function listContentMarkdown(cwd: string, config: LaurelConfig): Promise<string[]> {
   const dirs = [
     config.content.posts_dir,
     config.content.pages_dir,

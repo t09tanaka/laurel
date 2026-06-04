@@ -10,12 +10,12 @@ import {
   buildWebManifest,
   emitWebManifest,
 } from '~/build/web-manifest.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 
-function makeConfig(overrides: Partial<NectarConfig> = {}): NectarConfig {
+function makeConfig(overrides: Partial<LaurelConfig> = {}): LaurelConfig {
   return {
     site: {
-      title: 'Nectar Test',
+      title: 'Laurel Test',
       description: 'A static site',
       url: 'https://example.com',
       locale: 'en',
@@ -37,7 +37,7 @@ function makeConfig(overrides: Partial<NectarConfig> = {}): NectarConfig {
       metadata: {},
     },
     ...overrides,
-  } as NectarConfig;
+  } as LaurelConfig;
 }
 
 describe('injectHtmlBuildAttribute', () => {
@@ -72,7 +72,7 @@ describe('feed alias', () => {
   });
 
   test('writes feed/index.html when enabled', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-feed-alias-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-feed-alias-'));
 
     await expect(emitFeedAlias({ outputDir, enabled: true, basePath: '/blog/' })).resolves.toBe(
       true,
@@ -89,8 +89,8 @@ describe('web manifest', () => {
     const manifest = buildWebManifest(makeConfig(), emptyFavicons.links);
 
     expect(manifest).toMatchObject({
-      name: 'Nectar Test',
-      short_name: 'Nectar Test',
+      name: 'Laurel Test',
+      short_name: 'Laurel Test',
       start_url: '/blog/',
       scope: '/blog/',
       display: 'standalone',
@@ -114,7 +114,7 @@ describe('web manifest', () => {
   });
 
   test('writes a generated manifest unless the theme ships one', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-web-manifest-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-web-manifest-'));
 
     await expect(
       emitWebManifest({ outputDir, config: makeConfig(), favicons: emptyFavicons }),
@@ -122,11 +122,11 @@ describe('web manifest', () => {
     const body = JSON.parse(
       await readFile(join(outputDir, GENERATED_WEB_MANIFEST_PATH), 'utf8'),
     ) as { name: string };
-    expect(body.name).toBe('Nectar Test');
+    expect(body.name).toBe('Laurel Test');
   });
 
   test('does not overwrite a theme-provided manifest', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-web-manifest-skip-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-web-manifest-skip-'));
 
     await expect(
       emitWebManifest({

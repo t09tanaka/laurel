@@ -1,14 +1,14 @@
-Install bundled agent skills (Claude Code / Codex) so AI assistants understand how to work in this Nectar project
+Install bundled agent skills (Claude Code / Codex) so AI assistants understand how to work in this Laurel project
 
 Usage:
-  nectar skill [--format <list>] [--json] <subcommand> [slug...]
+  laurel skill [--format <list>] [--json] <subcommand> [slug...]
 
 Arguments:
   subcommand          `list`, `install`, or `remove`
   slug                Skill slug(s); omit for `install` to install all bundled skills
 
 End of options:
-  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+  Use `--` before positional values that start with `-`, for example `laurel new post -- --config`.
 
 Options:
   --format <list>     Comma-separated list of agent formats to target: `claude`, `codex`, or `all`. Defaults to auto-detect via CLAUDE.md / AGENTS.md presence
@@ -16,9 +16,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --format → NECTAR_SKILL_FORMAT
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --format → LAUREL_SKILL_FORMAT
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -26,9 +26,9 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar skill list
-  nectar skill install                                # auto-detect + install all
-  nectar skill install frontmatter-authoring          # one skill
-  nectar skill install --format codex                 # only emit Codex format
-  nectar skill install --format all                   # emit every format
-  nectar skill remove build-troubleshoot
+  laurel skill list
+  laurel skill install                                # auto-detect + install all
+  laurel skill install frontmatter-authoring          # one skill
+  laurel skill install --format codex                 # only emit Codex format
+  laurel skill install --format all                   # emit every format
+  laurel skill remove build-troubleshoot

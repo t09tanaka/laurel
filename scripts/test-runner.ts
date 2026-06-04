@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 // Parallel test shard runner.
 //
-// Nectar has many cheap unit tests plus several expensive CLI integration test
+// Laurel has many cheap unit tests plus several expensive CLI integration test
 // files that spawn `bun` dozens of times. File-level sharding alone leaves
 // those large files as the wall-clock floor, so this runner can split selected
 // slow files by top-level describe name with `--test-name-pattern`.
@@ -14,7 +14,7 @@
 // Usage:
 //   bun run scripts/test-runner.ts                 # shard the whole suite
 //   bun run scripts/test-runner.ts tests/render     # explicit paths -> delegate
-//   NECTAR_TEST_SHARDS=6 bun run scripts/test-runner.ts
+//   LAUREL_TEST_SHARDS=6 bun run scripts/test-runner.ts
 //
 // Any explicit path argument, or a flag that needs a single process
 // (--coverage, --watch, -t), bypasses sharding and delegates straight to
@@ -33,7 +33,7 @@ const BUN_CRASH_EXIT_CODES = new Set([132, 133, 134, 139]);
 // freely, so this pinning is what keeps full sharding race-free.
 //
 //   golden / deploy / example-browser -> build into the real `example/dist`
-//   packaging                          -> bundles the CLI into `REPO_ROOT/.nectar/cache`
+//   packaging                          -> bundles the CLI into `REPO_ROOT/.laurel/cache`
 //
 // Keep this list in sync if a new test points `build({ cwd })` / `rm(dist)` at
 // the bundled `example/` directory or writes under the repo root.
@@ -90,24 +90,24 @@ const SPLIT_GROUPS: Record<string, Array<{ label: string; pattern: string; weigh
   'tests/cli/commands/build.test.ts': [
     {
       label: 'build:dry-run',
-      pattern: '^(nectar build exit codes|nectar build --dry-run|formatDryRunRouteTable)',
+      pattern: '^(laurel build exit codes|laurel build --dry-run|formatDryRunRouteTable)',
       weight: 16,
     },
     {
       label: 'build:base-url',
       pattern:
-        '^(nectar build base URL precedence|nectar build --config layering|nectar build preview noindex protection)',
+        '^(laurel build base URL precedence|laurel build --config layering|laurel build preview noindex protection)',
       weight: 28,
     },
     {
       label: 'build:watch-api',
-      pattern: '^(nectar build --watch|nectar build --emit-content-api|isIgnoredChange)',
+      pattern: '^(laurel build --watch|laurel build --emit-content-api|isIgnoredChange)',
       weight: 13,
     },
     {
       label: 'build:misc',
       pattern:
-        '^(nectar build:email|nectar build --no-clean|nectar build --profile|nectar build --include-drafts)',
+        '^(laurel build:email|laurel build --no-clean|laurel build --profile|laurel build --include-drafts)',
       weight: 13,
     },
   ],
@@ -414,7 +414,7 @@ async function main(): Promise<number> {
   // local machines still benefit from 6 shards. Keep CI stable without
   // slowing down the default local `bun test` path.
   const DEFAULT_SHARDS = process.env.CI ? 4 : 6;
-  const override = Number(process.env.NECTAR_TEST_SHARDS);
+  const override = Number(process.env.LAUREL_TEST_SHARDS);
   const shardCount = Math.max(1, override || DEFAULT_SHARDS);
 
   const files = await discoverFiles();

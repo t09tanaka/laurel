@@ -1,8 +1,8 @@
 # Theme Developer Guide
 
-This guide is for people writing or porting a theme to run under Nectar. Nectar
+This guide is for people writing or porting a theme to run under Laurel. Laurel
 consumes Ghost-style `.hbs` Handlebars themes, so most of this material reads as
-"how the Ghost surface behaves *in Nectar*" — call out where Nectar's behaviour
+"how the Ghost surface behaves *in Laurel*" — call out where Laurel's behaviour
 differs from upstream Ghost.
 
 If you're looking for the high-level architecture or the goals of the project,
@@ -14,14 +14,14 @@ see [`theme-reference.md`](./theme-reference.md). This document is the
 practical handbook with worked examples and prose explanations.
 
 The reference theme is `example/themes/source/` (a vendored copy of the official
-Ghost Source theme). Whenever you wonder "should I be able to do X in a Nectar
+Ghost Source theme). Whenever you wonder "should I be able to do X in a Laurel
 theme?", the answer is "yes if Source does it, otherwise check the compat
 matrix."
 
 ## 1. Theme layout
 
 A theme is a directory under `<site>/themes/<name>/` referenced by
-`[theme] name = "<name>"` in `nectar.toml`. The minimum useful shape is:
+`[theme] name = "<name>"` in `laurel.toml`. The minimum useful shape is:
 
 ```
 themes/<name>/
@@ -47,13 +47,13 @@ themes/<name>/
     └── images/...
 ```
 
-### Templates Nectar recognises as top-level layouts
+### Templates Laurel recognises as top-level layouts
 
 `index`, `home`, `post`, `page`, `tag`, `author`, `default`, `error`,
 `error-404`, `amp`, `private`. Any other top-level `.hbs` is loaded but only
 reachable if a top-level template renders it explicitly.
 
-### Routes Nectar emits
+### Routes Laurel emits
 
 | Route                                  | `route.kind`     | Template choice                       |
 |----------------------------------------|------------------|---------------------------------------|
@@ -65,14 +65,14 @@ reachable if a top-level template renders it explicitly.
 | `/author/<author-slug>/` + pagination  | `author`         | `author.hbs`, falls back to `index.hbs` |
 
 The `error.hbs` / `error-404.hbs` templates are accepted by the theme loader.
-When a theme ships one of them, Nectar emits `/404.html` with a static
+When a theme ships one of them, Laurel emits `/404.html` with a static
 `error` context (`statusCode: 404`, `message: "Page not found"`). Otherwise
-Nectar emits its built-in `404.html`.
+Laurel emits its built-in `404.html`.
 
-Nectar does not seed a root `error` object on normal static routes. Some Ghost
+Laurel does not seed a root `error` object on normal static routes. Some Ghost
 themes, including Biron, reference `{{{error.message}}}` inside runtime
 subscribe / Portal UI states that Ghost populates after a failed POST. In
-Nectar those runtime errors are out of scope, so the expression resolves to an
+Laurel those runtime errors are out of scope, so the expression resolves to an
 empty string during static rendering and does not fail the build.
 
 ## 2. Layout inheritance
@@ -113,7 +113,7 @@ column 0 (or after whitespace) of the file. Comments using `{{!--` work
 elsewhere in the file as in standard Handlebars; only `{{!<` is the layout
 directive.
 
-**Gotcha:** Nectar does not support nested layout inheritance (a layout
+**Gotcha:** Laurel does not support nested layout inheritance (a layout
 extending another layout). One level is enough for every Ghost theme we've
 encountered, including Source.
 
@@ -137,7 +137,7 @@ Usage:
 {{#> "card-shell"}}<p>inner block</p>{{/card-shell}} {{!-- block partial --}}
 ```
 
-Hash parameters and block partials use Handlebars' built-in plumbing — Nectar
+Hash parameters and block partials use Handlebars' built-in plumbing — Laurel
 adds no special handling. Inside a partial, hash params are available as
 top-level variables (`{{lazyLoad}}`, `{{class}}`).
 
@@ -182,14 +182,14 @@ content changes deterministically.
 ### Resolution rules
 
 `{{asset "built/screen.css"}}` and `{{asset "/built/screen.css"}}` both resolve.
-Internally Nectar tries the path as-is first, then with an `assets/` prefix
+Internally Laurel tries the path as-is first, then with an `assets/` prefix
 added. Leading slashes are stripped. The result is always joined with the
 configured `base_path` (`/` by default).
 
 ### Asset symlinks
 
 Symlinks under `assets/` (or under any content directory) are skipped with a
-warning. This is intentional: Nectar refuses to ship files from outside the
+warning. This is intentional: Laurel refuses to ship files from outside the
 project tree. If you genuinely need to share files between themes, copy or
 hard-link them.
 
@@ -197,10 +197,10 @@ hard-link them.
 
 If your theme references an asset that doesn't exist in the asset map, the
 helper still emits a path (`<basePath>/assets/<your-path>`). It just isn't
-fingerprinted. `nectar build` also prints a warning for literal
+fingerprinted. `laurel build` also prints a warning for literal
 `{{asset "..."}}` references that are missing on disk. This commonly means the
 theme's own build step has not run yet; run the theme's gulp/npm asset pipeline
-first so files such as `assets/built/screen.css` exist before building Nectar.
+first so files such as `assets/built/screen.css` exist before building Laurel.
 
 ### Installing third-party theme dependencies
 
@@ -231,19 +231,19 @@ Use this workflow for a theme you did not author:
 
 The vendored `example/themes/source/` tree follows the same rule: its theme
 build files are present for compatibility with upstream Ghost tooling, but
-Nectar does not require you to run arbitrary package-manager scripts just to
+Laurel does not require you to run arbitrary package-manager scripts just to
 render an already-built theme.
 
 ### Favicons and touch icons
 
-Nectar emits browser favicon `<link>` tags from `{{ghost_head}}` and copies
+Laurel emits browser favicon `<link>` tags from `{{ghost_head}}` and copies
 the source files into the dist root with stable (un-fingerprinted) URLs so
 bookmarks and the legacy `/favicon.ico` fallback keep working.
 
 Two sources are recognised, in this order of priority:
 
 1. **Theme `assets/` directory** — if any of the well-known filenames below
-   exists under your theme's `assets/`, Nectar copies it to the dist root and
+   exists under your theme's `assets/`, Laurel copies it to the dist root and
    emits a matching `<link>` tag:
 
    | Filename                          | Emitted link                                                                |
@@ -261,7 +261,7 @@ Two sources are recognised, in this order of priority:
    | `safari-pinned-tab.svg`           | `<link rel="mask-icon" color="<site.accent_color>" href="…">`               |
    | `site.webmanifest` / `manifest.webmanifest` | `<link rel="manifest" href="…">`                                  |
 
-2. **`site.icon` in `nectar.toml`** — if the theme didn't ship a primary
+2. **`site.icon` in `laurel.toml`** — if the theme didn't ship a primary
    `favicon.*`, the configured icon is copied to `dist/favicon.<ext>` and an
    `<link rel="icon">` is emitted for it. PNG / JPG icons also produce an
    `apple-touch-icon` link (SVG sources are skipped for Apple devices because
@@ -314,7 +314,7 @@ non-fingerprinted assets, so templates can opt in safely:
 | `absolute=`  | boolean  | If `true`, absolutise against `[site].url`. |
 
 Returns the image URL with a `/content/images/.../size/wXXX[hYYY]/...` segment
-inserted when `size=` matches a configured size. Nectar does not actually
+inserted when `size=` matches a configured size. Laurel does not actually
 resize images — the segment exists so `srcset` URLs are distinct.
 
 Example:
@@ -371,12 +371,12 @@ tag, plus `featured` if `post.featured` is true.
 #### `{{body_class}}` — inline
 
 Returns the post/page's `body_class` if set, otherwise
-`nectar-route-<route-kind>` where `<route-kind>` is one of `home`, `post`,
+`laurel-route-<route-kind>` where `<route-kind>` is one of `home`, `post`,
 `page`, `tag`, `author`.
 
 #### Stubs (members-adjacent)
 
-- `{{comments}}` → `<div data-nectar-comments></div>`. Wire your own comment
+- `{{comments}}` → `<div data-laurel-comments></div>`. Wire your own comment
   system (Giscus, Disqus, Utterances) by listening on this hook.
 - `{{recommendations}}` → empty `<ul class="recommendations">`.
 - `{{access}}` → block: renders `{{else}}` (visitor is always
@@ -388,10 +388,10 @@ Returns the post/page's `body_class` if set, otherwise
   `data-members-email` so existing themes don't break.
 
 Dawn-style hand-written forms that already contain `data-members-form` and
-`data-members-email` are emitted as static markup. Nectar only applies the
+`data-members-email` are emitted as static markup. Laurel only applies the
 existing subscribe-form transform to those attributes: `provider = "none"`
 keeps the hooks but disables submission, while configured providers patch the
-form action / email field name. Nectar does not invent a Ghost Members runtime,
+form action / email field name. Laurel does not invent a Ghost Members runtime,
 so `data-members-success` / `data-members-error` states remain presentation
 hooks until your JavaScript toggles them.
 
@@ -536,7 +536,7 @@ if you hit edge cases.
 
 Emits inside `<head>`:
 
-- `<meta name="generator" content="Nectar">`
+- `<meta name="generator" content="Laurel">`
 - `<link rel="canonical" href="…">` (built from `route.url` and `[site].url`)
 - `<meta name="description">`
 - OpenGraph: `og:site_name`, `og:type` (`article` on post routes, otherwise
@@ -551,7 +551,7 @@ Emits inside `<head>`:
   WebSite otherwise)
 - The current context's `codeinjection_head` string, verbatim
 
-Nectar does not emit `<link rel="amphtml">` unless a future AMP route emitter
+Laurel does not emit `<link rel="amphtml">` unless a future AMP route emitter
 also produces the target route. Emitting an AMP link without `/amp/` HTML would
 create a crawler-visible 404, so current builds intentionally keep AMP out of
 `{{ghost_head}}`.
@@ -605,7 +605,7 @@ even if it's empty.
 output is HTML-escaped by Handlebars. Triple-stash output is emitted raw, so
 locale values may intentionally contain trusted theme markup such as
 `<strong>%</strong>`. Interpolated hash and positional values are not a markup
-channel: Nectar strips tags from those values before substitution, including
+channel: Laurel strips tags from those values before substitution, including
 when the helper is rendered with triple-stash. Locale files remain part of the
 theme trust boundary; see
 [`docs/security/threat-model.md` § Locale files](security/threat-model.md#locale-files-themesnamelocalesjson-and-t).
@@ -672,9 +672,9 @@ The contexts available inside templates are documented in
 [`GHOST_COMPATIBILITY.md` §Contexts](./GHOST_COMPATIBILITY.md#contexts). In
 brief:
 
-- `@site` (aliases `@blog`, `@setting`) — site-wide values from `nectar.toml [site]`.
+- `@site` (aliases `@blog`, `@setting`) — site-wide values from `laurel.toml [site]`.
 - `@custom` — theme custom-settings, built from `package.json > config.custom`
-  defaults, overridden by `nectar.toml [theme.custom]`.
+  defaults, overridden by `laurel.toml [theme.custom]`.
 - `@page` — `route.data` for the current page (rarely accessed directly).
 - `this` (the implicit context) — the route's primary record:
   - Post route: a `Post` (frontmatter + `html`, `plaintext`, `excerpt`,
@@ -691,7 +691,7 @@ Field names on `Post` / `Page` / `Tag` / `Author` are exactly those in
 
 | Field                  | Source                                |
 |------------------------|---------------------------------------|
-| `title`                | `nectar.toml [site].title`            |
+| `title`                | `laurel.toml [site].title`            |
 | `description`          | `[site].description`                  |
 | `url`                  | `[site].url`                          |
 | `logo`                 | `[site].logo`                         |
@@ -708,8 +708,8 @@ Field names on `Post` / `Page` / `Tag` / `Author` are exactly those in
 
 `@site.build` is omitted for ordinary local builds. When metadata env vars are
 present, themes can read `@site.build.branch`, `@site.build.build_id`, and
-`@site.build.commit_sha`. Precedence is explicit `NECTAR_BUILD_METADATA_*`
-vars, short Nectar aliases such as `NECTAR_BUILD_ID` / `NECTAR_COMMIT_SHA`,
+`@site.build.commit_sha`. Precedence is explicit `LAUREL_BUILD_METADATA_*`
+vars, short Laurel aliases such as `LAUREL_BUILD_ID` / `LAUREL_COMMIT_SHA`,
 provider vars such as `CF_PAGES_COMMIT_SHA` / `VERCEL_GIT_COMMIT_SHA`, then
 generic CI vars such as `BUILD_ID`, `COMMIT_SHA`, `COMMIT_REF`, and
 `GITHUB_SHA`.
@@ -727,10 +727,10 @@ navigation_layout = "Logo on the left"
 show_featured_posts = true
 ```
 
-For UI-less distribution, Nectar can generate a TOML snippet from the theme
+For UI-less distribution, Laurel can generate a TOML snippet from the theme
 package custom schema. The snippet is the supported minimum form-generation
 surface: theme authors can show it in docs or tooling, and users can paste the
-`[theme.custom]` block into `nectar.toml` without guessing defaults.
+`[theme.custom]` block into `laurel.toml` without guessing defaults.
 
 A custom setting referenced by the theme but not declared in `package.json` is
 still readable (it just resolves to `undefined`); a user-side override of an
@@ -784,19 +784,19 @@ undeclared key currently warns rather than hard-fails.
 ```
 
 - **`posts_per_page`** — default pagination size. Overridden by
-  `[build] posts_per_page` in `nectar.toml`.
+  `[build] posts_per_page` in `laurel.toml`.
 - **`image_sizes`** — drives `{{img_url size="key"}}`. Width / height in pixels.
-- **`card_assets`** — when `true`, Nectar emits local shared Ghost card assets
+- **`card_assets`** — when `true`, Laurel emits local shared Ghost card assets
   at `/assets/ghost-card-assets.css` and `/assets/ghost-card-assets.js`.
   The stylesheet is injected through `{{ghost_head}}`; the JavaScript runtime is
   injected through `{{ghost_foot}}` only on pages whose rendered body contains a
   runtime-bearing Koenig card such as audio, embed, signup, toggle, or video.
   Use `{ "exclude": ["bookmark", "gallery"] }` to omit per-card CSS/runtime
   sections that your theme owns.
-  `false` disables the shared assets. Nectar does not fetch Ghost's upstream
+  `false` disables the shared assets. Laurel does not fetch Ghost's upstream
   vendor bundle or a CDN at build time; the bundled files are a static
   compatibility layer for common Koenig card class names.
-- **`content_kinds`** — additional Markdown kinds that `nectar new <kind>
+- **`content_kinds`** — additional Markdown kinds that `laurel new <kind>
   <title>` may scaffold for this theme. Each key is the CLI kind name; `dir`
   is the destination directory, and `title_field` defaults to `name` when
   omitted. Project config `[content.kinds.<kind>]` can override the same kind.
@@ -811,7 +811,7 @@ undeclared key currently warns rather than hard-fails.
 
 ## 7.4 Theme asset performance
 
-Nectar keeps theme-authored CSS and JavaScript under the theme's control.
+Laurel keeps theme-authored CSS and JavaScript under the theme's control.
 Rendered HTML is post-processed to add safe resource metadata where it is
 unambiguous: stylesheet links get `type="text/css"` when missing, classic
 external scripts get `defer` when they have no loading attribute, and `.mjs`
@@ -819,7 +819,7 @@ scripts get `type="module"`.
 
 Use `[build].minify_html = true` to collapse whitespace and comments in emitted
 HTML. Use `[performance].preload_stylesheet = true` when a theme does not
-already preload its render-blocking stylesheet. Nectar does not automatically
+already preload its render-blocking stylesheet. Laurel does not automatically
 purge CSS, inline critical CSS, or bundle/minify arbitrary theme JavaScript:
 those steps require route-aware theme analysis and can easily remove selectors
 or change script execution order. Put those optimizations in the theme build
@@ -839,7 +839,7 @@ by convention (as Ghost does). Values may be strings, numbers, or booleans;
 `{{t}}` stringifies numbers and booleans at render time. String translations may
 use `%` or `{name}` placeholders (see `{{t}}` §5.7).
 
-The active locale is `[site].locale`. Nectar falls back through:
+The active locale is `[site].locale`. Laurel falls back through:
 
 1. `<locale>.json` (exact match)
 2. `en.json`
@@ -905,23 +905,23 @@ theme uses them, you'll either get an empty render or a no-op:
   out at load time.
 - **Server-side search** — no built-in. The recommended approach is to plug in
   Pagefind or Lunr as an optional component (see `[components.search]` in
-  `nectar.toml`).
-- **Comments** — `{{comments}}` emits `<div data-nectar-comments></div>` so a
+  `laurel.toml`).
+- **Comments** — `{{comments}}` emits `<div data-laurel-comments></div>` so a
   client-side embed (Giscus / Disqus / Utterances) can hook onto it.
 - **Ghost Admin / edit URLs** — not rendered.
 - **`{{#get}}` against remote Ghost endpoints** — resolved against the local
   content graph only (see §5.5).
 - **Runtime form error context** — Ghost may populate `error.message` after a
-  failed subscribe / Portal POST. Nectar's static renderer normally leaves
+  failed subscribe / Portal POST. Laurel's static renderer normally leaves
   `error` unset outside `/404.html`, so `{{{error.message}}}` renders empty.
 - **Live drafts / preview** — `status: draft` posts are dropped at build time.
 
 ## 11. Accessibility requirements
 
-Nectar emits no styling of its own — `body_class`, `post_class`, and the helpers
+Laurel emits no styling of its own — `body_class`, `post_class`, and the helpers
 under §5 hand the theme a set of hooks, but the visual contract (colors,
 spacing, focus rings, hit targets) is entirely the theme's responsibility. The
-following are **hard requirements** for any theme shipped against Nectar. A
+following are **hard requirements** for any theme shipped against Laurel. A
 theme that fails them is not considered conformant, even if it renders without
 errors.
 
@@ -955,7 +955,7 @@ A minimal, theme-agnostic snippet that satisfies the requirement:
 
 ```css
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid var(--nectar-focus-ring, #1f6feb);
+  outline: 2px solid var(--laurel-focus-ring, #1f6feb);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -965,7 +965,7 @@ A minimal, theme-agnostic snippet that satisfies the requirement:
 }
 ```
 
-Pick a `--nectar-focus-ring` color that has ≥ 3:1 contrast against **every**
+Pick a `--laurel-focus-ring` color that has ≥ 3:1 contrast against **every**
 surface the element can sit on (page background, card background, hero
 overlays). Check both light and dark modes if your theme supports them. The
 [WebAIM contrast checker](https://webaim.org/resources/contrastchecker/) is
@@ -1005,7 +1005,7 @@ Before declaring a theme "done", run through this checklist on a built site
 5. Run an automated audit (axe DevTools, Lighthouse → Accessibility, or
    `pa11y dist/index.html`) and triage any focus-related violations.
 
-Nectar does not currently fail the build when a theme is missing
+Laurel does not currently fail the build when a theme is missing
 `:focus-visible` styles (the CSS is opaque to the renderer), so these checks
 are a manual gate. CI-friendly automation is tracked separately.
 
@@ -1054,7 +1054,7 @@ observed Ghost behaviour.
 ## 14. Authoring a new helper
 
 Most theme work is done in `.hbs` templates with the existing helper set. When
-you need a helper that Ghost ships but Nectar doesn't yet, the surface is
+you need a helper that Ghost ships but Laurel doesn't yet, the surface is
 small enough to add one in-tree:
 
 1. Pick the right file in `src/render/helpers/`. Group by concern: string
@@ -1065,7 +1065,7 @@ small enough to add one in-tree:
 2. Register on the engine through the wrapper, not the bare Handlebars
    instance:
    ```ts
-   export function registerFoo(engine: NectarEngine): void {
+   export function registerFoo(engine: LaurelEngine): void {
      engine.registerHelper('foo', function fooHelper(value: unknown) {
        // Implementation. Use SafeString when emitting HTML; return a plain
        // string otherwise so Handlebars escapes it.
@@ -1080,7 +1080,7 @@ small enough to add one in-tree:
    `foreach`, `is`, `get`, `has`, `match` already do this — match the same
    shape for any new block helper.
 4. Surface errors loudly. A helper that silently swallows a missing arg or a
-   bad type masks template bugs. Throw `NectarError` with `code: 'render'`
+   bad type masks template bugs. Throw `LaurelError` with `code: 'render'`
    and a `hint:` describing the fix. The build pipeline turns it into a
    pointed message at the failing route URL.
 5. Test against observed behaviour. Add `tests/render/helpers/<name>.test.ts`
@@ -1089,7 +1089,7 @@ small enough to add one in-tree:
    `tests/render/helpers/_setup.ts` to spin up a minimal engine without
    loading the full Source theme.
 6. Document it. Add a `#### {{...}}` subsection under §5 of this guide and
-   note any Nectar-side divergences (e.g. helpers that hit Ghost APIs and
+   note any Laurel-side divergences (e.g. helpers that hit Ghost APIs and
    return a stub here).
 
 When porting a helper from Ghost's source, look at

@@ -21,13 +21,13 @@ async function runCli(
 }
 
 async function makeFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-lint-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-lint-')));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
   await mkdir(join(dir, 'content/tags'), { recursive: true });
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Lint Test"',

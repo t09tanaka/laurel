@@ -1,17 +1,17 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import { registerContentHelpers } from '~/render/helpers/content.ts';
 
-function makeEngine(): NectarEngine {
+function makeEngine(): LaurelEngine {
   const hb = Handlebars.create();
-  const engine = { hb } as unknown as NectarEngine;
+  const engine = { hb } as unknown as LaurelEngine;
   registerContentHelpers(engine);
   return engine;
 }
 
 function render(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   ctx: Record<string, unknown>,
   data: Record<string, unknown>,
 ): string {

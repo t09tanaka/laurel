@@ -1,5 +1,5 @@
 [site]
-title = "Nectar Visual Admin Fixture"
+title = "Laurel Visual Admin Fixture"
 description = "Long Japanese and English strings for dashboard state testing"
 url = "https://dashboard-fixture.example"
 locale = "ja"

@@ -55,13 +55,13 @@ export async function runClean(args: string[]): Promise<number> {
     const config = await loadConfig({ cwd, configPath });
     outputDir = config.build.output_dir;
   } catch {
-    // Cleaning should still work when nectar.toml is missing or invalid:
-    // operators reach for `nectar clean` precisely when something is wrong.
+    // Cleaning should still work when laurel.toml is missing or invalid:
+    // operators reach for `laurel clean` precisely when something is wrong.
     // Fall back to the schema default so we at least nuke `dist/`.
   }
 
   const distAbs = resolve(cwd, outputDir);
-  const cacheAbs = resolve(cwd, '.nectar/cache');
+  const cacheAbs = resolve(cwd, '.laurel/cache');
   const candidates = [distAbs, cacheAbs];
 
   // Refuse to touch anything outside cwd. resolve() collapses `..` so a
@@ -108,7 +108,7 @@ export async function runClean(args: string[]): Promise<number> {
     if (asJson) {
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     } else {
-      logger.info('Nothing to clean (dist/ and .nectar/cache do not exist).');
+      logger.info('Nothing to clean (dist/ and .laurel/cache do not exist).');
     }
     return 0;
   }
@@ -219,7 +219,7 @@ async function dirBytes(path: string): Promise<number> {
 // then restoring. Cheaper than a recursive copy and avoids the partial-state
 // hazards of "delete every entry except…" loops.
 async function removeWithKeep(targetDir: string, keptAbsPaths: string[]): Promise<void> {
-  const stash = `${targetDir}.nectar-keep-${process.pid}-${Date.now()}`;
+  const stash = `${targetDir}.laurel-keep-${process.pid}-${Date.now()}`;
   await mkdir(stash, { recursive: true });
   const moved: Array<{ from: string; to: string }> = [];
   for (const abs of keptAbsPaths) {

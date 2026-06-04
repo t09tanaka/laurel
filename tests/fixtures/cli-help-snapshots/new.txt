@@ -1,14 +1,14 @@
 Scaffold a new Markdown content file
 
 Usage:
-  nectar new [--config <path>] [--force] [--slug <slug>] [--draft] [--date <iso>] [--tags <a,b,c>] [--author <slug>] [--open] [--stdin] [--json] <kind> [title...]
+  laurel new [--config <path>] [--force] [--slug <slug>] [--draft] [--date <iso>] [--tags <a,b,c>] [--author <slug>] [--open] [--stdin] [--json] <kind> [title...]
 
 Arguments:
   kind                Content kind to scaffold. Built-ins are post, page, tag, and author; additional kinds come from [content.kinds] and the active theme package config.content_kinds manifest.
   title               Title (post/page/custom kinds) or slug (tag/author); variadic so quoting is optional for multi-word titles. Optional for post/page/custom when --stdin provides a frontmatter title or first H1.
 
 End of options:
-  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+  Use `--` before positional values that start with `-`, for example `laurel new post -- --config`.
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -24,9 +24,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --config → NECTAR_NEW_CONFIG
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → LAUREL_NEW_CONFIG
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -34,11 +34,11 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar new post "Hello World"               # content/posts/hello-world.md
-  nectar new post "日本語タイトル" --slug japanese-title
-  nectar new post "Draft Idea" --draft        # status: draft so the build skips it
-  nectar new post "Tagged" --tags news,tech --author jane
-  cat post.md | nectar new post --stdin       # derive title/body from Markdown stdin
-  nectar new tag releases                      # content/tags/releases.md
-  nectar new author jane                       # content/authors/jane.md
-  nectar new event "Launch Party"              # custom kind from config/theme manifest
+  laurel new post "Hello World"               # content/posts/hello-world.md
+  laurel new post "日本語タイトル" --slug japanese-title
+  laurel new post "Draft Idea" --draft        # status: draft so the build skips it
+  laurel new post "Tagged" --tags news,tech --author jane
+  cat post.md | laurel new post --stdin       # derive title/body from Markdown stdin
+  laurel new tag releases                      # content/tags/releases.md
+  laurel new author jane                       # content/authors/jane.md
+  laurel new event "Launch Party"              # custom kind from config/theme manifest

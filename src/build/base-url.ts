@@ -1,7 +1,7 @@
 /**
  * Normalise a user-supplied base URL so the rest of the build pipeline can
- * treat it identically to `site.url` loaded from nectar.toml. Used by the
- * `--base-url` CLI override (and its NECTAR_BUILD_BASE_URL env-var fallback)
+ * treat it identically to `site.url` loaded from laurel.toml. Used by the
+ * `--base-url` CLI override (and its LAUREL_BUILD_BASE_URL env-var fallback)
  * to retarget canonical, OG, RSS, and sitemap absolute URLs at a preview
  * host (Netlify/Vercel/Cloudflare PR URL) without editing config.
  *

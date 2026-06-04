@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { copyFile } from 'node:fs/promises';
 import { dirname, extname, isAbsolute, join, resolve, sep } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
@@ -33,7 +33,7 @@ export interface FaviconSet {
 
 export const EMPTY_FAVICON_SET: FaviconSet = { links: [], copies: [] };
 
-// Well-known favicon filenames Nectar recognises in a theme's assets/ dir.
+// Well-known favicon filenames Laurel recognises in a theme's assets/ dir.
 // Discovery is filename-based to avoid having themes opt in via package.json.
 // The role assigned here determines the emitted <link> tag.
 interface ThemeFaviconRecipe {
@@ -63,7 +63,7 @@ const THEME_FAVICON_RECIPES: ThemeFaviconRecipe[] = [
 ];
 
 export function computeFavicons(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   theme: ThemeBundle;
   cwd: string;
 }): FaviconSet {

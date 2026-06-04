@@ -1,7 +1,7 @@
 # Deploying a Cloudflare Pages site with images on R2
 
 Cloudflare Pages caps deployments at **25,000 files** per upload. A
-content-heavy Nectar build can blow past that limit once `[components.images]`
+content-heavy Laurel build can blow past that limit once `[components.images]`
 generates responsive width variants and WebP/AVIF format variants for every
 post image — a 200-post site with three widths and three formats per image
 ships 1800+ image files alone.
@@ -14,8 +14,8 @@ Worker that rewrites `/content/images/*` requests to R2.
 
 This recipe is intentionally explicit about which command syncs what:
 
-- `nectar deploy cloudflare` deploys the static Pages bundle with Wrangler.
-- `nectar deploy r2` wraps `aws s3 sync dist s3://<bucket> --endpoint-url
+- `laurel deploy cloudflare` deploys the static Pages bundle with Wrangler.
+- `laurel deploy r2` wraps `aws s3 sync dist s3://<bucket> --endpoint-url
   <endpoint>` and is useful when an R2 bucket is the deploy target for the
   whole `dist/` tree.
 - For the split Pages + R2 image-origin pattern below, sync
@@ -23,14 +23,14 @@ This recipe is intentionally explicit about which command syncs what:
 
 ## When to use this recipe
 
-Run `nectar build` and count the files in `dist/`:
+Run `laurel build` and count the files in `dist/`:
 
 ```sh
 find dist -type f | wc -l
 ```
 
 If you are within 80% of 25,000 (around 20,000 files), set this up before
-the next image-heavy post pushes you over the limit. `nectar deploy
+the next image-heavy post pushes you over the limit. `laurel deploy
 cloudflare` warns when `dist/` exceeds 25,000 files; that warning is your
 cue.
 
@@ -52,7 +52,7 @@ cue.
 
 The Pages deployment carries everything *except* `/content/images/`. A Worker
 mounted on the Pages hostname rewrites `/content/images/*` to the R2 bucket so
-the browser keeps requesting the normal Nectar image URLs. Caching, security
+the browser keeps requesting the normal Laurel image URLs. Caching, security
 headers, and the rest of the Pages config still apply to the Pages-rendered
 HTML.
 
@@ -80,10 +80,10 @@ The R2 S3-compatible endpoint is:
 https://<account-id>.r2.cloudflarestorage.com
 ```
 
-### 2. Sync nectar's image output to R2
+### 2. Sync laurel's image output to R2
 
 After every build, push `dist/content/images/` to the bucket under the same
-key prefix. That keeps the generated Nectar URLs stable:
+key prefix. That keeps the generated Laurel URLs stable:
 
 ```sh
 aws s3 sync dist/content/images/ s3://yoursite-images/content/images/ \
@@ -91,14 +91,14 @@ aws s3 sync dist/content/images/ s3://yoursite-images/content/images/ \
   --delete
 ```
 
-Use `--delete` only when this bucket/prefix is dedicated to generated Nectar
+Use `--delete` only when this bucket/prefix is dedicated to generated Laurel
 images; it removes stale responsive variants that no longer exist locally.
 
 If you want R2 to host the entire `dist/` output instead of only images,
-configure Nectar's R2 deploy target and use `nectar deploy r2`:
+configure Laurel's R2 deploy target and use `laurel deploy r2`:
 
 ```toml
-# nectar.toml
+# laurel.toml
 [deploy.r2]
 bucket = "yoursite-static"
 endpoint = "https://<account-id>.r2.cloudflarestorage.com"
@@ -106,8 +106,8 @@ delete = true
 ```
 
 ```sh
-bunx nectar deploy r2 --build --dry-run
-bunx nectar deploy r2 --build
+bunx laurel deploy r2 --build --dry-run
+bunx laurel deploy r2 --build
 ```
 
 That command syncs the configured build output directory, normally `dist/`, to
@@ -130,9 +130,9 @@ enabled = true
 Then rebuild before syncing to R2:
 
 ```sh
-bunx nectar build
-bunx nectar deploy r2 --dry-run
-bunx nectar deploy r2
+bunx laurel build
+bunx laurel deploy r2 --dry-run
+bunx laurel deploy r2
 ```
 
 ### 3. Strip images from the Pages upload
@@ -144,13 +144,13 @@ before the upload step and back afterwards.
 ```yaml
 # In your GitHub Actions workflow:
 - name: Move images out of Pages upload
-  run: mv dist/content/images /tmp/nectar-images
+  run: mv dist/content/images /tmp/laurel-images
 
 - name: Deploy to Cloudflare Pages
   run: npx wrangler pages deploy dist --project-name=yoursite
 
 - name: Restore for the R2 sync step
-  run: mv /tmp/nectar-images dist/content/images
+  run: mv /tmp/laurel-images dist/content/images
 
 - name: Sync images to R2
   run: |
@@ -163,7 +163,7 @@ If the images directory may be absent on small sites, guard the move:
 
 ```sh
 if [ -d dist/content/images ]; then
-  mv dist/content/images /tmp/nectar-images
+  mv dist/content/images /tmp/laurel-images
 fi
 ```
 
@@ -224,7 +224,7 @@ custom domain attached to your zone. That removes the Worker code, but the
 tradeoff is origin shape:
 
 - A custom domain such as `images.example.com` is simple and cacheable, but
-  Nectar image URLs are still emitted as `/content/images/...`; you need a
+  Laurel image URLs are still emitted as `/content/images/...`; you need a
   redirect/rewrite layer on Pages or theme/config changes that point images at
   the image domain.
 - A public `r2.dev` URL is useful for smoke tests, but Cloudflare recommends a
@@ -244,8 +244,8 @@ You can also dry-run the whole-bucket R2 target if you use R2 as the complete
 static host:
 
 ```sh
-bunx nectar deploy cloudflare --build --dry-run --project-name yoursite
-bunx nectar deploy r2 --dry-run --bucket yoursite-static \
+bunx laurel deploy cloudflare --build --dry-run --project-name yoursite
+bunx laurel deploy r2 --dry-run --bucket yoursite-static \
   --endpoint https://<account-id>.r2.cloudflarestorage.com
 ```
 
@@ -264,7 +264,7 @@ which is why this works.
 
 If you'd rather not run a Worker, **Cloudflare Images** ($5/mo + per-image
 fees) accepts your origin images and serves resized variants from
-`imagedelivery.net`. Nectar's `{{img_url}}` helper output points at
+`imagedelivery.net`. Laurel's `{{img_url}}` helper output points at
 `/content/images/...` regardless of host, so you'd configure a
 `[components.images]`-style rewrite to swap origins — currently a future
 work item, tracked separately.
@@ -279,5 +279,5 @@ work item, tracked separately.
   asset.
 - **Stale variants:** keep `--delete` on the scoped
   `aws s3 sync dist/content/images/ s3://.../content/images/` command when
-  that bucket/prefix is dedicated to generated Nectar images. Without it old
+  that bucket/prefix is dedicated to generated Laurel images. Without it old
   variants linger forever and rack up storage cost.

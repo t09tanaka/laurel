@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { asDateISO, parseFrontmatter } from '~/content/frontmatter.ts';
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 
 describe('asDateISO', () => {
   test('parses ISO date strings', () => {
@@ -28,15 +28,15 @@ describe('asDateISO', () => {
     expect(asDateISO('   ', fallback)).toBe(fallback);
   });
 
-  test('throws NectarError including post path and original value for an unparseable date string', () => {
+  test('throws LaurelError including post path and original value for an unparseable date string', () => {
     const postPath = 'content/posts/foo.md';
-    expect(() => asDateISO('not-a-date', undefined, `${postPath} date`)).toThrow(NectarError);
+    expect(() => asDateISO('not-a-date', undefined, `${postPath} date`)).toThrow(LaurelError);
     try {
       asDateISO('not-a-date', undefined, `${postPath} date`);
       throw new Error('expected asDateISO to throw');
     } catch (err) {
-      expect(err).toBeInstanceOf(NectarError);
-      const ne = err as NectarError;
+      expect(err).toBeInstanceOf(LaurelError);
+      const ne = err as LaurelError;
       expect(ne.code).toBe('content');
       expect(ne.message).toContain(postPath);
       expect(ne.message).toContain('not-a-date');
@@ -44,42 +44,42 @@ describe('asDateISO', () => {
     }
   });
 
-  test('throws NectarError including post path when fallback is provided but value is unparseable', () => {
+  test('throws LaurelError including post path when fallback is provided but value is unparseable', () => {
     const postPath = 'content/posts/bar.md';
     const fallback = '2026-01-01T00:00:00.000Z';
     expect(() => asDateISO('totally bogus', fallback, `${postPath} published_at`)).toThrow(
-      NectarError,
+      LaurelError,
     );
     try {
       asDateISO('totally bogus', fallback, `${postPath} published_at`);
     } catch (err) {
-      const ne = err as NectarError;
+      const ne = err as LaurelError;
       expect(ne.message).toContain(postPath);
       expect(ne.message).toContain('totally bogus');
     }
   });
 
-  test('throws NectarError for an unexpected non-string type, embedding context', () => {
+  test('throws LaurelError for an unexpected non-string type, embedding context', () => {
     const postPath = 'content/posts/baz.md';
     try {
       asDateISO({ year: 2026 } as unknown, undefined, `${postPath} date`);
       throw new Error('expected asDateISO to throw');
     } catch (err) {
-      expect(err).toBeInstanceOf(NectarError);
-      const ne = err as NectarError;
+      expect(err).toBeInstanceOf(LaurelError);
+      const ne = err as LaurelError;
       expect(ne.message).toContain(postPath);
       expect(ne.message).toMatch(/unexpected object value/);
     }
   });
 
-  test('throws NectarError for an Invalid Date instance', () => {
+  test('throws LaurelError for an Invalid Date instance', () => {
     const postPath = 'content/posts/qux.md';
     try {
       asDateISO(new Date('not-a-date'), undefined, `${postPath} date`);
       throw new Error('expected asDateISO to throw');
     } catch (err) {
-      expect(err).toBeInstanceOf(NectarError);
-      const ne = err as NectarError;
+      expect(err).toBeInstanceOf(LaurelError);
+      const ne = err as LaurelError;
       expect(ne.message).toContain(postPath);
       expect(ne.message).toMatch(/Invalid Date/);
     }
@@ -87,7 +87,7 @@ describe('asDateISO', () => {
 });
 
 describe('parseFrontmatter error reporting', () => {
-  test('throws NectarError with file:line:col when YAML is malformed', () => {
+  test('throws LaurelError with file:line:col when YAML is malformed', () => {
     const raw = `---
 title: ok
   date: 2026-01-01
@@ -99,8 +99,8 @@ body
       parseFrontmatter(raw, { filePath: '/repo/content/posts/foo.md' });
       throw new Error('expected parseFrontmatter to throw');
     } catch (err) {
-      expect(err).toBeInstanceOf(NectarError);
-      const ne = err as NectarError;
+      expect(err).toBeInstanceOf(LaurelError);
+      const ne = err as LaurelError;
       expect(ne.file).toBe('/repo/content/posts/foo.md');
       expect(ne.line).toBe(3);
       expect(ne.message).toMatch(/invalid frontmatter/);
@@ -108,7 +108,7 @@ body
     }
   });
 
-  test('still throws NectarError without file when filePath omitted', () => {
+  test('still throws LaurelError without file when filePath omitted', () => {
     const raw = `---
 title: ok
   date: 2026-01-01
@@ -116,7 +116,7 @@ title: ok
 
 body
 `;
-    expect(() => parseFrontmatter(raw)).toThrow(NectarError);
+    expect(() => parseFrontmatter(raw)).toThrow(LaurelError);
   });
 
   test('returns parsed data for valid frontmatter', () => {
@@ -131,11 +131,11 @@ body
 describe('parseFrontmatter security hardening (FAILSAFE_SCHEMA)', () => {
   test('rejects non-YAML fence languages (---js)', () => {
     const raw = '---js\nmodule.exports = { title: "x" }\n---\nbody\n';
-    expect(() => parseFrontmatter(raw, { filePath: '/x.md' })).toThrow(NectarError);
+    expect(() => parseFrontmatter(raw, { filePath: '/x.md' })).toThrow(LaurelError);
     try {
       parseFrontmatter(raw, { filePath: '/x.md' });
     } catch (err) {
-      const ne = err as NectarError;
+      const ne = err as LaurelError;
       expect(ne.code).toBe('content');
       expect(ne.message).toContain('unsupported frontmatter language');
       expect(ne.message).toContain('js');
@@ -144,7 +144,7 @@ describe('parseFrontmatter security hardening (FAILSAFE_SCHEMA)', () => {
 
   test('rejects --- coffee fence language', () => {
     const raw = '---coffee\ntitle: "x"\n---\nbody\n';
-    expect(() => parseFrontmatter(raw, { filePath: '/x.md' })).toThrow(NectarError);
+    expect(() => parseFrontmatter(raw, { filePath: '/x.md' })).toThrow(LaurelError);
   });
 
   test('accepts the plain --- fence (defaults to YAML)', () => {

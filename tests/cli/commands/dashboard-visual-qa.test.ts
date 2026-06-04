@@ -10,7 +10,7 @@ import {
 describe('dashboard visual QA script helpers', () => {
   test('plans stable desktop, laptop, and mobile captures for the dashboard fixture', () => {
     const project = join(import.meta.dir, '..', '..', 'fixtures', 'dashboard-visual-project');
-    const output = join(import.meta.dir, '..', '..', '..', '.nectar', 'dashboard-visual-qa');
+    const output = join(import.meta.dir, '..', '..', '..', '.laurel', 'dashboard-visual-qa');
     const plan = createDashboardVisualPlan({ project, output });
 
     expect(dashboardVisualViewports.map((viewport) => viewport.name)).toEqual([

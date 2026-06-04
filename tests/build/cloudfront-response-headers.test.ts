@@ -10,7 +10,7 @@ import {
 import { configSchema } from '~/config/schema.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-cloudfront-headers-'));
+  return mkdtemp(join(tmpdir(), 'laurel-cloudfront-headers-'));
 }
 
 function parseHeaders(headers: unknown = {}) {
@@ -24,7 +24,7 @@ describe('buildCloudFrontResponseHeadersPolicy', () => {
   test('maps default deploy security headers into an AWS CLI response headers policy config', () => {
     const policy = buildCloudFrontResponseHeadersPolicy(parseHeaders());
 
-    expect(policy.Name).toBe('nectar-generated-response-headers');
+    expect(policy.Name).toBe('laurel-generated-response-headers');
     expect(policy.SecurityHeadersConfig).toMatchObject({
       ContentTypeOptions: { Override: true },
       ReferrerPolicy: {
@@ -110,12 +110,12 @@ describe('buildCloudFrontResponseHeadersPolicy', () => {
 });
 
 describe('emitCloudFrontResponseHeadersPolicy', () => {
-  test('writes the AWS CLI policy JSON under dist/.nectar', async () => {
+  test('writes the AWS CLI policy JSON under dist/.laurel', async () => {
     const outputDir = await makeOutputDir();
 
     await emitCloudFrontResponseHeadersPolicy({ outputDir, headers: parseHeaders() });
 
-    const path = join(outputDir, '.nectar', 'cloudfront-response-headers-policy.json');
+    const path = join(outputDir, '.laurel', 'cloudfront-response-headers-policy.json');
     expect(existsSync(path)).toBe(true);
     expect(existsSync(join(outputDir, 'cloudfront-response-headers-policy.json'))).toBe(false);
 

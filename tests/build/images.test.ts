@@ -22,13 +22,13 @@ import {
   injectImageSrcsetIntoContent,
   planImageVariants,
 } from '~/build/images.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ContentGraph, Page, Post } from '~/content/model.ts';
 import { readImageDimensions } from '~/util/image-size.ts';
 import type { ImageDimensions } from '~/util/image-size.ts';
 
 function makeAssetsRoot(): string {
-  return mkdtempSync(join(tmpdir(), 'nectar-img-inject-'));
+  return mkdtempSync(join(tmpdir(), 'laurel-img-inject-'));
 }
 
 function writeSvg(dir: string, name: string, width: number, height: number): string {
@@ -212,7 +212,7 @@ describe('injectImageDimensionsIntoContent', () => {
       emailOnlyPosts: [],
       site: {} as ContentGraph['site'],
     };
-    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
     injectImageDimensionsIntoContent({ content, cwd, config });
     expect(post.html).toContain('width="640"');
     expect(post.html).toContain('height="360"');
@@ -243,7 +243,7 @@ describe('injectImageDimensionsIntoContent', () => {
       emailOnlyPosts: [],
       site: {} as ContentGraph['site'],
     };
-    const config = { content: { assets_dir: 'content/images' } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: 'content/images' } } as unknown as LaurelConfig;
 
     injectImageDimensionsIntoContent({ content, cwd, config });
 
@@ -266,7 +266,7 @@ describe('planImageVariants', () => {
     writeFakePng(join(cwd, assetsDir), 'wide.png', 2400, 1200);
     writeFakePng(join(cwd, assetsDir), 'mid.png', 1200, 800);
     writeFakePng(join(cwd, assetsDir), 'narrow.png', 500, 500);
-    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
     const plan = await planImageVariants({ cwd, config });
     expect(plan.get('wide.png')).toEqual([600, 1000, 1600]);
     expect(plan.get('mid.png')).toEqual([600, 1000]);
@@ -279,7 +279,7 @@ describe('planImageVariants', () => {
     const assetsDir = 'content/images';
     writeFakePng(join(cwd, assetsDir), 'cover.png', 1200, 800);
     writeFakePng(join(cwd, assetsDir, 'size/w600'), 'cover.png', 600, 400);
-    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
     const plan = await planImageVariants({ cwd, config });
     expect(plan.has('cover.png')).toBe(true);
     expect(plan.has('size/w600/cover.png')).toBe(false);
@@ -289,7 +289,7 @@ describe('planImageVariants', () => {
     const cwd = makeAssetsRoot();
     const assetsDir = 'content/images';
     writeSvg(join(cwd, assetsDir), 'cover.svg', 1200, 800);
-    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
     const plan = await planImageVariants({ cwd, config });
     expect(plan.size).toBe(0);
   });
@@ -298,14 +298,14 @@ describe('planImageVariants', () => {
     const cwd = makeAssetsRoot();
     const assetsDir = 'content/images';
     writeFakePng(join(cwd, assetsDir), 'cover.png', 1000, 700);
-    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
     const plan = await planImageVariants({ cwd, config, widths: [320, 640, 960, 1280] });
     expect(plan.get('cover.png')).toEqual([320, 640, 960]);
   });
 
   test('returns an empty plan when assets_dir does not exist', async () => {
     const cwd = makeAssetsRoot();
-    const config = { content: { assets_dir: 'no/such/dir' } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: 'no/such/dir' } } as unknown as LaurelConfig;
     const plan = await planImageVariants({ cwd, config });
     expect(plan.size).toBe(0);
   });
@@ -782,11 +782,11 @@ async function hasExifMetadata(file: string): Promise<boolean> {
 
 describe('generateImageVariants metadata policy', () => {
   test('strips EXIF metadata from resized variants by default', async () => {
-    const cwd = mkdtempSync(join(tmpdir(), 'nectar-image-exif-'));
+    const cwd = mkdtempSync(join(tmpdir(), 'laurel-image-exif-'));
     const assetsDir = 'content/images';
     await writeRealJpegWithExif(join(cwd, assetsDir, 'photo.jpg'), 80, 60);
     const outputDir = join(cwd, 'dist');
-    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
 
     const count = await generateImageVariants({
       cwd,
@@ -802,11 +802,11 @@ describe('generateImageVariants metadata policy', () => {
   });
 
   test('can preserve EXIF metadata when stripMetadata is disabled', async () => {
-    const cwd = mkdtempSync(join(tmpdir(), 'nectar-image-exif-'));
+    const cwd = mkdtempSync(join(tmpdir(), 'laurel-image-exif-'));
     const assetsDir = 'content/images';
     await writeRealJpegWithExif(join(cwd, assetsDir, 'photo.jpg'), 80, 60);
     const outputDir = join(cwd, 'dist');
-    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
 
     const count = await generateImageVariants({
       cwd,
@@ -823,15 +823,15 @@ describe('generateImageVariants metadata policy', () => {
   });
 
   test('caches same-format responsive variants by source content hash', async () => {
-    const cwd = mkdtempSync(join(tmpdir(), 'nectar-image-cache-'));
+    const cwd = mkdtempSync(join(tmpdir(), 'laurel-image-cache-'));
     const assetsDir = 'content/images';
     await writeRealPng(join(cwd, assetsDir, 'article/hero.png'), 1200, 800);
     const outputDir = join(cwd, 'dist');
-    const cacheDir = join(cwd, '.nectar/cache/images');
+    const cacheDir = join(cwd, '.laurel/cache/images');
     const config = {
       content: { assets_dir: assetsDir },
       components: { images: { cache_dir: cacheDir, strip_metadata: true } },
-    } as unknown as NectarConfig;
+    } as unknown as LaurelConfig;
     const plan = new Map([['article/hero.png', [600]]]);
 
     const firstCount = await generateImageVariants({ cwd, config, outputDir, plan });
@@ -858,11 +858,11 @@ describe('generateImageVariants metadata policy', () => {
 
 describe('generateThemeImageSizeVariants', () => {
   test('materialises one file per (source, size) into <outputDir>/content/images/size/<segment>/', async () => {
-    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const cwd = mkdtempSync(join(tmpdir(), 'laurel-theme-sizes-'));
     const assetsDir = 'content/images';
     await writeRealPng(join(cwd, assetsDir, 'cover.png'), 1600, 1000);
     const outputDir = join(cwd, 'dist');
-    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
 
     const count = await generateThemeImageSizeVariants({
       cwd,
@@ -885,11 +885,11 @@ describe('generateThemeImageSizeVariants', () => {
   });
 
   test('skips sizes that would upscale the source', async () => {
-    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const cwd = mkdtempSync(join(tmpdir(), 'laurel-theme-sizes-'));
     const assetsDir = 'content/images';
     await writeRealPng(join(cwd, assetsDir, 'small.png'), 400, 300);
     const outputDir = join(cwd, 'dist');
-    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
 
     const count = await generateThemeImageSizeVariants({
       cwd,
@@ -909,11 +909,11 @@ describe('generateThemeImageSizeVariants', () => {
   });
 
   test('emits height-only and width+height segments mirroring the URL helper', async () => {
-    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const cwd = mkdtempSync(join(tmpdir(), 'laurel-theme-sizes-'));
     const assetsDir = 'content/images';
     await writeRealPng(join(cwd, assetsDir, 'cover.png'), 1200, 1200);
     const outputDir = join(cwd, 'dist');
-    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
 
     const count = await generateThemeImageSizeVariants({
       cwd,
@@ -931,12 +931,12 @@ describe('generateThemeImageSizeVariants', () => {
   });
 
   test('ignores nested assets/size/* sources so re-builds are idempotent', async () => {
-    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const cwd = mkdtempSync(join(tmpdir(), 'laurel-theme-sizes-'));
     const assetsDir = 'content/images';
     await writeRealPng(join(cwd, assetsDir, 'cover.png'), 1200, 800);
     await writeRealPng(join(cwd, assetsDir, 'size/w600/cover.png'), 600, 400);
     const outputDir = join(cwd, 'dist');
-    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
 
     const count = await generateThemeImageSizeVariants({
       cwd,
@@ -951,11 +951,11 @@ describe('generateThemeImageSizeVariants', () => {
   });
 
   test('preserves subdirectory layout under size/<segment>/', async () => {
-    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const cwd = mkdtempSync(join(tmpdir(), 'laurel-theme-sizes-'));
     const assetsDir = 'content/images';
     await writeRealPng(join(cwd, assetsDir, '2026/05/photo.png'), 1200, 800);
     const outputDir = join(cwd, 'dist');
-    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
 
     const count = await generateThemeImageSizeVariants({
       cwd,
@@ -969,11 +969,11 @@ describe('generateThemeImageSizeVariants', () => {
   });
 
   test('no-op when theme defines no image_sizes', async () => {
-    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const cwd = mkdtempSync(join(tmpdir(), 'laurel-theme-sizes-'));
     const assetsDir = 'content/images';
     await writeRealPng(join(cwd, assetsDir, 'cover.png'), 1200, 800);
     const outputDir = join(cwd, 'dist');
-    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
 
     const count = await generateThemeImageSizeVariants({
       cwd,
@@ -986,8 +986,8 @@ describe('generateThemeImageSizeVariants', () => {
   });
 
   test('no-op when assets_dir does not exist', async () => {
-    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
-    const config = { content: { assets_dir: 'no/such/dir' } } as unknown as NectarConfig;
+    const cwd = mkdtempSync(join(tmpdir(), 'laurel-theme-sizes-'));
+    const config = { content: { assets_dir: 'no/such/dir' } } as unknown as LaurelConfig;
     const count = await generateThemeImageSizeVariants({
       cwd,
       config,
@@ -998,11 +998,11 @@ describe('generateThemeImageSizeVariants', () => {
   });
 
   test('emits per-format variants under size/<segment>/format/<ext>/ when formats are configured', async () => {
-    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const cwd = mkdtempSync(join(tmpdir(), 'laurel-theme-sizes-'));
     const assetsDir = 'content/images';
     await writeRealPng(join(cwd, assetsDir, 'cover.png'), 1600, 1000);
     const outputDir = join(cwd, 'dist');
-    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
 
     const count = await generateThemeImageSizeVariants({
       cwd,
@@ -1012,7 +1012,7 @@ describe('generateThemeImageSizeVariants', () => {
         xs: { width: 160 },
         m: { width: 600 },
       },
-      cacheDir: join(cwd, '.nectar/cache/images'),
+      cacheDir: join(cwd, '.laurel/cache/images'),
       formats: ['webp'],
     });
 
@@ -1029,7 +1029,7 @@ describe('generateThemeImageSizeVariants', () => {
   });
 
   test('skips format variants for non-jpg/png sources', async () => {
-    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const cwd = mkdtempSync(join(tmpdir(), 'laurel-theme-sizes-'));
     const assetsDir = 'content/images';
     // sharp can read webp, but emitting `cover.webp` re-encoded as webp is busy
     // work; the existing same-format src is already webp.
@@ -1041,14 +1041,14 @@ describe('generateThemeImageSizeVariants', () => {
       .webp()
       .toFile(join(cwd, assetsDir, 'cover.webp'));
     const outputDir = join(cwd, 'dist');
-    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
 
     const count = await generateThemeImageSizeVariants({
       cwd,
       config,
       outputDir,
       themeImageSizes: { m: { width: 600 } },
-      cacheDir: join(cwd, '.nectar/cache/images'),
+      cacheDir: join(cwd, '.laurel/cache/images'),
       formats: ['webp'],
     });
 
@@ -1061,11 +1061,11 @@ describe('generateThemeImageSizeVariants', () => {
   });
 
   test('does not emit format variants when cacheDir is not provided', async () => {
-    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const cwd = mkdtempSync(join(tmpdir(), 'laurel-theme-sizes-'));
     const assetsDir = 'content/images';
     await writeRealPng(join(cwd, assetsDir, 'cover.png'), 1200, 800);
     const outputDir = join(cwd, 'dist');
-    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
 
     const count = await generateThemeImageSizeVariants({
       cwd,
@@ -1083,12 +1083,12 @@ describe('generateThemeImageSizeVariants', () => {
   });
 
   test('caches encoded bytes by content hash so a rebuild reuses them', async () => {
-    const cwd = mkdtempSync(join(tmpdir(), 'nectar-theme-sizes-'));
+    const cwd = mkdtempSync(join(tmpdir(), 'laurel-theme-sizes-'));
     const assetsDir = 'content/images';
     await writeRealPng(join(cwd, assetsDir, 'cover.png'), 1200, 800);
     const outputDir = join(cwd, 'dist');
-    const cacheDir = join(cwd, '.nectar/cache/images');
-    const config = { content: { assets_dir: assetsDir } } as unknown as NectarConfig;
+    const cacheDir = join(cwd, '.laurel/cache/images');
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
     const themeImageSizes = { m: { width: 600 } };
 
     await generateThemeImageSizeVariants({

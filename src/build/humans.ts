@@ -1,11 +1,11 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { ensureDir } from '~/util/fs.ts';
 
 export async function emitHumans(opts: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   outputDir: string;
 }): Promise<void> {
   const { cwd, config, outputDir } = opts;
@@ -22,7 +22,7 @@ export async function emitHumans(opts: {
   if (config.site.description) {
     lines.push(`Description: ${config.site.description}`);
   }
-  lines.push(`URL: ${config.site.url}`, 'Generator: Nectar');
+  lines.push(`URL: ${config.site.url}`, 'Generator: Laurel');
 
   await writeFile(join(outputDir, 'humans.txt'), `${lines.join('\n')}\n`, 'utf8');
 }

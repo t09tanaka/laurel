@@ -1,13 +1,13 @@
 Open a post or page Markdown file in $EDITOR by slug. Tries content/posts/<slug>.md and content/pages/<slug>.md first, then falls back to scanning frontmatter for an exact `slug:` match
 
 Usage:
-  nectar open [--config <path>] [--kind <posts|pages>] [--json] [slug]
+  laurel open [--config <path>] [--kind <posts|pages>] [--json] [slug]
 
 Arguments:
   slug                Slug of the post or page to open (e.g. `hello-world`)
 
 End of options:
-  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+  Use `--` before positional values that start with `-`, for example `laurel new post -- --config`.
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -16,9 +16,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --config → NECTAR_OPEN_CONFIG
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → LAUREL_OPEN_CONFIG
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -26,6 +26,6 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar open hello-world                      # opens content/posts/hello-world.md
-  nectar open about --kind pages
-  EDITOR=code nectar open hello-world          # respects $EDITOR
+  laurel open hello-world                      # opens content/posts/hello-world.md
+  laurel open about --kind pages
+  EDITOR=code laurel open hello-world          # respects $EDITOR

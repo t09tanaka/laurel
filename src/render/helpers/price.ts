@@ -1,5 +1,5 @@
 import type Handlebars from 'handlebars';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 
 // `{{price tier currencyCode="USD"}}` -> Ghost-compatible tier price string.
 //
@@ -13,7 +13,7 @@ import type { NectarEngine } from '../engine.ts';
 // The helper also accepts a positional amount in minor units. That covers Ghost
 // account templates such as `{{price plan.amount}}`, where the sibling
 // `plan.currency` supplies the currency code.
-export function registerPriceHelpers(engine: NectarEngine): void {
+export function registerPriceHelpers(engine: LaurelEngine): void {
   const intlLocale = resolveIntlLocale(engine.content.site.locale);
 
   engine.hb.registerHelper('price', function priceHelper(this: unknown, ...args: unknown[]) {

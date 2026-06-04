@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
 import { renderSearchShim } from '~/search/runtime.ts';
 import { ensureDir } from '~/util/fs.ts';
@@ -118,7 +118,7 @@ function buildAuthorEntry(author: Author, siteUrl: string, basePath: string): Se
 }
 
 export function buildSearchIndex(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
 }): SearchIndex {
   const { config, content } = opts;
@@ -150,13 +150,13 @@ export function buildSearchIndex(opts: {
     meta: {
       generated_at: new Date().toISOString(),
       site_url: config.site.url,
-      note: "Nectar emits search.json as a flat fuzzy-search index. This is NOT Ghost's /search/ API; the field set is divergent and the endpoint shape is not replicated. Wire it to lunr / Fuse / minisearch on the client.",
+      note: "Laurel emits search.json as a flat fuzzy-search index. This is NOT Ghost's /search/ API; the field set is divergent and the endpoint shape is not replicated. Wire it to lunr / Fuse / minisearch on the client.",
     },
   };
 }
 
 export async function emitSearchJson(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   outputDir: string;
 }): Promise<string | null> {
@@ -185,69 +185,69 @@ export async function emitSearchJson(opts: {
 // link. Issue #1135.
 function searchUiCss(accent: string): string {
   return `:root {
-  --nectar-search-accent: ${accent};
-  --nectar-search-border: #d1d5db;
-  --nectar-search-text: #1f2937;
-  --nectar-search-muted: #6b7280;
-  --nectar-search-bg: #ffffff;
-  --nectar-search-hover-bg: #f3f4f6;
+  --laurel-search-accent: ${accent};
+  --laurel-search-border: #d1d5db;
+  --laurel-search-text: #1f2937;
+  --laurel-search-muted: #6b7280;
+  --laurel-search-bg: #ffffff;
+  --laurel-search-hover-bg: #f3f4f6;
 }
 
-.nectar-search { position: relative; margin: 1rem 0; }
-.nectar-search__label {
+.laurel-search { position: relative; margin: 1rem 0; }
+.laurel-search__label {
   display: block;
   margin-bottom: 0.25rem;
   font-size: 0.875rem;
-  color: var(--nectar-search-muted);
+  color: var(--laurel-search-muted);
 }
-.nectar-search__input {
+.laurel-search__input {
   width: 100%;
   box-sizing: border-box;
   padding: 0.5rem 0.75rem;
   font: inherit;
-  color: var(--nectar-search-text);
-  background: var(--nectar-search-bg);
-  border: 1px solid var(--nectar-search-border);
+  color: var(--laurel-search-text);
+  background: var(--laurel-search-bg);
+  border: 1px solid var(--laurel-search-border);
   border-radius: 6px;
 }
-.nectar-search__input:focus {
+.laurel-search__input:focus {
   outline: none;
-  border-color: var(--nectar-search-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--nectar-search-accent) 25%, transparent);
+  border-color: var(--laurel-search-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--laurel-search-accent) 25%, transparent);
 }
-.nectar-search__results {
+.laurel-search__results {
   list-style: none;
   margin: 0.25rem 0 0;
   padding: 0;
-  background: var(--nectar-search-bg);
-  border: 1px solid var(--nectar-search-border);
+  background: var(--laurel-search-bg);
+  border: 1px solid var(--laurel-search-border);
   border-radius: 6px;
   overflow: hidden;
 }
-.nectar-search__results:empty { display: none; }
-.nectar-search__results li {
+.laurel-search__results:empty { display: none; }
+.laurel-search__results li {
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--nectar-search-border);
+  border-bottom: 1px solid var(--laurel-search-border);
 }
-.nectar-search__results li:last-child { border-bottom: 0; }
-.nectar-search__results li:hover { background: var(--nectar-search-hover-bg); }
-.nectar-search__results a {
+.laurel-search__results li:last-child { border-bottom: 0; }
+.laurel-search__results li:hover { background: var(--laurel-search-hover-bg); }
+.laurel-search__results a {
   display: block;
   font-weight: 600;
-  color: var(--nectar-search-text);
+  color: var(--laurel-search-text);
   text-decoration: none;
 }
-.nectar-search__results a:hover { color: var(--nectar-search-accent); }
-.nectar-search__results p {
+.laurel-search__results a:hover { color: var(--laurel-search-accent); }
+.laurel-search__results p {
   margin: 0.25rem 0 0;
   font-size: 0.875rem;
-  color: var(--nectar-search-muted);
+  color: var(--laurel-search-muted);
 }
 `;
 }
 
 export async function emitSearchUiCss(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   outputDir: string;
 }): Promise<string | null> {
   const { config, outputDir } = opts;
@@ -260,8 +260,8 @@ export async function emitSearchUiCss(opts: {
   return dest;
 }
 
-export function searchEngineUsesNectarGhostSearchShim(
-  engine: NectarConfig['components']['search']['engine'],
+export function searchEngineUsesLaurelGhostSearchShim(
+  engine: LaurelConfig['components']['search']['engine'],
 ): boolean {
   return (
     engine === 'json' ||
@@ -273,7 +273,7 @@ export function searchEngineUsesNectarGhostSearchShim(
 }
 
 function searchShimStrategyForEngine(
-  engine: NectarConfig['components']['search']['engine'],
+  engine: LaurelConfig['components']['search']['engine'],
 ): 'json' | 'pagefind' | 'lunr' {
   if (engine === 'pagefind' || engine === 'json+pagefind') return 'pagefind';
   if (engine === 'lunr') return 'lunr';
@@ -282,18 +282,18 @@ function searchShimStrategyForEngine(
 
 // Emit the client-side runtime shim that wires `[data-ghost-search]` triggers
 // (and cmd+K / ctrl+K) into a search modal. Pagefind engines lazy-load
-// Pagefind UI; JSON-emitting engines use Nectar's flat `content/search.json`
+// Pagefind UI; JSON-emitting engines use Laurel's flat `content/search.json`
 // so cross-theme Ghost search buttons do not sit inert on the default config.
 // Sodo Search engines are left to the explicit Sodo script injected via
 // `{{ghost_head}}`.
 export async function emitSearchShim(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   outputDir: string;
 }): Promise<string | null> {
   const { config, outputDir } = opts;
   const cfg = config.components.search;
   if (!cfg.enabled) return null;
-  if (!searchEngineUsesNectarGhostSearchShim(cfg.engine)) return null;
+  if (!searchEngineUsesLaurelGhostSearchShim(cfg.engine)) return null;
   const dir = join(outputDir, 'search');
   await ensureDir(dir);
   const dest = join(dir, 'ghost-search.js');
@@ -314,7 +314,7 @@ export async function emitSearchShim(opts: {
 export function injectSearchShimScript(html: string, basePath: string, cspNonce?: string): string {
   // Don't inject twice on the same document. The marker attribute also makes
   // the side-effect visible to manual inspection.
-  if (html.includes('data-nectar-search-shim')) return html;
+  if (html.includes('data-laurel-search-shim')) return html;
   // Only inject if the HTML actually references a Ghost search trigger;
   // pages without any `data-ghost-search` element don't need the runtime.
   if (!/data-ghost-search\b/i.test(html)) return html;
@@ -324,7 +324,7 @@ export function injectSearchShimScript(html: string, basePath: string, cspNonce?
   const prefix = normalized.endsWith('/') ? normalized : `${normalized}/`;
   const src = `${prefix}search/ghost-search.js`;
   const nonce = cspNonce ? ` nonce="${cspNonce}"` : '';
-  const tag = `<script defer src="${src}" data-nectar-search-shim${nonce}></script>`;
+  const tag = `<script defer src="${src}" data-laurel-search-shim${nonce}></script>`;
   const insertAt = headCloseMatch.index;
   return `${html.slice(0, insertAt)}${tag}${html.slice(insertAt)}`;
 }
@@ -351,7 +351,7 @@ export function injectPagefindSkipMeta(html: string): string {
 }
 
 export async function runPagefind(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   outputDir: string;
 }): Promise<boolean> {
   const { config, outputDir } = opts;

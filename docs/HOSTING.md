@@ -1,6 +1,6 @@
-# Hosting Nectar sites
+# Hosting Laurel sites
 
-Nectar emits plain static files. Anything served at request time — TLS,
+Laurel emits plain static files. Anything served at request time — TLS,
 HTTP response headers, redirects, cache rules — is the host's job. This page
 collects the operator-facing pieces of that contract in one place:
 
@@ -19,10 +19,10 @@ collects the operator-facing pieces of that contract in one place:
 - [`docs/deployment/redirect-syntax-matrix.md`](./deployment/redirect-syntax-matrix.md)
   — cross-target redirect syntax matrix for `redirects.yaml`, `_redirects`,
   `vercel.json`, `firebase.json`, `.htaccess`, nginx, Caddy, GitHub Pages,
-  and hosts where Nectar does not emit a native redirect artifact.
+  and hosts where Laurel does not emit a native redirect artifact.
 - [`docs/deploy/cloudflare-pages.md`](./deploy/cloudflare-pages.md) —
   Cloudflare Pages quickstart covering the Git-connected build, generated
-  `_headers` / `_routes.json`, redirects, and `nectar deploy cloudflare`.
+  `_headers` / `_routes.json`, redirects, and `laurel deploy cloudflare`.
   If you deploy the same `dist/` directory through Cloudflare Workers Static
   Assets instead of Pages, start from
   [`examples/cloudflare-workers/wrangler.toml`](../examples/cloudflare-workers/wrangler.toml)
@@ -30,10 +30,10 @@ collects the operator-facing pieces of that contract in one place:
 - [`docs/deploy/cloudflare-pages-r2-images.md`](./deploy/cloudflare-pages-r2-images.md)
   — move image variants to R2 when a Pages deploy approaches the 25,000-file
   limit, including the private-bucket Worker pattern, R2 endpoint/credential
-  setup, and the difference between scoped image sync and `nectar deploy r2`.
+  setup, and the difference between scoped image sync and `laurel deploy r2`.
 - [`docs/deploy/vercel.md`](./deploy/vercel.md) — Vercel quickstart covering
   Git-connected builds, generated `vercel.json`, redirects, prebuilt GitHub
-  Actions deploys, and `nectar deploy vercel`.
+  Actions deploys, and `laurel deploy vercel`.
 - [`docs/tutorials/04-deploy.md`](./tutorials/04-deploy.md) — host-by-host
   deploy walkthroughs (Cloudflare Pages, Vercel, Netlify, Firebase Hosting,
   GitHub Pages, S3 + CloudFront, nginx, and a minimal Docker/nginx container),
@@ -44,11 +44,11 @@ collects the operator-facing pieces of that contract in one place:
   `base_path`, `.nojekyll`, `CNAME` notes, and the platform limitation that
   Pages cannot set arbitrary response headers.
 - [`docs/deploy/netlify.md`](./deploy/netlify.md) — Netlify-specific
-  quickstart for Git builds and CI uploads, including Nectar's generated
+  quickstart for Git builds and CI uploads, including Laurel's generated
   `_headers` / `_redirects` behavior.
 - [`docs/deploy/digitalocean-app-platform.md`](./deploy/digitalocean-app-platform.md)
-  — DigitalOcean App Platform quickstart for serving Nectar as a static site
-  with `bunx nectar build` and `dist/`. Nectar does not currently emit a
+  — DigitalOcean App Platform quickstart for serving Laurel as a static site
+  with `bunx laurel build` and `dist/`. Laurel does not currently emit a
   DigitalOcean App Spec, so this guide keeps any `.do/app.yaml` example
   minimal.
 - [`docs/deploy/render.md`](./deploy/render.md) — Render Static Sites
@@ -57,18 +57,18 @@ collects the operator-facing pieces of that contract in one place:
   headers / redirects.
 - [`docs/deploy/firebase-hosting.md`](./deploy/firebase-hosting.md) —
   Firebase Hosting quickstart for serving the static `dist/` directory with
-  Nectar's generated `firebase.json`. Nectar does not currently expose
-  `nectar deploy firebase`, so publishing still uses the Firebase CLI or the
+  Laurel's generated `firebase.json`. Laurel does not currently expose
+  `laurel deploy firebase`, so publishing still uses the Firebase CLI or the
   [`examples/ci/firebase.yml`](../examples/ci/firebase.yml) GitHub Actions
   sample.
 - [`docs/deploy/s3-cloudfront.md`](./deploy/s3-cloudfront.md) — AWS S3 +
   CloudFront quickstart, including the GitHub Actions workflow template,
   private S3 origin notes, directory-style URL rewrites, and
-  `nectar deploy s3`.
+  `laurel deploy s3`.
 - [`docs/deploy/bunny.md`](./deploy/bunny.md) — Bunny.net quickstart for
   uploading `dist/` to a Bunny Storage Zone and serving it through a connected
-  Pull Zone. Nectar does not currently emit Bunny-specific deploy artifacts or
-  provide `nectar deploy bunny`.
+  Pull Zone. Laurel does not currently emit Bunny-specific deploy artifacts or
+  provide `laurel deploy bunny`.
 - [`docs/deploy/fastly.md`](./deploy/fastly.md) — Fastly CDN quickstart for
   placing Fastly in front of a static origin that serves `dist/`, including
   cache, header, redirect, and purge ownership notes.
@@ -76,10 +76,10 @@ collects the operator-facing pieces of that contract in one place:
   `dist/` with the Surge CLI, custom domain notes, and the current lack of
   Surge-specific generated headers / redirects.
 - [`docs/deploy/nginx.md`](./deploy/nginx.md) — self-hosted nginx quickstart
-  for generating `dist/.nectar/nginx.conf`, syncing `dist/`, and including
+  for generating `dist/.laurel/nginx.conf`, syncing `dist/`, and including
   the generated server block from the main nginx config.
 - [`docs/deploy/caddy.md`](./deploy/caddy.md) — self-hosted Caddy quickstart
-  for generating `dist/.nectar/Caddyfile`, syncing `dist/`, and importing
+  for generating `dist/.laurel/Caddyfile`, syncing `dist/`, and importing
   the generated site block from the main Caddyfile.
 - Content API CORS snippets for self-hosted servers:
   [`nginx`](./deploy/cors-nginx.md), [`Apache`](./deploy/cors-apache.md),
@@ -87,10 +87,10 @@ collects the operator-facing pieces of that contract in one place:
   Netlify / Cloudflare `_headers` rules for `/content/*`.
 - [`docs/deploy/docker.md`](./deploy/docker.md) — Docker quickstart for
   serving a pre-built `dist/` directory with an external nginx container.
-  Nectar does not currently ship a Dockerfile or Docker-specific package
+  Laurel does not currently ship a Dockerfile or Docker-specific package
   script.
 - [`docs/deploy/fly.md`](./deploy/fly.md) — Fly.io quickstart for shipping
-  the pre-built `dist/` directory inside a small nginx image. Nectar does not
+  the pre-built `dist/` directory inside a small nginx image. Laurel does not
   currently ship a Dockerfile or `fly.toml`; the guide shows minimal
   project-local examples.
 - [`SECURITY.md`](../SECURITY.md) — how to report vulnerabilities and the
@@ -107,7 +107,7 @@ If you just want a defensible default stack on a new deploy:
    generated platform output where available (`[deploy.cloudflare_pages]`,
    `[deploy.vercel]`, `[deploy.netlify]`, `[deploy.apache]`, or
    `[deploy.nginx]`). GitHub Pages and Render are the exceptions here: GitHub
-   Pages ignores arbitrary header files, and Nectar does not currently emit
+   Pages ignores arbitrary header files, and Laurel does not currently emit
    Render-native header config. Use each host's dashboard / fronting layer, or
    move to Cloudflare Pages, Vercel, Netlify, Apache, or nginx when generated
    custom headers are required.
@@ -123,13 +123,13 @@ If you just want a defensible default stack on a new deploy:
 For Cloudflare Pages and Vercel specifically, start with
 [`docs/deploy/cloudflare-pages.md`](./deploy/cloudflare-pages.md) or
 [`docs/deploy/vercel.md`](./deploy/vercel.md). Those generated outputs already
-carry Nectar's deploy header defaults; use
+carry Laurel's deploy header defaults; use
 [`docs/security/hosting.md`](./security/hosting.md) when you need to tighten
 the baseline. If the Cloudflare Pages build is image-heavy, check the file
 count before wiring the final deploy:
 
 ```sh
-bunx nectar build
+bunx laurel build
 find dist -type f | wc -l
 ```
 
@@ -147,7 +147,7 @@ at config / content load time, with a warning. When on, those values ship
 verbatim into `{{ghost_head}}` / `{{ghost_foot}}` — including any inline
 `<script>`.
 
-If `[deploy.headers].security.content_security_policy` is set, Nectar scans the
+If `[deploy.headers].security.content_security_policy` is set, Laurel scans the
 final rendered HTML and appends build-time `sha256-...` entries for inline
 `<script>` bodies to `script-src` in generated deploy artifacts. This is the CSP
 side of the existing SRI behavior: external theme assets keep their
@@ -163,9 +163,9 @@ review of the inlined HTML. See
 
 - A general "how to host static sites" tutorial — the deploy walkthroughs
   under `tutorials/` are the right starting point if you've never shipped a
-  Nectar build.
+  Laurel build.
 - A platform comparison — the hosts covered are the ones whose deploy
-  conventions Nectar documents or emits first-class static artifacts for,
+  conventions Laurel documents or emits first-class static artifacts for,
   including self-hosted nginx. Some documented hosts, such as Render, may
   still require dashboard-managed headers or redirects until a dedicated
   emitter exists.

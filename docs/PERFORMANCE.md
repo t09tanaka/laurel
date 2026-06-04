@@ -1,6 +1,6 @@
 # Performance guide
 
-Nectar is designed to keep static builds predictable as a site grows. Use this
+Laurel is designed to keep static builds predictable as a site grows. Use this
 page to decide whether a build is healthy, how to reproduce the project
 benchmark locally, and which host settings keep the generated site fast after
 deploy.
@@ -45,15 +45,15 @@ The script prints a compact table with:
 For quick smoke runs while editing the benchmark itself:
 
 ```sh
-NECTAR_BENCH_POSTS=100 bun run bench:performance
+LAUREL_BENCH_POSTS=100 bun run bench:performance
 ```
 
-Use `NECTAR_BENCH_KEEP=1` to keep the temporary site path printed at the end of
+Use `LAUREL_BENCH_KEEP=1` to keep the temporary site path printed at the end of
 the run for inspection.
 
 ## Suggested host configuration
 
-Nectar emits static files, so request-time behavior belongs to the host or CDN.
+Laurel emits static files, so request-time behavior belongs to the host or CDN.
 Start with the security baseline in [`docs/security/hosting.md`](./security/hosting.md),
 then add these performance headers:
 
@@ -74,11 +74,11 @@ X-Content-Type-Options: nosniff
 Host-specific notes:
 
 - Cloudflare Pages, Netlify, Vercel, Apache, nginx, and Caddy can receive
-  generated header artifacts from Nectar. Prefer those generated files over
+  generated header artifacts from Laurel. Prefer those generated files over
   dashboard-only rules so header drift is reviewable.
 - For hosts that can turn `Link: rel=preload` response headers into
   `103 Early Hints`, opt in with `[deploy.early_hints].enabled = true`.
-  Nectar remains a file-only SSG: it writes per-route `early-hints.json`
+  Laurel remains a file-only SSG: it writes per-route `early-hints.json`
   artifacts and, when Cloudflare Pages or Netlify header output is enabled,
   route-specific `Link` entries in `_headers`. Only same-origin preloads that
   match known built theme/card assets are emitted.
@@ -104,12 +104,12 @@ preload_stylesheet = true # only when the theme does not already preload CSS
 ```
 
 `minify_html` removes whitespace-only blocks and comments from rendered HTML.
-`precompress` emits `.br` and `.gz` sidecars for text assets. Nectar also
+`precompress` emits `.br` and `.gz` sidecars for text assets. Laurel also
 normalizes final HTML resource tags so stylesheet links carry `type="text/css"`
 and external scripts are either `defer` or `type="module"` when the file shape
 is clear.
 
-Nectar intentionally does not purge CSS, inline critical CSS, or bundle/minify
+Laurel intentionally does not purge CSS, inline critical CSS, or bundle/minify
 theme JavaScript automatically. Those optimizations are theme-specific: a static
 analyzer can remove selectors that only appear after Portal/search/card runtime
 hydration, and JS bundling can change execution order for classic Ghost themes.
@@ -148,14 +148,14 @@ or in the reference theme fixture before relaxing the budgets.
 Images dominate output size and build time once a site grows past a few hundred
 posts.
 
-- Keep source raster images at max 5MB. Nectar's `build.max_image_bytes`
+- Keep source raster images at max 5MB. Laurel's `build.max_image_bytes`
   default is 5 MiB (`5242880`) and rejects larger copied raster images so one
   camera-original JPEG does not slow the whole deploy.
 - Prefer WebP or AVIF for generated variants. The default WebP path is a good
   balance; add AVIF only when the extra encoding time is acceptable.
 - Resize originals before committing when the image will never display above
   roughly 2400px wide.
-- Nectar caches responsive same-format variants by source content, output
+- Laurel caches responsive same-format variants by source content, output
   width, and metadata policy. A no-change rebuild should copy cached variants
   instead of decoding and re-encoding every article image again.
 - Keep SVGs for logos and simple illustrations. They are copied as scalable
@@ -171,16 +171,16 @@ Incremental builds depend on the manifest emitted into `dist/`. The first build
 has no prior route hashes, so every route renders:
 
 ```sh
-bunx nectar build --profile
+bunx laurel build --profile
 # rendered: 1,126, skipped: 0
 ```
 
 Run the same build again without changing content or theme files. The manifest
-hashes match, so Nectar preserves every route and rewrites only the supporting
+hashes match, so Laurel preserves every route and rewrites only the supporting
 metadata that must be refreshed:
 
 ```sh
-bunx nectar build --profile
+bunx laurel build --profile
 # rendered: 0, skipped: 1,126
 ```
 
@@ -188,7 +188,7 @@ Now edit one post:
 
 ```sh
 printf '\nUpdated benchmark note.\n' >> content/posts/post-0420.md
-bunx nectar build --profile
+bunx laurel build --profile
 # rendered: 8, skipped: 1,118
 ```
 
@@ -196,7 +196,7 @@ The edited post route re-renders, and any route that embeds that post
 (home/index pagination, tag archives, author archives, feeds, or search data
 depending on config) may also update. Unrelated post detail pages should stay
 skipped. If a one-post edit renders every route, inspect
-`dist/.nectar-build-stats.json` and `dist/.nectar/build-manifest.json` before
+`dist/.laurel-build-stats.json` and `dist/.laurel/build-manifest.json` before
 changing templates; the usual causes are a changed global config value, a theme
 file timestamp/content change, or deleting the previous `dist/` manifest.
 
@@ -205,10 +205,10 @@ file timestamp/content change, or deleting the previous `dist/` manifest.
 Run:
 
 ```sh
-bunx nectar build --profile
+bunx laurel build --profile
 ```
 
-Then inspect `dist/.nectar-build-stats.json`:
+Then inspect `dist/.laurel-build-stats.json`:
 
 - `totalDurationMs` shows end-to-end build time.
 - `phases[]` shows config/content/route/render/write/asset time.

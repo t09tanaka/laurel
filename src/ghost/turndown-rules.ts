@@ -472,7 +472,7 @@ function hasPictureSources(attrs: Record<string, string>): boolean {
 
 function isPotentiallyAnimatedImageSrc(src: string): boolean {
   try {
-    const url = new URL(src, 'https://nectar.invalid');
+    const url = new URL(src, 'https://laurel.invalid');
     return /\.(?:gif|webp)$/i.test(url.pathname);
   } catch {
     return /\.(?:gif|webp)$/i.test(src.split(/[?#]/, 1)[0] ?? '');
@@ -1486,7 +1486,7 @@ export function registerGhostCardRules(turndown: TurndownService): void {
   // preservation to latch onto — gets flattened into one bold paragraph per
   // cell. Re-emit it as the same GFM pipe table the dashboard editor's
   // insert-table produces (src/cli/dashboard/web/components/ProseEditor.tsx),
-  // which Nectar's `marked` renderer (gfm: true) renders and the editor
+  // which Laurel's `marked` renderer (gfm: true) renders and the editor
   // round-trips. Tables GFM can't express (merged cells, nested tables,
   // block-level cell content) stay as sanitised raw HTML so the grid survives.
   turndown.addRule('gfm-table', {

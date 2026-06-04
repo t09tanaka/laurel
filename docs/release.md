@@ -6,8 +6,8 @@ the GitHub Release, and publishes the npm package.
 
 ## SBOM and npm provenance
 
-The release workflow generates `release/nectar.cyclonedx.json` with
-`bun run sbom:cyclonedx` and uploads it as `nectar.cyclonedx.json` next to the
+The release workflow generates `release/laurel.cyclonedx.json` with
+`bun run sbom:cyclonedx` and uploads it as `laurel.cyclonedx.json` next to the
 release binaries. The SBOM is generated after `bun install --frozen-lockfile`, so
 it reflects the reviewed `bun.lock` dependency graph instead of resolving new
 versions during release.
@@ -36,10 +36,10 @@ matches this workflow.
 
 Release binaries are signed before they are uploaded as release artifacts:
 
-- `nectar-darwin-x64` and `nectar-darwin-arm64` are built on `macos-14`, signed
+- `laurel-darwin-x64` and `laurel-darwin-arm64` are built on `macos-14`, signed
   with an Apple Developer ID Application certificate, and submitted to Apple
   notarization with `xcrun notarytool`.
-- `nectar-windows-x64.exe` is built on `windows-latest` and signed with
+- `laurel-windows-x64.exe` is built on `windows-latest` and signed with
   Authenticode.
 - Linux binaries are not code-signed. They are covered by `SHASUMS256.txt` and
   GitHub build provenance attestations.
@@ -92,22 +92,22 @@ Consumers can verify release assets with:
 
 ```bash
 shasum -a 256 -c SHASUMS256.txt --ignore-missing
-gh attestation verify <binary> --repo t09tanaka/nectar
+gh attestation verify <binary> --repo t09tanaka/laurel
 ```
 
 On macOS, `codesign --verify --strict --verbose=2 <binary>` checks the Developer
-ID signature. On Windows, `Get-AuthenticodeSignature .\nectar-windows-x64.exe`
+ID signature. On Windows, `Get-AuthenticodeSignature .\laurel-windows-x64.exe`
 checks the Authenticode signature.
 
 ## Homebrew tap formula
 
-The release workflow generates a `nectar.rb` Homebrew formula from
-`packaging/homebrew/Formula/nectar.rb.template` and uploads it next to the
+The release workflow generates a `laurel.rb` Homebrew formula from
+`packaging/homebrew/Formula/laurel.rb.template` and uploads it next to the
 release binaries. The generated formula embeds the release tag and the
 platform-specific SHA-256 values from `SHASUMS256.txt`.
 
-The public tap should live in a separate `t09tanaka/homebrew-nectar` repository
-with the generated file at `Formula/nectar.rb`. After the GitHub Release is
+The public tap should live in a separate `t09tanaka/homebrew-laurel` repository
+with the generated file at `Formula/laurel.rb`. After the GitHub Release is
 created, the `bump-homebrew-tap` job uses `Homebrew/actions/setup-homebrew`,
 regenerates that formula from the release checksums, runs `brew audit`, and
 opens a pull request against the tap. The job requires a `HOMEBREW_TAP_TOKEN`
@@ -117,8 +117,8 @@ tap repository.
 Users can install the CLI with:
 
 ```bash
-brew tap t09tanaka/nectar
-brew install nectar
+brew tap t09tanaka/laurel
+brew install laurel
 ```
 
 To regenerate the formula locally before updating the tap:
@@ -127,9 +127,9 @@ To regenerate the formula locally before updating the tap:
 bun run homebrew:formula -- \
   --version v0.1.0 \
   --shasums dist-bin/SHASUMS256.txt \
-  --output ../homebrew-nectar/Formula/nectar.rb
-ruby -c ../homebrew-nectar/Formula/nectar.rb
-brew audit --new --strict ../homebrew-nectar/Formula/nectar.rb
+  --output ../homebrew-laurel/Formula/laurel.rb
+ruby -c ../homebrew-laurel/Formula/laurel.rb
+brew audit --new --strict ../homebrew-laurel/Formula/laurel.rb
 ```
 
 The tap repository layout and automation notes are tracked in
@@ -137,19 +137,19 @@ The tap repository layout and automation notes are tracked in
 
 ## Scoop bucket manifest
 
-The release workflow also generates a `nectar.json` Scoop manifest from
-`packaging/scoop/bucket/nectar.json.template` and uploads it next to the
-release binaries. The generated manifest points at `nectar-windows-x64.exe`,
-aliases it to the `nectar` command, and embeds the SHA-256 value from
+The release workflow also generates a `laurel.json` Scoop manifest from
+`packaging/scoop/bucket/laurel.json.template` and uploads it next to the
+release binaries. The generated manifest points at `laurel-windows-x64.exe`,
+aliases it to the `laurel` command, and embeds the SHA-256 value from
 `SHASUMS256.txt`.
 
-The public bucket should live in a separate `t09tanaka/scoop-nectar` repository
-with the generated file copied to `bucket/nectar.json`. After that bucket
+The public bucket should live in a separate `t09tanaka/scoop-laurel` repository
+with the generated file copied to `bucket/laurel.json`. After that bucket
 exists, Windows users can install the CLI with:
 
 ```powershell
-scoop bucket add nectar https://github.com/t09tanaka/scoop-nectar
-scoop install nectar
+scoop bucket add laurel https://github.com/t09tanaka/scoop-laurel
+scoop install laurel
 ```
 
 To regenerate the manifest locally before updating the bucket:
@@ -158,6 +158,6 @@ To regenerate the manifest locally before updating the bucket:
 bun run scoop:manifest -- \
   --version v0.1.0 \
   --shasums dist-bin/SHASUMS256.txt \
-  --output ../scoop-nectar/bucket/nectar.json
-bun -e 'JSON.parse(await Bun.file("../scoop-nectar/bucket/nectar.json").text())'
+  --output ../scoop-laurel/bucket/laurel.json
+bun -e 'JSON.parse(await Bun.file("../scoop-laurel/bucket/laurel.json").text())'
 ```

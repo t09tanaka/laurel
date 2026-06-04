@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import { registerPageUrlHelper } from '~/render/helpers/page-url.ts';
 
 interface PaginationFixture {
@@ -13,19 +13,19 @@ interface PaginationFixture {
   base_url?: string | undefined;
 }
 
-function makeEngine(): NectarEngine {
+function makeEngine(): LaurelEngine {
   const hb = Handlebars.create();
   return {
     hb,
-    config: {} as NectarEngine['config'],
-    content: {} as NectarEngine['content'],
-    theme: {} as NectarEngine['theme'],
+    config: {} as LaurelEngine['config'],
+    content: {} as LaurelEngine['content'],
+    theme: {} as LaurelEngine['theme'],
     templates: {},
     layouts: {},
     render() {
       throw new Error('not used');
     },
-  } as unknown as NectarEngine;
+  } as unknown as LaurelEngine;
 }
 
 function render(source: string, pagination: PaginationFixture | undefined): string {

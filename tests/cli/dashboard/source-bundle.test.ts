@@ -12,7 +12,7 @@ import {
 
 const tmps: string[] = [];
 async function makeBase(opts: { tailwind: boolean }): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'nectar-srcbundle-'));
+  const root = await mkdtemp(join(tmpdir(), 'laurel-srcbundle-'));
   tmps.push(root);
   // baseDir is <root>/src/cli/dashboard so tailwindBin resolves to <root>/node_modules/.bin
   const base = join(root, 'src', 'cli', 'dashboard');
@@ -74,7 +74,7 @@ describe('mtime staleness', () => {
   });
 
   test('maxMtimeMsUnder returns 0 for a missing directory', async () => {
-    expect(await maxMtimeMsUnder(join(tmpdir(), 'nectar-does-not-exist-xyz'))).toBe(0);
+    expect(await maxMtimeMsUnder(join(tmpdir(), 'laurel-does-not-exist-xyz'))).toBe(0);
   });
 });
 

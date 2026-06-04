@@ -1,12 +1,12 @@
-# Deploying Nectar to Bunny.net
+# Deploying Laurel to Bunny.net
 
-Bunny.net can serve a Nectar build by storing the generated `dist/` files in
-a Bunny Storage Zone and delivering them through a connected Pull Zone. Nectar
-does not currently ship a Bunny-specific deploy emitter or `nectar deploy
+Bunny.net can serve a Laurel build by storing the generated `dist/` files in
+a Bunny Storage Zone and delivering them through a connected Pull Zone. Laurel
+does not currently ship a Bunny-specific deploy emitter or `laurel deploy
 bunny` target, so Bunny-owned routing, headers, cache policy, purge behavior,
-and file mirroring stay outside Nectar for now.
+and file mirroring stay outside Laurel for now.
 
-Use this guide when you want Bunny's CDN in front of a fully static Nectar
+Use this guide when you want Bunny's CDN in front of a fully static Laurel
 site and are comfortable uploading the built artifact yourself from a local
 machine or CI.
 
@@ -15,8 +15,8 @@ machine or CI.
 1. Build the site locally:
 
    ```sh
-   bunx nectar build
-   test -f dist/.nectar-manifest.json
+   bunx laurel build
+   test -f dist/.laurel-manifest.json
    ```
 
 2. In the Bunny dashboard, create a **Storage Zone** for the site. Standard
@@ -68,13 +68,13 @@ machine or CI.
 6. If you use a custom domain, add it under the Pull Zone hostnames, point DNS
    at the assigned `*.b-cdn.net` hostname, and enable Bunny-managed SSL.
 
-## What Nectar does not emit for Bunny
+## What Laurel does not emit for Bunny
 
-Bunny does not consume Nectar's Cloudflare / Netlify `_headers` and
+Bunny does not consume Laurel's Cloudflare / Netlify `_headers` and
 `_redirects` conventions, Vercel's `vercel.json`, or the nginx config under
-`dist/.nectar/`. Keep these limitations in mind:
+`dist/.laurel/`. Keep these limitations in mind:
 
-- There is no `[deploy.bunny]` config block and no `nectar deploy bunny`
+- There is no `[deploy.bunny]` config block and no `laurel deploy bunny`
   command.
 - Cache headers and security headers need to be configured in Bunny's Pull
   Zone settings / Edge Rules, or by another layer in front of Bunny.
@@ -90,14 +90,14 @@ Bunny does not consume Nectar's Cloudflare / Netlify `_headers` and
 
 ## Error pages and route checks
 
-Nectar emits real static files, including `404.html` and directory-style page
+Laurel emits real static files, including `404.html` and directory-style page
 outputs such as `about/index.html`. After the first deploy, verify that Bunny
 serves both `/about/` and the exact object path `/about/index.html` as
 expected for your Storage Zone and Pull Zone settings.
 
 For the themed 404 page, set the Storage Zone's custom 404 file path to
 `/404.html`. Do not enable an SPA-style `/index.html` fallback unless you have
-intentionally converted the site into a client-routed app; Nectar pages are
+intentionally converted the site into a client-routed app; Laurel pages are
 already pre-rendered.
 
 ## Production notes
@@ -106,7 +106,7 @@ already pre-rendered.
   credential for that zone, not the account-wide Bunny API key.
 - Prefer short or revalidating cache for HTML and long cache for fingerprinted
   assets. The exact rule placement belongs in Bunny's Pull Zone configuration
-  until Nectar has a Bunny-specific emitter.
+  until Laurel has a Bunny-specific emitter.
 - Check the official Bunny docs for the current Storage API endpoint, regional
   endpoint, and Pull Zone setup flow:
   - <https://docs.bunny.net/storage/quickstart>

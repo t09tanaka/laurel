@@ -24,9 +24,9 @@ async function runCli(args: string[]): Promise<RunResult> {
 
 describe('schema command', () => {
   test.each([
-    ['config', 'NectarConfig'],
-    ['frontmatter', 'NectarFrontmatter'],
-    ['theme', 'NectarThemePackage'],
+    ['config', 'LaurelConfig'],
+    ['frontmatter', 'LaurelFrontmatter'],
+    ['theme', 'LaurelThemePackage'],
   ] as const)('prints %s JSON Schema to stdout only', async (target, definitionName) => {
     const result = await runCli(['schema', target]);
 
@@ -48,7 +48,7 @@ describe('schema command', () => {
     const result = await runCli(['schema', 'config']);
     const parsed = JSON.parse(result.stdout) as {
       definitions: {
-        NectarConfig: {
+        LaurelConfig: {
           properties: {
             site: { properties: Record<string, unknown>; required?: string[] };
             build: { properties: Record<string, unknown> };
@@ -57,13 +57,13 @@ describe('schema command', () => {
       };
     };
 
-    expect(parsed.definitions.NectarConfig.properties.site.properties.title).toMatchObject({
+    expect(parsed.definitions.LaurelConfig.properties.site.properties.title).toMatchObject({
       type: 'string',
     });
-    expect(parsed.definitions.NectarConfig.properties.site.properties.url).toMatchObject({
+    expect(parsed.definitions.LaurelConfig.properties.site.properties.url).toMatchObject({
       format: 'uri',
     });
-    expect(parsed.definitions.NectarConfig.properties.build.properties.output_dir).toMatchObject({
+    expect(parsed.definitions.LaurelConfig.properties.build.properties.output_dir).toMatchObject({
       type: 'string',
     });
   });
@@ -72,7 +72,7 @@ describe('schema command', () => {
     const result = await runCli(['schema', 'frontmatter']);
     const parsed = JSON.parse(result.stdout) as {
       definitions: {
-        NectarFrontmatter: {
+        LaurelFrontmatter: {
           anyOf: Array<{
             properties: Record<string, unknown>;
             required?: string[];
@@ -81,7 +81,7 @@ describe('schema command', () => {
       };
     };
 
-    const postSchema = parsed.definitions.NectarFrontmatter.anyOf[0];
+    const postSchema = parsed.definitions.LaurelFrontmatter.anyOf[0];
     expect(postSchema?.required).toContain('title');
     expect(postSchema?.properties.visibility).toMatchObject({
       enum: ['public', 'members', 'paid', 'tiers', 'filter'],
@@ -94,7 +94,7 @@ describe('schema command', () => {
       description: 'Custom post template slug, with or without custom-.',
     });
 
-    const pageSchema = parsed.definitions.NectarFrontmatter.anyOf[1];
+    const pageSchema = parsed.definitions.LaurelFrontmatter.anyOf[1];
     expect(pageSchema?.properties.custom_template).toBeTruthy();
     expect(pageSchema?.properties.custom_template).toMatchObject({
       description: 'Custom page template slug, with or without custom-.',
@@ -108,7 +108,7 @@ describe('schema command', () => {
     const result = await runCli(['schema', 'theme']);
     const parsed = JSON.parse(result.stdout) as {
       definitions: {
-        NectarThemePackage: {
+        LaurelThemePackage: {
           properties: {
             config: {
               properties: Record<string, unknown>;
@@ -118,7 +118,7 @@ describe('schema command', () => {
       };
     };
 
-    expect(parsed.definitions.NectarThemePackage.properties.config.properties).toMatchObject({
+    expect(parsed.definitions.LaurelThemePackage.properties.config.properties).toMatchObject({
       posts_per_page: { type: 'number' },
       image_sizes: { type: 'object' },
       card_assets: {

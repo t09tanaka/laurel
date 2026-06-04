@@ -62,7 +62,7 @@ function isEmbedProviderScriptType(value: unknown): value is EmbedProviderScript
 
 function hasEmbedProviderScriptMarker(html: string): boolean {
   return (
-    html.includes('data-nectar-embed-provider') ||
+    html.includes('data-laurel-embed-provider') ||
     html.includes('twitter-tweet') ||
     html.includes('instagram-media') ||
     html.includes('tiktok-embed') ||
@@ -72,7 +72,7 @@ function hasEmbedProviderScriptMarker(html: string): boolean {
 }
 
 function hasDataProvider(html: string, provider: EmbedProviderScriptType): boolean {
-  const dataProvider = /\bdata-nectar-embed-provider\s*=\s*(["'])([\s\S]*?)\1/gi;
+  const dataProvider = /\bdata-laurel-embed-provider\s*=\s*(["'])([\s\S]*?)\1/gi;
   let match: RegExpExecArray | null;
   // biome-ignore lint/suspicious/noAssignInExpressions: standard exec loop
   while ((match = dataProvider.exec(html)) !== null) {

@@ -76,7 +76,7 @@ describe('Ghost compatibility docs', () => {
     const doc = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
 
     expect(doc).toContain(
-      "Nectar does not inject the legacy Editorial theme's inline gallery bootstrap",
+      "Laurel does not inject the legacy Editorial theme's inline gallery bootstrap",
     );
     expect(doc).toContain('.kg-gallery-image > img[width][height]');
     expect(doc).toContain('width="1200" height="800"');
@@ -104,14 +104,14 @@ describe('Ghost compatibility docs', () => {
 
     expect(doc).toContain('class="kg-card kg-code-card kg-card-hascaption');
     expect(doc).toContain('.kg-code-card-with-line-numbers pre');
-    expect(doc).toMatch(/Nectar does not\s+generate line-number markers by itself/);
+    expect(doc).toMatch(/Laurel does not\s+generate line-number markers by itself/);
   });
 
   test('documents Content API post.html serialization divergence', async () => {
     const compatibility = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
     const api = await readFile(join(ROOT, 'docs', 'api.md'), 'utf8');
 
-    expect(compatibility).toContain("Nectar's Content API exposes `post.html`");
+    expect(compatibility).toContain("Laurel's Content API exposes `post.html`");
     expect(compatibility).toContain('byte-for-byte Ghost serializer');
     expect(compatibility).toContain('`kg-card` class hooks');
     expect(compatibility).toContain('Ghost editor fence comments');
@@ -150,7 +150,7 @@ describe('Ghost compatibility docs', () => {
     const doc = await readFile(join(ROOT, 'docs', 'GHOST_COMPATIBILITY.md'), 'utf8');
     const config = await readFile(join(ROOT, 'docs', 'config.md'), 'utf8');
 
-    expect(doc).toContain('When a theme ships `amp.hbs`, Nectar emits');
+    expect(doc).toContain('When a theme ships `amp.hbs`, Laurel emits');
     expect(doc).toContain('custom routes can set `content_type`');
     expect(doc).toContain('`fr-CA -> fr -> en`');
     expect(doc).toContain('`{{partials}}` is a no-op registration helper');

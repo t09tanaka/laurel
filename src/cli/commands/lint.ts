@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import { loadConfig } from '~/config/loader.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { loadContent } from '~/content/loader.ts';
 import type { Page, Post } from '~/content/model.ts';
 import { ensureContentDirs } from '../ensure-content-dirs.ts';
@@ -212,7 +212,7 @@ function lintAltText(posts: Post[], pages: Page[]): Finding[] {
 // Cheap frontmatter scan that runs before the structured loader so we can
 // flag obviously malformed files (e.g. no closing `---`) even when the loader
 // would refuse to ingest the whole corpus.
-async function scanRawFrontmatter(cwd: string, config: NectarConfig): Promise<Finding[]> {
+async function scanRawFrontmatter(cwd: string, config: LaurelConfig): Promise<Finding[]> {
   const dirs = [
     { kind: 'posts', dir: config.content.posts_dir },
     { kind: 'pages', dir: config.content.pages_dir },

@@ -47,7 +47,7 @@ const BODY = [
   '- list item two with **bold**, *italics*, and `inline code`',
   '- [a link](https://example.com)',
   '',
-  '> A blockquote that mentions Ghost, Nectar, and Markdown.',
+  '> A blockquote that mentions Ghost, Laurel, and Markdown.',
   '',
   '```ts',
   'export function greet(name: string): string {',
@@ -56,7 +56,7 @@ const BODY = [
   '```',
   '',
   'Another paragraph rounds the post out to a realistic word count for a',
-  'short blog entry. Read more at https://nectar.example.com/.',
+  'short blog entry. Read more at https://laurel.example.com/.',
 ].join('\n');
 
 interface BenchResult {
@@ -69,16 +69,16 @@ interface BenchResult {
 }
 
 async function setupCorpus(): Promise<string> {
-  const cwd = await mkdtemp(join(tmpdir(), 'nectar-bench-10k-'));
+  const cwd = await mkdtemp(join(tmpdir(), 'laurel-bench-10k-'));
   const themeSrc = resolve(import.meta.dir, '..', 'example', 'themes', 'source');
   cpSync(themeSrc, join(cwd, 'themes', 'source'), { recursive: true });
 
-  // Minimal nectar.toml. Static-only deploy targets, sitemap on, RSS on.
+  // Minimal laurel.toml. Static-only deploy targets, sitemap on, RSS on.
   writeFileSync(
-    join(cwd, 'nectar.toml'),
+    join(cwd, 'laurel.toml'),
     [
       '[site]',
-      'title = "Nectar 10k Bench"',
+      'title = "Laurel 10k Bench"',
       'description = "Synthetic corpus for benchmarks/bench-10k.ts"',
       'url = "https://bench.example.com"',
       'locale = "en"',
@@ -199,7 +199,7 @@ function printRow(r: BenchResult): void {
 }
 
 async function main(): Promise<void> {
-  console.log(`nectar bench-10k: posts=${POST_COUNT} tags=${TAG_COUNT} authors=${AUTHOR_COUNT}`);
+  console.log(`laurel bench-10k: posts=${POST_COUNT} tags=${TAG_COUNT} authors=${AUTHOR_COUNT}`);
   console.log('  targets: cold <15s, incremental <1s, rss <300MB');
 
   const cwd = await setupCorpus();

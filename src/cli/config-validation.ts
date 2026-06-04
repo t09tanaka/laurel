@@ -1,12 +1,12 @@
 import { relative } from 'node:path';
 import { loadConfig } from '~/config/loader.ts';
-import type { NectarConfig } from '~/config/schema.ts';
-import { isNectarError } from '~/util/errors.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
+import { isLaurelError } from '~/util/errors.ts';
 import { reportError } from './report.ts';
 
 interface ConfigValidationOk {
   ok: true;
-  config: NectarConfig;
+  config: LaurelConfig;
 }
 
 interface ConfigValidationFailure {
@@ -44,7 +44,7 @@ export function reportConfigValidationError(result: ConfigValidationFailure, cwd
 }
 
 export function configErrorEntry(error: unknown, cwd: string): ConfigValidationEntry {
-  if (isNectarError(error)) {
+  if (isLaurelError(error)) {
     const entry: ConfigValidationEntry = {
       code: error.code ?? 'config',
       message: error.message,

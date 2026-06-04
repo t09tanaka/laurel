@@ -7,7 +7,7 @@ import { buildApacheHtaccess, emitApacheHtaccess, toApacheRewritePattern } from 
 import { configSchema } from '~/config/schema.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-apache-'));
+  return mkdtemp(join(tmpdir(), 'laurel-apache-'));
 }
 
 const DEFAULT_HEADERS_CONFIG = configSchema.parse({ site: { title: 'x' } }).deploy.headers;
@@ -41,23 +41,23 @@ describe('buildApacheHtaccess', () => {
   test('maps deploy cache rules to first-match rewrite env flags consumed by mod_headers', () => {
     const out = buildApacheHtaccess({ headers: DEFAULT_HEADERS_CONFIG, rules: [] });
 
-    expect(out).toContain('RewriteCond %{ENV:NECTAR_CACHE_MATCHED} !1');
+    expect(out).toContain('RewriteCond %{ENV:LAUREL_CACHE_MATCHED} !1');
     expect(out).toContain(
-      'RewriteRule ^assets/(.*)$ - [E=NECTAR_CACHE_0:1,E=NECTAR_CACHE_MATCHED:1]',
+      'RewriteRule ^assets/(.*)$ - [E=LAUREL_CACHE_0:1,E=LAUREL_CACHE_MATCHED:1]',
     );
     expect(out).toContain(
-      'RewriteRule ^_images/(.*)$ - [E=NECTAR_CACHE_1:1,E=NECTAR_CACHE_MATCHED:1]',
+      'RewriteRule ^_images/(.*)$ - [E=LAUREL_CACHE_1:1,E=LAUREL_CACHE_MATCHED:1]',
     );
     expect(out).toContain(
-      'Header set Cache-Control "public, max-age=31536000, immutable" env=NECTAR_CACHE_0',
+      'Header set Cache-Control "public, max-age=31536000, immutable" env=LAUREL_CACHE_0',
     );
     expect(out).toContain(
-      'Header set Cache-Control "public, max-age=31536000, immutable" env=NECTAR_CACHE_1',
+      'Header set Cache-Control "public, max-age=31536000, immutable" env=LAUREL_CACHE_1',
     );
     expect(out).toContain(
-      'Header set Cache-Control "public, max-age=0, must-revalidate" env=NECTAR_CACHE_3',
+      'Header set Cache-Control "public, max-age=0, must-revalidate" env=LAUREL_CACHE_3',
     );
-    expect(out.indexOf('NECTAR_CACHE_0')).toBeLessThan(out.indexOf('NECTAR_CACHE_3'));
+    expect(out.indexOf('LAUREL_CACHE_0')).toBeLessThan(out.indexOf('LAUREL_CACHE_3'));
   });
 
   test('resolves clean URLs to slug index files after redirects and cache markers', () => {
@@ -67,7 +67,7 @@ describe('buildApacheHtaccess', () => {
     });
 
     expect(out).toContain('RewriteEngine On');
-    expect(out).toContain("  # Resolve Nectar's slug/index.html output for clean URLs.");
+    expect(out).toContain("  # Resolve Laurel's slug/index.html output for clean URLs.");
     expect(out).toContain('RewriteCond %{REQUEST_FILENAME} !-f');
     expect(out).toContain('RewriteCond %{REQUEST_FILENAME}/index.html -f');
     expect(out).toContain('RewriteRule ^(.+[^/])$ $1/index.html [L]');
@@ -75,7 +75,7 @@ describe('buildApacheHtaccess', () => {
     expect(out).toContain('RewriteRule ^(.+)/$ $1/index.html [L]');
     expect(out.indexOf('# Redirects')).toBeLessThan(out.indexOf('# Cache rule markers'));
     expect(out.indexOf('# Cache rule markers')).toBeLessThan(
-      out.indexOf("# Resolve Nectar's slug/index.html output"),
+      out.indexOf("# Resolve Laurel's slug/index.html output"),
     );
   });
 

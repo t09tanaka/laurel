@@ -1,4 +1,4 @@
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 
 export type HeadHintRel = 'preconnect' | 'dns-prefetch';
 
@@ -9,7 +9,7 @@ export interface HeadHint {
 }
 
 interface ComponentHeadHintsContext {
-  readonly config: NectarConfig;
+  readonly config: LaurelConfig;
   readonly page?: { comments?: unknown };
 }
 

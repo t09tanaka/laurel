@@ -1,4 +1,4 @@
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 import type {
   PortalAdapter,
   ResolvedSubscribeForm,
@@ -13,9 +13,9 @@ export const buttondownAdapter: PortalAdapter = {
   provider: 'buttondown',
   resolve(cfg: SubscribeAdapterConfig): ResolvedSubscribeForm {
     if (!cfg.username) {
-      throw new NectarError({
+      throw new LaurelError({
         message: 'components.subscribe.username is required when provider is "buttondown"',
-        hint: 'Set components.subscribe.username in nectar.toml to your Buttondown username',
+        hint: 'Set components.subscribe.username in laurel.toml to your Buttondown username',
         code: 'config',
       });
     }

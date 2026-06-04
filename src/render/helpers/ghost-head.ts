@@ -29,10 +29,10 @@ import {
   type EmbedProviderScriptType,
   getEmbedProviderScripts,
 } from '../embed-provider-scripts.ts';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 import { publicSafeGeneratedExcerpt } from './content.ts';
 
-export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
+export function registerGhostHeadFootHelpers(engine: LaurelEngine): void {
   const jsonLdScriptCache = new Map<string, string>();
 
   engine.hb.registerHelper(
@@ -55,7 +55,7 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       const performance = engine.config?.performance;
 
       let head = '';
-      head = appendHeadPart(head, `<meta name="generator" content="Nectar">`);
+      head = appendHeadPart(head, `<meta name="generator" content="Laurel">`);
       head = appendHeadPart(
         head,
         `<meta name="referrer" content="${escapeAttr(resolveReferrerPolicy(site))}">`,
@@ -103,7 +103,7 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
             if (!component || component.css.length === 0) continue;
             head = appendHeadPart(
               head,
-              `<style data-nectar-component="${escapeAttr(slug)}">${component.css}</style>`,
+              `<style data-laurel-component="${escapeAttr(slug)}">${component.css}</style>`,
             );
           }
         }
@@ -365,13 +365,13 @@ export function registerGhostHeadFootHelpers(engine: NectarEngine): void {
       // own injection so the bundled translations load; `data-ghost` exposes the
       // site URL the client uses as its Members API origin. Themes that ship a
       // `<button data-portal="…">` UI but want offline-safety still render fine
-      // because Nectar always also rewrites those buttons via portal-shim.ts.
+      // because Laurel always also rewrites those buttons via portal-shim.ts.
       const portalSnippet = renderPortalSnippet(engine.config?.components?.portal, site.url);
       if (portalSnippet) head = appendHeadPart(head, portalSnippet);
 
       // Sodo Search client script. Opt-in via [components.search].engine when
       // set to `sodo-search` or `json+sodo-search`. The script reads from the
-      // `content/search.json` index Nectar already emits, so themes that wire a
+      // `content/search.json` index Laurel already emits, so themes that wire a
       // `<button data-ghost-search>` trigger (Source / Casper) get a working
       // search UI without a server. Independent of Pagefind / Lunr emitters.
       const sodoSnippet = renderSodoSearchSnippet(engine.config?.components?.search, site.url);
@@ -446,7 +446,7 @@ function routeAmpHtmlHref(
   return absoluteUrlWithBasePath(siteUrl, basePath, `${base}amp/`);
 }
 
-function themeHasAmpTemplate(engine: NectarEngine): boolean {
+function themeHasAmpTemplate(engine: LaurelEngine): boolean {
   const templates = engine.theme?.templates;
   return !!templates && Object.prototype.hasOwnProperty.call(templates, 'amp');
 }
@@ -623,7 +623,7 @@ function pickString(value: unknown): string | undefined {
   return typeof value === 'string' && value ? value : undefined;
 }
 
-function resolveColorSchemeMeta(engine: NectarEngine): 'light dark' | 'dark light' {
+function resolveColorSchemeMeta(engine: LaurelEngine): 'light dark' | 'dark light' {
   const custom = {
     ...(engine.theme?.pkg?.customDefaults ?? {}),
     ...(engine.config?.theme?.custom ?? {}),
@@ -1250,7 +1250,7 @@ function routeScopedMetaImage(
 }
 
 // Normalise a Twitter handle / URL into the `@handle` form expected by the
-// twitter:site / twitter:creator meta tags. Accepts bare handles ("nectar"),
+// twitter:site / twitter:creator meta tags. Accepts bare handles ("laurel"),
 // `@`-prefixed handles, and full twitter.com / x.com profile URLs. Returns
 // undefined when the value is missing, non-string, or doesn't look like a
 // well-formed handle (so a stray URL fragment doesn't end up rendered as
@@ -1273,7 +1273,7 @@ function formatTwitterHandle(value: unknown): string | undefined {
 // Collect Schema.org `sameAs`-compatible profile URLs from a record that may
 // expose any of Ghost's documented social fields. Each field is normalised
 // through the same SOCIAL_PATTERNS-style logic used by `{{social_url}}` so a
-// bare handle ("@nectar") becomes a full URL ("https://twitter.com/nectar")
+// bare handle ("@laurel") becomes a full URL ("https://twitter.com/laurel")
 // without depending on the helper being invoked. Values that are already
 // absolute http(s) URLs are passed through unchanged. The site `url` field
 // is intentionally excluded — `Organization.url` already carries it, and
@@ -1463,7 +1463,7 @@ function renderPortalSnippet(
   return `<script defer src="${escapeAttr(src)}" data-i18n="true" data-ghost="${escapeAttr(siteUrl)}"></script>`;
 }
 
-function renderStaticPortalRuntime(engine: NectarEngine): string | undefined {
+function renderStaticPortalRuntime(engine: LaurelEngine): string | undefined {
   if (!engine.content.site.members_enabled) return undefined;
   const portal = engine.config?.components?.portal;
   const basePath = engine.config?.build?.base_path ?? '/';
@@ -1475,18 +1475,18 @@ function renderStaticPortalRuntime(engine: NectarEngine): string | undefined {
   });
   const src = joinPath(basePath, `${PORTAL_RUNTIME_PATH}?v=${PORTAL_RUNTIME_VERSION}`);
   return [
-    `<script${nonce}>window.NectarPortal=${escapeJsonForScript(configJson)};</script>`,
+    `<script${nonce}>window.LaurelPortal=${escapeJsonForScript(configJson)};</script>`,
     `<script src="${escapeAttr(src)}" defer${nonce}></script>`,
   ].join('\n');
 }
 
-function renderInlineSubmitRuntime(engine: NectarEngine): string | undefined {
+function renderInlineSubmitRuntime(engine: LaurelEngine): string | undefined {
   if (engine.config?.components?.portal?.inline_submit !== true) return undefined;
   const nonce = nonceAttr(engine.config?.build?.csp_nonce);
   return `<script${nonce}>${INLINE_SUBMIT_RUNTIME_JS}</script>`;
 }
 
-function renderCardAssetsHeadSnippet(engine: NectarEngine, basePath: string): string | undefined {
+function renderCardAssetsHeadSnippet(engine: LaurelEngine, basePath: string): string | undefined {
   const cardAssets = engine.theme.pkg.card_assets;
   if (!isCardAssetsEnabled(cardAssets)) return undefined;
   const version = cardAssetsVersion(cardAssets);
@@ -1496,7 +1496,7 @@ function renderCardAssetsHeadSnippet(engine: NectarEngine, basePath: string): st
 }
 
 function renderKoenigRuntimeSnippet(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   data: Record<string, unknown> | undefined,
 ): string | undefined {
   const cardAssets = engine.theme.pkg.card_assets;
@@ -1508,7 +1508,7 @@ function renderKoenigRuntimeSnippet(
   const jsSrc = joinPath(basePath, `${CARD_ASSETS_JS_PATH}?v=${version}`);
   const nonce = nonceAttr(engine.config?.build?.csp_nonce);
   const cards = enabledCards.join(',');
-  return `<script defer src="${escapeAttr(jsSrc)}"${nonce} data-nectar-koenig-runtime="${escapeAttr(cards)}"></script>`;
+  return `<script defer src="${escapeAttr(jsSrc)}"${nonce} data-laurel-koenig-runtime="${escapeAttr(cards)}"></script>`;
 }
 
 const EMBED_PROVIDER_SCRIPT_SRC: Record<EmbedProviderScriptType, string> = {
@@ -1518,7 +1518,7 @@ const EMBED_PROVIDER_SCRIPT_SRC: Record<EmbedProviderScriptType, string> = {
 };
 
 function renderEmbedProviderScripts(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   data: Record<string, unknown> | undefined,
 ): string | undefined {
   const providers = [...getEmbedProviderScripts(data)].sort();
@@ -1527,7 +1527,7 @@ function renderEmbedProviderScripts(
   return providers
     .map((provider) => {
       const src = EMBED_PROVIDER_SCRIPT_SRC[provider];
-      return `<script async defer src="${escapeAttr(src)}"${nonce} data-nectar-embed-script="${provider}"></script>`;
+      return `<script async defer src="${escapeAttr(src)}"${nonce} data-laurel-embed-script="${provider}"></script>`;
     })
     .join('\n');
 }
@@ -1535,7 +1535,7 @@ function renderEmbedProviderScripts(
 // Sodo Search injection. Returns the `<script defer src="…">` tag when the
 // search engine is `sodo-search` or `json+sodo-search`. Mirrors Ghost's own
 // embed: `data-key` and `data-styles` are left blank (themes wire those when
-// they need to), the script reads from the search index Nectar emits.
+// they need to), the script reads from the search index Laurel emits.
 function renderSodoSearchSnippet(
   cfg: { engine?: string; enabled?: boolean; sodo_search_src?: string } | undefined,
   siteUrl: string,

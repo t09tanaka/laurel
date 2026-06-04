@@ -7,11 +7,11 @@ import { emitRobots } from '~/build/robots.ts';
 import { configSchema } from '~/config/schema.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-robots-'));
+  return mkdtemp(join(tmpdir(), 'laurel-robots-'));
 }
 
 async function makeCwd(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-robots-cwd-'));
+  return mkdtemp(join(tmpdir(), 'laurel-robots-cwd-'));
 }
 
 describe('emitRobots', () => {

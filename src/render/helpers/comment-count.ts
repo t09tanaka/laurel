@@ -1,8 +1,8 @@
 import type Handlebars from 'handlebars';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 
 // Ghost themes use {{comment_count}} to render the comment tally for a post
-// (e.g. `<span class="post-card-comments">3 comments</span>`). Nectar has no
+// (e.g. `<span class="post-card-comments">3 comments</span>`). Laurel has no
 // members/comments backend, so a static build cannot know the live count. When
 // the current post context does not carry an explicit `comment_count`, render
 // an empty string inside the optional wrapper rather than asserting "0". The
@@ -20,7 +20,7 @@ import type { NectarEngine } from '../engine.ts';
 // Ghost themes commonly pass labels (`singular="comment" plural="comments"`)
 // and expect the helper to add the number. If a label contains a literal `%`,
 // use it as the number placeholder instead.
-export function registerCommentCountHelper(engine: NectarEngine): void {
+export function registerCommentCountHelper(engine: LaurelEngine): void {
   engine.hb.registerHelper(
     'comment_count',
     function commentCountHelper(this: unknown, options: Handlebars.HelperOptions) {

@@ -5,7 +5,7 @@ import { brotliCompressSync, gzipSync } from 'node:zlib';
 import type { Server, ServerWebSocket } from 'bun';
 import { build } from '~/build/pipeline.ts';
 import { loadConfig } from '~/config/loader.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import {
   LIVERELOAD_CLIENT_JS,
   LIVERELOAD_PATH,
@@ -268,7 +268,7 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
             if (srv.upgrade(request, { data: undefined })) return finish(undefined);
             return finish(new Response('upgrade failed', { status: 426 }));
           }
-          // External livereload script (mirrors `nectar dev`). Same client logic
+          // External livereload script (mirrors `laurel dev`). Same client logic
           // works whether the inline tag is injected into the HTML or the script
           // is fetched separately; serving both shapes lets manually-injected
           // HTML or non-rebuilt fixtures still find a working client.
@@ -513,7 +513,7 @@ export async function runServe(args: string[], options: ServeRunOptions = {}): P
   }
   server.stop(true);
   // SIGINT (Ctrl-C) is a user-driven abort; POSIX convention is exit 128+SIGNUM
-  // = 130. Surfacing it lets shell loops (`until nectar serve; do …; done`) and
+  // = 130. Surfacing it lets shell loops (`until laurel serve; do …; done`) and
   // CI runners distinguish "user cancelled" from a clean shutdown, and matches
   // the behaviour of common dev servers (vite, next dev, hugo server).
   if (signal === 'SIGINT') {
@@ -552,7 +552,7 @@ function startServeServer(opts: {
   throw new Error(`No open port found in ${opts.initialPort}..${opts.maxPort}`);
 }
 
-function gatherWatchPaths(cwd: string, config: NectarConfig): string[] {
+function gatherWatchPaths(cwd: string, config: LaurelConfig): string[] {
   const paths = new Set<string>();
   const add = (p: string): void => {
     const abs = isAbsolute(p) ? p : join(cwd, p);
@@ -564,7 +564,7 @@ function gatherWatchPaths(cwd: string, config: NectarConfig): string[] {
   add(config.content.tags_dir);
   add(config.content.assets_dir);
   add(join(config.theme.dir, config.theme.name));
-  for (const name of ['nectar.toml', 'nectar.config.toml']) {
+  for (const name of ['laurel.toml', 'laurel.config.toml']) {
     const p = join(cwd, name);
     if (existsSync(p)) paths.add(p);
   }
@@ -847,7 +847,7 @@ function isServeFileOverResponseLimit(size: number): boolean {
 }
 
 function serveMaxResponseBytes(env: NodeJS.ProcessEnv = process.env): number {
-  const raw = env.NECTAR_SERVE_MAX_RESPONSE_BYTES;
+  const raw = env.LAUREL_SERVE_MAX_RESPONSE_BYTES;
   if (raw === undefined || raw.trim() === '') return DEFAULT_MAX_SERVE_RESPONSE_BYTES;
   const value = Number(raw.trim());
   if (!Number.isInteger(value) || value < 0) return DEFAULT_MAX_SERVE_RESPONSE_BYTES;

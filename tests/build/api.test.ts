@@ -208,14 +208,14 @@ function makeGraph(): ContentGraph {
       members_invite_only: false,
       comments_enabled: false,
       comments_access: 'all',
-      linkedin: 'nectar-ssg',
-      bluesky: 'nectar.example',
-      mastodon: 'nectar@hachyderm.io',
-      threads: '@nectar',
-      tiktok: '@nectar',
-      youtube: '@nectarvideo',
-      instagram: '@nectargram',
-      github: 't09tanaka/nectar',
+      linkedin: 'laurel-ssg',
+      bluesky: 'laurel.example',
+      mastodon: 'laurel@hachyderm.io',
+      threads: '@laurel',
+      tiktok: '@laurel',
+      youtube: '@laurelvideo',
+      instagram: '@laurelgram',
+      github: 't09tanaka/laurel',
       portal_button: false,
       portal_button_icon: '',
       portal_button_signup_text: '',
@@ -242,18 +242,18 @@ function makeGraph(): ContentGraph {
 
 describe('emitContentApiShadows', () => {
   test('writes Ghost Content API JSON shadows under ghost/api/content/', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     const content = makeGraph();
     Object.assign(content.site, {
-      linkedin: 'nectar-ssg',
-      bluesky: 'nectar.example',
-      mastodon: 'nectar@hachyderm.io',
-      threads: '@nectar',
-      tiktok: '@nectar',
-      youtube: '@nectarvideo',
-      instagram: '@nectargram',
-      github: 't09tanaka/nectar',
+      linkedin: 'laurel-ssg',
+      bluesky: 'laurel.example',
+      mastodon: 'laurel@hachyderm.io',
+      threads: '@laurel',
+      tiktok: '@laurel',
+      youtube: '@laurelvideo',
+      instagram: '@laurelgram',
+      github: 't09tanaka/laurel',
     });
 
     await emitContentApiShadows({ config, content, outputDir });
@@ -284,7 +284,7 @@ describe('emitContentApiShadows', () => {
     expect(newsletters.newsletters).toEqual([]);
 
     const discovery = JSON.parse(readFileSync(join(outputDir, '.well-known/ghost.json'), 'utf8'));
-    expect(discovery.generator).toBe('nectar');
+    expect(discovery.generator).toBe('laurel');
     expect(discovery.ghost_api_version).toBe('v5.0');
     expect(discovery.endpoints).toEqual({
       content: '/ghost/api/content/',
@@ -303,14 +303,14 @@ describe('emitContentApiShadows', () => {
     expect(settings.settings.members_invite_only).toBe(false);
     expect(settings.settings.comments_enabled).toBe(false);
     expect(settings.settings.comments_access).toBe('all');
-    expect(settings.settings.linkedin).toBe('nectar-ssg');
-    expect(settings.settings.bluesky).toBe('nectar.example');
-    expect(settings.settings.mastodon).toBe('nectar@hachyderm.io');
-    expect(settings.settings.threads).toBe('@nectar');
-    expect(settings.settings.tiktok).toBe('@nectar');
-    expect(settings.settings.youtube).toBe('@nectarvideo');
-    expect(settings.settings.instagram).toBe('@nectargram');
-    expect(settings.settings.github).toBe('t09tanaka/nectar');
+    expect(settings.settings.linkedin).toBe('laurel-ssg');
+    expect(settings.settings.bluesky).toBe('laurel.example');
+    expect(settings.settings.mastodon).toBe('laurel@hachyderm.io');
+    expect(settings.settings.threads).toBe('@laurel');
+    expect(settings.settings.tiktok).toBe('@laurel');
+    expect(settings.settings.youtube).toBe('@laurelvideo');
+    expect(settings.settings.instagram).toBe('@laurelgram');
+    expect(settings.settings.github).toBe('t09tanaka/laurel');
     expect(settings.settings.portal_button).toBe(false);
     expect(settings.settings.portal_button_icon).toBe('');
     expect(settings.settings.portal_button_signup_text).toBe('');
@@ -328,13 +328,13 @@ describe('emitContentApiShadows', () => {
     expect(notFound.errors[0]).toMatchObject({
       message: 'Resource not found error, cannot read post.',
       type: 'NotFoundError',
-      id: 'nectar-content-api-404',
+      id: 'laurel-content-api-404',
     });
     expect(notFound.errors[0].details).toBeNull();
   });
 
   test('tags serialize tag social and code injection fields', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-tag-fields-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-tag-fields-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     const tag = makeTag({
       canonical_url: '/topics/news/',
@@ -372,7 +372,7 @@ describe('emitContentApiShadows', () => {
   });
 
   test('authors serialize author social and code injection fields', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-author-fields-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-author-fields-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     const author = makeAuthor({
       accent_color: '#7851a9',
@@ -426,8 +426,8 @@ describe('emitContentApiShadows', () => {
   });
 
   test('serializes generated post excerpts as Ghost-style 50 plaintext words (#983)', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-api-excerpt-'));
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-excerpt-out-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-api-excerpt-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-excerpt-out-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await mkdir(join(cwd, 'content/pages'), { recursive: true });
     await mkdir(join(cwd, 'content/authors'), { recursive: true });
@@ -462,7 +462,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('writes per-slug single-resource files under ghost/api/content/<resource>/slug/<slug>.json', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     const content = makeGraph();
 
@@ -481,7 +481,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('serializes undefined frontmatter fields as null (Ghost API contract)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     const content = makeGraph();
 
@@ -493,7 +493,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('post.url is absolute and preserves base_path plus route-assigned permalink (#769)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-post-url-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-post-url-'));
     const config = configSchema.parse({
       site: { title: 'T', url: 'https://example.com' },
       build: { base_path: '/base/' },
@@ -511,7 +511,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('also writes directory-index variants for trailing-slash SDK requests', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     const content = makeGraph();
 
@@ -545,7 +545,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('also writes per-slug directory-index variants', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     const content = makeGraph();
 
@@ -570,7 +570,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('emits _redirects with trailing-slash rewrite rules for collections and slugs', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     const content = makeGraph();
 
@@ -602,7 +602,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('respects build.base_path when emitting _redirects rules', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-'));
     const config = configSchema.parse({
       site: { title: 'T' },
       build: { base_path: '/blog/' },
@@ -627,7 +627,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('emits per-id post and page shadows (#752)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-perid-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-perid-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     await emitContentApiShadows({ config, content: makeGraph(), outputDir });
 
@@ -644,7 +644,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('emits paginated posts shadows (#751)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-paginated-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-paginated-'));
     const config = configSchema.parse({
       site: { title: 'T' },
       components: { content_api: { posts_per_page: 1 } },
@@ -680,7 +680,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('emits per-tag pre-baked shards (#757)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-pertag-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-pertag-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     await emitContentApiShadows({ config, content: makeGraph(), outputDir });
 
@@ -692,7 +692,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('emits featured shard and canonical post ordering (#1359)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-featured-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-featured-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     const graph = makeGraph();
     const posts = [
@@ -746,7 +746,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('authors include count.posts (#749)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-author-count-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-author-count-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     await emitContentApiShadows({ config, content: makeGraph(), outputDir });
 
@@ -757,7 +757,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('tags include public count.posts ordered by name asc (#753)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-tag-count-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-tag-count-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     const alpha = makeTag({ id: 'tag-alpha', slug: 'alpha', name: 'Alpha', count: { posts: 0 } });
     const zulu = makeTag({ id: 'tag-zulu', slug: 'zulu', name: 'Zulu', count: { posts: 0 } });
@@ -793,7 +793,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('tag responses emit absolute tag.url with base_path and custom taxonomy path (#773)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-tag-url-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-tag-url-'));
     const config = configSchema.parse({
       site: { title: 'T', url: 'https://example.com' },
       build: { base_path: '/blog/' },
@@ -828,7 +828,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('tag slug shadows are public-only and carry count.posts (#753)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-tag-slug-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-tag-slug-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     const news = makeTag({ id: 'tag-news', slug: 'news', name: 'News', count: { posts: 0 } });
     const internal = makeTag({
@@ -864,7 +864,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('absolute_urls rewrites html to absolute URLs (#743)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-abs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-abs-'));
     const config = configSchema.parse({
       site: { title: 'T', url: 'https://example.com' },
       components: { content_api: { absolute_urls: true } },
@@ -893,7 +893,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('emits access: "public" on every post (#764)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-access-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-access-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     await emitContentApiShadows({ config, content: makeGraph(), outputDir });
 
@@ -902,7 +902,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('emits static members/email compatibility fields on posts (#1358, #1360)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-post-compat-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-post-compat-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     await emitContentApiShadows({ config, content: makeGraph(), outputDir });
 
@@ -915,7 +915,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('emits post and page UUIDs separately from ObjectId ids', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-uuid-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-uuid-'));
     const post = makePost({
       id: '64d3f8e1a51f2b7c9d0e1234',
       uuid: '0b8520bf-f7c5-5b5a-a24f-c97f3e53433c',
@@ -951,7 +951,7 @@ ${numberedWords(53, 3).join(' ')}
   });
 
   test('strips members-only body content from non-public posts (#759)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-api-strip-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-api-strip-'));
     const config = configSchema.parse({ site: { title: 'T' } });
     const tag = makeTag();
     const author = makeAuthor();

@@ -31,7 +31,7 @@ jobs:
           - theme: liebling
             repo: TryGhost/Liebling
     steps:
-      - name: Checkout nectar
+      - name: Checkout laurel
         uses: actions/checkout@v6
 
       - name: Setup Bun

@@ -25,7 +25,7 @@ const VIEW_HEAD: Record<DashboardView, ViewHeadCopy> = {
   settings: {
     kicker: 'Settings · Site',
     title: 'Site',
-    meta: 'Site identity (title, URL, accent color, description) saved to nectar.toml.',
+    meta: 'Site identity (title, URL, accent color, description) saved to laurel.toml.',
   },
   design: {
     kicker: 'Settings · Design',

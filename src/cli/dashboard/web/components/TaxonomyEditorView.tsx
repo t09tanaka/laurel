@@ -29,7 +29,7 @@ interface TaxonomyEditorViewProps {
   onRenamed?: (kind: DashboardContentItem['kind'], newSlug: string) => Promise<void> | void;
   onConflict: (message: string, current: DashboardContentItem) => void;
   onDirtyChange: (dirty: boolean) => void;
-  // Soft-delete to .nectar/trash (restorable). DashboardApp owns the confirm
+  // Soft-delete to .laurel/trash (restorable). DashboardApp owns the confirm
   // dialog, the trash call and the post-delete navigation.
   onDelete?: () => Promise<void> | void;
 }

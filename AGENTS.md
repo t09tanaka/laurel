@@ -16,14 +16,14 @@
 
 ## リポジトリ前提
 
-- Nectar は Ghost テーマ互換の静的サイトジェネレーターであり、Markdown と Git 上のファイルを source of truth とする。
+- Laurel は Ghost テーマ互換の静的サイトジェネレーターであり、Markdown と Git 上のファイルを source of truth とする。
 - 管理画面も file-first / Markdown-first の前提を壊さない。
 - Ghost の巨大な CMS 機能をそのまま移植しない。静的サイトとして意味がある体験だけを選ぶ。
 - Email / newsletter / members / paid tiers は Admin 改善の対象外とする。ただし既存ファイルに存在する未知 frontmatter は破壊せず保持する。
 
 ## Admin / Dashboard 改善ルール
 
-- Ghost Admin / Ghost Editor は必ず研究対象にするが、模倣ではなく Nectar のファイル運用へ翻訳する。
+- Ghost Admin / Ghost Editor は必ず研究対象にするが、模倣ではなく Laurel のファイル運用へ翻訳する。
 - Ghost Koenig / Lexical の内部データモデルは原則移植しない。Markdown-first を維持する。
 - Posts / Pages / Authors / Tags / Settings はファイルベースで扱う。
 - Posts / Pages の一覧は作成日基準のページネーションを持つ。

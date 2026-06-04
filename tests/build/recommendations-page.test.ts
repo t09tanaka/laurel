@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { renderRecommendationsHtml } from '~/build/recommendations-page.ts';
-import type { NectarConfig, RecommendationItem } from '~/config/schema.ts';
+import type { LaurelConfig, RecommendationItem } from '~/config/schema.ts';
 import type { ContentGraph, SiteData } from '~/content/model.ts';
 
 function makeSite(overrides: Partial<SiteData> = {}): SiteData {
@@ -45,7 +45,7 @@ function makeSite(overrides: Partial<SiteData> = {}): SiteData {
 function makeConfig(
   recommendations: RecommendationItem[] = [],
   overrides: { base_path?: string; csp_nonce?: string } = {},
-): NectarConfig {
+): LaurelConfig {
   return {
     site: { title: 'Example' },
     build: {
@@ -55,7 +55,7 @@ function makeConfig(
     },
     components: {},
     recommendations,
-  } as unknown as NectarConfig;
+  } as unknown as LaurelConfig;
 }
 
 function makeContent(site: SiteData): ContentGraph {
@@ -135,7 +135,7 @@ describe('renderRecommendationsHtml', () => {
     expect(html).toContain('<section id="all-recommendations"');
   });
 
-  test('escapes HTML in recommendation fields to prevent stored XSS via nectar.toml', () => {
+  test('escapes HTML in recommendation fields to prevent stored XSS via laurel.toml', () => {
     const html = renderRecommendationsHtml({
       config: makeConfig([
         {

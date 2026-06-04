@@ -21,7 +21,7 @@ async function runCli(
 
 describe('cli redirects', () => {
   test('list loads project and Ghost-style redirects', async () => {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-redirects-cli-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-redirects-cli-')));
     try {
       await mkdir(join(dir, 'content/data'), { recursive: true });
       await writeFile(join(dir, 'redirects.yaml'), '- from: /old\n  to: /new\n  status: 308\n');
@@ -48,7 +48,7 @@ describe('cli redirects', () => {
   });
 
   test('validate reports duplicate source paths after first-match collapse', async () => {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-redirects-cli-dupes-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-redirects-cli-dupes-')));
     try {
       await writeFile(
         join(dir, 'redirects.yaml'),

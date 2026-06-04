@@ -2,7 +2,7 @@ import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { absolutise } from '~/cli/content-paths.ts';
 import { createZipArchive } from '~/cli/dashboard/zip-writer.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { COMPONENT_SLUG_PATTERN, loadComponents } from '~/content/components.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
 import {
@@ -30,13 +30,13 @@ import type { ZipFileEntry } from '~/entry-bundle/zip.ts';
 // CSS `url(...)`); those are pulled in under `assets/` so the snippet renders on
 // the receiving side instead of pointing at a missing image. Components carry no
 // workflow `status`, so — unlike entry import — nothing is stamped on the way in.
-export const COMPONENTS_BUNDLE_SCHEMA = 'nectar.components.v1';
+export const COMPONENTS_BUNDLE_SCHEMA = 'laurel.components.v1';
 
 export type { ConflictPolicy } from '~/entry-bundle/shared.ts';
 
 const MAX_ENTRIES = 4000;
 const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
-const MANIFEST_PATH = 'nectar-components.json';
+const MANIFEST_PATH = 'laurel-components.json';
 const COMPONENTS_PREFIX = 'components/';
 // Image assets a component's HTML/CSS references travel here as `assets/<rel>`,
 // where `<rel>` is relative to the configured assets dir (e.g. content/images).
@@ -175,7 +175,7 @@ export async function exportComponentsBundle({
   slugs,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   /** When omitted, every component is exported. Otherwise the listed slugs. */
   slugs?: string[];
 }): Promise<{
@@ -297,7 +297,7 @@ export async function importComponentsBundle({
   slugs,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   zip: Uint8Array;
   onConflict: ConflictPolicy;
   dryRun?: boolean;

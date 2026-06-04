@@ -1,7 +1,7 @@
-Upgrade the installed Nectar CLI when the install method supports it
+Upgrade the installed Laurel CLI when the install method supports it
 
 Usage:
-  nectar upgrade [--dry-run] [--json]
+  laurel upgrade [--dry-run] [--json]
 
 Options:
   --dry-run           Print the detected upgrade command without running it
@@ -9,9 +9,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --dry-run → NECTAR_UPGRADE_DRY_RUN
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --dry-run → LAUREL_UPGRADE_DRY_RUN
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -19,6 +19,6 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar upgrade
-  nectar upgrade --dry-run
-  NECTAR_NO_UPDATE_CHECK=1 nectar upgrade       # skip self-update checks and actions
+  laurel upgrade
+  laurel upgrade --dry-run
+  LAUREL_NO_UPDATE_CHECK=1 laurel upgrade       # skip self-update checks and actions

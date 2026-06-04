@@ -222,7 +222,7 @@ function makeGraph(over: Partial<ContentGraph> = {}): ContentGraph {
 
 describe('emitContentApiStubs', () => {
   test('writes all four artifacts under outputDir', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });
 
     expect(existsSync(join(outputDir, 'content', 'posts.json'))).toBe(true);
@@ -236,14 +236,14 @@ describe('emitContentApiStubs', () => {
   });
 
   test('optionally emits a static Ghost Content API key registry', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-keys-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-keys-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir, emitKeyRegistry: true });
 
     const body = JSON.parse(
       readFileSync(join(outputDir, '.well-known', 'ghost-content-keys.json'), 'utf8'),
     );
     expect(body).toMatchObject({
-      generator: 'nectar',
+      generator: 'laurel',
       mode: 'static',
       accepts_any_key: true,
       validation: 'disabled',
@@ -251,7 +251,7 @@ describe('emitContentApiStubs', () => {
   });
 
   test('preserves raw og_description for Wave-style audio URL usage', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-og-description-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-og-description-'));
     const graph = makeGraph({
       posts: [makePost({ og_description: 'https://cdn.example.com/podcast.mp3' })],
     });
@@ -262,7 +262,7 @@ describe('emitContentApiStubs', () => {
   });
 
   test('emits a Ghost-shaped 404 error envelope for static Content API misses (#742)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-404-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-404-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });
 
     const body = JSON.parse(readFileSync(join(outputDir, 'content', '404.json'), 'utf8'));
@@ -276,14 +276,14 @@ describe('emitContentApiStubs', () => {
           property: null,
           help: null,
           code: null,
-          id: 'nectar-content-api-404',
+          id: 'laurel-content-api-404',
         },
       ],
     });
   });
 
   test('duo emit: posts / tags / authors / settings each land at both .json and /index.json (#215)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });
 
     for (const resource of ['posts', 'tags', 'authors', 'settings']) {
@@ -302,7 +302,7 @@ describe('emitContentApiStubs', () => {
   });
 
   test('tags.json and authors.json have Ghost canonical meta.pagination shape (#216)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });
 
     const tagsBody = JSON.parse(readFileSync(join(outputDir, 'content', 'tags.json'), 'utf8'));
@@ -325,7 +325,7 @@ describe('emitContentApiStubs', () => {
   });
 
   test('posts.json shape includes posts array and meta.pagination', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });
 
     const body = JSON.parse(readFileSync(join(outputDir, 'content', 'posts.json'), 'utf8'));
@@ -345,7 +345,7 @@ describe('emitContentApiStubs', () => {
   });
 
   test('post.url is absolute and preserves base_path plus routes.yaml permalink (#769)', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-content-api-post-url-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-content-api-post-url-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await mkdir(join(cwd, 'content/tags'), { recursive: true });
     await writeFile(
@@ -379,7 +379,7 @@ name: News
       },
     });
     const content = await loadContent({ cwd, config, routesYaml });
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-post-url-out-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-post-url-out-'));
 
     await emitContentApiStubs({ content, outputDir, basePath: config.build.base_path });
 
@@ -389,7 +389,7 @@ name: News
   });
 
   test('posts.json embeds tags, primary_tag, authors, primary_author', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });
 
     const body = JSON.parse(readFileSync(join(outputDir, 'content', 'posts.json'), 'utf8'));
@@ -406,7 +406,7 @@ name: News
   });
 
   test('tags.json serializes tag social and code injection fields', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-tag-fields-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-tag-fields-'));
     const tag = makeTag({
       canonical_url: '/topics/news/',
       og_title: 'News OG',
@@ -441,7 +441,7 @@ name: News
   });
 
   test('authors.json serializes author social and code injection fields', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-author-fields-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-author-fields-'));
     const author = makeAuthor({
       accent_color: '#7851a9',
       og_title: 'Casper OG',
@@ -476,7 +476,7 @@ name: News
   });
 
   test('posts.json excludes draft and scheduled posts', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     const draft = makePost({ id: 'post-2', slug: 'draft', status: 'draft' });
     const scheduled = makePost({ id: 'post-3', slug: 'sched', status: 'scheduled' });
     const graph = makeGraph({ posts: [makePost(), draft, scheduled] });
@@ -488,7 +488,7 @@ name: News
   });
 
   test('settings.json shape includes settings object with required fields', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });
 
     const body = JSON.parse(readFileSync(join(outputDir, 'content', 'settings.json'), 'utf8'));
@@ -515,9 +515,9 @@ name: News
   });
 
   test('settings.json hardcodes auth fields but preserves Portal settings', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     // Even if the underlying site says members are enabled, the stub forces
-    // them off because Nectar is static-only and cannot authenticate. Portal
+    // them off because Laurel is static-only and cannot authenticate. Portal
     // display settings are public theme compatibility data, so they still
     // round-trip through settings.
     const graph = makeGraph();
@@ -528,7 +528,7 @@ name: News
     graph.site.portal_button_icon = 'icon-2';
     graph.site.portal_button_signup_text = 'Join now';
     graph.site.portal_button_style = 'icon-and-text';
-    graph.site.portal_name = 'Nectar Portal';
+    graph.site.portal_name = 'Laurel Portal';
     graph.site.portal_plans = ['free', 'monthly'];
     graph.site.portal_signup_checkbox_required = true;
     graph.site.portal_signup_terms_html = '<p>Terms apply</p>';
@@ -543,7 +543,7 @@ name: News
     expect(body.settings.portal_button_icon).toBe('icon-2');
     expect(body.settings.portal_button_signup_text).toBe('Join now');
     expect(body.settings.portal_button_style).toBe('icon-and-text');
-    expect(body.settings.portal_name).toBe('Nectar Portal');
+    expect(body.settings.portal_name).toBe('Laurel Portal');
     expect(body.settings.portal_plans).toEqual(['free', 'monthly']);
     expect(body.settings.portal_signup_checkbox_required).toBe(true);
     expect(body.settings.portal_signup_terms_html).toBe('<p>Terms apply</p>');
@@ -552,7 +552,7 @@ name: News
   });
 
   test('_headers contains Access-Control-* lines on /content/*', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });
 
     const body = readFileSync(join(outputDir, '_headers'), 'utf8');
@@ -565,7 +565,7 @@ name: News
   });
 
   test('_headers.cf contains the same CORS body as _headers', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });
 
     const netlify = readFileSync(join(outputDir, '_headers'), 'utf8');
@@ -574,7 +574,7 @@ name: News
   });
 
   test('optionally emits Apache .htaccess under content with the CORS headers', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir, emitHtaccess: true });
 
     const body = readFileSync(join(outputDir, 'content', '.htaccess'), 'utf8');
@@ -589,14 +589,14 @@ name: News
   });
 
   test('does not emit content .htaccess unless requested', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });
 
     expect(existsSync(join(outputDir, 'content', '.htaccess'))).toBe(false);
   });
 
   test('prepends CORS rule onto an existing _headers without clobbering', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     const existing = '/*\n  X-Frame-Options: SAMEORIGIN\n';
     await writeFile(join(outputDir, '_headers'), existing, 'utf8');
 
@@ -612,7 +612,7 @@ name: News
   });
 
   test('is idempotent: a second run does not duplicate the CORS rule', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });
     const first = readFileSync(join(outputDir, '_headers'), 'utf8');
 
@@ -623,7 +623,7 @@ name: News
   });
 
   test('upgrades existing Content API CORS rules when the generated header set changes', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-upgrade-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-upgrade-'));
     await writeFile(
       join(outputDir, '_headers'),
       [
@@ -649,7 +649,7 @@ name: News
   });
 
   test('does not remove user-authored content header rules during CORS upgrades', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-custom-headers-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-custom-headers-'));
     await writeFile(
       join(outputDir, '_headers'),
       [
@@ -672,7 +672,7 @@ name: News
   });
 
   test('emits pages.json with per-page shards (#750)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });
 
     expect(existsSync(join(outputDir, 'content', 'pages.json'))).toBe(true);
@@ -691,7 +691,7 @@ name: News
   });
 
   test('emits authors.json with count.posts (#749)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });
 
     const body = JSON.parse(readFileSync(join(outputDir, 'content', 'authors.json'), 'utf8'));
@@ -699,7 +699,7 @@ name: News
   });
 
   test('emits public tags with count.posts ordered by name asc (#753)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-tags-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-tags-'));
     const alpha = makeTag({ id: 'tag-alpha', slug: 'alpha', name: 'Alpha', count: { posts: 0 } });
     const zulu = makeTag({ id: 'tag-zulu', slug: 'zulu', name: 'Zulu', count: { posts: 0 } });
     const internal = makeTag({
@@ -733,7 +733,7 @@ name: News
   });
 
   test('emits absolute tag.url in tags.json with base_path and custom taxonomy path (#773)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-tag-url-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-tag-url-'));
     const news = makeTag({
       id: 'tag-news',
       slug: 'news',
@@ -756,7 +756,7 @@ name: News
   });
 
   test('emits per-slug public tag shards and skips internal tags (#753)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-tags-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-tags-'));
     const news = makeTag({ id: 'tag-news', slug: 'news', name: 'News', count: { posts: 0 } });
     const internal = makeTag({
       id: 'tag-internal',
@@ -789,7 +789,7 @@ name: News
   });
 
   test('emits per-post shards by id and by slug (#752)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     const id = '0123456789abcdefabcdef12';
     await emitContentApiStubs({ content: makeGraph({ posts: [makePost({ id })] }), outputDir });
 
@@ -810,7 +810,7 @@ name: News
   });
 
   test('emits paginated posts shards (#751)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     // 3 posts, page size 2 → 2 pages.
     const posts = [
       makePost({ id: 'p1', slug: 'p1' }),
@@ -844,7 +844,7 @@ name: News
   });
 
   test('emits per-tag pre-baked filtered shards (#757)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-stubs-'));
     const otherTag = makeTag({ id: 'tag-2', slug: 'tech', name: 'Tech' });
     const newsTag = makeTag();
     const postNews = makePost({ id: 'p-news', slug: 'p-news', tags: [newsTag] });
@@ -874,7 +874,7 @@ name: News
   });
 
   test('emits featured post shards and preserves canonical post order (#1359)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-featured-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-featured-'));
     const posts = [
       makePost({
         id: 'older-featured',
@@ -915,7 +915,7 @@ name: News
   });
 
   test('absolute_urls rewrites html src/href to absolute (#743)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-absolute-urls-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-absolute-urls-'));
     const post = makePost({
       html: '<p><a href="/foo/">foo</a> <img src="/images/x.png"/></p>',
     });
@@ -928,7 +928,7 @@ name: News
   });
 
   test('absolute_urls leaves already-absolute and protocol-relative URLs alone', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-absolute-urls-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-absolute-urls-'));
     const post = makePost({
       html: '<a href="https://other.example/x">x</a> <img src="//cdn.example/y.png"/>',
     });
@@ -943,7 +943,7 @@ name: News
   });
 
   test('absolute_urls honours base_path', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-absolute-urls-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-absolute-urls-'));
     const post = makePost({ html: '<a href="/x">x</a>' });
     const graph = makeGraph({ posts: [post] });
     await emitContentApiStubs({
@@ -958,7 +958,7 @@ name: News
   });
 
   test('strips members-only body content for non-public visibility (#759)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-strip-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-strip-'));
     const post = makePost({
       visibility: 'members',
       html: '<p>secret members content</p>',
@@ -977,7 +977,7 @@ name: News
   });
 
   test('emits access: "public" on every post in the dump (#764)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-access-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-access-'));
     const memberPost = makePost({
       id: 'p-member',
       slug: 'p-member',
@@ -994,7 +994,7 @@ name: News
   });
 
   test('emits static members/email compatibility fields on posts (#1358, #1360)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-post-compat-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-post-compat-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });
 
     const body = JSON.parse(readFileSync(join(outputDir, 'content', 'posts.json'), 'utf8'));
@@ -1006,7 +1006,7 @@ name: News
   });
 
   test('emits post and page UUIDs separately from ObjectId ids', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-uuid-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-uuid-'));
     const post = makePost({
       id: '64d3f8e1a51f2b7c9d0e1234',
       uuid: '0b8520bf-f7c5-5b5a-a24f-c97f3e53433c',
@@ -1028,7 +1028,7 @@ name: News
   });
 
   test('pagination next/prev are numbers, not URLs (#760)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-pagination-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-pagination-'));
     const posts = Array.from({ length: 5 }, (_, i) => makePost({ id: `p-${i}`, slug: `p-${i}` }));
     await emitContentApiStubs({
       content: makeGraph({ posts }),
@@ -1046,7 +1046,7 @@ name: News
   });
 
   test('_headers includes per-resource cache-control TTLs (#755)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-cache-control-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-cache-control-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });
 
     const body = readFileSync(join(outputDir, '_headers'), 'utf8');
@@ -1061,7 +1061,7 @@ name: News
   });
 
   test('author.url is /author/<slug>/ rooted at site.url + base_path (#754)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-author-url-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-author-url-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });
 
     const body = JSON.parse(readFileSync(join(outputDir, 'content', 'authors.json'), 'utf8'));
@@ -1069,7 +1069,7 @@ name: News
   });
 
   test('emits empty tiers and newsletters stubs plus service discovery (#1349, #1350, #1354)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-empty-stubs-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-empty-stubs-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir });
 
     const tiers = JSON.parse(readFileSync(join(outputDir, 'content', 'tiers.json'), 'utf8'));
@@ -1089,7 +1089,7 @@ name: News
       readFileSync(join(outputDir, '.well-known', 'ghost.json'), 'utf8'),
     );
     expect(discovery).toMatchObject({
-      generator: 'nectar',
+      generator: 'laurel',
       ghost_api_version: 'v5.0',
       endpoints: {
         content: '/ghost/api/content/',
@@ -1100,7 +1100,7 @@ name: News
   });
 
   test('service discovery endpoints include base_path for subpath deploys (#1354)', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-content-api-discovery-base-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-content-api-discovery-base-'));
     await emitContentApiStubs({ content: makeGraph(), outputDir, basePath: '/blog/' });
 
     const discovery = JSON.parse(

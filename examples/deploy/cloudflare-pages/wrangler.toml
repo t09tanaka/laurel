@@ -1,10 +1,10 @@
-# Copy this file to the root of a Nectar site repository when GitHub Actions
+# Copy this file to the root of a Laurel site repository when GitHub Actions
 # or another CI system deploys Cloudflare Pages with Wrangler.
 #
 # Keep `name` in sync with the GitHub Actions CLOUDFLARE_PROJECT_NAME value
 # when using examples/ci/cloudflare-pages.yml.
 
-name = "my-nectar-site"
+name = "my-laurel-site"
 pages_build_output_dir = "./dist"
 
 # Required when the Pages project uses Functions or runtime bindings. Pin the

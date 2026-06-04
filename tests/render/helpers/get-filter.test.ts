@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import { registerBlockHelpers } from '~/render/helpers/blocks.ts';
 import { registerStringHelpers } from '~/render/helpers/strings.ts';
 
@@ -9,23 +9,23 @@ function buildEngine(content: {
   tags?: unknown[];
   authors?: unknown[];
   pages?: unknown[];
-}): NectarEngine {
+}): LaurelEngine {
   const hb = Handlebars.create();
   const engine = {
     hb,
-    config: {} as NectarEngine['config'],
+    config: {} as LaurelEngine['config'],
     content: {
       posts: content.posts ?? [],
       tags: content.tags ?? [],
       authors: content.authors ?? [],
       pages: content.pages ?? [],
-    } as unknown as NectarEngine['content'],
-    theme: {} as NectarEngine['theme'],
+    } as unknown as LaurelEngine['content'],
+    theme: {} as LaurelEngine['theme'],
     templates: {},
     layouts: {},
     sortedCache: new Map<string, readonly unknown[]>(),
     render: () => '',
-  } as NectarEngine;
+  } as LaurelEngine;
   registerBlockHelpers(engine);
   registerStringHelpers(engine);
   return engine;
@@ -345,7 +345,7 @@ describe('get helper filter on empty featured result', () => {
 });
 
 // #450 — null / true / false are NQL typed scalars, not string sentinels.
-// `featured:null` means "featured IS NULL", which on Nectar's content graph
+// `featured:null` means "featured IS NULL", which on Laurel's content graph
 // translates to `item.featured == null`. The previous implementation compared
 // the literal string "null", silently matching nothing.
 describe('get helper filter — typed null/true/false values', () => {

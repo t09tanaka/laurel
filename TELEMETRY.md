@@ -1,22 +1,22 @@
-# Nectar Telemetry
+# Laurel Telemetry
 
-Nectar telemetry is off by default. The CLI sends anonymous usage statistics only
+Laurel telemetry is off by default. The CLI sends anonymous usage statistics only
 after a user runs:
 
 ```sh
-nectar telemetry enable
+laurel telemetry enable
 ```
 
 Disable it at any time:
 
 ```sh
-nectar telemetry disable
+laurel telemetry disable
 ```
 
 Check the current state:
 
 ```sh
-nectar telemetry status
+laurel telemetry status
 ```
 
 ## Endpoint
@@ -24,28 +24,28 @@ nectar telemetry status
 The default endpoint is:
 
 ```text
-https://telemetry.nectar.dev/v1/usage
+https://telemetry.laurel.dev/v1/usage
 ```
 
 Set a stored endpoint when enabling:
 
 ```sh
-nectar telemetry enable --endpoint https://telemetry.example.test/v1/usage
+laurel telemetry enable --endpoint https://telemetry.example.test/v1/usage
 ```
 
 Override the endpoint for a single process with:
 
 ```sh
-NECTAR_TELEMETRY_ENDPOINT=https://telemetry.example.test/v1/usage nectar build
+LAUREL_TELEMETRY_ENDPOINT=https://telemetry.example.test/v1/usage laurel build
 ```
 
 Tests and local automation can isolate the telemetry settings file with
-`NECTAR_TELEMETRY_CONFIG=/path/to/telemetry.json`.
+`LAUREL_TELEMETRY_CONFIG=/path/to/telemetry.json`.
 
 ## Payload
 
-Nectar sends one `POST` request after a command finishes. It does not send
-telemetry for `nectar telemetry`, top-level help, or version commands.
+Laurel sends one `POST` request after a command finishes. It does not send
+telemetry for `laurel telemetry`, top-level help, or version commands.
 
 Exact JSON payload:
 
@@ -58,7 +58,7 @@ Exact JSON payload:
   "duration_ms": 124,
   "success": true,
   "exit_code": 0,
-  "nectar_version": "0.1.0",
+  "laurel_version": "0.1.0",
   "bun_version": "1.3.0",
   "os": {
     "platform": "darwin",
@@ -75,11 +75,11 @@ Field notes:
 | `schema_version` | Payload schema version. Currently `1`. |
 | `event` | Always `cli_command`. |
 | `anonymous_machine_id` | Random UUID generated on opt-in and stored locally. It is not derived from hardware, hostname, user name, project path, git data, or network identifiers. |
-| `command` | Canonical top-level Nectar command, such as `build`, `check`, or `serve`. |
+| `command` | Canonical top-level Laurel command, such as `build`, `check`, or `serve`. |
 | `duration_ms` | Rounded command duration in milliseconds. |
 | `success` | `true` when `exit_code` is `0`; otherwise `false`. |
 | `exit_code` | CLI exit code. |
-| `nectar_version` | Running Nectar version. |
+| `laurel_version` | Running Laurel version. |
 | `bun_version` | Running Bun version, or `null` if unavailable. |
 | `os.platform` | Node/Bun OS platform string. |
 | `os.arch` | Node/Bun CPU architecture string. |

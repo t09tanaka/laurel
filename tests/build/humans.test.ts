@@ -7,11 +7,11 @@ import { emitHumans } from '~/build/humans.ts';
 import { configSchema } from '~/config/schema.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-humans-'));
+  return mkdtemp(join(tmpdir(), 'laurel-humans-'));
 }
 
 async function makeCwd(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-humans-cwd-'));
+  return mkdtemp(join(tmpdir(), 'laurel-humans-cwd-'));
 }
 
 describe('emitHumans', () => {
@@ -35,7 +35,7 @@ describe('emitHumans', () => {
         'Title: Humans Test',
         'Description: A static site for humans',
         'URL: https://humans.test',
-        'Generator: Nectar',
+        'Generator: Laurel',
         '',
       ].join('\n'),
     );
@@ -56,7 +56,7 @@ describe('emitHumans', () => {
         '/* SITE */',
         'Title: Humans Test',
         'URL: https://humans.test',
-        'Generator: Nectar',
+        'Generator: Laurel',
         '',
       ].join('\n'),
     );

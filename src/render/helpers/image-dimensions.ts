@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import type Handlebars from 'handlebars';
 import { type ImageDimensions, readImageDimensions } from '~/util/image-size.ts';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 
 // Ghost's `image_dimensions` walks a fixed list of known image URL fields on
 // the current context. Mirrors Ghost-Core's `image_dimensions.js` so themes
@@ -21,7 +21,7 @@ const IMAGE_FIELDS = [
 const URL_PROTOCOL_RE = /^[a-z][a-z0-9+.-]*:/i;
 const ASSETS_URL_MARKER = '/content/images/';
 
-export function registerImageDimensionHelpers(engine: NectarEngine): void {
+export function registerImageDimensionHelpers(engine: LaurelEngine): void {
   // Per-engine cache keyed by absolute file path. Null entries record
   // "probed and failed" so a missing or unparseable file isn't re-read for
   // every render that references it.
@@ -52,7 +52,7 @@ export function registerImageDimensionHelpers(engine: NectarEngine): void {
 }
 
 function probeLocalImage(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   url: string,
   cache: Map<string, ImageDimensions | null>,
 ): ImageDimensions | undefined {

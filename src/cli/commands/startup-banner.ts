@@ -6,7 +6,7 @@ import { colorize, getColorEnabled, getOutputMode, logger } from '~/util/logger.
 
 // Decoration glyphs used by the dev startup blocks. We treat
 // "color disabled" as a proxy for "minimal terminal" -- users who set
-// NO_COLOR or pipe nectar through a log collector almost always want plain
+// NO_COLOR or pipe laurel through a log collector almost always want plain
 // ASCII as well, and falling back keeps the same predicate driving every
 // stylistic choice.
 interface DevGlyphs {
@@ -29,7 +29,7 @@ export function devGlyphs(): DevGlyphs {
 // when it lives in the user's home directory, otherwise the absolute path.
 // `trailingSlash` appends a `/` when the path represents a directory so the
 // banner can hint at file-vs-directory at a glance without us calling
-// `fs.stat`. The flag is opt-in because nectar.toml etc. are intentionally
+// `fs.stat`. The flag is opt-in because laurel.toml etc. are intentionally
 // rendered without the trailing slash.
 export function formatPath(
   cwd: string,
@@ -116,7 +116,7 @@ export function renderBanner(meta: BannerMeta): string {
   const dim = (s: string) => colorize(s, 'gray');
   const accent = (s: string) => colorize(s, 'cyan');
   const g = devGlyphs();
-  const header = `${accent('Nectar')} ${meta.version}  ${dim(g.separator)}  ${dim(meta.mode)}`;
+  const header = `${accent('Laurel')} ${meta.version}  ${dim(g.separator)}  ${dim(meta.mode)}`;
   if (meta.rows.length === 0) return `\n   ${header}\n`;
   const labelWidth = meta.rows.reduce((w, [k]) => Math.max(w, k.length), 0);
   const body = meta.rows
@@ -210,7 +210,7 @@ export function renderRebuild(block: RebuildBlock): string {
   return `\n ${head}  ${dim(g.separator)}  ${dim(`${pushLabel} (${clientLabel})`)}\n`;
 }
 
-// Final summary block emitted at the end of `nectar build`. Mirrors the dev
+// Final summary block emitted at the end of `laurel build`. Mirrors the dev
 // "Ready" block stylistically so contributors see the same finish-line shape
 // whether they're iterating in dev or shipping a one-shot build. `bytes` is
 // optional because dry runs intentionally don't compute output size.
@@ -362,15 +362,15 @@ function plural(noun: string, n: number): string {
 
 // Decide what to show next to `Config:` in the banner. We don't have the
 // resolved config path back from `loadConfig`, so reproduce its discovery
-// rule (nectar.toml -> nectar.config.toml -> nectar.config.json) and fall
+// rule (laurel.toml -> laurel.config.toml -> laurel.config.json) and fall
 // back to the explicit `--config` argument when one was supplied. Pure
 // display logic; the real load already happened via loadConfig().
 export function findActiveConfigDisplay(cwd: string, configPath: string | undefined): string {
   if (configPath !== undefined && configPath.length > 0) {
     return formatPath(cwd, isAbsolute(configPath) ? configPath : join(cwd, configPath));
   }
-  for (const name of ['nectar.toml', 'nectar.config.toml', 'nectar.config.json']) {
+  for (const name of ['laurel.toml', 'laurel.config.toml', 'laurel.config.json']) {
     if (existsSync(join(cwd, name))) return name;
   }
-  return 'nectar.toml';
+  return 'laurel.toml';
 }

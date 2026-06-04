@@ -25,7 +25,7 @@ describe('performance documentation', () => {
 
   test('manual benchmark script is discoverable and prints results', () => {
     expect(pkg.scripts?.['bench:performance']).toBe('bun tests/bench/performance.bench.ts');
-    expect(bench).toContain('Nectar performance benchmark');
+    expect(bench).toContain('Laurel performance benchmark');
     expect(bench).toContain('full build 1k posts <3s');
     expect(bench).toContain('render <0.5ms/route average');
   });

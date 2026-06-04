@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { RouteContext } from '~/render/types.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { emitCloudflareRoutes } from '../cloudflare-routes.ts';
@@ -20,11 +20,11 @@ import { emitNetlifyRedirects } from '../netlify.ts';
 import type { RedirectRule } from '../redirects.ts';
 import { emitVercelJson } from '../vercel.ts';
 
-export type DeploymentProvider = NonNullable<NectarConfig['build']['metadata']['provider']>;
+export type DeploymentProvider = NonNullable<LaurelConfig['build']['metadata']['provider']>;
 
 export interface DeploymentArtifacts {
   outputDir: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   routes: readonly RouteContext[];
   userRedirects: readonly RedirectRule[];
   deployRedirects: readonly RedirectRule[];

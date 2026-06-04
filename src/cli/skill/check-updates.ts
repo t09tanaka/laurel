@@ -6,7 +6,7 @@ import { claudeSkillDir } from './emitters/claude.ts';
 import { codexSkillDir } from './emitters/codex.ts';
 import type { AgentFormat, BundledSkill, SkillInstallReceipt } from './types.ts';
 
-// `nectar dev` / `nectar dashboard` startup banners call this to surface a
+// `laurel dev` / `laurel dashboard` startup banners call this to surface a
 // one-line "N skill updates available" notice when the bundled CLI ships a
 // newer version than what is installed locally. The walk is fs-only (no
 // network) and tolerates a missing/corrupt receipt by treating the skill as
@@ -47,7 +47,7 @@ async function statSkill(
     // just absent. Skip so we don't flood new projects with notices.
     return null;
   }
-  const receiptPath = join(dir, '.nectar.json');
+  const receiptPath = join(dir, '.laurel.json');
   if (!existsSync(receiptPath)) {
     return {
       slug: skill.slug,
@@ -71,7 +71,7 @@ async function statSkill(
     };
   } catch {
     // Treat unreadable / malformed receipts as "needs reinstall" so the
-    // notice still nudges the operator toward `nectar skill install`.
+    // notice still nudges the operator toward `laurel skill install`.
     return {
       slug: skill.slug,
       format,

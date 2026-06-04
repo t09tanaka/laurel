@@ -21,7 +21,7 @@ const cloudFrontRedirectSample = join(
 );
 
 describe('S3 + CloudFront deploy docs', () => {
-  test('document 403 and 404 custom error responses for Nectar 404 pages', async () => {
+  test('document 403 and 404 custom error responses for Laurel 404 pages', async () => {
     const guide = await readFile(join(root, 'docs', 'deploy', 's3-cloudfront.md'), 'utf8');
     const tutorial = await readFile(join(root, 'docs', 'tutorials', '04-deploy.md'), 'utf8');
     const examples = await readFile(join(root, 'examples', 'README.md'), 'utf8');
@@ -62,21 +62,21 @@ describe('S3 + CloudFront deploy docs', () => {
     const guide = await readFile(join(root, 'docs', 'deploy', 's3-cloudfront.md'), 'utf8');
     const workflow = await readFile(join(root, 'examples', 'ci', 's3-cloudfront.yml'), 'utf8');
 
-    expect(guide).toContain('dist/.nectar/changed-paths.txt');
+    expect(guide).toContain('dist/.laurel/changed-paths.txt');
     expect(guide).toContain('aws cloudfront create-invalidation');
-    expect(guide).toContain('--paths $(cat dist/.nectar/changed-paths.txt)');
+    expect(guide).toContain('--paths $(cat dist/.laurel/changed-paths.txt)');
     expect(guide).toContain('/*');
-    expect(workflow).toContain('dist/.nectar/changed-paths.txt');
-    expect(workflow).toContain('--paths $(cat dist/.nectar/changed-paths.txt)');
+    expect(workflow).toContain('dist/.laurel/changed-paths.txt');
+    expect(workflow).toContain('--paths $(cat dist/.laurel/changed-paths.txt)');
   });
 
   test('documents the generated CloudFront response headers policy config', async () => {
     const guide = await readFile(join(root, 'docs', 'deploy', 's3-cloudfront.md'), 'utf8');
 
-    expect(guide).toContain('dist/.nectar/cloudfront-response-headers-policy.json');
+    expect(guide).toContain('dist/.laurel/cloudfront-response-headers-policy.json');
     expect(guide).toContain('aws cloudfront create-response-headers-policy');
     expect(guide).toContain(
-      '--response-headers-policy-config file://dist/.nectar/cloudfront-response-headers-policy.json',
+      '--response-headers-policy-config file://dist/.laurel/cloudfront-response-headers-policy.json',
     );
     expect(guide).toContain('[deploy.headers].security');
     expect(guide).toContain('deploy.headers.cache_rules');

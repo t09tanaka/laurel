@@ -11,7 +11,7 @@ interface ThemeCompileIssue {
 
 // `loadTheme` only reads `.hbs` files as raw strings, so a malformed template
 // (unclosed `{{#if}}`, stray `{{/each}}`, etc.) goes undetected until the
-// render pipeline picks it up — which `nectar check` never runs. Compile every
+// render pipeline picks it up — which `laurel check` never runs. Compile every
 // template and partial here to surface Handlebars parse errors up front, with
 // the originating file path so the user can jump straight to the offending
 // `.hbs`.

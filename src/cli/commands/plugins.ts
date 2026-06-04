@@ -20,7 +20,7 @@ export async function runPlugins(args: string[]): Promise<number> {
 
   const [subcommand, ...rest] = parsed.positionals;
   if (subcommand !== 'list' || rest.length > 0) {
-    process.stderr.write('Usage: nectar plugins list\n\n');
+    process.stderr.write('Usage: laurel plugins list\n\n');
     process.stderr.write(formatCommandHelp(PLUGINS_SPEC));
     return 2;
   }

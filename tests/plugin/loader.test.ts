@@ -8,7 +8,7 @@ import type { Plugin } from '~/plugin/types.ts';
 let tmpRoot: string;
 
 beforeEach(async () => {
-  tmpRoot = await mkdtemp(join(tmpdir(), 'nectar-plugin-loader-'));
+  tmpRoot = await mkdtemp(join(tmpdir(), 'laurel-plugin-loader-'));
 });
 
 afterEach(async () => {
@@ -77,12 +77,12 @@ describe('loadPlugins', () => {
     expect(result.plugins.length).toBe(1);
   });
 
-  test('auto-detects nectar-plugin-* packages under node_modules when enabled', async () => {
-    const pkgDir = join(tmpRoot, 'node_modules', 'nectar-plugin-auto');
+  test('auto-detects laurel-plugin-* packages under node_modules when enabled', async () => {
+    const pkgDir = join(tmpRoot, 'node_modules', 'laurel-plugin-auto');
     await mkdir(pkgDir, { recursive: true });
     await writeFile(
       join(pkgDir, 'package.json'),
-      JSON.stringify({ name: 'nectar-plugin-auto', main: 'index.mjs', type: 'module' }),
+      JSON.stringify({ name: 'laurel-plugin-auto', main: 'index.mjs', type: 'module' }),
       'utf8',
     );
     await writeFile(
@@ -95,11 +95,11 @@ describe('loadPlugins', () => {
   });
 
   test('does not auto-detect when the flag is off', async () => {
-    const pkgDir = join(tmpRoot, 'node_modules', 'nectar-plugin-auto');
+    const pkgDir = join(tmpRoot, 'node_modules', 'laurel-plugin-auto');
     await mkdir(pkgDir, { recursive: true });
     await writeFile(
       join(pkgDir, 'package.json'),
-      JSON.stringify({ name: 'nectar-plugin-auto', main: 'index.mjs', type: 'module' }),
+      JSON.stringify({ name: 'laurel-plugin-auto', main: 'index.mjs', type: 'module' }),
       'utf8',
     );
     await writeFile(

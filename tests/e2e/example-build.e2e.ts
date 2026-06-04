@@ -15,15 +15,15 @@ describe('example build', () => {
     const distRoot = join(cwd, 'dist');
     const indexHtml = readFileSync(join(distRoot, 'index.html'), 'utf8');
     expect(indexHtml).toContain(
-      '<title>Nectar Example — A demo blog built with Nectar against the Ghost Casper theme</title>',
+      '<title>Laurel Example — A demo blog built with Laurel against the Ghost Casper theme</title>',
     );
     expect(indexHtml).toContain('class="viewport"');
     expect(indexHtml).toContain('/assets/built/screen.');
     expect(indexHtml).toContain('/assets/built/casper.');
     expect(indexHtml).not.toMatch(/\{\{[a-zA-Z][^}]*\}\}/);
 
-    const postHtml = readFileSync(join(distRoot, 'hello-nectar/index.html'), 'utf8');
-    expect(postHtml).toContain('Hello, Nectar');
+    const postHtml = readFileSync(join(distRoot, 'hello-laurel/index.html'), 'utf8');
+    expect(postHtml).toContain('Hello, Laurel');
     expect(postHtml).toContain('Casper');
     expect(postHtml).toContain('class="article');
     expect(postHtml).toContain('byline-reading-time');
@@ -44,23 +44,23 @@ describe('example build', () => {
 
     const tagHtml = readFileSync(join(distRoot, 'tag/news/index.html'), 'utf8');
     expect(tagHtml).toContain('News');
-    expect(tagHtml).toContain('Hello, Nectar');
+    expect(tagHtml).toContain('Hello, Laurel');
     expect(tagHtml).toContain('<title>News</title>');
     expect(tagHtml).toContain(
-      '<meta name="description" content="Announcements and project updates from the Nectar team.">',
+      '<meta name="description" content="Announcements and project updates from the Laurel team.">',
     );
-    expect(tagHtml).toContain('<meta property="og:title" content="News | Nectar Example">');
+    expect(tagHtml).toContain('<meta property="og:title" content="News | Laurel Example">');
     expect(tagHtml).toContain(
-      '<meta property="og:description" content="Announcements and project updates from the Nectar team.">',
+      '<meta property="og:description" content="Announcements and project updates from the Laurel team.">',
     );
 
     const authorHtml = readFileSync(join(distRoot, 'author/casper/index.html'), 'utf8');
     expect(authorHtml).toContain('Casper');
     expect(authorHtml).toContain('<title>Casper</title>');
     expect(authorHtml).toContain(
-      '<meta name="description" content="Friendly mascot of the open publishing platform Ghost — and the canonical Nectar test author.">',
+      '<meta name="description" content="Friendly mascot of the open publishing platform Ghost — and the canonical Laurel test author.">',
     );
-    expect(authorHtml).toContain('<meta property="og:title" content="Casper | Nectar Example">');
+    expect(authorHtml).toContain('<meta property="og:title" content="Casper | Laurel Example">');
 
     for (const [label, html] of [
       ['home', indexHtml],
@@ -84,12 +84,12 @@ describe('example build', () => {
         /<button[^>]*\bgh-burger\b[^>]*\baria-label=""/,
       );
       expect(html, `${label} page must emit a skip-to-content link targeting the main id`).toMatch(
-        /<a [^>]*class="nectar-skip-link[^"]*"[^>]*href="#site-main"[^>]*>\s*Skip to content\s*<\/a>/,
+        /<a [^>]*class="laurel-skip-link[^"]*"[^>]*href="#site-main"[^>]*>\s*Skip to content\s*<\/a>/,
       );
       const bodyOpenMatch = html.match(/<body\b[^>]*>/i);
       expect(bodyOpenMatch, `${label} page must have a <body> tag`).not.toBeNull();
       const bodyOpenEnd = (bodyOpenMatch?.index ?? 0) + (bodyOpenMatch?.[0]?.length ?? 0);
-      const skipAnchorPos = html.indexOf('<a class="nectar-skip-link');
+      const skipAnchorPos = html.indexOf('<a class="laurel-skip-link');
       expect(
         skipAnchorPos,
         `${label} page skip link must appear inside <body>`,
@@ -141,10 +141,10 @@ describe('example build', () => {
 
     const sitemapIndex = readFileSync(join(distRoot, 'sitemap.xml'), 'utf8');
     expect(sitemapIndex).toContain('<sitemapindex');
-    expect(sitemapIndex).toContain('<loc>https://nectar.example.com/sitemap-posts.xml</loc>');
+    expect(sitemapIndex).toContain('<loc>https://laurel.example.com/sitemap-posts.xml</loc>');
 
     const sitemapPosts = readFileSync(join(distRoot, 'sitemap-posts.xml'), 'utf8');
-    expect(sitemapPosts).toContain('<loc>https://nectar.example.com/hello-nectar/</loc>');
+    expect(sitemapPosts).toContain('<loc>https://laurel.example.com/hello-laurel/</loc>');
 
     // a11y/perf (issue #199): the contrast class must be emitted on <html>
     // at build time so there is no FOUC, and the inline script that reads

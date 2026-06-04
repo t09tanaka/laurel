@@ -57,11 +57,11 @@ async function readUntil(
 }
 
 async function makeDevFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-dev-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-dev-')));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Dev Test"',
@@ -134,7 +134,7 @@ describe('cli dev — help', () => {
       });
       try {
         const stdout = await readUntil(proc.stdout, 'Ready in', 15_000);
-        expect(stdout).toContain('Nectar');
+        expect(stdout).toContain('Laurel');
         expect(stdout).toContain('Ready in');
         // --port 0 → kernel picks a real port; the announced URL must contain
         // a concrete (non-zero) port so users can actually visit it.
@@ -173,7 +173,7 @@ describe('cli dev — lifecycle', () => {
     });
     try {
       const stdout = await readUntil(proc.stdout, 'Ready in', 15_000);
-      expect(stdout).toContain('Nectar');
+      expect(stdout).toContain('Laurel');
       expect(stdout).toContain('dev mode');
       expect(stdout).toContain('Watching:');
       expect(stdout).toContain('Ready in');
@@ -185,7 +185,7 @@ describe('cli dev — lifecycle', () => {
     }
   }, 30000);
 
-  test('serves the livereload client script at /__nectar/livereload.js', async () => {
+  test('serves the livereload client script at /__laurel/livereload.js', async () => {
     const proc = Bun.spawn(['bun', CLI_ENTRY, 'dev', '--port', '0'], {
       cwd: dir,
       stdout: 'pipe',
@@ -197,11 +197,11 @@ describe('cli dev — lifecycle', () => {
       expect(match).not.toBeNull();
       if (match === null) return;
       const port = Number(match[1]);
-      const res = await fetch(`http://localhost:${port}/__nectar/livereload.js`);
+      const res = await fetch(`http://localhost:${port}/__laurel/livereload.js`);
       expect(res.status).toBe(200);
       expect(res.headers.get('content-type') ?? '').toContain('javascript');
       const body = await res.text();
-      expect(body).toContain('__nectarLiveReload');
+      expect(body).toContain('__laurelLiveReload');
       expect(body).toContain('WebSocket');
     } finally {
       proc.kill('SIGTERM');
@@ -224,7 +224,7 @@ describe('cli dev — lifecycle', () => {
       const res = await fetch(`http://localhost:${port}/`);
       expect(res.status).toBe(200);
       const html = await res.text();
-      expect(html).toContain('/__nectar/livereload.js');
+      expect(html).toContain('/__laurel/livereload.js');
     } finally {
       proc.kill('SIGTERM');
       await proc.exited;
@@ -246,7 +246,7 @@ describe('cli dev — lifecycle', () => {
 
       // Connect a mock WS client and wait for the server to push reload after
       // we touch a content file.
-      const ws = new WebSocket(`ws://localhost:${port}/__nectar_livereload`);
+      const ws = new WebSocket(`ws://localhost:${port}/__laurel_livereload`);
       const messages: string[] = [];
       const opened = new Promise<void>((resolve, reject) => {
         ws.onopen = () => resolve();
@@ -291,12 +291,12 @@ describe('cli dev — production build does NOT inject the livereload script', (
     await rm(dir, { recursive: true, force: true });
   });
 
-  test('plain `nectar build` output has no /__nectar/livereload.js reference', async () => {
+  test('plain `laurel build` output has no /__laurel/livereload.js reference', async () => {
     const { exitCode } = await runCli(['build'], dir);
     expect(exitCode).toBe(0);
     const html = await Bun.file(join(dir, 'dist/index.html')).text();
-    expect(html).not.toContain('/__nectar/livereload.js');
-    expect(html).not.toContain('__nectarLiveReload');
+    expect(html).not.toContain('/__laurel/livereload.js');
+    expect(html).not.toContain('__laurelLiveReload');
   });
 });
 
@@ -311,6 +311,6 @@ describe('isIgnoredChange (cli dev)', () => {
   test('allows real source files', () => {
     expect(isIgnoredChange('posts/hello.md')).toBe(false);
     expect(isIgnoredChange('index.hbs')).toBe(false);
-    expect(isIgnoredChange('nectar.toml')).toBe(false);
+    expect(isIgnoredChange('laurel.toml')).toBe(false);
   });
 });

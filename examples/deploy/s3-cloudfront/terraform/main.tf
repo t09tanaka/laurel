@@ -78,7 +78,7 @@ resource "aws_cloudfront_origin_access_control" "site" {
 
 resource "aws_cloudfront_distribution" "site" {
   enabled             = true
-  comment             = "Nectar static site: ${var.site_name}"
+  comment             = "Laurel static site: ${var.site_name}"
   default_root_object = "index.html"
   aliases             = var.aliases
   price_class         = var.price_class

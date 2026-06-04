@@ -1,4 +1,4 @@
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { suggestClosest } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
 import type { ThemeCustomSettingDefinition, ThemePackage } from './types.ts';
@@ -15,7 +15,7 @@ interface ThemeCustomValueIssue {
 }
 
 interface ValidateThemeCustomOptions {
-  config: NectarConfig;
+  config: LaurelConfig;
   pkg: ThemePackage;
 }
 

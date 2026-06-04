@@ -1,4 +1,4 @@
-# Example .htaccess for a Nectar static site served by Apache HTTPD.
+# Example .htaccess for a Laurel static site served by Apache HTTPD.
 #
 # Copy to your Apache document root (e.g. /var/www/yoursite/.htaccess). Assumes
 # `AllowOverride All` is enabled for the document root and `mod_headers`,
@@ -27,7 +27,7 @@ ErrorDocument 404 /404.html
 FileETag MTime Size
 
 # ---------------------------------------------------------------------------
-# Cache-Control via mod_headers. Mirrors nectar's _headers defaults so the
+# Cache-Control via mod_headers. Mirrors laurel's _headers defaults so the
 # site behaves the same on Apache as on Netlify / Cloudflare Pages.
 # ---------------------------------------------------------------------------
 <IfModule mod_headers.c>
@@ -67,7 +67,7 @@ FileETag MTime Size
 </IfModule>
 
 # ---------------------------------------------------------------------------
-# Compression. Prefer pre-compressed sidecars (nectar emits .br + .gz when
+# Compression. Prefer pre-compressed sidecars (laurel emits .br + .gz when
 # [build].precompress = true) so Apache doesn't burn CPU per request.
 # ---------------------------------------------------------------------------
 <IfModule mod_brotli.c>

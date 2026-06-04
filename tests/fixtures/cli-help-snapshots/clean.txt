@@ -1,7 +1,7 @@
-Remove dist/ and .nectar/cache build artifacts
+Remove dist/ and .laurel/cache build artifacts
 
 Usage:
-  nectar clean [--config <path>] [--yes] [--dry-run] [--keep <path[,path...]>] [--json]
+  laurel clean [--config <path>] [--yes] [--dry-run] [--keep <path[,path...]>] [--json]
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -12,9 +12,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --config → NECTAR_CLEAN_CONFIG
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → LAUREL_CLEAN_CONFIG
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -22,7 +22,7 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar clean                                 # interactive; asks before deleting
-  nectar clean --yes                           # non-interactive (CI/scripts)
-  nectar clean --dry-run                       # show what would be removed
-  nectar clean --keep dist/.well-known --yes   # preserve specific paths
+  laurel clean                                 # interactive; asks before deleting
+  laurel clean --yes                           # non-interactive (CI/scripts)
+  laurel clean --dry-run                       # show what would be removed
+  laurel clean --keep dist/.well-known --yes   # preserve specific paths

@@ -8,10 +8,10 @@ import { nonceAttr } from '~/util/csp.ts';
 import { sanitizeHref } from '~/util/safe-href.ts';
 import { expandComponentShortcodes } from '../component-shortcodes.ts';
 import { DEFAULT_PARTIALS } from '../default-partials.ts';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 import { localizeKoenigCardLabels } from '../koenig-i18n.ts';
 
-export function registerContentHelpers(engine: NectarEngine): void {
+export function registerContentHelpers(engine: LaurelEngine): void {
   const contentHtmlCache = new WeakMap<object, { source: string; safe: unknown }>();
   const tagMarkupCache = new WeakMap<
     { name: string; url?: string },
@@ -98,7 +98,7 @@ export function registerContentHelpers(engine: NectarEngine): void {
     'authors',
     function authorsHelper(this: unknown, options: Handlebars.HelperOptions) {
       const ctx = this as { authors?: { name: string; url?: string; visibility?: string }[] };
-      // Authors in Nectar's content graph don't carry per-row visibility today,
+      // Authors in Laurel's content graph don't carry per-row visibility today,
       // but mirror the tags helper API so themes can write the same hash on
       // either. `visibility="all"` is a no-op when no rows are filtered; a
       // restrictive value like `visibility="public"` keeps authors that either
@@ -303,12 +303,12 @@ export function registerContentHelpers(engine: NectarEngine): void {
       const visible = limit > 0 ? items.slice(0, limit) : items;
       if (visible.length === 0) {
         return new engine.hb.SafeString(
-          '<ul class="recommendations" data-nectar-recommendations></ul>',
+          '<ul class="recommendations" data-laurel-recommendations></ul>',
         );
       }
       const lis = visible.map((item) => renderRecommendationListItem(item)).join('');
       return new engine.hb.SafeString(
-        `<ul class="recommendations" data-nectar-recommendations>${lis}</ul>`,
+        `<ul class="recommendations" data-laurel-recommendations>${lis}</ul>`,
       );
     },
   );
@@ -332,11 +332,11 @@ export function registerContentHelpers(engine: NectarEngine): void {
       const label = options.hash.label != null ? String(options.hash.label) : '';
       // `action="#"` is the placeholder Ghost themes ship with — the
       // build-time subscribe adapter (`transformSubscribeForms`) rewrites it
-      // to the provider endpoint. The `data-nectar-subscribe` marker lets
+      // to the provider endpoint. The `data-laurel-subscribe` marker lets
       // optional client-side scripts (e.g. an AJAX submitter) hook onto the
       // form without disturbing the Ghost `data-members-form` contract.
       return new engine.hb.SafeString(
-        `<form data-members-form="subscribe" data-nectar-subscribe action="#" method="post"><input data-members-email type="email" name="email" required placeholder="${escapeAttr(placeholder)}"><input data-members-label type="hidden" value="${escapeAttr(label)}"><button data-members-submit type="submit"><span>${escapeHtml(buttonText)}</span></button></form>`,
+        `<form data-members-form="subscribe" data-laurel-subscribe action="#" method="post"><input data-members-email type="email" name="email" required placeholder="${escapeAttr(placeholder)}"><input data-members-label type="hidden" value="${escapeAttr(label)}"><button data-members-submit type="submit"><span>${escapeHtml(buttonText)}</span></button></form>`,
       );
     },
   );
@@ -402,7 +402,7 @@ export function registerContentHelpers(engine: NectarEngine): void {
       const route = options.data?.route as { kind?: string } | undefined;
       const ctx = this as { body_class?: string; tags?: { slug?: unknown }[] };
       if (ctx.body_class !== undefined) return ctx.body_class;
-      const tokens = route?.kind ? [`nectar-route-${route.kind}`] : [];
+      const tokens = route?.kind ? [`laurel-route-${route.kind}`] : [];
       if (route?.kind === 'post') {
         const seen = new Set(tokens);
         for (const tag of ctx.tags ?? []) {
@@ -582,7 +582,7 @@ const PAYWALL_STUB_RE =
   /<div class="gh-paywall-stub" data-paywall-visibility="(members|paid|tiers|filter)">[\s\S]*?<\/div>/g;
 
 function replacePaywallStubWithPartial(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   html: string,
   postCtx: unknown,
   options: Handlebars.HelperOptions,
@@ -673,7 +673,7 @@ function parseNum(value: unknown): number | undefined {
   return undefined;
 }
 
-function translate(engine: NectarEngine, options: Handlebars.HelperOptions, key: string): string {
+function translate(engine: LaurelEngine, options: Handlebars.HelperOptions, key: string): string {
   const route = options.data?.route as { locale?: unknown } | undefined;
   const locale =
     typeof route?.locale === 'string' ? route.locale : (engine.content.site?.locale ?? 'en');
@@ -684,7 +684,7 @@ function translate(engine: NectarEngine, options: Handlebars.HelperOptions, key:
 }
 
 function translateCardLabel(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   options: Handlebars.HelperOptions,
   key: string,
 ): string {
@@ -692,7 +692,7 @@ function translateCardLabel(
   return value.trim() === '' ? key : value;
 }
 
-function renderDefaultSearchPartial(engine: NectarEngine): string {
+function renderDefaultSearchPartial(engine: LaurelEngine): string {
   const partial = engine.hb.partials.search;
   if (typeof partial === 'function') {
     return partial({}, { data: {} });
@@ -826,7 +826,7 @@ function renderGiscusComments(
   containerAttrs: [string, string][] = [],
 ): string {
   if (!cfg.repo) {
-    return '<!-- nectar comments: giscus provider requires components.comments.repo -->';
+    return '<!-- laurel comments: giscus provider requires components.comments.repo -->';
   }
   const attrs: [string, string][] = [
     ['src', 'https://giscus.app/client.js'],
@@ -853,7 +853,7 @@ function renderUtterancesComments(
   containerAttrs: [string, string][] = [],
 ): string {
   if (!cfg.repo) {
-    return '<!-- nectar comments: utterances provider requires components.comments.repo -->';
+    return '<!-- laurel comments: utterances provider requires components.comments.repo -->';
   }
   const attrs: [string, string][] = [
     ['src', 'https://utteranc.es/client.js'],
@@ -875,10 +875,10 @@ function renderDisqusComments(
   containerAttrs: [string, string][] = [],
 ): string {
   if (!cfg.shortname) {
-    return '<!-- nectar comments: disqus provider requires components.comments.shortname -->';
+    return '<!-- laurel comments: disqus provider requires components.comments.shortname -->';
   }
   if (!/^[a-z0-9-]+$/i.test(cfg.shortname)) {
-    return '<!-- nectar comments: disqus shortname must be alphanumeric/dash only -->';
+    return '<!-- laurel comments: disqus shortname must be alphanumeric/dash only -->';
   }
   const urlJson = escapeForScript(JSON.stringify(canonical));
   const idJson = escapeForScript(JSON.stringify(identifier));
@@ -920,7 +920,7 @@ function renderWebmentionComments(
     'class="webmentions"',
     'data-ghost-comments',
     ...containerAttrs.map(([k, v]) => `${k}="${escapeAttr(v)}"`),
-    'data-nectar-webmentions',
+    'data-laurel-webmentions',
     `data-target="${escapeAttr(canonical)}"`,
   ];
   if (cfg.username) parts.push(`data-username="${escapeAttr(cfg.username)}"`);
@@ -951,7 +951,7 @@ function renderTagListItem(
     { name: string; url?: string },
     { name: string; url: string | undefined; escapedName: string; linkedHtml: string | undefined }
   >,
-  engine: NectarEngine,
+  engine: LaurelEngine,
 ): string {
   let cached = cache.get(tag);
   if (!cached || cached.name !== tag.name || cached.url !== tag.url) {

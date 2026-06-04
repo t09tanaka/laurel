@@ -15,20 +15,20 @@ afterAll(async () => {
 // sections so they don't accidentally become children of the previously
 // opened section header.
 async function prependTomlTopLevel(cwd: string, snippet: string): Promise<void> {
-  const tomlPath = join(cwd, 'nectar.toml');
+  const tomlPath = join(cwd, 'laurel.toml');
   const existing = readFileSync(tomlPath, 'utf8');
   await writeFile(tomlPath, `${snippet}\n${existing}`, 'utf8');
 }
 
 async function makeSite(extraConfig = ''): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'nectar-plugin-int-'));
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-plugin-int-'));
   createdRoots.push(dir);
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
 
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Plugin Site"',
@@ -77,7 +77,7 @@ describe('plugin pipeline integration', () => {
     await writeFile(
       pluginPath,
       `
-const order = globalThis.__nectar_plugin_test_order ??= [];
+const order = globalThis.__laurel_plugin_test_order ??= [];
 export default {
   name: 'lifecycle',
   beforeBuild() { order.push('beforeBuild'); },
@@ -93,7 +93,7 @@ export default {
     await prependTomlTopLevel(cwd, 'plugins = ["./lifecycle-plugin.mjs"]');
 
     // Seed the shared order slot before the build so we can read it back.
-    (globalThis as unknown as { __nectar_plugin_test_order: string[] }).__nectar_plugin_test_order =
+    (globalThis as unknown as { __laurel_plugin_test_order: string[] }).__laurel_plugin_test_order =
       order;
 
     await build({ cwd });
@@ -262,7 +262,7 @@ export default {
       defaultLayout.replace('</body>', '{{> "shout-check"}}</body>'),
       'utf8',
     );
-    const tomlPath = join(cwd, 'nectar.toml');
+    const tomlPath = join(cwd, 'laurel.toml');
     const existing = readFileSync(tomlPath, 'utf8');
     await writeFile(
       tomlPath,

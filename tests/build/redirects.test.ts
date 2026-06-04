@@ -10,12 +10,12 @@ async function makeTmp(prefix: string): Promise<string> {
 
 describe('loadRedirects', () => {
   test('returns [] when neither redirects.yaml nor redirects.yml exists', async () => {
-    const cwd = await makeTmp('nectar-redirects-missing-');
+    const cwd = await makeTmp('laurel-redirects-missing-');
     expect(await loadRedirects(cwd)).toEqual([]);
   });
 
   test('parses redirects.yaml and defaults `force` to false', async () => {
-    const cwd = await makeTmp('nectar-redirects-default-force-');
+    const cwd = await makeTmp('laurel-redirects-default-force-');
     await writeFile(
       join(cwd, 'redirects.yaml'),
       ['- from: /old', '  to: /new', '  status: 301'].join('\n'),
@@ -26,7 +26,7 @@ describe('loadRedirects', () => {
   });
 
   test('honors an explicit `force: true` flag', async () => {
-    const cwd = await makeTmp('nectar-redirects-force-true-');
+    const cwd = await makeTmp('laurel-redirects-force-true-');
     await writeFile(
       join(cwd, 'redirects.yaml'),
       ['- from: /a', '  to: /b', '  status: 302', '  force: true'].join('\n'),
@@ -35,13 +35,13 @@ describe('loadRedirects', () => {
   });
 
   test('rejects unsupported status codes', async () => {
-    const cwd = await makeTmp('nectar-redirects-bad-status-');
+    const cwd = await makeTmp('laurel-redirects-bad-status-');
     await writeFile(join(cwd, 'redirects.yaml'), '- from: /x\n  to: /y\n  status: 200\n');
     await expect(loadRedirects(cwd)).rejects.toThrow(/Invalid redirects\.yaml/);
   });
 
   test('rejects unknown fields under .strict()', async () => {
-    const cwd = await makeTmp('nectar-redirects-unknown-field-');
+    const cwd = await makeTmp('laurel-redirects-unknown-field-');
     await writeFile(
       join(cwd, 'redirects.yaml'),
       ['- from: /a', '  to: /b', '  permanent: true'].join('\n'),
@@ -50,7 +50,7 @@ describe('loadRedirects', () => {
   });
 
   test('rejects non-boolean force values', async () => {
-    const cwd = await makeTmp('nectar-redirects-bad-force-');
+    const cwd = await makeTmp('laurel-redirects-bad-force-');
     await writeFile(
       join(cwd, 'redirects.yaml'),
       ['- from: /a', '  to: /b', '  force: yes'].join('\n'),

@@ -65,7 +65,7 @@ describe('importGhostExport - Ghost demo card fixture (#391)', () => {
   let cwd: string;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cards-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-cards-')));
   });
 
   afterEach(async () => {

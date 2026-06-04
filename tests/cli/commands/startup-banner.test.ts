@@ -79,9 +79,9 @@ describe('startup-banner — summarizeWatching', () => {
       { path: '/site/content/posts', category: 'content' },
       { path: '/site/content/pages', category: 'content' },
       { path: '/site/themes/source', category: 'theme' },
-      { path: '/site/nectar.toml', category: 'config' },
+      { path: '/site/laurel.toml', category: 'config' },
     ]);
-    expect(items).toEqual(['content/', 'themes/source/', 'nectar.toml']);
+    expect(items).toEqual(['content/', 'themes/source/', 'laurel.toml']);
   });
 
   test('falls back to listing each content path when no common parent', () => {
@@ -132,19 +132,19 @@ describe('startup-banner — renderBanner / renderReady / renderWarnings', () =>
       mode: 'dev mode',
       rows: [
         ['Site', 'docs-site'],
-        ['Config', 'nectar.toml'],
+        ['Config', 'laurel.toml'],
         ['Theme', 'source'],
         ['Output', 'dist/'],
-        ['Watching', 'content/, themes/source/, nectar.toml'],
+        ['Watching', 'content/, themes/source/, laurel.toml'],
       ],
     });
     const plain = stripAnsi(text);
-    expect(plain).toContain('Nectar 0.1.0');
+    expect(plain).toContain('Laurel 0.1.0');
     expect(plain).toContain('dev mode');
     expect(plain).toContain('- Site:');
     expect(plain).toContain('docs-site');
     expect(plain).toContain('- Watching:');
-    expect(plain).toContain('content/, themes/source/, nectar.toml');
+    expect(plain).toContain('content/, themes/source/, laurel.toml');
   });
 
   test('ready block carries URL and route/asset counts', () => {
@@ -458,9 +458,9 @@ describe('startup-banner — renderSimpleReady', () => {
     const same = stripAnsi(renderSimpleReady({ url: 'http://x/', siteUrl: 'http://x/' }));
     expect(same).not.toContain('Site URL:');
     const diff = stripAnsi(
-      renderSimpleReady({ url: 'http://127.0.0.1:4322/', siteUrl: 'https://nectar.dev' }),
+      renderSimpleReady({ url: 'http://127.0.0.1:4322/', siteUrl: 'https://laurel.dev' }),
     );
-    expect(diff).toContain('Site URL: https://nectar.dev');
+    expect(diff).toContain('Site URL: https://laurel.dev');
   });
 
   test('JSON mode returns empty string', () => {
@@ -508,7 +508,7 @@ describe('startup-banner — countContentFiles', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'nectar-banner-counts-'));
+    dir = await mkdtemp(join(tmpdir(), 'laurel-banner-counts-'));
   });
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });
@@ -539,28 +539,28 @@ describe('startup-banner — findActiveConfigDisplay', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'nectar-banner-cfg-'));
+    dir = await mkdtemp(join(tmpdir(), 'laurel-banner-cfg-'));
   });
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });
   });
 
   test('echoes explicit --config argument as cwd-relative path', () => {
-    expect(findActiveConfigDisplay(dir, 'sites/main/nectar.toml')).toBe('sites/main/nectar.toml');
+    expect(findActiveConfigDisplay(dir, 'sites/main/laurel.toml')).toBe('sites/main/laurel.toml');
   });
 
-  test('prefers nectar.toml when both .toml and .config.toml exist', async () => {
-    await writeFile(join(dir, 'nectar.toml'), '');
-    await writeFile(join(dir, 'nectar.config.toml'), '');
-    expect(findActiveConfigDisplay(dir, undefined)).toBe('nectar.toml');
+  test('prefers laurel.toml when both .toml and .config.toml exist', async () => {
+    await writeFile(join(dir, 'laurel.toml'), '');
+    await writeFile(join(dir, 'laurel.config.toml'), '');
+    expect(findActiveConfigDisplay(dir, undefined)).toBe('laurel.toml');
   });
 
   test('falls through discovery order when canonical name is missing', async () => {
-    await writeFile(join(dir, 'nectar.config.toml'), '');
-    expect(findActiveConfigDisplay(dir, undefined)).toBe('nectar.config.toml');
+    await writeFile(join(dir, 'laurel.config.toml'), '');
+    expect(findActiveConfigDisplay(dir, undefined)).toBe('laurel.config.toml');
   });
 
   test('returns canonical name when no config file is present', () => {
-    expect(findActiveConfigDisplay(dir, undefined)).toBe('nectar.toml');
+    expect(findActiveConfigDisplay(dir, undefined)).toBe('laurel.toml');
   });
 });

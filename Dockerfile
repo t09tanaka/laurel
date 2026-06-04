@@ -24,10 +24,10 @@ ARG CREATED="unknown"
 ARG REVISION="unknown"
 ARG VERSION="dev"
 
-LABEL org.opencontainers.image.title="Nectar" \
+LABEL org.opencontainers.image.title="Laurel" \
   org.opencontainers.image.description="Ghost-theme-compatible static site generator powered by Markdown and Bun" \
-  org.opencontainers.image.url="https://github.com/t09tanaka/nectar" \
-  org.opencontainers.image.source="https://github.com/t09tanaka/nectar" \
+  org.opencontainers.image.url="https://github.com/t09tanaka/laurel" \
+  org.opencontainers.image.source="https://github.com/t09tanaka/laurel" \
   org.opencontainers.image.licenses="MIT" \
   org.opencontainers.image.created="${CREATED}" \
   org.opencontainers.image.revision="${REVISION}" \
@@ -36,10 +36,10 @@ LABEL org.opencontainers.image.title="Nectar" \
 WORKDIR /workspace
 ENV NODE_ENV=production
 
-COPY --from=prod-deps /app/node_modules /opt/nectar/node_modules
-COPY --from=build /app/dist /opt/nectar/dist
-COPY package.json README.md CHANGELOG.md LICENSE /opt/nectar/
+COPY --from=prod-deps /app/node_modules /opt/laurel/node_modules
+COPY --from=build /app/dist /opt/laurel/dist
+COPY package.json README.md CHANGELOG.md LICENSE /opt/laurel/
 
-RUN ln -s /opt/nectar/dist/cli.mjs /usr/local/bin/nectar
+RUN ln -s /opt/laurel/dist/cli.mjs /usr/local/bin/laurel
 
-ENTRYPOINT ["nectar", "build"]
+ENTRYPOINT ["laurel", "build"]

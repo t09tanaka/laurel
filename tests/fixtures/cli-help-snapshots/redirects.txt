@@ -1,13 +1,13 @@
 Inspect redirect rules loaded from redirects.yaml and Ghost exports
 
 Usage:
-  nectar redirects [--collapsed] [--json] <subcommand>
+  laurel redirects [--collapsed] [--json] <subcommand>
 
 Arguments:
   subcommand          `list` (print redirect rules) or `validate` (parse and report duplicates)
 
 End of options:
-  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+  Use `--` before positional values that start with `-`, for example `laurel new post -- --config`.
 
 Options:
   --collapsed         Show the first-match rule set after dropping later duplicate source paths (`list` only)
@@ -15,9 +15,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --collapsed → NECTAR_REDIRECTS_COLLAPSED
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --collapsed → LAUREL_REDIRECTS_COLLAPSED
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -25,6 +25,6 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar redirects list
-  nectar redirects list --collapsed --json
-  nectar redirects validate
+  laurel redirects list
+  laurel redirects list --collapsed --json
+  laurel redirects validate

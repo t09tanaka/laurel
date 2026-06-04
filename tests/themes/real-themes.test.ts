@@ -88,7 +88,7 @@ describe('real Ghost theme contract', () => {
 
   test('headline-mini renders secondary sections with tags.[3] array-index syntax', async () => {
     const siteFixture = join(FIXTURE_DIR, '..', 'theme-smoke', 'site');
-    const workDir = await mkdtemp(join(tmpdir(), 'nectar-headline-array-index-'));
+    const workDir = await mkdtemp(join(tmpdir(), 'laurel-headline-array-index-'));
     await cp(siteFixture, workDir, { recursive: true });
     await mkdir(join(workDir, 'themes'), { recursive: true });
     await cp(join(FIXTURE_DIR, 'headline-mini'), join(workDir, 'themes', 'headline-mini'), {
@@ -96,7 +96,7 @@ describe('real Ghost theme contract', () => {
     });
 
     await writeFile(
-      join(workDir, 'nectar.toml'),
+      join(workDir, 'laurel.toml'),
       [
         '[site]',
         'title = "Headline Array Index"',
@@ -149,7 +149,7 @@ describe('real Ghost theme contract', () => {
 
   test('solo-mini preserves gh-prefixed no-image post classes through minified smoke build', async () => {
     const siteFixture = join(FIXTURE_DIR, '..', 'theme-smoke', 'site');
-    const workDir = await mkdtemp(join(tmpdir(), 'nectar-solo-gh-content-'));
+    const workDir = await mkdtemp(join(tmpdir(), 'laurel-solo-gh-content-'));
     await cp(siteFixture, workDir, { recursive: true });
     await mkdir(join(workDir, 'themes'), { recursive: true });
     await cp(join(FIXTURE_DIR, 'solo-mini'), join(workDir, 'themes', 'solo-mini'), {
@@ -157,7 +157,7 @@ describe('real Ghost theme contract', () => {
     });
 
     await writeFile(
-      join(workDir, 'nectar.toml'),
+      join(workDir, 'laurel.toml'),
       [
         '[site]',
         'title = "Solo GH Content"',
@@ -209,14 +209,14 @@ describe('real Ghost theme contract', () => {
 
   test('solo-mini exposes primary_tag.accent_color to post.hbs', async () => {
     const siteFixture = join(FIXTURE_DIR, '..', 'theme-smoke', 'site');
-    const workDir = await mkdtemp(join(tmpdir(), 'nectar-solo-tag-accent-'));
+    const workDir = await mkdtemp(join(tmpdir(), 'laurel-solo-tag-accent-'));
     await cp(siteFixture, workDir, { recursive: true });
     await mkdir(join(workDir, 'themes'), { recursive: true });
     const themeDir = join(workDir, 'themes', 'solo-mini');
     await cp(join(FIXTURE_DIR, 'solo-mini'), themeDir, { recursive: true });
 
     await writeFile(
-      join(workDir, 'nectar.toml'),
+      join(workDir, 'laurel.toml'),
       [
         '[site]',
         'title = "Solo Tag Accent"',
@@ -283,7 +283,7 @@ describe('real Ghost theme contract', () => {
 
   test('casper-mini keeps Koenig cards as direct gh-content gh-canvas children', async () => {
     const siteFixture = join(FIXTURE_DIR, '..', 'theme-smoke', 'site');
-    const workDir = await mkdtemp(join(tmpdir(), 'nectar-casper-gh-content-card-'));
+    const workDir = await mkdtemp(join(tmpdir(), 'laurel-casper-gh-content-card-'));
     await cp(siteFixture, workDir, { recursive: true });
     await mkdir(join(workDir, 'themes'), { recursive: true });
     await cp(join(FIXTURE_DIR, 'casper-mini'), join(workDir, 'themes', 'casper-mini'), {
@@ -291,7 +291,7 @@ describe('real Ghost theme contract', () => {
     });
 
     await writeFile(
-      join(workDir, 'nectar.toml'),
+      join(workDir, 'laurel.toml'),
       [
         '[site]',
         'title = "Casper Card Wrapper"',
@@ -328,7 +328,7 @@ describe('real Ghost theme contract', () => {
         'title: "Card wrapper contract"',
         'slug: card-wrapper-contract',
         'date: 2026-01-20T09:00:00Z',
-        'authors: [nectar-bot]',
+        'authors: [laurel-bot]',
         'tags: [general]',
         '---',
         '',
@@ -356,7 +356,7 @@ describe('real Ghost theme contract', () => {
 
   test('casper-style cross-theme helpers cover legacy members, custom assets, and pagination gaps', async () => {
     const siteFixture = join(FIXTURE_DIR, '..', 'theme-smoke', 'site');
-    const workDir = await mkdtemp(join(tmpdir(), 'nectar-cross-theme-helpers-'));
+    const workDir = await mkdtemp(join(tmpdir(), 'laurel-cross-theme-helpers-'));
     await cp(siteFixture, workDir, { recursive: true });
     await mkdir(join(workDir, 'themes'), { recursive: true });
     const themeDir = join(workDir, 'themes', 'casper-mini');
@@ -405,7 +405,7 @@ describe('real Ghost theme contract', () => {
         '  {{ghost_head}}',
         '</head>',
         '<body style="--custom-bg: {{@custom.background_color}}">',
-        '  <a class="nectar-skip-link" href="#main">Skip to content</a>',
+        '  <a class="laurel-skip-link" href="#main">Skip to content</a>',
         '  <img data-custom-logo src="{{img_url @custom.white_logo_for_dark_mode}}" alt="">',
         '  {{#if @labs.subscribers}}<span data-labs-subscribers></span>{{/if}}',
         '  {{#if @labs.members}}<span data-labs-members></span>{{/if}}',
@@ -466,7 +466,7 @@ describe('real Ghost theme contract', () => {
         'locale: ja',
         'visibility: members',
         'feature_image: "/content/images/photo.jpg"',
-        'authors: [nectar-bot]',
+        'authors: [laurel-bot]',
         'tags: [general]',
         '---',
         '',
@@ -476,7 +476,7 @@ describe('real Ghost theme contract', () => {
       'utf8',
     );
     await writeFile(
-      join(workDir, 'nectar.toml'),
+      join(workDir, 'laurel.toml'),
       [
         '[site]',
         'title = "Cross Theme Helpers"',
@@ -561,7 +561,7 @@ describe('casper-mini i18n contract (issue #1707)', () => {
     const indexHtml = readFileSync(join(result.workDir, 'dist', 'index.html'), 'utf8');
     // The smoke fixture sets locale=en and casper-mini/en.json intentionally
     // contains empty strings. Ghost treats those as authoritative values, so
-    // Nectar must not fall through to the English keys.
+    // Laurel must not fall through to the English keys.
     expect(indexHtml).toContain('<button class="gh-signin" data-portal="signin"></button>');
     expect(indexHtml).toContain('<footer></footer>');
     expect(indexHtml).not.toContain('Sign in');
@@ -570,7 +570,7 @@ describe('casper-mini i18n contract (issue #1707)', () => {
 
   test('Casper-mini de.json placeholders are applied when site.locale=de', async () => {
     // This branch rebuilds the smoke site by hand with locale=de in
-    // nectar.toml. We sidestep the smoke harness's en-only renderer by
+    // laurel.toml. We sidestep the smoke harness's en-only renderer by
     // patching the toml file the harness wrote into place.
     const { mkdtemp, cp, mkdir, writeFile, readFile } = await import('node:fs/promises');
     const { tmpdir } = await import('node:os');
@@ -583,7 +583,7 @@ describe('casper-mini i18n contract (issue #1707)', () => {
       'theme-smoke',
       'site',
     );
-    const workDir = await mkdtemp(join(tmpdir(), 'nectar-casper-i18n-de-'));
+    const workDir = await mkdtemp(join(tmpdir(), 'laurel-casper-i18n-de-'));
     await cp(siteFixture, workDir, { recursive: true });
     await mkdir(join(workDir, 'themes'), { recursive: true });
     await cp(join(FIXTURE_DIR, 'casper-mini'), join(workDir, 'themes', 'casper-mini'), {
@@ -596,7 +596,7 @@ describe('casper-mini i18n contract (issue #1707)', () => {
     // de toml directly.
     void toml;
     await writeFile(
-      join(workDir, 'nectar.toml'),
+      join(workDir, 'laurel.toml'),
       [
         '[site]',
         'title = "Casper Mini DE"',
@@ -643,7 +643,7 @@ describe('casper-mini i18n contract (issue #1707)', () => {
       'theme-smoke',
       'site',
     );
-    const workDir = await mkdtemp(join(tmpdir(), 'nectar-casper-portal-i18n-de-'));
+    const workDir = await mkdtemp(join(tmpdir(), 'laurel-casper-portal-i18n-de-'));
     await cp(siteFixture, workDir, { recursive: true });
     await mkdir(join(workDir, 'themes'), { recursive: true });
     const themeDir = join(workDir, 'themes', 'casper-mini');
@@ -681,7 +681,7 @@ describe('casper-mini i18n contract (issue #1707)', () => {
       'utf8',
     );
     await writeFile(
-      join(workDir, 'nectar.toml'),
+      join(workDir, 'laurel.toml'),
       [
         '[site]',
         'title = "Casper Portal I18n DE"',

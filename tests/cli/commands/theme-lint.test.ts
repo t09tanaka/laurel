@@ -8,7 +8,7 @@ import { formatReportJson, formatReportTable, lintTheme } from '~/cli/commands/t
 const CLI_ENTRY = fileURLToPath(new URL('../../../src/cli/index.ts', import.meta.url));
 
 async function makeTempDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-theme-lint-'));
+  return mkdtemp(join(tmpdir(), 'laurel-theme-lint-'));
 }
 
 async function writeFile2(path: string, contents: string): Promise<void> {
@@ -202,13 +202,13 @@ describe('lintTheme', () => {
   });
 
   test('non-existent theme path produces an error finding', async () => {
-    const report = await lintTheme('/definitely/does/not/exist/nectar-test');
+    const report = await lintTheme('/definitely/does/not/exist/laurel-test');
     expect(report.errors).toBeGreaterThan(0);
     expect(report.findings[0]?.code).toBe('theme-not-found');
   });
 });
 
-describe('nectar theme lint CLI', () => {
+describe('laurel theme lint CLI', () => {
   test('exits 1 when errors are present and 0 on clean theme', async () => {
     const dir = await makeTempDir();
     try {

@@ -1,13 +1,13 @@
 Inspect or modify content in the project (posts, pages)
 
 Usage:
-  nectar content [--config <path>] [--kind <posts|pages>] [--lines <n>] [--frontmatter] [--draft] [--tag <slug>] [--author <slug>] [--json] [--redirect] [--purge] [--date <iso|now>] [--published] [--published-at <iso|now>] <subcommand...>
+  laurel content [--config <path>] [--kind <posts|pages>] [--lines <n>] [--frontmatter] [--draft] [--tag <slug>] [--author <slug>] [--json] [--redirect] [--purge] [--date <iso|now>] [--published] [--published-at <iso|now>] <subcommand...>
 
 Arguments:
-  subcommand          `list` (show posts/pages), `show <slug>` (print frontmatter + body preview), `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter), `delete <slug>` (move content into `.nectar/trash/` with restore metadata), or `touch <slug>` (update date frontmatter)
+  subcommand          `list` (show posts/pages), `show <slug>` (print frontmatter + body preview), `rename <old-slug> <new-slug>` (move a post/page file + rewrite its `slug` frontmatter), `delete <slug>` (move content into `.laurel/trash/` with restore metadata), or `touch <slug>` (update date frontmatter)
 
 End of options:
-  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+  Use `--` before positional values that start with `-`, for example `laurel new post -- --config`.
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -19,16 +19,16 @@ Options:
   --author <slug>     Show only entries that have any given author slug (`list` only); repeat or comma-separate
   -j, --json          Emit results as JSON for CI consumption (`list`, `show`, `rename`, `delete`, and `touch`)
   --redirect          On `rename`: append a `<old-url>  <new-url>  301` entry to `redirects.yaml` at the project root so the old URL keeps working when emitted through the redirects component
-  --purge             On `delete`: permanently remove matching entries from `.nectar/trash/` only when they are at least 30 days old. Never removes current content files
+  --purge             On `delete`: permanently remove matching entries from `.laurel/trash/` only when they are at least 30 days old. Never removes current content files
   --date <iso|now>    On `touch`: set `updated_at` to this ISO-8601 timestamp instead of the current time; `now` is also accepted
   --published         On `touch`: update `published_at` to the same timestamp as `updated_at`
   --published-at <iso|now>  On `touch`: set `published_at` to this ISO-8601 timestamp (or `now`) while also updating `updated_at`
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --config → NECTAR_CONTENT_CONFIG
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → LAUREL_CONTENT_CONFIG
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -36,13 +36,13 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar content list                          # posts + pages with status/date
-  nectar content list --kind pages
-  nectar content list --tag changelog --json
-  nectar content show hello-world --lines 12
-  nectar content show about --kind pages --frontmatter
-  nectar content rename old-slug new-slug --redirect
-  nectar content delete old-slug
-  nectar content delete --purge old-slug
-  nectar content touch hello-world --date 2026-01-02T03:04:05Z
-  nectar content touch about --kind pages --published
+  laurel content list                          # posts + pages with status/date
+  laurel content list --kind pages
+  laurel content list --tag changelog --json
+  laurel content show hello-world --lines 12
+  laurel content show about --kind pages --frontmatter
+  laurel content rename old-slug new-slug --redirect
+  laurel content delete old-slug
+  laurel content delete --purge old-slug
+  laurel content touch hello-world --date 2026-01-02T03:04:05Z
+  laurel content touch about --kind pages --published

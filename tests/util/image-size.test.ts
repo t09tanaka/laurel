@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { readImageDimensions } from '~/util/image-size.ts';
 
 function tempPath(name: string): string {
-  const dir = mkdtempSync(join(tmpdir(), 'nectar-image-size-'));
+  const dir = mkdtempSync(join(tmpdir(), 'laurel-image-size-'));
   return join(dir, name);
 }
 

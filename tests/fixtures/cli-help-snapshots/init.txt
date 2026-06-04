@@ -1,7 +1,7 @@
-Scaffold a new Nectar project in the current (or given) directory
+Scaffold a new Laurel project in the current (or given) directory
 
 Usage:
-  nectar init [--yes] [--force] [--dir <path>] [--agent <claude|codex|both|none>] [--json]
+  laurel init [--yes] [--force] [--dir <path>] [--agent <claude|codex|both|none>] [--json]
 
 Options:
   -y, --yes           Skip prompts and use defaults (non-interactive)
@@ -12,9 +12,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --yes → NECTAR_INIT_YES
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --yes → LAUREL_INIT_YES
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -22,8 +22,8 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar init                                  # scaffold in the current dir (interactive)
-  nectar init --yes                            # accept defaults; CI-friendly
-  nectar init --dir my-blog --yes              # scaffold a new project folder
-  nectar init --yes --agent claude             # also create CLAUDE.md + install skills
-  nectar init --yes --agent both               # wire up Claude Code and Codex
+  laurel init                                  # scaffold in the current dir (interactive)
+  laurel init --yes                            # accept defaults; CI-friendly
+  laurel init --dir my-blog --yes              # scaffold a new project folder
+  laurel init --yes --agent claude             # also create CLAUDE.md + install skills
+  laurel init --yes --agent both               # wire up Claude Code and Codex

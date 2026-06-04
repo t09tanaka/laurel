@@ -8,13 +8,13 @@ body:
         you can open an issue to track the implementation.
 
         Before posting, please check whether your idea conflicts with the
-        explicit non-goals in [`CLAUDE.md`](https://github.com/t09tanaka/nectar/blob/main/CLAUDE.md) (members, server-side search, live drafts, multi-locale routing, email-only posts). Those aren't up for revisiting via Ideas — they're scope decisions.
+        explicit non-goals in [`CLAUDE.md`](https://github.com/t09tanaka/laurel/blob/main/CLAUDE.md) (members, server-side search, live drafts, multi-locale routing, email-only posts). Those aren't up for revisiting via Ideas — they're scope decisions.
   - type: textarea
     id: problem
     attributes:
       label: What problem are you trying to solve?
       description: Describe the situation, not the proposed solution. "I'm
-        deploying to Cloudflare Pages and want X" rather than "Nectar should
+        deploying to Cloudflare Pages and want X" rather than "Laurel should
         do X".
     validations:
       required: true
@@ -22,7 +22,7 @@ body:
     id: proposal
     attributes:
       label: Proposed change
-      description: What would Nectar do differently? Be concrete — config
+      description: What would Laurel do differently? Be concrete — config
         shape, CLI surface, helper signature, etc. — even if you're not sure
         it's the right design.
     validations:

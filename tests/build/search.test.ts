@@ -11,14 +11,14 @@ import {
   injectPagefindSkipMeta,
   injectSearchShimScript,
   runPagefind,
-  searchEngineUsesNectarGhostSearchShim,
+  searchEngineUsesLaurelGhostSearchShim,
   truncateExcerpt,
 } from '~/build/search.ts';
 import { configSchema } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, Tag } from '~/content/model.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-search-'));
+  return mkdtemp(join(tmpdir(), 'laurel-search-'));
 }
 
 function makeTag(overrides: Partial<Tag> = {}): Tag {
@@ -408,9 +408,9 @@ describe('emitSearchUiCss', () => {
     const dest = await emitSearchUiCss({ config, outputDir });
     expect(dest).toBe(join(outputDir, 'search', 'search.css'));
     const css = readFileSync(join(outputDir, 'search', 'search.css'), 'utf8');
-    expect(css).toContain('--nectar-search-accent: #abc123;');
-    expect(css).toContain('.nectar-search__input');
-    expect(css).toContain('.nectar-search__results');
+    expect(css).toContain('--laurel-search-accent: #abc123;');
+    expect(css).toContain('.laurel-search__input');
+    expect(css).toContain('.laurel-search__results');
   });
 
   test('emits even when the engine is pagefind-only (markup is engine-agnostic)', async () => {
@@ -587,18 +587,18 @@ describe('emitSearchShim', () => {
   });
 });
 
-describe('searchEngineUsesNectarGhostSearchShim', () => {
+describe('searchEngineUsesLaurelGhostSearchShim', () => {
   test('enables the built-in shim for JSON and Pagefind engines', () => {
-    expect(searchEngineUsesNectarGhostSearchShim('json')).toBe(true);
-    expect(searchEngineUsesNectarGhostSearchShim('json+lunr')).toBe(true);
-    expect(searchEngineUsesNectarGhostSearchShim('lunr')).toBe(true);
-    expect(searchEngineUsesNectarGhostSearchShim('pagefind')).toBe(true);
-    expect(searchEngineUsesNectarGhostSearchShim('json+pagefind')).toBe(true);
+    expect(searchEngineUsesLaurelGhostSearchShim('json')).toBe(true);
+    expect(searchEngineUsesLaurelGhostSearchShim('json+lunr')).toBe(true);
+    expect(searchEngineUsesLaurelGhostSearchShim('lunr')).toBe(true);
+    expect(searchEngineUsesLaurelGhostSearchShim('pagefind')).toBe(true);
+    expect(searchEngineUsesLaurelGhostSearchShim('json+pagefind')).toBe(true);
   });
 
   test('leaves explicit Sodo Search engines to ghost_head injection', () => {
-    expect(searchEngineUsesNectarGhostSearchShim('sodo-search')).toBe(false);
-    expect(searchEngineUsesNectarGhostSearchShim('json+sodo-search')).toBe(false);
+    expect(searchEngineUsesLaurelGhostSearchShim('sodo-search')).toBe(false);
+    expect(searchEngineUsesLaurelGhostSearchShim('json+sodo-search')).toBe(false);
   });
 });
 
@@ -607,9 +607,9 @@ describe('injectSearchShimScript', () => {
     const html =
       '<html><head><title>x</title></head><body><button data-ghost-search></button></body></html>';
     const out = injectSearchShimScript(html, '/');
-    expect(out).toContain('<script defer src="/search/ghost-search.js" data-nectar-search-shim>');
+    expect(out).toContain('<script defer src="/search/ghost-search.js" data-laurel-search-shim>');
     // Script must land inside <head>, before </head>.
-    expect(out.indexOf('data-nectar-search-shim')).toBeLessThan(out.indexOf('</head>'));
+    expect(out.indexOf('data-laurel-search-shim')).toBeLessThan(out.indexOf('</head>'));
   });
 
   test('respects base_path when computing the script src', () => {

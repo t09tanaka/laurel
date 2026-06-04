@@ -1,7 +1,7 @@
 Run a development server: builds once, watches content/theme/config, rebuilds on change, and live-reloads the browser
 
 Usage:
-  nectar dev [--config <path>] [--port <n>] [--host <host>] [--json]
+  laurel dev [--config <path>] [--port <n>] [--host <host>] [--json]
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -11,9 +11,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --config → NECTAR_DEV_CONFIG
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → LAUREL_DEV_CONFIG
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -21,6 +21,6 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar dev                                   # http://localhost:4321 with live reload
-  nectar dev --port 8080                       # pick a different port
-  nectar dev --host 0.0.0.0                    # expose on the LAN (mobile testing)
+  laurel dev                                   # http://localhost:4321 with live reload
+  laurel dev --port 8080                       # pick a different port
+  laurel dev --host 0.0.0.0                    # expose on the LAN (mobile testing)

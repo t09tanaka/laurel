@@ -17,7 +17,7 @@ import { finished } from 'node:stream/promises';
 import { createGzip } from 'node:zlib';
 import type { ThemeAsset, ThemeBundle } from '~/theme/types.ts';
 import { pLimit } from '~/util/concurrency.ts';
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 import { ensureDir, pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { sanitizeImageAssetBytes } from '~/util/image-sanitization.ts';
 import { logger } from '~/util/logger.ts';
@@ -51,7 +51,7 @@ function assertWithinOutputDir(outputDir: string, dest: string): void {
   const target = resolve(dest);
   const rel = relative(root, target);
   if (rel === '' || rel === '..' || rel.startsWith(`..${sep}`) || rel.startsWith('../')) {
-    throw new NectarError({
+    throw new LaurelError({
       message: `Refusing to write outside output directory: outputDir=${root} dest=${target}`,
       code: 'emit',
     });

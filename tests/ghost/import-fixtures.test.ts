@@ -69,7 +69,7 @@ describe('importGhostExport — realistic export fixtures (#504)', () => {
   let cwd: string;
 
   beforeEach(async () => {
-    cwd = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-fixtures-')));
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-fixtures-')));
   });
 
   afterEach(async () => {

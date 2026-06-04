@@ -5,7 +5,7 @@ import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isNonProductionBuild } from '~/config/deploy-environment.ts';
 import { loadConfig } from '~/config/loader.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import {
   type MarkdownTransformHook,
   type RawContentCache,
@@ -23,8 +23,8 @@ import { loadTheme } from '~/theme/loader.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { pLimit } from '~/util/concurrency.ts';
+import { getLaurelVersion } from '~/util/laurel-version.ts';
 import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
-import { getNectarVersion } from '~/util/nectar-version.ts';
 import { emitAlgoliaRecords, emitDocSearchCss } from './algolia.ts';
 import { emitApacheHtaccess } from './apache.ts';
 import { emitContentApiShadows } from './api.ts';
@@ -149,7 +149,7 @@ import {
   emitSearchShim,
   emitSearchUiCss,
   runPagefind,
-  searchEngineUsesNectarGhostSearchShim,
+  searchEngineUsesLaurelGhostSearchShim,
 } from './search.ts';
 import { copyStaticDir, resolveStaticPassthroughDirs } from './static-passthrough.ts';
 import { containsSubscribeFormMarkup } from './subscribe-forms.ts';
@@ -160,13 +160,13 @@ import {
 import { emitTierWelcomePages } from './tier-welcome-pages.ts';
 import { GENERATED_WEB_MANIFEST_PATH, emitWebManifest } from './web-manifest.ts';
 
-// Hot path for `nectar dev`: lets the dev server hand previously-loaded state
+// Hot path for `laurel dev`: lets the dev server hand previously-loaded state
 // back to a fresh build() call. Config/theme reuse skips their load steps when
 // the watcher knows those inputs have not changed; rawContentCache is a
 // mutation-safe cache of normalized Markdown entries that loadContent clones
 // into a fresh build-local content graph before image/srcset injectors run.
 export interface ReusableBuildState {
-  config?: NectarConfig | undefined;
+  config?: LaurelConfig | undefined;
   theme?: ThemeBundle | undefined;
   rawContentCache?: RawContentCache | undefined;
 }
@@ -204,7 +204,7 @@ export interface BuildOptions {
   // Override for `[components.content_api].enabled`. Undefined leaves the
   // config value alone; `true` forces the JSON shadows under `dist/content/`
   // and `dist/ghost/api/content/` on; `false` forces them off. Exposed
-  // through `--emit-content-api` (and `NECTAR_BUILD_EMIT_CONTENT_API=0`) so
+  // through `--emit-content-api` (and `LAUREL_BUILD_EMIT_CONTENT_API=0`) so
   // operators can preview / disable the SDK surface without editing the
   // config.
   emitContentApi?: boolean | undefined;
@@ -216,7 +216,7 @@ export interface BuildOptions {
   // best-effort telemetry: progress UI must never be able to fail a build.
   progress?: BuildProgressReporter | undefined;
   // When set, the build skips re-loading the corresponding inputs and uses the
-  // provided objects or caches instead. Used by `nectar dev` to keep config /
+  // provided objects or caches instead. Used by `laurel dev` to keep config /
   // theme in memory across rebuilds and to reuse unchanged raw content entries
   // while reconstructing a fresh content graph on every build. Reused config is
   // still subject to CLI overrides (basePath / baseUrl / copyContentAssets)
@@ -303,10 +303,10 @@ export interface BuildSummary {
   slowestRoutes?: BuildStatsRoute[];
   helperHotspots?: BuildStatsHelperHotspot[];
   // Populated only when `captureReusable: true` was passed in BuildOptions.
-  // Lets `nectar dev` re-feed the same config/theme/content cache back on the
+  // Lets `laurel dev` re-feed the same config/theme/content cache back on the
   // next rebuild, skipping safe load work while preserving fresh graph objects.
   reusable?: {
-    config: NectarConfig;
+    config: LaurelConfig;
     theme: ThemeBundle;
     rawContentCache: RawContentCache;
   };
@@ -462,8 +462,8 @@ export async function build({
   }
   // Reusing the previously-loaded config skips a small (~ms) cost on dev
   // rebuilds, but more importantly avoids racing with an in-flight edit on
-  // nectar.toml. The dev server hands `reuse.config` in only when it has
-  // confirmed nectar.toml itself did not change in this rebuild window.
+  // laurel.toml. The dev server hands `reuse.config` in only when it has
+  // confirmed laurel.toml itself did not change in this rebuild window.
   const config =
     reuse?.config ??
     (await withProgressPhase(progress, 'config', 'Loading config', () =>
@@ -572,23 +572,23 @@ async function runBuild({
   emitContentApi: boolean | undefined;
   progress: BuildProgressReporter | undefined;
 }): Promise<BuildSummary> {
-  // Resolve Nectar's own version once up front; the build-manifest emitter at
-  // the end of the pipeline embeds it into `.nectar/manifest.json` for deploy
+  // Resolve Laurel's own version once up front; the build-manifest emitter at
+  // the end of the pipeline embeds it into `.laurel/manifest.json` for deploy
   // tooling to detect generator upgrades.
-  const nectarVersion = await getNectarVersion();
+  const laurelVersion = await getLaurelVersion();
   const plannedOutputPaths = new Set<string>();
   const keepOutput = (path: string): void => {
     const normalized = normalizeOutputRelPath(path);
     if (normalized) plannedOutputPaths.add(normalized);
   };
-  keepOutput('.nectar-manifest.json');
+  keepOutput('.laurel-manifest.json');
   keepOutput(buildManifestRelPath());
   keepOutput(changedPathsRelPath());
   keepOutput(FEDIVERSE_DISCOVERY_PATH);
   keepOutput(PORTAL_MANIFEST_PATH);
   keepOutput('staticwebapp.config.json');
   keepOutput('.nojekyll');
-  if (profiler) keepOutput('.nectar-build-stats.json');
+  if (profiler) keepOutput('.laurel-build-stats.json');
   // Load `routes.yaml` first so it can shape both content URLs (tag/author
   // archives may be disabled or use custom paths) and the route plan.
   const {
@@ -722,7 +722,7 @@ async function runBuild({
 
   // BuildContext exposed to plugin hooks. `outputDir` is the *final* output
   // dir (where the site will eventually live), not the staging dir, so plugin
-  // authors don't have to learn about Nectar's atomic-swap internals. The
+  // authors don't have to learn about Laurel's atomic-swap internals. The
   // engine, content, and theme references are live — plugins may mutate
   // helpers/templates during `beforeBuild`, which the render fan-out picks up.
   const pluginCtx: BuildContext = {
@@ -1465,7 +1465,7 @@ async function runBuild({
     }
   });
   // `--emit-content-api` (BuildOptions.emitContentApi) overrides the config
-  // gate per-build without forcing the operator to edit `nectar.toml`. The
+  // gate per-build without forcing the operator to edit `laurel.toml`. The
   // override applies symmetrically to the SDK shadow tree (`emitContentApiShadows`)
   // and the flat-dump stubs (`emitContentApiStubs`) below.
   const contentApiEnabled = emitContentApi ?? config.components.content_api.enabled;
@@ -1578,14 +1578,14 @@ async function runBuild({
     );
   }
   // Azure Static Web Apps config. Emitted unconditionally — the file is
-  // azure-specific and inert on every other host, and a single nectar build
+  // azure-specific and inert on every other host, and a single laurel build
   // should be deployable to Azure without an extra config knob. Users who
   // need richer routing should drop a `staticwebapp.config.json` into the
   // static-passthrough dir, which overrides this default via the post-emit
   // passthrough step below.
   keepOutput('staticwebapp.config.json');
   await emitAzureStaticWebAppConfig({ outputDir });
-  keepOutput('.nectar/cloudfront-response-headers-policy.json');
+  keepOutput('.laurel/cloudfront-response-headers-policy.json');
   await emitCloudFrontResponseHeadersPolicy({
     outputDir,
     headers: deployHeaders,
@@ -1656,7 +1656,7 @@ async function runBuild({
     headers: deployHeaders,
     rules: deployRedirects,
   });
-  if (config.deploy.nginx.enabled) keepOutput('.nectar/nginx.conf');
+  if (config.deploy.nginx.enabled) keepOutput('.laurel/nginx.conf');
   await emitNginxConf({
     outputDir,
     enabled: config.deploy.nginx.enabled,
@@ -1665,7 +1665,7 @@ async function runBuild({
     root: config.deploy.nginx.root,
     serverName: config.deploy.nginx.server_name,
   });
-  if (config.deploy.caddy.enabled) keepOutput('.nectar/Caddyfile');
+  if (config.deploy.caddy.enabled) keepOutput('.laurel/Caddyfile');
   await emitCaddyfile({
     outputDir,
     enabled: config.deploy.caddy.enabled,
@@ -1705,7 +1705,7 @@ async function runBuild({
       });
     }
   });
-  keepOutput('.nectar/asset-manifest.json');
+  keepOutput('.laurel/asset-manifest.json');
   await timed(profiler, 'asset_manifest', () => emitAssetManifest({ outputDir, theme }));
 
   if (clean) {
@@ -1765,7 +1765,7 @@ async function runBuild({
       theme,
       routeCount: routes.length,
       assetCount,
-      nectarVersion,
+      laurelVersion,
       previousBuildManifest,
       routes: buildManifestRoutes,
     }),
@@ -2101,7 +2101,7 @@ function markPlannedSearchOutputs(opts: {
   ) {
     opts.keepOutput('content/search.json');
   }
-  if (searchEngineUsesNectarGhostSearchShim(cfg.engine)) {
+  if (searchEngineUsesLaurelGhostSearchShim(cfg.engine)) {
     opts.keepOutput('search/ghost-search.js');
   }
   if (cfg.engine === 'lunr' || cfg.engine === 'json+lunr') {
@@ -2111,11 +2111,11 @@ function markPlannedSearchOutputs(opts: {
   }
   opts.keepOutput('search/search.css');
   if (cfg.emit_algolia_records) {
-    opts.keepOutput('.nectar/algolia-records.json');
+    opts.keepOutput('.laurel/algolia-records.json');
     opts.keepOutput('search/algolia-docsearch.css');
   }
   if (cfg.emit_meilisearch_records) {
-    opts.keepOutput('.nectar/meilisearch-records.json');
+    opts.keepOutput('.laurel/meilisearch-records.json');
   }
 }
 

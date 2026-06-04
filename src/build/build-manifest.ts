@@ -1,22 +1,22 @@
 import { createHash } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import { dirname, join, sep } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ThemeBundle, ThemeCustomSettingDefinition } from '~/theme/types.ts';
 import { pLimit } from '~/util/concurrency.ts';
 import { ensureDir, scanGlob } from '~/util/fs.ts';
 import { type RouteContentInput, computeThemeFingerprint, stableStringify } from './manifest.ts';
 
-// Subdirectory inside the build output that holds Nectar-emitted metadata for
+// Subdirectory inside the build output that holds Laurel-emitted metadata for
 // downstream tooling. Sibling files (e.g. additional deploy descriptors) can
 // land alongside `manifest.json` without polluting the site root.
-export const BUILD_MANIFEST_DIR = '.nectar';
+export const BUILD_MANIFEST_DIR = '.laurel';
 export const BUILD_MANIFEST_FILENAME = 'manifest.json';
 export const LEGACY_BUILD_MANIFEST_FILENAME = 'build-manifest.json';
 export const CHANGED_PATHS_FILENAME = 'changed-paths.txt';
 
-// Schema version for `.nectar/manifest.json`. Bump when the JSON shape changes
-// in a way that downstream consumers (deploy scripts, `nectar deploy`) cannot
+// Schema version for `.laurel/manifest.json`. Bump when the JSON shape changes
+// in a way that downstream consumers (deploy scripts, `laurel deploy`) cannot
 // silently absorb.
 export const BUILD_MANIFEST_VERSION = 2 as const;
 
@@ -46,7 +46,7 @@ export interface BuildManifestFile {
 export interface BuildManifestJson {
   schema_version: typeof BUILD_MANIFEST_VERSION;
   generated_at: string;
-  nectar: { version: string };
+  laurel: { version: string };
   theme: {
     name: string;
     version: string;
@@ -97,11 +97,11 @@ export function changedPathsAbsPath(outputDir: string): string {
 
 interface EmitBuildManifestOptions {
   outputDir: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   theme: ThemeBundle;
   routeCount: number;
   assetCount: number;
-  nectarVersion: string;
+  laurelVersion: string;
   previousBuildManifest?: BuildManifestJson | undefined;
   routes?: BuildManifestRoute[] | undefined;
   // Visible for tests so the timestamp can be made deterministic.
@@ -117,7 +117,7 @@ export async function emitBuildManifest(
     theme,
     routeCount,
     assetCount,
-    nectarVersion,
+    laurelVersion,
     previousBuildManifest,
     routes = [],
     now,
@@ -137,7 +137,7 @@ export async function emitBuildManifest(
   const manifest: BuildManifestJson = {
     schema_version: BUILD_MANIFEST_VERSION,
     generated_at: (now ?? new Date()).toISOString(),
-    nectar: { version: nectarVersion },
+    laurel: { version: laurelVersion },
     theme: {
       name: theme.pkg.name,
       version: theme.pkg.version,
@@ -244,7 +244,7 @@ async function collectOutputFiles(
   return entries;
 }
 
-function computeConfigHash(config: NectarConfig): string {
+function computeConfigHash(config: LaurelConfig): string {
   return sha256Str(stableStringify(config));
 }
 
@@ -287,7 +287,7 @@ function publicFileHashMap(files: BuildManifestFile[]): Map<string, string> {
 
 function isPublicOutputPath(path: string): boolean {
   return (
-    path !== '.nectar-manifest.json' &&
+    path !== '.laurel-manifest.json' &&
     path !== BUILD_MANIFEST_DIR &&
     !path.startsWith(`${BUILD_MANIFEST_DIR}/`)
   );

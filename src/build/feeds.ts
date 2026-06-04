@@ -1,4 +1,4 @@
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ContentGraph, Post } from '~/content/model.ts';
 import { withBasePath } from '~/util/url.ts';
 import { type TextStreamWriter, writeTextStream } from './emit.ts';
@@ -35,7 +35,7 @@ export const RSS_MAX_ITEMS_PER_PAGE = 250;
 const EMPTY_FEED_LAST_BUILD_DATE = 'Thu, 01 Jan 1970 00:00:00 GMT';
 
 export async function emitRss(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   outputDir: string;
   limit: number;
@@ -139,7 +139,7 @@ interface RssChannel {
 // global feed keeps its `rss.xml` + `rss-N.xml` layout while archive feeds
 // (always single-page in practice) write to `tag/<slug>/rss/index.xml` etc.
 async function emitRssFeed(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   posts: Post[];
   outputDir: string;
@@ -239,7 +239,7 @@ async function emitRssFeed(opts: {
 }
 
 async function emitCollectionRssFeeds(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   outputDir: string;
   limit: number;
@@ -311,7 +311,7 @@ function collectSourcesById<T>(
 async function writeRssPage(
   writer: TextStreamWriter,
   opts: {
-    config: NectarConfig;
+    config: LaurelConfig;
     pagePosts: Post[];
     base: string;
     fullContent: boolean;
@@ -330,7 +330,7 @@ async function writeRssPage(
 <description>${escapeXmlText(opts.channel.description)}</description>
 <language>${escapeXmlText(opts.config.site.locale)}</language>
 <lastBuildDate>${opts.lastBuildDate}</lastBuildDate>
-<generator>Nectar</generator>
+<generator>Laurel</generator>
 <docs>https://www.rssboard.org/rss-specification</docs>
 <ttl>${opts.config.components.rss.ttl}</ttl>
 ${opts.atomLinks.join('\n')}${opts.imageBlock}
@@ -343,7 +343,7 @@ ${opts.atomLinks.join('\n')}${opts.imageBlock}
 </rss>`);
 }
 
-function rssHashConfig(config: NectarConfig): Record<string, unknown> {
+function rssHashConfig(config: LaurelConfig): Record<string, unknown> {
   return {
     siteUrl: config.site.url,
     basePath: config.build.base_path,
@@ -399,7 +399,7 @@ function computeLastBuildDate(posts: ContentGraph['posts']): string {
   return latest > 0 ? new Date(latest).toUTCString() : EMPTY_FEED_LAST_BUILD_DATE;
 }
 
-function renderChannelImage(config: NectarConfig, base: string, basePath: string): string {
+function renderChannelImage(config: LaurelConfig, base: string, basePath: string): string {
   if (!config.site.logo) return '';
   const logoUrl = toAbsoluteUrl(base, basePath, config.site.logo);
   // The channel image's `<link>` points at the deployed homepage, not the
@@ -446,7 +446,7 @@ function collectionRssPageFilename(collectionUrl: string, page: number): string 
   return base ? `${base}/index.xml` : 'rss/index.xml';
 }
 
-function collectionRssPageHref(collectionUrl: string, page: number, config: NectarConfig): string {
+function collectionRssPageHref(collectionUrl: string, page: number, config: LaurelConfig): string {
   return absoluteUrl(collectionRssRoute(collectionUrl, page), config);
 }
 
@@ -457,7 +457,7 @@ function collectionRssRoute(collectionUrl: string, page: number): string {
   return page === 1 ? base : `${base}${page}/`;
 }
 
-function collectionRssTitle(collection: ResolvedCollection, config: NectarConfig): string {
+function collectionRssTitle(collection: ResolvedCollection, config: LaurelConfig): string {
   const label = collection.url
     .replace(/^\/+|\/+$/g, '')
     .split('/')
@@ -474,7 +474,7 @@ function collectionRssTitle(collection: ResolvedCollection, config: NectarConfig
 
 function renderItem(
   post: ContentGraph['posts'][number],
-  config: NectarConfig,
+  config: LaurelConfig,
   base: string,
   fullContent: boolean,
   basePath = '/',

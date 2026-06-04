@@ -1,14 +1,14 @@
 import { relative } from 'node:path';
 
-// Categories used to drive the `nectar build` process exit code. Each value
+// Categories used to drive the `laurel build` process exit code. Each value
 // maps to a reserved code in `EXIT_CODES` so callers (CI, shell scripts) can
 // distinguish a config typo from a missing template without parsing stderr.
 // Add a value here when introducing a new boundary; do not reuse codes.
-type NectarErrorCode = 'config' | 'content' | 'theme' | 'render' | 'emit';
+type LaurelErrorCode = 'config' | 'content' | 'theme' | 'render' | 'emit';
 
 // Reserved process exit codes for the CLI. Keep in sync with docs and any
 // shell wrappers that grep on exit status. 0/1/2/130 are POSIX/Node defaults;
-// 3-7 are nectar-specific and tied to `NectarErrorCode`.
+// 3-7 are laurel-specific and tied to `LaurelErrorCode`.
 export const EXIT_CODES = {
   ok: 0,
   generic: 1,
@@ -21,31 +21,31 @@ export const EXIT_CODES = {
   sigint: 130,
 } as const;
 
-interface NectarErrorLocation {
+interface LaurelErrorLocation {
   file?: string;
   line?: number;
   col?: number;
 }
 
-interface NectarErrorInit extends NectarErrorLocation {
+interface LaurelErrorInit extends LaurelErrorLocation {
   message: string;
   hint?: string;
   docsUrl?: string;
   cause?: unknown;
-  code?: NectarErrorCode;
+  code?: LaurelErrorCode;
 }
 
-export class NectarError extends Error {
+export class LaurelError extends Error {
   readonly file?: string;
   readonly line?: number;
   readonly col?: number;
   readonly hint?: string;
   readonly docsUrl?: string;
-  readonly code?: NectarErrorCode;
+  readonly code?: LaurelErrorCode;
 
-  constructor(init: NectarErrorInit) {
+  constructor(init: LaurelErrorInit) {
     super(init.message, init.cause === undefined ? undefined : { cause: init.cause });
-    this.name = 'NectarError';
+    this.name = 'LaurelError';
     this.file = init.file;
     this.line = init.line;
     this.col = init.col;
@@ -55,12 +55,12 @@ export class NectarError extends Error {
   }
 }
 
-export function isNectarError(value: unknown): value is NectarError {
-  return value instanceof NectarError;
+export function isLaurelError(value: unknown): value is LaurelError {
+  return value instanceof LaurelError;
 }
 
 export function exitCodeForError(err: unknown): number {
-  if (!isNectarError(err) || err.code === undefined) return EXIT_CODES.generic;
+  if (!isLaurelError(err) || err.code === undefined) return EXIT_CODES.generic;
   return EXIT_CODES[err.code];
 }
 
@@ -68,7 +68,7 @@ interface FormatOptions {
   cwd?: string;
 }
 
-export function formatNectarError(err: NectarError, options: FormatOptions = {}): string {
+export function formatLaurelError(err: LaurelError, options: FormatOptions = {}): string {
   const headline = formatPointer(err, options);
   const lines: string[] = [];
   if (headline) lines.push(headline);
@@ -78,7 +78,7 @@ export function formatNectarError(err: NectarError, options: FormatOptions = {})
   return lines.join('\n');
 }
 
-function formatPointer(err: NectarError, options: FormatOptions): string | undefined {
+function formatPointer(err: LaurelError, options: FormatOptions): string | undefined {
   if (!err.file) return undefined;
   const file = options.cwd ? toRelative(options.cwd, err.file) : err.file;
   const loc =
@@ -128,10 +128,10 @@ export function suggestClosest(input: string, candidates: readonly string[]): st
   return best;
 }
 
-export function toNectarError(err: unknown, fallback: NectarErrorLocation = {}): NectarError {
-  if (err instanceof NectarError) {
+export function toLaurelError(err: unknown, fallback: LaurelErrorLocation = {}): LaurelError {
+  if (err instanceof LaurelError) {
     if ((err.file ?? fallback.file) === err.file) return err;
-    const init: NectarErrorInit = {
+    const init: LaurelErrorInit = {
       message: err.message,
       file: err.file ?? fallback.file,
       line: err.line ?? fallback.line,
@@ -141,10 +141,10 @@ export function toNectarError(err: unknown, fallback: NectarErrorLocation = {}):
       cause: err.cause ?? err,
     };
     if (err.code !== undefined) init.code = err.code;
-    return new NectarError(init);
+    return new LaurelError(init);
   }
   const message = err instanceof Error ? err.message : String(err);
-  return new NectarError({
+  return new LaurelError({
     message,
     file: fallback.file,
     line: fallback.line,

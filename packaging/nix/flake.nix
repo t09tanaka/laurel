@@ -1,5 +1,5 @@
 {
-  description = "Nectar static site generator binary package";
+  description = "Laurel static site generator binary package";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -9,8 +9,8 @@
       supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
       artifactFor = system:
-        if system == "x86_64-linux" then "nectar-linux-x64"
-        else if system == "aarch64-linux" then "nectar-linux-arm64"
+        if system == "x86_64-linux" then "laurel-linux-x64"
+        else if system == "aarch64-linux" then "laurel-linux-arm64"
         else throw "Unsupported system: ${system}";
       sha256For = system:
         if system == "x86_64-linux" then "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
@@ -25,30 +25,30 @@
         in
         {
           default = pkgs.stdenvNoCC.mkDerivation {
-            pname = "nectar";
+            pname = "laurel";
             inherit version;
 
             src = pkgs.fetchurl {
-              url = "https://github.com/t09tanaka/nectar/releases/download/v${version}/${artifact}";
+              url = "https://github.com/t09tanaka/laurel/releases/download/v${version}/${artifact}";
               sha256 = sha256For system;
             };
 
             dontUnpack = true;
 
             installPhase = ''
-              install -Dm755 "$src" "$out/bin/nectar"
+              install -Dm755 "$src" "$out/bin/laurel"
             '';
 
             doInstallCheck = true;
             installCheckPhase = ''
-              "$out/bin/nectar" --help >/dev/null
+              "$out/bin/laurel" --help >/dev/null
             '';
 
             meta = {
               description = "Ghost-theme-compatible static site generator powered by Markdown and Bun";
-              homepage = "https://github.com/t09tanaka/nectar";
+              homepage = "https://github.com/t09tanaka/laurel";
               license = pkgs.lib.licenses.mit;
-              mainProgram = "nectar";
+              mainProgram = "laurel";
               platforms = supportedSystems;
             };
           };

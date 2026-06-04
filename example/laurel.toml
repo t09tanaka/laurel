@@ -1,7 +1,7 @@
 [site]
-title = "Nectar Example"
-description = "A demo blog built with Nectar against the Ghost Casper theme"
-url = "https://nectar.example.com"
+title = "Laurel Example"
+description = "A demo blog built with Laurel against the Ghost Casper theme"
+url = "https://laurel.example.com"
 locale = "en"
 timezone = "UTC"
 accent_color = "#D63F00"

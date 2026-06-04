@@ -14,7 +14,7 @@ import {
 import { configSchema } from '~/config/schema.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-firebase-'));
+  return mkdtemp(join(tmpdir(), 'laurel-firebase-'));
 }
 
 const DEFAULT_HEADERS_CONFIG = configSchema.parse({ site: { title: 'x' } }).deploy.headers;
@@ -176,7 +176,7 @@ describe('Firebase Hosting deploy samples', () => {
       expect.arrayContaining([
         expect.objectContaining({ uses: 'oven-sh/setup-bun@v2' }),
         expect.objectContaining({ run: 'bun install --frozen-lockfile' }),
-        expect.objectContaining({ run: 'bunx nectar build' }),
+        expect.objectContaining({ run: 'bunx laurel build' }),
         expect.objectContaining({ run: 'test -f dist/firebase.json' }),
         expect.objectContaining({
           uses: 'FirebaseExtended/action-hosting-deploy@v0',

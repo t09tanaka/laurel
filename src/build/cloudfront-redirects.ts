@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 import { ensureDir } from '~/util/fs.ts';
 import { type RedirectRule, collapseRedirects, loadRedirects } from './redirects.ts';
 
-const TEMPLATE_TOKEN = '__NECTAR_REDIRECTS_JSON__';
+const TEMPLATE_TOKEN = '__LAUREL_REDIRECTS_JSON__';
 
 interface CloudFrontRedirectRule {
   statusCode: RedirectRule['status'];
@@ -49,7 +49,7 @@ export const CLOUDFRONT_REDIRECTS_TEMPLATE = `// CloudFront Function (viewer-req
 //
 // Regenerate whenever redirects.yaml changes.
 
-const REDIRECTS = __NECTAR_REDIRECTS_JSON__;
+const REDIRECTS = __LAUREL_REDIRECTS_JSON__;
 
 function handler(event) {
   const request = event.request;

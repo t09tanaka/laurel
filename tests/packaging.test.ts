@@ -77,7 +77,7 @@ describe('packaging', () => {
 
   // Guards the programmatic API surface: downstream code (Cloudflare Pages
   // plugins, Vite integrations, etc.) needs stable subpath entries to embed
-  // Nectar without reaching into private internals. See backlog task #510.
+  // Laurel without reaching into private internals. See backlog task #510.
   describe('subpath exports', () => {
     type ExportEntry = string | { types?: string; default?: string };
     const exportsMap = pkg.exports as Record<string, ExportEntry>;
@@ -136,7 +136,7 @@ describe('packaging', () => {
 
   describe('cli bundle', () => {
     test('packaged dashboard serves bundled assets from package dist/', async () => {
-      const outRoot = join(REPO_ROOT, '.nectar/cache');
+      const outRoot = join(REPO_ROOT, '.laurel/cache');
       await mkdir(outRoot, { recursive: true });
       const outdir = await mkdtemp(join(outRoot, 'test-packaged-dashboard-'));
       const packageDist = join(outdir, 'package', 'dist');
@@ -146,7 +146,7 @@ describe('packaging', () => {
         for (const script of ['scripts/build-dashboard-bundle.ts', 'scripts/build-cli.ts']) {
           const proc = Bun.spawn(['bun', 'run', script], {
             cwd: REPO_ROOT,
-            env: { ...process.env, NECTAR_BUILD_OUTDIR: packageDist },
+            env: { ...process.env, LAUREL_BUILD_OUTDIR: packageDist },
             stdout: 'pipe',
             stderr: 'pipe',
           });
@@ -184,10 +184,10 @@ describe('packaging', () => {
     });
 
     test('compiled binary serves embedded dashboard assets', async () => {
-      const outRoot = join(REPO_ROOT, '.nectar/cache');
+      const outRoot = join(REPO_ROOT, '.laurel/cache');
       await mkdir(outRoot, { recursive: true });
       const outdir = await mkdtemp(join(outRoot, 'test-compiled-dashboard-'));
-      const binary = join(outdir, process.platform === 'win32' ? 'nectar.exe' : 'nectar');
+      const binary = join(outdir, process.platform === 'win32' ? 'laurel.exe' : 'laurel');
       let server: Bun.Subprocess<'ignore', 'pipe', 'pipe'> | undefined;
 
       try {
@@ -236,7 +236,7 @@ describe('packaging', () => {
     });
 
     test('build:cli output dispatches subcommands under Node without raw .ts command imports', async () => {
-      const outRoot = join(REPO_ROOT, '.nectar/cache');
+      const outRoot = join(REPO_ROOT, '.laurel/cache');
       await mkdir(outRoot, { recursive: true });
       const outdir = await mkdtemp(join(outRoot, 'test-cli-bundle-'));
 
@@ -288,14 +288,14 @@ describe('packaging', () => {
     });
 
     test('build:cli emits source maps and maps debug stacks back to TypeScript sources', async () => {
-      const outRoot = join(REPO_ROOT, '.nectar/cache');
+      const outRoot = join(REPO_ROOT, '.laurel/cache');
       await mkdir(outRoot, { recursive: true });
       const outdir = await mkdtemp(join(outRoot, 'test-cli-sourcemaps-'));
 
       try {
         const buildProc = Bun.spawn(['bun', 'run', 'scripts/build-cli.ts'], {
           cwd: REPO_ROOT,
-          env: { ...process.env, NECTAR_BUILD_OUTDIR: outdir },
+          env: { ...process.env, LAUREL_BUILD_OUTDIR: outdir },
           stdout: 'pipe',
           stderr: 'pipe',
         });
@@ -377,7 +377,7 @@ describe('packaging', () => {
   });
 
   describe('Docker image release', () => {
-    test('root Dockerfile builds a Bun alpine CLI image for nectar build', async () => {
+    test('root Dockerfile builds a Bun alpine CLI image for laurel build', async () => {
       const body = await readFile(join(REPO_ROOT, 'Dockerfile'), 'utf8');
 
       expect(body).toContain('FROM oven/bun:${BUN_VERSION}-alpine AS deps');
@@ -385,8 +385,8 @@ describe('packaging', () => {
       expect(body).toContain('RUN bun run build:cli');
       expect(body).toContain('RUN bun install --frozen-lockfile --production');
       expect(body).toContain('WORKDIR /workspace');
-      expect(body).toContain('RUN ln -s /opt/nectar/dist/cli.mjs /usr/local/bin/nectar');
-      expect(body).toContain('ENTRYPOINT ["nectar", "build"]');
+      expect(body).toContain('RUN ln -s /opt/laurel/dist/cli.mjs /usr/local/bin/laurel');
+      expect(body).toContain('ENTRYPOINT ["laurel", "build"]');
     });
 
     test('root dockerignore keeps local-only and generated files out of the image context', async () => {
@@ -400,8 +400,8 @@ describe('packaging', () => {
       expect(entries).toContain('.worktrees/');
       expect(entries).toContain('node_modules/');
       expect(entries).toContain('dist/');
-      expect(entries).toContain('.nectar/');
-      expect(entries).toContain('.nectar-cache/');
+      expect(entries).toContain('.laurel/');
+      expect(entries).toContain('.laurel-cache/');
     });
 
     test('release workflow publishes multi-arch images to GHCR and Docker Hub on tags', async () => {
@@ -415,7 +415,7 @@ describe('packaging', () => {
       expect(body).toContain('DOCKERHUB_USERNAME');
       expect(body).toContain('DOCKERHUB_TOKEN');
       expect(body).toContain('ghcr.io/${{ github.repository }}');
-      expect(body).toContain('docker.io/${{ secrets.DOCKERHUB_USERNAME }}/nectar');
+      expect(body).toContain('docker.io/${{ secrets.DOCKERHUB_USERNAME }}/laurel');
       expect(body).toContain('platforms: linux/amd64,linux/arm64');
       expect(body).toContain('push: true');
       expect(body).toContain('type=raw,value=${{ needs.resolve-ref.outputs.tag }}');
@@ -428,12 +428,12 @@ describe('packaging', () => {
       const deployDocs = await readFile(join(REPO_ROOT, 'docs', 'deploy', 'docker.md'), 'utf8');
       const recipeDocs = await readFile(join(REPO_ROOT, 'docs', 'deployment', 'docker.md'), 'utf8');
 
-      expect(deployDocs).toContain('ghcr.io/t09tanaka/nectar:latest');
-      expect(deployDocs).toContain('t09tanaka/nectar:latest');
+      expect(deployDocs).toContain('ghcr.io/t09tanaka/laurel:latest');
+      expect(deployDocs).toContain('t09tanaka/laurel:latest');
       expect(deployDocs).toContain('DOCKERHUB_USERNAME');
       expect(deployDocs).toContain('DOCKERHUB_TOKEN');
-      expect(deployDocs).toContain('nectar build');
-      expect(recipeDocs).toContain('ghcr.io/t09tanaka/nectar:latest');
+      expect(deployDocs).toContain('laurel build');
+      expect(recipeDocs).toContain('ghcr.io/t09tanaka/laurel:latest');
     });
   });
 
@@ -447,11 +447,11 @@ describe('packaging', () => {
     };
 
     const shasums = [
-      `${hashes.darwinArm64}  nectar-darwin-arm64`,
-      `${hashes.darwinX64}  nectar-darwin-x64`,
-      `${hashes.linuxArm64}  nectar-linux-arm64`,
-      `${hashes.linuxX64}  nectar-linux-x64`,
-      `${hashes.windowsX64}  nectar-windows-x64.exe`,
+      `${hashes.darwinArm64}  laurel-darwin-arm64`,
+      `${hashes.darwinX64}  laurel-darwin-x64`,
+      `${hashes.linuxArm64}  laurel-linux-arm64`,
+      `${hashes.linuxX64}  laurel-linux-x64`,
+      `${hashes.windowsX64}  laurel-windows-x64.exe`,
     ].join('\n');
 
     test('normalizes release tags for formula versions', () => {
@@ -463,14 +463,14 @@ describe('packaging', () => {
     test('parses release SHASUMS256.txt entries', () => {
       const parsed = parseHomebrewShasums(shasums);
 
-      expect(parsed.get('nectar-darwin-arm64')).toBe(hashes.darwinArm64);
-      expect(parsed.get('nectar-linux-x64')).toBe(hashes.linuxX64);
-      expect(parsed.get('nectar-windows-x64.exe')).toBe(hashes.windowsX64);
+      expect(parsed.get('laurel-darwin-arm64')).toBe(hashes.darwinArm64);
+      expect(parsed.get('laurel-linux-x64')).toBe(hashes.linuxX64);
+      expect(parsed.get('laurel-windows-x64.exe')).toBe(hashes.windowsX64);
     });
 
     test('generates an installable formula from the release template', async () => {
       const template = await readFile(
-        join(REPO_ROOT, 'packaging', 'homebrew', 'Formula', 'nectar.rb.template'),
+        join(REPO_ROOT, 'packaging', 'homebrew', 'Formula', 'laurel.rb.template'),
         'utf8',
       );
       const formula = generateHomebrewFormula({
@@ -479,28 +479,28 @@ describe('packaging', () => {
         templateText: template,
       });
 
-      expect(formula).toContain('class Nectar < Formula');
+      expect(formula).toContain('class Laurel < Formula');
       expect(formula).toContain('version "1.2.3"');
       expect(formula).toContain(
-        'url "https://github.com/t09tanaka/nectar/releases/download/v#{version}/nectar-darwin-arm64"',
+        'url "https://github.com/t09tanaka/laurel/releases/download/v#{version}/laurel-darwin-arm64"',
       );
       expect(formula).toContain(`sha256 "${hashes.darwinArm64}"`);
       expect(formula).toContain(`sha256 "${hashes.linuxX64}"`);
-      expect(formula).toContain('bin.install artifact => "nectar"');
-      expect(formula).toContain('system "#{bin}/nectar", "--help"');
+      expect(formula).toContain('bin.install artifact => "laurel"');
+      expect(formula).toContain('system "#{bin}/laurel", "--help"');
       expect(formula).not.toContain('{{');
     });
 
     test('refuses to generate a formula without all Homebrew platform hashes', async () => {
       const template = await readFile(
-        join(REPO_ROOT, 'packaging', 'homebrew', 'Formula', 'nectar.rb.template'),
+        join(REPO_ROOT, 'packaging', 'homebrew', 'Formula', 'laurel.rb.template'),
         'utf8',
       );
 
       expect(() =>
         generateHomebrewFormula({
           version: 'v1.2.3',
-          shasumsText: `${hashes.darwinArm64}  nectar-darwin-arm64\n`,
+          shasumsText: `${hashes.darwinArm64}  laurel-darwin-arm64\n`,
           templateText: template,
         }),
       ).toThrow('Missing Homebrew artifact checksums');
@@ -514,8 +514,8 @@ describe('packaging', () => {
 
       expect(workflow).toContain('Generate Homebrew formula');
       expect(workflow).toContain('scripts/generate-homebrew-formula.ts');
-      expect(workflow).toContain('--output release/nectar.rb');
-      expect(workflow).toContain('ruby -c release/nectar.rb');
+      expect(workflow).toContain('--output release/laurel.rb');
+      expect(workflow).toContain('ruby -c release/laurel.rb');
       expect(workflow).toContain('gh release create "$TAG_NAME"');
       expect(workflow).toContain('release/*');
     });
@@ -528,14 +528,14 @@ describe('packaging', () => {
 
       expect(workflow).toContain('bump-homebrew-tap:');
       expect(workflow).toContain('uses: Homebrew/actions/setup-homebrew@main');
-      expect(workflow).toContain('HOMEBREW_TAP_REPOSITORY: t09tanaka/homebrew-nectar');
+      expect(workflow).toContain('HOMEBREW_TAP_REPOSITORY: t09tanaka/homebrew-laurel');
       expect(workflow).toContain('HOMEBREW_TAP_TOKEN');
-      expect(workflow).toContain('--output ../homebrew-nectar/Formula/nectar.rb');
-      expect(workflow).toContain('brew audit --strict --online --formula Formula/nectar.rb');
+      expect(workflow).toContain('--output ../homebrew-laurel/Formula/laurel.rb');
+      expect(workflow).toContain('brew audit --strict --online --formula Formula/laurel.rb');
       expect(workflow).toContain('gh pr create');
     });
 
-    test('docs show the tap command that enables brew install nectar', async () => {
+    test('docs show the tap command that enables brew install laurel', async () => {
       const readme = await readFile(join(REPO_ROOT, 'README.md'), 'utf8');
       const releaseDocs = await readFile(join(REPO_ROOT, 'docs', 'release.md'), 'utf8');
       const tapDocs = await readFile(
@@ -543,12 +543,12 @@ describe('packaging', () => {
         'utf8',
       );
 
-      expect(readme).toContain('brew tap t09tanaka/nectar');
-      expect(readme).toContain('brew install nectar');
-      expect(releaseDocs).toContain('t09tanaka/homebrew-nectar');
+      expect(readme).toContain('brew tap t09tanaka/laurel');
+      expect(readme).toContain('brew install laurel');
+      expect(releaseDocs).toContain('t09tanaka/homebrew-laurel');
       expect(releaseDocs).toContain('bun run homebrew:formula');
       expect(releaseDocs).toContain('bump-homebrew-tap');
-      expect(tapDocs).toContain('Formula/nectar.rb');
+      expect(tapDocs).toContain('Formula/laurel.rb');
       expect(tapDocs).toContain('HOMEBREW_TAP_TOKEN');
     });
   });
@@ -563,11 +563,11 @@ describe('packaging', () => {
     };
 
     const shasums = [
-      `${hashes.darwinArm64}  nectar-darwin-arm64`,
-      `${hashes.darwinX64}  nectar-darwin-x64`,
-      `${hashes.linuxArm64}  nectar-linux-arm64`,
-      `${hashes.linuxX64}  nectar-linux-x64`,
-      `${hashes.windowsX64}  nectar-windows-x64.exe`,
+      `${hashes.darwinArm64}  laurel-darwin-arm64`,
+      `${hashes.darwinX64}  laurel-darwin-x64`,
+      `${hashes.linuxArm64}  laurel-linux-arm64`,
+      `${hashes.linuxX64}  laurel-linux-x64`,
+      `${hashes.windowsX64}  laurel-windows-x64.exe`,
     ].join('\n');
 
     test('normalizes release tags for manifest versions', () => {
@@ -579,13 +579,13 @@ describe('packaging', () => {
     test('parses release SHASUMS256.txt entries', () => {
       const parsed = parseScoopShasums(shasums);
 
-      expect(parsed.get('nectar-windows-x64.exe')).toBe(hashes.windowsX64);
-      expect(parsed.get('nectar-linux-x64')).toBe(hashes.linuxX64);
+      expect(parsed.get('laurel-windows-x64.exe')).toBe(hashes.windowsX64);
+      expect(parsed.get('laurel-linux-x64')).toBe(hashes.linuxX64);
     });
 
     test('generates an installable manifest from the release template', async () => {
       const template = await readFile(
-        join(REPO_ROOT, 'packaging', 'scoop', 'bucket', 'nectar.json.template'),
+        join(REPO_ROOT, 'packaging', 'scoop', 'bucket', 'laurel.json.template'),
         'utf8',
       );
       const manifest = generateScoopManifest({
@@ -600,10 +600,10 @@ describe('packaging', () => {
 
       expect(parsed.version).toBe('1.2.3');
       expect(parsed.architecture['64bit'].url).toBe(
-        'https://github.com/t09tanaka/nectar/releases/download/v1.2.3/nectar-windows-x64.exe',
+        'https://github.com/t09tanaka/laurel/releases/download/v1.2.3/laurel-windows-x64.exe',
       );
       expect(parsed.architecture['64bit'].hash).toBe(hashes.windowsX64);
-      expect(parsed.architecture['64bit'].bin).toEqual([['nectar-windows-x64.exe', 'nectar']]);
+      expect(parsed.architecture['64bit'].bin).toEqual([['laurel-windows-x64.exe', 'laurel']]);
       expect(manifest).toContain('"checkver"');
       expect(manifest).toContain('"autoupdate"');
       expect(manifest).not.toContain('{{');
@@ -611,14 +611,14 @@ describe('packaging', () => {
 
     test('refuses to generate a manifest without the Windows checksum', async () => {
       const template = await readFile(
-        join(REPO_ROOT, 'packaging', 'scoop', 'bucket', 'nectar.json.template'),
+        join(REPO_ROOT, 'packaging', 'scoop', 'bucket', 'laurel.json.template'),
         'utf8',
       );
 
       expect(() =>
         generateScoopManifest({
           version: 'v1.2.3',
-          shasumsText: `${hashes.linuxX64}  nectar-linux-x64\n`,
+          shasumsText: `${hashes.linuxX64}  laurel-linux-x64\n`,
           templateText: template,
         }),
       ).toThrow('Missing Scoop artifact checksum');
@@ -632,19 +632,19 @@ describe('packaging', () => {
 
       expect(workflow).toContain('Generate Scoop manifest');
       expect(workflow).toContain('scripts/generate-scoop-manifest.ts');
-      expect(workflow).toContain('--output release/nectar.json');
-      expect(workflow).toContain('JSON.parse(await Bun.file("release/nectar.json").text())');
+      expect(workflow).toContain('--output release/laurel.json');
+      expect(workflow).toContain('JSON.parse(await Bun.file("release/laurel.json").text())');
       expect(workflow).toContain('gh release create "$TAG_NAME"');
       expect(workflow).toContain('release/*');
     });
 
-    test('docs show the bucket command that enables scoop install nectar', async () => {
+    test('docs show the bucket command that enables scoop install laurel', async () => {
       const readme = await readFile(join(REPO_ROOT, 'README.md'), 'utf8');
       const releaseDocs = await readFile(join(REPO_ROOT, 'docs', 'release.md'), 'utf8');
 
-      expect(readme).toContain('scoop bucket add nectar https://github.com/t09tanaka/scoop-nectar');
-      expect(readme).toContain('scoop install nectar');
-      expect(releaseDocs).toContain('t09tanaka/scoop-nectar');
+      expect(readme).toContain('scoop bucket add laurel https://github.com/t09tanaka/scoop-laurel');
+      expect(readme).toContain('scoop install laurel');
+      expect(releaseDocs).toContain('t09tanaka/scoop-laurel');
       expect(releaseDocs).toContain('bun run scoop:manifest');
     });
   });
@@ -656,13 +656,13 @@ describe('packaging', () => {
         'utf8',
       );
 
-      expect(template).toContain('pkgname=nectar-bin');
+      expect(template).toContain('pkgname=laurel-bin');
       expect(template).toContain('source_x86_64=');
-      expect(template).toContain('nectar-linux-x64');
+      expect(template).toContain('laurel-linux-x64');
       expect(template).toContain('source_aarch64=');
-      expect(template).toContain('nectar-linux-arm64');
+      expect(template).toContain('laurel-linux-arm64');
       expect(template).toContain('install -Dm755');
-      expect(template).toContain('/usr/bin/nectar');
+      expect(template).toContain('/usr/bin/laurel');
     });
 
     test('Nix flake template wraps Linux release binaries', async () => {
@@ -670,10 +670,10 @@ describe('packaging', () => {
 
       expect(flake).toContain('x86_64-linux');
       expect(flake).toContain('aarch64-linux');
-      expect(flake).toContain('nectar-linux-x64');
-      expect(flake).toContain('nectar-linux-arm64');
-      expect(flake).toContain('install -Dm755 "$src" "$out/bin/nectar"');
-      expect(flake).toContain('"$out/bin/nectar" --help');
+      expect(flake).toContain('laurel-linux-x64');
+      expect(flake).toContain('laurel-linux-arm64');
+      expect(flake).toContain('install -Dm755 "$src" "$out/bin/laurel"');
+      expect(flake).toContain('"$out/bin/laurel" --help');
     });
 
     test('docs describe downstream AUR and Nix ownership', async () => {

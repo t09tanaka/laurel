@@ -1,12 +1,12 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { ensureDir } from '~/util/fs.ts';
 
-export const FEDIVERSE_DISCOVERY_PATH = '.well-known/nectar-fediverse.json';
+export const FEDIVERSE_DISCOVERY_PATH = '.well-known/laurel-fediverse.json';
 
 interface FediverseDiscovery {
-  schema: 'nectar.fediverse.v1';
+  schema: 'laurel.fediverse.v1';
   site_url: string;
   activitypub: {
     supported: false;
@@ -19,14 +19,14 @@ interface FediverseDiscovery {
   };
 }
 
-export function buildFediverseDiscovery(config: NectarConfig): FediverseDiscovery {
+export function buildFediverseDiscovery(config: LaurelConfig): FediverseDiscovery {
   return {
-    schema: 'nectar.fediverse.v1',
+    schema: 'laurel.fediverse.v1',
     site_url: config.site.url,
     activitypub: {
       supported: false,
       reason:
-        'Nectar emits static files only and does not implement ActivityPub actors, inboxes, outboxes, signatures, or delivery.',
+        'Laurel emits static files only and does not implement ActivityPub actors, inboxes, outboxes, signatures, or delivery.',
     },
     webfinger: {
       supported: false,
@@ -39,7 +39,7 @@ export function buildFediverseDiscovery(config: NectarConfig): FediverseDiscover
 }
 
 export async function emitFediverseDiscovery(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   outputDir: string;
 }): Promise<void> {
   const dest = join(opts.outputDir, FEDIVERSE_DISCOVERY_PATH);

@@ -25,8 +25,8 @@ async function runCli(args: string[], cwd?: string): Promise<RunResult> {
 }
 
 async function makeEntryFixture(): Promise<{ srcDir: string; destDir: string; zipPath: string }> {
-  const srcDir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-entry-src-')));
-  const destDir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-entry-dest-')));
+  const srcDir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-entry-src-')));
+  const destDir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-entry-dest-')));
 
   const toml = [
     '[site]',
@@ -41,8 +41,8 @@ async function makeEntryFixture(): Promise<{ srcDir: string; destDir: string; zi
     'enabled = false',
     '',
   ].join('\n');
-  await writeFile(join(srcDir, 'nectar.toml'), toml, 'utf8');
-  await writeFile(join(destDir, 'nectar.toml'), toml, 'utf8');
+  await writeFile(join(srcDir, 'laurel.toml'), toml, 'utf8');
+  await writeFile(join(destDir, 'laurel.toml'), toml, 'utf8');
 
   await mkdir(join(srcDir, 'content/posts'), { recursive: true });
   await mkdir(join(srcDir, 'content/pages'), { recursive: true });
@@ -73,7 +73,7 @@ async function makeEntryFixture(): Promise<{ srcDir: string; destDir: string; zi
     kind: 'post',
     slug: 'hello-entry',
   });
-  const zipPath = join(srcDir, 'hello-entry.nectar.zip');
+  const zipPath = join(srcDir, 'hello-entry.laurel.zip');
   await Bun.write(zipPath, zip);
 
   await mkdir(join(destDir, 'content/posts'), { recursive: true });
@@ -163,13 +163,13 @@ describe('cli import', () => {
     destDir: string;
     zipPath: string;
   }> {
-    const srcDir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-comp-src-')));
-    const destDir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-comp-dest-')));
+    const srcDir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-comp-src-')));
+    const destDir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-comp-dest-')));
     const toml = ['[site]', 'title = "Components Test"', 'url = "https://comp.test"', ''].join(
       '\n',
     );
-    await writeFile(join(srcDir, 'nectar.toml'), toml, 'utf8');
-    await writeFile(join(destDir, 'nectar.toml'), toml, 'utf8');
+    await writeFile(join(srcDir, 'laurel.toml'), toml, 'utf8');
+    await writeFile(join(destDir, 'laurel.toml'), toml, 'utf8');
     await mkdir(join(srcDir, 'content/components'), { recursive: true });
     for (const slug of ['callout', 'cta']) {
       await writeFile(
@@ -191,7 +191,7 @@ describe('cli import', () => {
     const { exportComponentsBundle } = await import('~/components-bundle/index.ts');
     const config = await loadConfig({ cwd: srcDir });
     const { zip } = await exportComponentsBundle({ cwd: srcDir, config });
-    const zipPath = join(srcDir, 'components.nectar.zip');
+    const zipPath = join(srcDir, 'components.laurel.zip');
     await Bun.write(zipPath, zip);
     return { srcDir, destDir, zipPath };
   }

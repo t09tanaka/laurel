@@ -23,7 +23,7 @@ describe('Source theme — heading/card spacing contract (#932)', () => {
     const css = await read('assets/css/screen.css');
 
     expect(css).toContain(
-      'Ghost Source historically used [id] as a heading proxy here. Nectar assigns heading IDs',
+      'Ghost Source historically used [id] as a heading proxy here. Laurel assigns heading IDs',
     );
     expect(css).toContain(
       '.gh-content :not(.kg-card):not(table):not(:is(h1, h2, h3, h4, h5, h6)) + :is(.kg-card, table)',

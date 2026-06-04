@@ -1,4 +1,4 @@
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 import type {
   PortalAdapter,
   ResolvedSubscribeForm,
@@ -6,15 +6,15 @@ import type {
 } from '../portal-adapter.ts';
 
 // Kit still accepts browser POSTs to its hosted form subscription endpoint.
-// This keeps Nectar static: operators provide only the form id, never an API key.
+// This keeps Laurel static: operators provide only the form id, never an API key.
 export const convertkitAdapter: PortalAdapter = {
   provider: 'convertkit',
   resolve(cfg: SubscribeAdapterConfig): ResolvedSubscribeForm {
     const formId = cfg.form_id ?? cfg.publication_id ?? cfg.username;
     if (!formId) {
-      throw new NectarError({
+      throw new LaurelError({
         message: 'components.subscribe.form_id is required when provider is "convertkit"',
-        hint: 'Set components.subscribe.form_id in nectar.toml to your Kit / ConvertKit form id',
+        hint: 'Set components.subscribe.form_id in laurel.toml to your Kit / ConvertKit form id',
         code: 'config',
       });
     }

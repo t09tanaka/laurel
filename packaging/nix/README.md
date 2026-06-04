@@ -5,7 +5,7 @@
 hashes from the release assets:
 
 ```sh
-nix flake prefetch github:t09tanaka/nectar/<tag>
+nix flake prefetch github:t09tanaka/laurel/<tag>
 ```
 
 The flake is intentionally a template. It is not wired into release automation

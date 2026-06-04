@@ -11,7 +11,7 @@ describe('decideDevReuse', () => {
     expect(decideDevReuse(set())).toEqual({ reuseConfig: false, reuseTheme: false });
   });
 
-  test('config change invalidates everything (nectar.toml can move paths)', () => {
+  test('config change invalidates everything (laurel.toml can move paths)', () => {
     expect(decideDevReuse(set('config'))).toEqual({ reuseConfig: false, reuseTheme: false });
   });
 

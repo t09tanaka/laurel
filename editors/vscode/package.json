@@ -1,43 +1,43 @@
 {
-  "name": "vscode-nectar",
-  "displayName": "Nectar",
-  "description": "VS Code language support and tasks for Nectar sites.",
+  "name": "vscode-laurel",
+  "displayName": "Laurel",
+  "description": "VS Code language support and tasks for Laurel sites.",
   "version": "0.1.0",
-  "publisher": "nectar",
+  "publisher": "laurel",
   "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": ["Programming Languages", "Snippets", "Other"],
-  "keywords": ["nectar", "ghost", "static-site-generator", "toml", "markdown"],
+  "keywords": ["laurel", "ghost", "static-site-generator", "toml", "markdown"],
   "repository": {
     "type": "git",
-    "url": "https://github.com/t09tanaka/nectar.git",
+    "url": "https://github.com/t09tanaka/laurel.git",
     "directory": "editors/vscode"
   },
   "main": "./extension.js",
   "activationEvents": [
-    "onLanguage:nectar-config",
-    "onTaskType:nectar",
+    "onLanguage:laurel-config",
+    "onTaskType:laurel",
     "onCommand:workbench.action.tasks.runTask",
-    "workspaceContains:nectar.toml",
-    "workspaceContains:nectar.config.toml"
+    "workspaceContains:laurel.toml",
+    "workspaceContains:laurel.config.toml"
   ],
   "extensionKind": ["workspace"],
   "contributes": {
     "languages": [
       {
-        "id": "nectar-config",
-        "aliases": ["Nectar Config", "nectar.config.toml"],
-        "filenames": ["nectar.config.toml", "nectar.toml"],
-        "configuration": "./language-configuration/nectar-config.json"
+        "id": "laurel-config",
+        "aliases": ["Laurel Config", "laurel.config.toml"],
+        "filenames": ["laurel.config.toml", "laurel.toml"],
+        "configuration": "./language-configuration/laurel-config.json"
       }
     ],
     "grammars": [
       {
-        "language": "nectar-config",
-        "scopeName": "source.nectar-config",
-        "path": "./grammars/nectar-config.tmLanguage.json"
+        "language": "laurel-config",
+        "scopeName": "source.laurel-config",
+        "path": "./grammars/laurel-config.tmLanguage.json"
       }
     ],
     "snippets": [
@@ -48,8 +48,8 @@
     ],
     "problemMatchers": [
       {
-        "name": "nectar",
-        "owner": "nectar",
+        "name": "laurel",
+        "owner": "laurel",
         "fileLocation": ["relative", "${workspaceFolder}"],
         "pattern": {
           "regexp": "^----\\s+(.+?)(?::(\\d+)(?::(\\d+))?)?\\s+-\\s+(.+)$",
@@ -62,12 +62,12 @@
     ],
     "taskDefinitions": [
       {
-        "type": "nectar",
+        "type": "laurel",
         "required": ["task"],
         "properties": {
           "task": {
             "type": "string",
-            "description": "Nectar task to run.",
+            "description": "Laurel task to run.",
             "enum": ["build", "dev", "check"]
           }
         }

@@ -5,7 +5,7 @@ import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone.js';
 import utc from 'dayjs/plugin/utc.js';
 import { loadConfig } from '~/config/loader.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
 import { resolveThemeRoot } from '~/theme/loader.ts';
 import { loadThemePackage } from '~/theme/pkg.ts';
@@ -97,7 +97,7 @@ export async function runNew(args: string[]): Promise<number> {
   if (useStdin) {
     try {
       stdinInput = parseStdinMarkdown(
-        await readStdinText('Pipe Markdown into `nectar new <kind> --stdin`.'),
+        await readStdinText('Pipe Markdown into `laurel new <kind> --stdin`.'),
       );
     } catch (err) {
       if (err instanceof CliUsageError) {
@@ -211,7 +211,7 @@ export async function runNew(args: string[]): Promise<number> {
     process.stdout.write(`${JSON.stringify({ ok: true, kind, slug, path: dest })}\n`);
   } else {
     logger.info(t('new.created', { path: dest }));
-    logger.info('Next: nectar build && nectar serve');
+    logger.info('Next: laurel build && laurel serve');
   }
 
   if (openEditor) {
@@ -233,7 +233,7 @@ function currentPostDate(timezoneName: string | undefined): string {
 
 async function resolveNewKinds(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
 ): Promise<Map<string, NewKindDefinition>> {
   const kinds = new Map<string, NewKindDefinition>();
   addKind(kinds, {
@@ -268,7 +268,7 @@ async function resolveNewKinds(
 
 async function loadThemeNewKinds(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
 ): Promise<Record<string, { dir: string; title_field: string }>> {
   const rootDir = resolveThemeRoot(cwd, config.theme.dir, config.theme.name);
   if (!existsSync(rootDir)) return {};

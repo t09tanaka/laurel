@@ -3,9 +3,9 @@ import { type PortalConfig, resolvePortalUrls } from '~/build/portal-urls.ts';
 import type { Tier } from '~/content/model.ts';
 import { type SubscribeAdapterConfig, resolveSubscribeAdapter } from '~/members/index.ts';
 import { SUBSCRIBE_NOOP_REASON, subscribeNoopSubmitHandler } from '~/members/noop.ts';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 
-export function registerMemberHelpers(engine: NectarEngine): void {
+export function registerMemberHelpers(engine: LaurelEngine): void {
   engine.hb.registerHelper('cancel_link', function cancelLinkHelper() {
     return new engine.hb.SafeString('');
   });
@@ -49,7 +49,7 @@ export function registerMemberHelpers(engine: NectarEngine): void {
       const buttonText = pickString(hash.buttonText ?? hash.label, 'Subscribe');
       const includeName = toBoolean(hash.name);
       const disabledAttr = resolved.disabled
-        ? ` data-nectar-noop="${SUBSCRIBE_NOOP_REASON}" onsubmit="${escapeAttr(
+        ? ` data-laurel-noop="${SUBSCRIBE_NOOP_REASON}" onsubmit="${escapeAttr(
             subscribeNoopSubmitHandler(),
           )}"`
         : '';
@@ -97,7 +97,7 @@ export function registerMemberHelpers(engine: NectarEngine): void {
   });
 }
 
-function renderTiers(ctx: unknown, engine: NectarEngine, hash: Record<string, unknown>) {
+function renderTiers(ctx: unknown, engine: LaurelEngine, hash: Record<string, unknown>) {
   const selected = resolveTierList(ctx, engine, hash);
   const names = selected.map(tierName).filter((name): name is string => name !== undefined);
   if (names.length === 0) return new engine.hb.SafeString('');
@@ -118,7 +118,7 @@ function renderTiers(ctx: unknown, engine: NectarEngine, hash: Record<string, un
   return new engine.hb.SafeString(`${escapeHtml(prefix)}${joined}${escapeHtml(suffix)}`);
 }
 
-function renderTier(ctx: unknown, engine: NectarEngine) {
+function renderTier(ctx: unknown, engine: LaurelEngine) {
   const tier = resolveTierList(ctx, engine, {})[0];
   const name = tierName(tier);
   return new engine.hb.SafeString(name ? escapeHtml(name) : '');
@@ -126,7 +126,7 @@ function renderTier(ctx: unknown, engine: NectarEngine) {
 
 function resolveTierList(
   ctx: unknown,
-  engine: NectarEngine,
+  engine: LaurelEngine,
   hash: Record<string, unknown>,
 ): readonly unknown[] {
   const contextTiers = readContextTiers(ctx);

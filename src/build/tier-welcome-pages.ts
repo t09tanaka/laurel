@@ -1,13 +1,13 @@
 import { writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { Tier } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { directionForLocale } from '~/util/locale.ts';
 import { absoluteUrlWithBasePath, withBasePath } from '~/util/url.ts';
 
 interface EmitTierWelcomePagesOptions {
-  config: NectarConfig;
+  config: LaurelConfig;
   outputDir: string;
   tiers: readonly Tier[];
   reservedOutputPaths?: ReadonlySet<string>;
@@ -42,7 +42,7 @@ function normalizeRootRelativePath(value: string): string | undefined {
   const rawPath = value.split(/[?#]/, 1)[0] ?? '';
   const rawParts = rawPath.split('/').filter(Boolean);
   if (rawParts.some((part) => part === '..' || part === '.')) return undefined;
-  const parsed = new URL(value, 'https://nectar.local');
+  const parsed = new URL(value, 'https://laurel.local');
   const parts = parsed.pathname.split('/').filter(Boolean);
   if (parts.some((part) => part === '..' || part === '.')) return undefined;
   return parsed.pathname.endsWith('/') ? parsed.pathname : `${parsed.pathname}/`;
@@ -53,7 +53,7 @@ function urlPathToOutputPath(urlPath: string): string {
   return parts.length === 0 ? 'index.html' : `${parts.join('/')}/index.html`;
 }
 
-function renderTierWelcomeHtml(config: NectarConfig, tier: Tier, urlPath: string): string {
+function renderTierWelcomeHtml(config: LaurelConfig, tier: Tier, urlPath: string): string {
   const site = config.site;
   const title = `${tier.name} welcome`;
   const homeHref = withBasePath(config.build.base_path, '/');

@@ -1,6 +1,6 @@
 # Adding a Ghost Card
 
-Use this checklist when adding a new Ghost / Koenig card to Nectar. A card is
+Use this checklist when adding a new Ghost / Koenig card to Laurel. A card is
 not complete until import, Markdown rendering, shared card assets, fixtures, and
 regression tests all agree on the same public `kg-*` DOM contract.
 
@@ -23,7 +23,7 @@ The best exemplar is the Bookmark card. It has the full round-trip path:
 
 ## 1. Add the import/Turndown rule
 
-Add or update the card rule used by `nectar import-ghost`.
+Add or update the card rule used by `laurel import-ghost`.
 
 - Start in `src/ghost/turndown-rules.ts`; `src/ghost/import.ts` calls
   `createGhostTurndown()`, so card import behavior must flow through that
@@ -80,7 +80,7 @@ expect.
 
 ## 4. Add shared theme CSS and optional runtime hooks
 
-Make the card readable in themes that opt into Nectar's shared card assets.
+Make the card readable in themes that opt into Laurel's shared card assets.
 
 - Add the card name to `CARD_NAMES` in `src/build/card-assets.ts`.
 - Add the minimal CSS for the public `kg-*` contract to `CARD_CSS`.

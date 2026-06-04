@@ -1,9 +1,9 @@
 import type Handlebars from 'handlebars';
 import { parseDocument } from 'htmlparser2';
 import type { ThemeLocale, ThemeLocaleValue } from '~/theme/types.ts';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 
-export function registerI18nHelpers(engine: NectarEngine): void {
+export function registerI18nHelpers(engine: LaurelEngine): void {
   const fallback = engine.theme.locales.en ?? {};
   const lookupCache = new Map<string, string>();
   const interpolationCache = new Map<string, string>();

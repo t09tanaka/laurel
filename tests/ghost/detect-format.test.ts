@@ -13,7 +13,7 @@ describe('detectGhostExportFormat', () => {
   });
 
   test('returns "zip" for files starting with PK\\x03\\x04 magic bytes', async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-detect-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-detect-')));
     const file = join(dir, 'archive.bin');
     // Real ZIP local file header: 50 4B 03 04 followed by version + flags
     await writeFile(file, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x00]));
@@ -21,35 +21,35 @@ describe('detectGhostExportFormat', () => {
   });
 
   test('returns "json" for files starting with {', async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-detect-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-detect-')));
     const file = join(dir, 'export');
     await writeFile(file, '{"db":[{"data":{}}]}');
     expect(await detectGhostExportFormat(file)).toBe('json');
   });
 
   test('returns "json" for files starting with [', async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-detect-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-detect-')));
     const file = join(dir, 'export');
     await writeFile(file, '[{}]');
     expect(await detectGhostExportFormat(file)).toBe('json');
   });
 
   test('skips a UTF-8 BOM before classifying', async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-detect-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-detect-')));
     const file = join(dir, 'export');
     await writeFile(file, '﻿{"db":[]}');
     expect(await detectGhostExportFormat(file)).toBe('json');
   });
 
   test('returns "wordpress-xml" for files starting with <', async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-detect-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-detect-')));
     const file = join(dir, 'wordpress.bin');
     await writeFile(file, '<?xml version="1.0"?><rss></rss>');
     expect(await detectGhostExportFormat(file)).toBe('wordpress-xml');
   });
 
   test('returns "directory" for directories', async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-detect-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-detect-')));
     expect(await detectGhostExportFormat(dir)).toBe('directory');
   });
 

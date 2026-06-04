@@ -215,7 +215,7 @@ async function makeFixture(opts: { template?: string } = {}): Promise<{
   outputDir: string;
   templatePath: string;
 }> {
-  const cwd = await mkdtemp(join(tmpdir(), 'nectar-og-gen-'));
+  const cwd = await mkdtemp(join(tmpdir(), 'laurel-og-gen-'));
   const outputDir = join(cwd, 'dist');
   await mkdir(outputDir, { recursive: true });
   const templateRel = 'og-template.svg';

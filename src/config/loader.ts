@@ -3,20 +3,20 @@ import { readFile, stat } from 'node:fs/promises';
 import { dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import TOML from '@iarna/toml';
 import { ZodError, type ZodTypeAny, z } from 'zod';
-import { NectarError, suggestClosest } from '~/util/errors.ts';
+import { LaurelError, suggestClosest } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
 import { applyNoindexHeaderForNonProduction } from './deploy-environment.ts';
-import { type NectarConfig, configSchema } from './schema.ts';
+import { type LaurelConfig, configSchema } from './schema.ts';
 
-const CONFIG_NAMES = ['nectar.toml', 'nectar.config.toml', 'nectar.config.json'];
-const LOCAL_CONFIG_NAME = '.nectar.local.toml';
+const CONFIG_NAMES = ['laurel.toml', 'laurel.config.toml', 'laurel.config.json'];
+const LOCAL_CONFIG_NAME = '.laurel.local.toml';
 const MAX_CONFIG_BYTES = 1024 * 1024;
 const LOAD_CONFIG_CACHE_MAX_ENTRIES = 32;
 
 interface LoadConfigOptions {
   cwd: string;
   configPath?: string | readonly string[] | undefined;
-  // When provided, takes precedence over `process.env` for `NECTAR_*`
+  // When provided, takes precedence over `process.env` for `LAUREL_*`
   // overrides. Tests pass a hand-rolled record so they don't have to mutate
   // the real env and risk leaking state between cases. Production callers
   // omit this and let the loader read from `process.env` directly.
@@ -27,7 +27,7 @@ export async function loadConfig({
   cwd,
   configPath,
   env,
-}: LoadConfigOptions): Promise<NectarConfig> {
+}: LoadConfigOptions): Promise<LaurelConfig> {
   const configEnv = env ?? process.env;
   const resolved = configPath
     ? resolveConfigPaths(cwd, configPath)
@@ -36,7 +36,7 @@ export async function loadConfig({
   const configDir = lastConfigPath ? dirname(lastConfigPath) : cwd;
   const cacheKey = await loadConfigCacheKey(cwd, resolved, configEnv);
   const cached = loadConfigCache.get(cacheKey);
-  if (cached !== undefined) return cloneNectarConfig(cached);
+  if (cached !== undefined) return cloneLaurelConfig(cached);
 
   let parsed: unknown = {};
   for (const file of resolved) {
@@ -46,16 +46,16 @@ export async function loadConfig({
   }
 
   const withEnv = applyEnvOverrides(parsed, configEnv);
-  let config: NectarConfig;
+  let config: LaurelConfig;
   try {
     config = configSchema.parse(withEnv);
   } catch (err) {
-    throw wrapZodError(err, resolved[resolved.length - 1] ?? join(cwd, 'nectar.toml'));
+    throw wrapZodError(err, resolved[resolved.length - 1] ?? join(cwd, 'laurel.toml'));
   }
   config = applyNoindexHeaderForNonProduction(config);
   // Anchor relative content/theme paths to the config file's directory
   // rather than the process cwd. Only kicks in when the config lives outside
-  // cwd (e.g. `nectar --config /elsewhere/n.toml` from a different shell),
+  // cwd (e.g. `laurel --config /elsewhere/n.toml` from a different shell),
   // so the default cwd==configDir case keeps emitting bare relative paths
   // for back-compat with every consumer that still does `join(cwd, dir)`
   // (#853). When the consumer instead uses `resolve(cwd, dir)`, the absolute
@@ -64,12 +64,12 @@ export async function loadConfig({
     config = resolveProjectPaths(config, configDir);
   }
   rememberLoadedConfig(cacheKey, config);
-  return cloneNectarConfig(config);
+  return cloneLaurelConfig(config);
 }
 
 /**
- * Return the project root directory: the directory containing `nectar.toml`
- * (or `nectar.config.toml`) if discoverable, falling back to `cwd`. Callers
+ * Return the project root directory: the directory containing `laurel.toml`
+ * (or `laurel.config.toml`) if discoverable, falling back to `cwd`. Callers
  * that need to resolve other files relative to the project (e.g. emit paths,
  * plugin imports) can use this to stay consistent with `loadConfig`'s path
  * resolution behaviour.
@@ -118,9 +118,9 @@ async function findConfigLayers(
   const layers: string[] = [];
   const base = await findConfig(cwd);
   if (base) layers.push(base);
-  const environment = normalizeConfigEnvironment(env.NECTAR_ENV);
+  const environment = normalizeConfigEnvironment(env.LAUREL_ENV);
   if (environment !== undefined) {
-    const candidate = join(cwd, `nectar.${environment}.toml`);
+    const candidate = join(cwd, `laurel.${environment}.toml`);
     const file = Bun.file(candidate);
     if (await file.exists()) layers.push(candidate);
   }
@@ -132,7 +132,7 @@ async function findConfigLayers(
 async function parseConfigLayer(file: string): Promise<unknown> {
   const fileStat = await stat(file);
   if (fileStat.size > MAX_CONFIG_BYTES) {
-    throw new NectarError({
+    throw new LaurelError({
       message: `${file} is too large (${fileStat.size} bytes); config files must be ${MAX_CONFIG_BYTES} bytes or smaller.`,
       code: 'config',
     });
@@ -153,7 +153,7 @@ async function parseConfigLayer(file: string): Promise<unknown> {
   }
 }
 
-const loadConfigCache = new Map<string, NectarConfig>();
+const loadConfigCache = new Map<string, LaurelConfig>();
 
 async function loadConfigCacheKey(
   cwd: string,
@@ -183,8 +183,8 @@ function envSnapshot(env: NodeJS.ProcessEnv): [string, string][] {
     .sort(([a], [b]) => a.localeCompare(b));
 }
 
-function rememberLoadedConfig(cacheKey: string, config: NectarConfig): void {
-  loadConfigCache.set(cacheKey, cloneNectarConfig(config));
+function rememberLoadedConfig(cacheKey: string, config: LaurelConfig): void {
+  loadConfigCache.set(cacheKey, cloneLaurelConfig(config));
   while (loadConfigCache.size > LOAD_CONFIG_CACHE_MAX_ENTRIES) {
     const oldest = loadConfigCache.keys().next().value;
     if (oldest === undefined) break;
@@ -192,8 +192,8 @@ function rememberLoadedConfig(cacheKey: string, config: NectarConfig): void {
   }
 }
 
-function cloneNectarConfig(config: NectarConfig): NectarConfig {
-  return deepClone(config) as NectarConfig;
+function cloneLaurelConfig(config: LaurelConfig): LaurelConfig {
+  return deepClone(config) as LaurelConfig;
 }
 
 function normalizeConfigEnvironment(value: string | undefined): string | undefined {
@@ -201,8 +201,8 @@ function normalizeConfigEnvironment(value: string | undefined): string | undefin
   const trimmed = value.trim();
   if (trimmed === '') return undefined;
   if (!/^[A-Za-z0-9_-]+$/.test(trimmed)) {
-    throw new NectarError({
-      message: `invalid NECTAR_ENV: ${JSON.stringify(value)} (expected letters, numbers, "_" or "-")`,
+    throw new LaurelError({
+      message: `invalid LAUREL_ENV: ${JSON.stringify(value)} (expected letters, numbers, "_" or "-")`,
       code: 'config',
     });
   }
@@ -270,7 +270,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function resolveProjectPaths(config: NectarConfig, configDir: string): NectarConfig {
+function resolveProjectPaths(config: LaurelConfig, configDir: string): LaurelConfig {
   // Cast through `unknown` so we can write into the strict schema-typed
   // object without restating every nested type. The mutations are confined
   // to the PROJECT_RELATIVE_PATHS table above; everything else is left
@@ -319,19 +319,19 @@ function walkParent(
   return current;
 }
 
-// Apply `NECTAR_<SECTION>_<KEY>` env overrides on top of the parsed TOML
+// Apply `LAUREL_<SECTION>_<KEY>` env overrides on top of the parsed TOML
 // payload. The env var name is mapped back to a dotted config path by
 // walking the schema: for each leaf primitive or array key we precompute its
-// `NECTAR_FOO_BAR_BAZ` form, and any matching env var's value is coerced
+// `LAUREL_FOO_BAR_BAZ` form, and any matching env var's value is coerced
 // into the schema's expected JS type before being merged into the parsed
-// object. Unknown `NECTAR_*` vars are ignored silently so the override
+// object. Unknown `LAUREL_*` vars are ignored silently so the override
 // surface stays opt-in (#852).
 function applyEnvOverrides(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
   const map = envVarMap();
   let target = applyDeployEnvFallbacks(parsed, env);
   if (map.size === 0) return target;
   for (const [name, raw] of Object.entries(env)) {
-    if (!name.startsWith('NECTAR_')) continue;
+    if (!name.startsWith('LAUREL_')) continue;
     if (raw === undefined) continue;
     if (ENV_VAR_RESERVED.has(name)) continue;
     const entry = map.get(name);
@@ -364,7 +364,7 @@ function applyNetlifyDeployUrlFallback(parsed: unknown, env: NodeJS.ProcessEnv):
   if (env.CONTEXT !== 'deploy-preview' && env.CONTEXT !== 'branch-deploy') return parsed;
 
   let target = parsed;
-  if (env.NECTAR_SITE_URL === undefined) {
+  if (env.LAUREL_SITE_URL === undefined) {
     const deployUrl = firstNonEmptyEnv(env.DEPLOY_PRIME_URL, env.DEPLOY_URL, env.URL);
     if (deployUrl !== undefined) {
       target = setDeep(target, ['site', 'url'], deployUrl);
@@ -387,7 +387,7 @@ function applyVercelEnvFallback(parsed: unknown, env: NodeJS.ProcessEnv): unknow
   if (env.VERCEL !== 'true' && env.VERCEL !== '1') return parsed;
 
   let target = parsed;
-  if (env.NECTAR_SITE_URL === undefined) {
+  if (env.LAUREL_SITE_URL === undefined) {
     const deployUrl = vercelUrlFallback(firstNonEmptyEnv(env.VERCEL_URL));
     if (deployUrl !== undefined) {
       target = setDeep(target, ['site', 'url'], deployUrl);
@@ -414,7 +414,7 @@ function applyCloudflarePagesEnvFallback(parsed: unknown, env: NodeJS.ProcessEnv
   if (env.CF_PAGES !== 'true' && env.CF_PAGES !== '1') return parsed;
 
   let target = parsed;
-  if (env.NECTAR_SITE_URL === undefined) {
+  if (env.LAUREL_SITE_URL === undefined) {
     const deployUrl = firstNonEmptyEnv(env.CF_PAGES_URL);
     if (deployUrl !== undefined) {
       target = setDeep(target, ['site', 'url'], deployUrl);
@@ -441,7 +441,7 @@ function applyCloudflarePagesEnvFallback(parsed: unknown, env: NodeJS.ProcessEnv
 function applyGitHubPagesBasePathFallback(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
   if (env.GITHUB_PAGES !== 'true' && env.GITHUB_PAGES !== '1') return parsed;
   if (hasConfigValue(parsed, ['build', 'base_path'])) return parsed;
-  if (firstNonEmptyEnv(env.NECTAR_BUILD_BASE_PATH) !== undefined) return parsed;
+  if (firstNonEmptyEnv(env.LAUREL_BUILD_BASE_PATH) !== undefined) return parsed;
   if (configuredGitHubPagesCustomDomain(parsed, env)) return parsed;
 
   const repoName = githubRepositoryName(firstNonEmptyEnv(env.GITHUB_REPOSITORY));
@@ -450,7 +450,7 @@ function applyGitHubPagesBasePathFallback(parsed: unknown, env: NodeJS.ProcessEn
 }
 
 function configuredGitHubPagesCustomDomain(parsed: unknown, env: NodeJS.ProcessEnv): boolean {
-  if (firstNonEmptyEnv(env.NECTAR_DEPLOY_GITHUB_PAGES_CUSTOM_DOMAIN) !== undefined) return true;
+  if (firstNonEmptyEnv(env.LAUREL_DEPLOY_GITHUB_PAGES_CUSTOM_DOMAIN) !== undefined) return true;
   const configured = getConfigValue(parsed, ['deploy', 'github_pages', 'custom_domain']);
   return typeof configured === 'string' && configured.trim() !== '';
 }
@@ -466,8 +466,8 @@ function githubRepositoryName(repository: string | undefined): string | undefine
 function applyBuildMetadataEnvFallbacks(parsed: unknown, env: NodeJS.ProcessEnv): unknown {
   let target = parsed;
   const branch = firstNonEmptyEnv(
-    env.NECTAR_BRANCH,
-    env.NECTAR_GIT_BRANCH,
+    env.LAUREL_BRANCH,
+    env.LAUREL_GIT_BRANCH,
     env.VERCEL_GIT_COMMIT_REF,
     env.CF_PAGES_BRANCH,
     env.BRANCH,
@@ -483,7 +483,7 @@ function applyBuildMetadataEnvFallbacks(parsed: unknown, env: NodeJS.ProcessEnv)
   }
 
   const buildId = firstNonEmptyEnv(
-    env.NECTAR_BUILD_ID,
+    env.LAUREL_BUILD_ID,
     env.BUILD_ID,
     env.VERCEL_DEPLOYMENT_ID,
     env.DEPLOY_ID,
@@ -499,8 +499,8 @@ function applyBuildMetadataEnvFallbacks(parsed: unknown, env: NodeJS.ProcessEnv)
   }
 
   const commitSha = firstNonEmptyEnv(
-    env.NECTAR_COMMIT_SHA,
-    env.NECTAR_GIT_COMMIT_SHA,
+    env.LAUREL_COMMIT_SHA,
+    env.LAUREL_GIT_COMMIT_SHA,
     env.VERCEL_GIT_COMMIT_SHA,
     env.CF_PAGES_COMMIT_SHA,
     env.COMMIT_SHA,
@@ -560,11 +560,11 @@ function getConfigValue(root: unknown, path: readonly string[]): unknown {
   return current;
 }
 
-// Env vars that look like `NECTAR_*` but address Nectar runtime knobs, not
-// `nectar.toml` keys. Listed explicitly so the override walker can ignore
+// Env vars that look like `LAUREL_*` but address Laurel runtime knobs, not
+// `laurel.toml` keys. Listed explicitly so the override walker can ignore
 // them without warning. Mirrors the existing usages elsewhere in `src/` and
 // in `docs/`.
-const ENV_VAR_RESERVED = new Set(['NECTAR_LOG_LEVEL', 'NECTAR_NO_WORKERS', 'NECTAR_DRAFTS']);
+const ENV_VAR_RESERVED = new Set(['LAUREL_LOG_LEVEL', 'LAUREL_NO_WORKERS', 'LAUREL_DRAFTS']);
 
 type EnvValueKind = 'string' | 'number' | 'boolean' | 'array';
 
@@ -610,7 +610,7 @@ function registerEnvPath(
   elementKind?: EnvValueKind | undefined,
 ): void {
   if (path.length === 0) return;
-  const name = `NECTAR_${path.map((p) => p.toUpperCase()).join('_')}`;
+  const name = `LAUREL_${path.map((p) => p.toUpperCase()).join('_')}`;
   // First-registered path wins. The schema is acyclic and walked
   // deterministically so duplicates don't happen in practice, but be
   // conservative anyway.
@@ -725,11 +725,11 @@ interface TomlParseError extends Error {
   col?: number;
 }
 
-function wrapTomlError(err: unknown, file: string): NectarError {
+function wrapTomlError(err: unknown, file: string): LaurelError {
   const e = err as TomlParseError;
   const rawMsg = e.message ?? String(err);
   const message = `invalid TOML: ${stripTomlContext(rawMsg)}`;
-  const init: ConstructorParameters<typeof NectarError>[0] = {
+  const init: ConstructorParameters<typeof LaurelError>[0] = {
     message,
     file,
     cause: err,
@@ -737,11 +737,11 @@ function wrapTomlError(err: unknown, file: string): NectarError {
   };
   if (typeof e.line === 'number') init.line = e.line + 1;
   if (typeof e.col === 'number') init.col = e.col + 1;
-  return new NectarError(init);
+  return new LaurelError(init);
 }
 
-function wrapJsonError(err: unknown, file: string): NectarError {
-  return new NectarError({
+function wrapJsonError(err: unknown, file: string): LaurelError {
+  return new LaurelError({
     message: `invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
     file,
     cause: err,
@@ -754,9 +754,9 @@ function stripTomlContext(message: string): string {
   return firstLine.replace(/\s+at row \d+, col \d+, pos \d+:?/, '').trim();
 }
 
-function wrapZodError(err: unknown, file: string): NectarError {
+function wrapZodError(err: unknown, file: string): LaurelError {
   if (!(err instanceof ZodError)) {
-    return new NectarError({
+    return new LaurelError({
       message: err instanceof Error ? err.message : String(err),
       file,
       cause: err,
@@ -765,7 +765,7 @@ function wrapZodError(err: unknown, file: string): NectarError {
   }
   const issue = err.issues[0];
   if (!issue) {
-    return new NectarError({ message: 'invalid config', file, cause: err, code: 'config' });
+    return new LaurelError({ message: 'invalid config', file, cause: err, code: 'config' });
   }
   if (issue.code === 'unrecognized_keys') {
     return buildUnrecognizedKeysError(err, issue, file);
@@ -773,21 +773,21 @@ function wrapZodError(err: unknown, file: string): NectarError {
   const path = issue.path.length > 0 ? issue.path.join('.') : '(root)';
   const message = `invalid config at \`${path}\`: ${issue.message.toLowerCase()}`;
   const hint = remainingIssuesHint(err);
-  const init: ConstructorParameters<typeof NectarError>[0] = {
+  const init: ConstructorParameters<typeof LaurelError>[0] = {
     message,
     file,
     cause: err,
     code: 'config',
   };
   if (hint) init.hint = hint;
-  return new NectarError(init);
+  return new LaurelError(init);
 }
 
 function buildUnrecognizedKeysError(
   err: ZodError,
   issue: z.ZodIssue & { code: 'unrecognized_keys' },
   file: string,
-): NectarError {
+): LaurelError {
   const unknownKey = issue.keys[0] ?? '';
   const fullPath = [...issue.path.map(String), unknownKey].filter((s) => s.length > 0);
   const pathLabel = fullPath.length > 0 ? fullPath.join('.') : '(root)';
@@ -802,14 +802,14 @@ function buildUnrecognizedKeysError(
     }
   }
   if (!hint) hint = remainingIssuesHint(err);
-  const init: ConstructorParameters<typeof NectarError>[0] = {
+  const init: ConstructorParameters<typeof LaurelError>[0] = {
     message,
     file,
     cause: err,
     code: 'config',
   };
   if (hint) init.hint = hint;
-  return new NectarError(init);
+  return new LaurelError(init);
 }
 
 function remainingIssuesHint(err: ZodError): string | undefined {

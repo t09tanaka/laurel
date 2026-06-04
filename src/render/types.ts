@@ -1,4 +1,4 @@
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { Author, ContentGraph, ListPost, Page, Post, SiteData, Tag } from '~/content/model.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 
@@ -77,7 +77,7 @@ export interface RouteAlternate {
 }
 
 export interface RenderInputs {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   theme: ThemeBundle;
   site: SiteData;

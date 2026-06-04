@@ -1,23 +1,23 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import { registerI18nHelpers } from '~/render/helpers/i18n.ts';
 import { registerStringHelpers } from '~/render/helpers/strings.ts';
 import type { ThemeLocaleMap } from '~/theme/types.ts';
 
-function makeEngine(locales: ThemeLocaleMap, locale = 'en'): NectarEngine {
+function makeEngine(locales: ThemeLocaleMap, locale = 'en'): LaurelEngine {
   const hb = Handlebars.create();
   return {
     hb,
-    config: {} as NectarEngine['config'],
-    content: { site: { locale } } as NectarEngine['content'],
-    theme: { locales } as NectarEngine['theme'],
+    config: {} as LaurelEngine['config'],
+    content: { site: { locale } } as LaurelEngine['content'],
+    theme: { locales } as LaurelEngine['theme'],
     templates: {},
     layouts: {},
     render() {
       throw new Error('not used');
     },
-  } as unknown as NectarEngine;
+  } as unknown as LaurelEngine;
 }
 
 describe('t helper', () => {

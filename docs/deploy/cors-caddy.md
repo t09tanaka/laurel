@@ -1,11 +1,11 @@
 # Content API CORS on Caddy
 
-Nectar emits Content API JSON under `dist/content/`. Netlify and Cloudflare
+Laurel emits Content API JSON under `dist/content/`. Netlify and Cloudflare
 Pages consume the generated `_headers` files; Caddy needs equivalent `header`
 directives in the active site block.
 
 Use this snippet when the site is served by hand-written Caddy config instead
-of Nectar's generated `dist/.nectar/Caddyfile`.
+of Laurel's generated `dist/.laurel/Caddyfile`.
 
 ## Headers
 

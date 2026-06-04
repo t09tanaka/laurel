@@ -18,7 +18,7 @@
 //   /tag/news/               -> rewrite to /tag/news/index.html
 //   /assets/built/screen.css -> unchanged (has an extension)
 //
-// The trailing-slash redirect is intentional: Nectar emits `<slug>/index.html`,
+// The trailing-slash redirect is intentional: Laurel emits `<slug>/index.html`,
 // so the canonical URL ends in `/`. Without the redirect, an HTML page served
 // for `/about` would resolve sibling relative URLs against `/`, breaking
 // `./image.png`, `./assets/...`, etc. This mirrors the nginx recipe that

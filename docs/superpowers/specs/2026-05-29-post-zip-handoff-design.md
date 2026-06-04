@@ -10,19 +10,19 @@ amber attention treatment.)
 
 ## Problem
 
-Nectar is standalone: the dashboard assumes a single writer on a single
+Laurel is standalone: the dashboard assumes a single writer on a single
 checkout. Content lives in Markdown + Git, so Git/GitHub users already get
 review for free via pull requests. But the people who use the dashboard are
 **non-technical editors who never open a PR**. PR review never reaches them.
 
 We want a collaboration handoff that needs **no server, no Git knowledge, and no
-account system** — consistent with Nectar's static-only / Git-is-truth pillars.
+account system** — consistent with Laurel's static-only / Git-is-truth pillars.
 
 ## What already exists (and what changes)
 
 `src/page-bundle/index.ts` already implements single-entry export/import, but:
 
-- It is a **JSON** bundle (`nectar.page.v1`, assets base64-inlined), not a zip.
+- It is a **JSON** bundle (`laurel.page.v1`, assets base64-inlined), not a zip.
 - It is **pages-only** (`pages_dir`, `resolveContentSlugPath(slug, ['pages'])`).
 - It already has the hard parts: asset collection (`collectBundleAssets`),
   conflict policy (`skip | overwrite | rename`), path-traversal rejection
@@ -38,7 +38,7 @@ because this is an internal dashboard feature.
 The publish gate is **mostly free**: posts/pages already build only when
 `status === 'published'` (drafts excluded in the loader). Adding `needs-review`
 to the status enum means an exported entry is automatically excluded from the
-published output — no new gate machinery needed. The existing `.nectar/approvals`
+published output — no new gate machinery needed. The existing `.laurel/approvals`
 sidecar gate for pages is left untouched (orthogonal).
 
 ## Solution
@@ -48,7 +48,7 @@ and use that zip as the unit of collaboration:
 
 1. A writer exports the entry as a zip from its detail page ("Export", next to
    "Preview"). Export is a plain read — it does not change the source's status.
-2. The zip is handed off out of band (email, drive, chat — not Nectar's
+2. The zip is handed off out of band (email, drive, chat — not Laurel's
    concern).
 3. A reviewer imports the zip from the list page ("Import"). The imported entry
    always lands as **`needs-review`** (forced on import), so it surfaces in the
@@ -88,8 +88,8 @@ a surprise.
 Replace the JSON `PageBundle` with a zip-packaged `EntryBundle`:
 
 - Zip layout: `entry.md` (frontmatter + body) and `assets/<filename>` for each
-  referenced asset. A `nectar-bundle.json` manifest at the zip root records:
-  schema `nectar.bundle.v1`, `kind` (`post` | `page`), `slug`, original `path`,
+  referenced asset. A `laurel-bundle.json` manifest at the zip root records:
+  schema `laurel.bundle.v1`, `kind` (`post` | `page`), `slug`, original `path`,
   site title/url, and `generated_at`.
 - **Writer**: extend `src/cli/dashboard/zip-writer.ts` with an in-memory
   multi-entry zip builder (the current `createDistZipStream` walks a directory;
@@ -124,7 +124,7 @@ Replace the JSON `PageBundle` with a zip-packaged `EntryBundle`:
 - Treat the zip as **untrusted input**:
   - **Zip-slip protection**: reject entries whose normalized path escapes the
     extraction root (`..`, absolute paths, drive letters).
-  - **Manifest required**: reject zips lacking a valid `nectar-bundle.json`
+  - **Manifest required**: reject zips lacking a valid `laurel-bundle.json`
     (e.g. a full `dist` export).
   - **Frontmatter validation**: the entry must satisfy the post/page schema
     (`src/content/frontmatter-schema.ts`); reject with a clear error otherwise.
@@ -168,7 +168,7 @@ No threaded comments in phase 1.
 
 **Phase 1 (this spec):**
 - Rewrite `src/page-bundle/` as the kind-aware zip `EntryBundle` codec
-  (writer + reader); delete the JSON `nectar.page.v1` path.
+  (writer + reader); delete the JSON `laurel.page.v1` path.
 - Migrate all dashboard wiring (endpoints, `lib/api.ts`, `ContentTable`
   `ExportOverflow`, import UI) to the new system, covering posts and pages.
 - Directional: export carries `status` as-is (pure-read GET, no source
@@ -193,7 +193,7 @@ No threaded comments in phase 1.
 - Merge / conflict detection on import (last import wins — documented
   limitation).
 - Roles / permissions / team management.
-- Backward import of old `nectar.page.v1` JSON bundles.
+- Backward import of old `laurel.page.v1` JSON bundles.
 
 ## Edge cases to handle
 
@@ -204,7 +204,7 @@ No threaded comments in phase 1.
   later reconciliation.
 - Asset filename collision on import (same name, different content) → namespace
   imported assets by slug to avoid clobbering unrelated entries' images.
-- Zip from a newer Nectar version → manifest carries a version; import warns on
+- Zip from a newer Laurel version → manifest carries a version; import warns on
   mismatch but attempts best-effort.
 - Cancelling the overwrite dialog must leave the working tree byte-for-byte
   unchanged (stage in memory/temp; write to `content/` only on confirm).
@@ -216,7 +216,7 @@ No threaded comments in phase 1.
 
 1. From an entry's detail page, "Export" downloads a zip containing `entry.md`
    (frontmatter carried as saved), all referenced images under `assets/`, and a
-   `nectar-bundle.json` manifest. The export GET does not mutate the source.
+   `laurel-bundle.json` manifest. The export GET does not mutate the source.
 2. From the list, "Import" opens a modal; dropping a zip shows a preview (kind,
    slug, title, excerpt, collision); committing writes the entry into `content/`
    (overwrite-on-collision) and the landed entry is forced to `needs-review`.
@@ -227,5 +227,5 @@ No threaded comments in phase 1.
    output; `published` entries publish.
 5. The list shows no per-row published/draft text; `needs-review` rows carry the
    amber attention treatment and can be filtered via the "Needs review" tab.
-6. The old JSON `nectar.page.v1` page-bundle code and its endpoints are gone;
+6. The old JSON `laurel.page.v1` page-bundle code and its endpoints are gone;
    pages and posts both use the new zip bundle.

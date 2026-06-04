@@ -17,7 +17,7 @@ describe('Fly.io deploy sample', () => {
   test('configures Fly to build a static nginx machine on port 80', async () => {
     const body = await readFile(join(sampleDir, 'fly.toml'), 'utf8');
 
-    expect(body).toContain('app = "my-nectar-site"');
+    expect(body).toContain('app = "my-laurel-site"');
     expect(body).toContain('[build]');
     expect(body).toContain('dockerfile = "Dockerfile"');
     expect(body).toContain('[http_service]');
@@ -45,20 +45,20 @@ describe('Fly.io deploy sample', () => {
     ]);
   });
 
-  test('copies Nectar dist output and generated nginx config into the image', async () => {
+  test('copies Laurel dist output and generated nginx config into the image', async () => {
     const body = await readFile(join(sampleDir, 'Dockerfile'), 'utf8');
 
     expect(body).toContain('FROM nginx:');
-    expect(body).toContain('COPY dist/.nectar/nginx.conf /etc/nginx/conf.d/default.conf');
+    expect(body).toContain('COPY dist/.laurel/nginx.conf /etc/nginx/conf.d/default.conf');
     expect(body).toContain('COPY dist/ /usr/share/nginx/html/');
-    expect(body).toContain('RUN rm -rf /usr/share/nginx/html/.nectar');
+    expect(body).toContain('RUN rm -rf /usr/share/nginx/html/.laurel');
   });
 
   test('keeps the checked-in nginx.conf as the static-only fallback config', async () => {
     const body = await readFile(join(sampleDir, 'nginx.conf'), 'utf8');
 
     expect(body).toContain('Static-only fallback');
-    expect(body).toContain('dist/.nectar/nginx.conf');
+    expect(body).toContain('dist/.laurel/nginx.conf');
     expect(body).toContain('root /usr/share/nginx/html;');
     expect(body).toContain('error_page 404 /404.html;');
     expect(body).toContain('location = /healthz {');
@@ -78,12 +78,12 @@ describe('Fly.io deploy sample', () => {
     expect(guide).toContain('examples/fly/Dockerfile');
     expect(guide).toContain('examples/fly/nginx.conf');
     expect(guide).toContain('root = "/usr/share/nginx/html"');
-    expect(guide).toContain('dist/.nectar/nginx.conf');
+    expect(guide).toContain('dist/.laurel/nginx.conf');
     expect(guide).toContain('path = "/healthz"');
     expect(tutorial).toContain('examples/fly/fly.toml');
     expect(tutorial).toContain('examples/fly/Dockerfile');
     expect(tutorial).toContain('root = "/usr/share/nginx/html"');
-    expect(tutorial).toContain('dist/.nectar/nginx.conf');
+    expect(tutorial).toContain('dist/.laurel/nginx.conf');
     expect(tutorial).toContain('path = "/healthz"');
     expect(examples).toContain('examples/fly/fly.toml');
   });

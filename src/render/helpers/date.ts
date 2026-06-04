@@ -7,7 +7,7 @@ import relativeTime from 'dayjs/plugin/relativeTime.js';
 import timezone from 'dayjs/plugin/timezone.js';
 import utc from 'dayjs/plugin/utc.js';
 import type Handlebars from 'handlebars';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 
 dayjs.extend(advancedFormat);
 dayjs.extend(customParseFormat);
@@ -22,7 +22,7 @@ const DATE_FORMAT_CACHE_LIMIT = 4096;
 
 type DateInput = Date | string | number;
 
-export function registerDateHelpers(engine: NectarEngine): void {
+export function registerDateHelpers(engine: LaurelEngine): void {
   ensureTimezonePlugin();
   const dayjsLocale = loadDayjsLocale(engine.content.site.locale);
   const formattedDateCache = new Map<string, string>();

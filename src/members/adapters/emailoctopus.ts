@@ -1,4 +1,4 @@
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 import type {
   PortalAdapter,
   ResolvedSubscribeForm,
@@ -12,7 +12,7 @@ export const emailOctopusAdapter: PortalAdapter = {
   resolve(cfg: SubscribeAdapterConfig): ResolvedSubscribeForm {
     const action = cfg.action ?? actionFromListId(cfg.list_id);
     if (!action) {
-      throw new NectarError({
+      throw new LaurelError({
         message:
           'components.subscribe.action or list_id is required when provider is "emailoctopus"',
         hint: 'Set components.subscribe.list_id to your EmailOctopus list id, or paste the full embedded form action into components.subscribe.action',

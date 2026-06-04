@@ -27,7 +27,7 @@ coverageSkipTestFiles = true
 # is the layer that catches known-malicious / typosquatted / advisory-flagged
 # packages BEFORE they touch node_modules.
 #
-# Nectar does not ship a scanner of its own; the field below is intentionally
+# Laurel does not ship a scanner of its own; the field below is intentionally
 # left commented out so contributors can opt in to an organization-approved
 # scanner without forking the repo. Candidates as of 2026-05:
 #
@@ -47,7 +47,7 @@ coverageSkipTestFiles = true
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# Bun fullstack dev server (used by `nectar dashboard --dev`).
+# Bun fullstack dev server (used by `laurel dashboard --dev`).
 #
 # bun-plugin-tailwind runs Tailwind v4 against any CSS file referenced from
 # an HTML import served via Bun.serve({ routes: { ... } }). The prod bundle

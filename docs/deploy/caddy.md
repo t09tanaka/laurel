@@ -1,18 +1,18 @@
-# Deploying Nectar to Caddy
+# Deploying Laurel to Caddy
 
-Nectar builds a fully static site. Caddy serves it as plain files, while the
-generated `dist/.nectar/Caddyfile` captures Nectar's cache headers, security
+Laurel builds a fully static site. Caddy serves it as plain files, while the
+generated `dist/.laurel/Caddyfile` captures Laurel's cache headers, security
 headers, pretty URL fallback, themed 404 handling, and `redirects.yaml` rules
 in one site block.
 
 ## Quickstart
 
-1. Enable the Caddy deploy target in `nectar.toml`:
+1. Enable the Caddy deploy target in `laurel.toml`:
 
    ```toml
    [deploy.caddy]
    enabled = true
-   root = "/var/www/nectar"
+   root = "/var/www/laurel"
    site_address = "example.com"
    ```
 
@@ -23,33 +23,33 @@ in one site block.
 2. Build locally:
 
    ```sh
-   bunx nectar build
-   test -f dist/.nectar/Caddyfile
+   bunx laurel build
+   test -f dist/.laurel/Caddyfile
    ```
 
 3. Sync the complete `dist/` directory to the configured root:
 
    ```sh
-   rsync -avz --delete dist/ user@host:/var/www/nectar/
+   rsync -avz --delete dist/ user@host:/var/www/laurel/
    ```
 
-   Nectar's `[deploy.rsync]` target can wrap the same copy step:
+   Laurel's `[deploy.rsync]` target can wrap the same copy step:
 
    ```toml
    [deploy.rsync]
-   destination = "user@host:/var/www/nectar/"
+   destination = "user@host:/var/www/laurel/"
    ```
 
    Then run:
 
    ```sh
-   bunx nectar deploy rsync --build
+   bunx laurel deploy rsync --build
    ```
 
 4. Import the generated site block from `/etc/caddy/Caddyfile`:
 
    ```caddyfile
-   import /var/www/nectar/.nectar/Caddyfile
+   import /var/www/laurel/.laurel/Caddyfile
    ```
 
 5. Reload Caddy:
@@ -61,10 +61,10 @@ in one site block.
    When `site_address` is a public hostname, Caddy provisions an HTTPS
    certificate via Let's Encrypt automatically on first request.
 
-## What Nectar Generates
+## What Laurel Generates
 
 With `[deploy.caddy].enabled = true`, every build writes
-`dist/.nectar/Caddyfile`. The file is under `.nectar/` instead of the publish
+`dist/.laurel/Caddyfile`. The file is under `.laurel/` instead of the publish
 root so Caddy never serves it as public content.
 
 The generated Caddyfile:
@@ -74,10 +74,10 @@ The generated Caddyfile:
 - serves pre-compressed `.br` / `.gz` sidecars with `file_server`;
 - emits one path matcher per `[deploy.headers].cache_rules` entry;
 - attaches configured security headers globally;
-- serves Nectar's `slug/index.html` output with
+- serves Laurel's `slug/index.html` output with
   `try_files {path} {path}/index.html =404`;
 - translates `redirects.yaml` rules into named path matchers plus `redir`;
-- rewrites Caddy error responses to Nectar's generated `/404.html`.
+- rewrites Caddy error responses to Laurel's generated `/404.html`.
 
 ## Headers and Redirects
 
@@ -92,9 +92,9 @@ and nginx outputs:
 
 Customize those rules, plus security headers such as
 `X-Content-Type-Options`, `Referrer-Policy`, and
-`Content-Security-Policy`, under `[deploy.headers]` in `nectar.toml`.
+`Content-Security-Policy`, under `[deploy.headers]` in `laurel.toml`.
 
-If a browser client will fetch Nectar's emitted `/content/*` JSON from another
+If a browser client will fetch Laurel's emitted `/content/*` JSON from another
 origin and you are not using the generated Caddyfile, copy the Content API CORS
 snippet from [`cors-caddy.md`](./cors-caddy.md).
 
@@ -118,7 +118,7 @@ not interpolated into the destination, so use explicit destination paths.
 
 ## Pre-compressed Sidecars
 
-Set `[build].precompress = true` in `nectar.toml` to emit `.br` and `.gz`
+Set `[build].precompress = true` in `laurel.toml` to emit `.br` and `.gz`
 sidecars next to text files:
 
 ```toml
@@ -143,7 +143,7 @@ Caddy owns HTTPS when `site_address` is a public hostname such as
 `example.com`. If TLS terminates elsewhere, leave `site_address = ":80"` and
 put the generated site block behind that proxy or load balancer.
 
-Do not hand-edit `dist/.nectar/Caddyfile` in place; the next `nectar build`
+Do not hand-edit `dist/.laurel/Caddyfile` in place; the next `laurel build`
 rewrites it. Put operator-specific TLS policy, additional site blocks, and
 global Caddy options in `/etc/caddy/Caddyfile`, then `import` the generated
 file.
@@ -153,12 +153,12 @@ file.
 The hand-written example at
 [`examples/deploy/caddy/Caddyfile`](../../examples/deploy/caddy/Caddyfile)
 is still useful when you want a starting point without enabling the emitter.
-For production deploys that need Nectar-managed headers and redirects, prefer
+For production deploys that need Laurel-managed headers and redirects, prefer
 `[deploy.caddy].enabled = true`.
 
 ## Troubleshooting
 
-- **`dist/.nectar/Caddyfile` is missing:** confirm
+- **`dist/.laurel/Caddyfile` is missing:** confirm
   `[deploy.caddy].enabled = true` and rebuild.
 - **Caddy cannot get a cert:** confirm DNS resolves `site_address` to the
   server and that ports 80 and 443 are reachable from the internet. Caddy logs

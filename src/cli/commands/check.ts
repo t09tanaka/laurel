@@ -92,7 +92,7 @@ export async function runCheck(args: string[]): Promise<number> {
     if (!asJson) logger.info(t('check.configOk', { title: config.site.title }));
 
     // Auto-create missing content dirs with a warning so a fresh checkout
-    // doesn't get a hard ENOENT on `nectar check`. The warning lands in
+    // doesn't get a hard ENOENT on `laurel check`. The warning lands in
     // both `getWarningCount()` and the JSON report.
     await ensureContentDirs(cwd, config);
 

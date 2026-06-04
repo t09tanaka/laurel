@@ -15,7 +15,7 @@ import { INIT_SPEC } from '../specs.ts';
 const KNOWN_THEMES = ['source', 'casper', 'edition', 'dawn', 'alto'] as const;
 type KnownTheme = (typeof KNOWN_THEMES)[number];
 
-// Which agent format(s) `nectar init` wires up: it creates the marker file
+// Which agent format(s) `laurel init` wires up: it creates the marker file
 // (CLAUDE.md / AGENTS.md) when missing and installs the bundled skills for
 // that format. `none` keeps the legacy behaviour (no marker, no install) and
 // stays the default so `--yes` runs and existing automation are unchanged.
@@ -62,7 +62,7 @@ interface InitAnswers {
 
 // Site title intentionally has no hardcoded default. The placeholder is
 // derived from the target directory at runtime (e.g. `stork-blog` →
-// `Stork Blog`) so the operator never sees a misleading "My Nectar Site"
+// `Stork Blog`) so the operator never sees a misleading "My Laurel Site"
 // pre-fill that doesn't match their project.
 const DEFAULT_ANSWERS: Omit<InitAnswers, 'title'> = {
   url: 'http://localhost:4321',
@@ -90,7 +90,7 @@ function agentFormats(choice: AgentChoice): AgentFormat[] {
 // Turn a directory slug into a human-readable site title. Splits on
 // hyphens / underscores / whitespace, drops empty fragments, then
 // capitalises each word. Empty input falls back to "My Site" so the
-// generated nectar.toml always has a non-empty `[site].title`.
+// generated laurel.toml always has a non-empty `[site].title`.
 function deriveSiteTitle(targetDir: string): string {
   const raw = targetDir.length > 0 ? basename(targetDir) : '';
   const words = raw
@@ -103,12 +103,12 @@ function deriveSiteTitle(targetDir: string): string {
 
 // Conflict policy for individual generated files. Files split into three
 // buckets so a half-initialised project doesn't fail outright on the next
-// `nectar init` run while still protecting the load-bearing nectar.toml:
-//   - 'overwrite': refuse to clobber without --force (used for nectar.toml).
+// `laurel init` run while still protecting the load-bearing laurel.toml:
+//   - 'overwrite': refuse to clobber without --force (used for laurel.toml).
 //   - 'skip':     leave the existing copy alone and continue; emit an info log.
 //   - 'merge':    read existing content, augment it via the file's `merge` hook
 //                  (used for package.json: add scripts + devDependencies that
-//                  Nectar wants without disturbing anything the operator already
+//                  Laurel wants without disturbing anything the operator already
 //                  configured).
 type ConflictPolicy = 'overwrite' | 'skip' | 'merge';
 
@@ -218,7 +218,7 @@ export async function runInit(args: string[]): Promise<number> {
 
   // Marker files (CLAUDE.md / AGENTS.md) are emitted above via renderProject
   // with a 'skip' policy, so an existing one is never clobbered. The skills
-  // themselves are installed here regardless, so re-running `nectar init`
+  // themselves are installed here regardless, so re-running `laurel init`
   // against a project that already has the marker still refreshes the
   // bundled skills under .claude/skills or .agents/skills.
   const installedSkills = await installAgentSkills(targetDir, answers.agent);
@@ -241,7 +241,7 @@ interface InstalledSkill {
 }
 
 // Install every bundled skill that applies to the chosen format(s). Mirrors
-// `nectar skill install` but takes the format directly from the init choice
+// `laurel skill install` but takes the format directly from the init choice
 // instead of sniffing marker files, since init just created them.
 async function installAgentSkills(
   targetDir: string,
@@ -321,7 +321,7 @@ function writeNextSteps(opts: NextStepsOptions): void {
   const out: string[] = [];
 
   out.push('');
-  out.push(`   ${g.brand}  ${accent('Nectar project initialised')}`);
+  out.push(`   ${g.brand}  ${accent('Laurel project initialised')}`);
   out.push(`      ${dim(opts.targetDir)}`);
   if (opts.skipped.length > 0 || opts.merged.length > 0) {
     out.push('');
@@ -336,32 +336,32 @@ function writeNextSteps(opts: NextStepsOptions): void {
   out.push('');
   out.push(`   ${g.gui}  ${accent('GUI development (dashboard)')}`);
   out.push(
-    `       nectar dashboard       ${dim('→')} ${accent('http://localhost:4322/')}   ${dim('(editor UI)')}`,
+    `       laurel dashboard       ${dim('→')} ${accent('http://localhost:4322/')}   ${dim('(editor UI)')}`,
   );
   out.push('');
   out.push(`   ${g.cli}  ${accent('CLI development')}`);
   out.push(
-    `       nectar dev             ${dim('→')} ${accent('http://localhost:4321/')}   ${dim('(live reload)')}`,
+    `       laurel dev             ${dim('→')} ${accent('http://localhost:4321/')}   ${dim('(live reload)')}`,
   );
-  out.push(`       nectar build           ${dim('→')} dist/`);
+  out.push(`       laurel build           ${dim('→')} dist/`);
   out.push('');
   out.push(`   ${g.tip}  ${accent('Migrating from Ghost?')}`);
   out.push(
-    `       ${dim('Open `nectar dashboard` → Migration tab to upload your Ghost JSON export.')}`,
+    `       ${dim('Open `laurel dashboard` → Migration tab to upload your Ghost JSON export.')}`,
   );
   out.push('');
-  out.push(`   ${g.ai}  ${accent('Teach your AI assistant about Nectar')}`);
+  out.push(`   ${g.ai}  ${accent('Teach your AI assistant about Laurel')}`);
   if (opts.installedSkills.length > 0) {
     const count = new Set(opts.installedSkills.map((s) => s.slug)).size;
     out.push(`       ${dim(`Installed ${count} skill(s) for ${agentLabel(opts.agent)}.`)}`);
     if (opts.agent === 'codex' || opts.agent === 'both') {
       out.push(`       ${dim('Codex auto-discovers skills under .agents/skills/*/SKILL.md.')}`);
     }
-    out.push(`       ${dim('Refresh later with `nectar skill install`.')}`);
+    out.push(`       ${dim('Refresh later with `laurel skill install`.')}`);
   } else {
-    out.push(`       ${dim('Create CLAUDE.md or AGENTS.md, then run `nectar skill install`.')}`);
+    out.push(`       ${dim('Create CLAUDE.md or AGENTS.md, then run `laurel skill install`.')}`);
     out.push(
-      `       ${dim('Or re-run `nectar init --agent claude|codex|both` to wire it up now.')}`,
+      `       ${dim('Or re-run `laurel init --agent claude|codex|both` to wire it up now.')}`,
     );
   }
   out.push('');
@@ -373,7 +373,7 @@ function writeNextSteps(opts: NextStepsOptions): void {
 }
 
 function writeNextStepsJson(opts: NextStepsOptions): void {
-  logger.info(`Initialised Nectar project in ${opts.targetDir}`, {
+  logger.info(`Initialised Laurel project in ${opts.targetDir}`, {
     event: 'init.complete',
     targetDir: opts.targetDir,
     theme: opts.theme,
@@ -388,13 +388,13 @@ function writeNextStepsJson(opts: NextStepsOptions): void {
   logger.info('Open the dashboard', {
     event: 'init.next_step',
     step: 'dashboard',
-    command: 'nectar dashboard',
+    command: 'laurel dashboard',
     url: 'http://localhost:4322/',
   });
   logger.info('Build the site', {
     event: 'init.next_step',
     step: 'build',
-    command: 'nectar build',
+    command: 'laurel build',
   });
   if (opts.installedSkills.length > 0) {
     logger.info(`Installed agent skills for ${agentLabel(opts.agent)}`, {
@@ -444,8 +444,8 @@ function dirnameOf(path: string): string {
 }
 
 // Recommended upstream repo per known theme. Used in the `git clone` hint
-// printed after `nectar init`. Falls back to the canonical Source repo for
-// any value Nectar doesn't recognise — the operator can swap it as needed.
+// printed after `laurel init`. Falls back to the canonical Source repo for
+// any value Laurel doesn't recognise — the operator can swap it as needed.
 function themeRepo(theme: string): string {
   switch (theme) {
     case 'casper':
@@ -461,7 +461,7 @@ function themeRepo(theme: string): string {
   }
 }
 
-// Content subdirectories that mirror `[content]` keys in nectar.toml. We
+// Content subdirectories that mirror `[content]` keys in laurel.toml. We
 // always seed them with `.gitkeep` so the layout shows up in git even when
 // the operator skipped starter content -- empty dirs would otherwise be
 // invisible and contributors might not realise where to drop new files.
@@ -469,7 +469,7 @@ const CONTENT_SUBDIRS = ['posts', 'pages', 'authors', 'tags', 'images'] as const
 
 export function renderProject(answers: InitAnswers, _targetDir = ''): ProjectFile[] {
   const files: ProjectFile[] = [
-    { path: 'nectar.toml', contents: renderConfig(answers) },
+    { path: 'laurel.toml', contents: renderConfig(answers) },
     { path: '.gitignore', contents: renderGitignore(), policy: 'skip' },
     { path: 'README.md', contents: renderReadme(answers), policy: 'skip' },
   ];
@@ -512,16 +512,16 @@ function renderClaudeMd(a: InitAnswers): string {
   const lines: string[] = [];
   lines.push(`# ${a.title}`);
   lines.push('');
-  lines.push('This is a [Nectar](https://github.com/t09tanaka/nectar) project — a');
+  lines.push('This is a [Laurel](https://github.com/t09tanaka/laurel) project — a');
   lines.push('Ghost-compatible static site generator. Content lives as Markdown under');
-  lines.push('`content/`; there is no CMS or database, and `nectar build` regenerates');
+  lines.push('`content/`; there is no CMS or database, and `laurel build` regenerates');
   lines.push('the static site from those files.');
   lines.push('');
   lines.push('## Agent skills');
   lines.push('');
-  lines.push('Nectar skills are installed under `.claude/skills/` and auto-discovered by');
-  lines.push('Claude Code. Run `nectar skill list` to see them and `nectar skill install`');
-  lines.push('to refresh after upgrading Nectar.');
+  lines.push('Laurel skills are installed under `.claude/skills/` and auto-discovered by');
+  lines.push('Claude Code. Run `laurel skill list` to see them and `laurel skill install`');
+  lines.push('to refresh after upgrading Laurel.');
   lines.push('');
   return lines.join('\n');
 }
@@ -537,12 +537,12 @@ function renderAgentsMd(a: InitAnswers): string {
   const lines: string[] = [];
   lines.push(`# ${a.title}`);
   lines.push('');
-  lines.push('This is a [Nectar](https://github.com/t09tanaka/nectar) project — a');
+  lines.push('This is a [Laurel](https://github.com/t09tanaka/laurel) project — a');
   lines.push('Ghost-compatible static site generator. Content lives as Markdown under');
-  lines.push('`content/`; there is no CMS or database, and `nectar build` regenerates');
+  lines.push('`content/`; there is no CMS or database, and `laurel build` regenerates');
   lines.push('the static site from those files.');
   lines.push('');
-  lines.push('## Nectar skills');
+  lines.push('## Laurel skills');
   lines.push('');
   lines.push('Codex auto-discovers these project skills under `.agents/skills/` and loads');
   lines.push('each on demand when your task matches its description:');
@@ -552,7 +552,7 @@ function renderAgentsMd(a: InitAnswers): string {
     lines.push(`- \`.agents/skills/${skill.slug}/SKILL.md\``);
   }
   lines.push('');
-  lines.push('Refresh them with `nectar skill install --format codex`.');
+  lines.push('Refresh them with `laurel skill install --format codex`.');
   lines.push('');
   return lines.join('\n');
 }
@@ -611,22 +611,22 @@ function renderConfig(a: InitAnswers): string {
 }
 
 function renderGitignore(): string {
-  // `.nectar/` covers the per-project cache (`.nectar/cache/`) plus any
-  // future sibling state Nectar might write under the same namespace.
-  return ['node_modules/', 'dist/', '.worktrees/', '.nectar/', '.DS_Store', ''].join('\n');
+  // `.laurel/` covers the per-project cache (`.laurel/cache/`) plus any
+  // future sibling state Laurel might write under the same namespace.
+  return ['node_modules/', 'dist/', '.worktrees/', '.laurel/', '.DS_Store', ''].join('\n');
 }
 
 function renderReadme(a: InitAnswers): string {
   const lines: string[] = [];
   lines.push(`# ${a.title}`);
   lines.push('');
-  lines.push('A static site built with [Nectar](https://github.com/t09tanaka/nectar) —');
+  lines.push('A static site built with [Laurel](https://github.com/t09tanaka/laurel) —');
   lines.push('a Ghost-compatible SSG running on Bun + TypeScript.');
   lines.push('');
   lines.push('## Getting started');
   lines.push('');
-  lines.push('Assumes [Nectar](https://github.com/t09tanaka/nectar) is installed globally');
-  lines.push('(`npm install -g nectar`). Once the theme is vendored, drive the project');
+  lines.push('Assumes [Laurel](https://github.com/t09tanaka/laurel) is installed globally');
+  lines.push('(`npm install -g laurel`). Once the theme is vendored, drive the project');
   lines.push('either from the dashboard or from the CLI:');
   lines.push('');
   lines.push('```sh');
@@ -635,16 +635,16 @@ function renderReadme(a: InitAnswers): string {
   );
   lines.push('');
   lines.push('# GUI development');
-  lines.push('nectar dashboard           # http://localhost:4322/  (editor UI)');
+  lines.push('laurel dashboard           # http://localhost:4322/  (editor UI)');
   lines.push('');
   lines.push('# CLI development');
-  lines.push('nectar dev                 # http://localhost:4321/  (live reload)');
-  lines.push('nectar build               # writes dist/');
+  lines.push('laurel dev                 # http://localhost:4321/  (live reload)');
+  lines.push('laurel build               # writes dist/');
   lines.push('```');
   lines.push('');
   lines.push('## Project layout');
   lines.push('');
-  lines.push('- `nectar.toml` — site config (title, theme, components).');
+  lines.push('- `laurel.toml` — site config (title, theme, components).');
   lines.push('- `content/posts/` — Markdown posts with YAML frontmatter.');
   lines.push('- `content/pages/` — Static pages (about, contact, …).');
   lines.push('- `content/authors/` — Author metadata.');
@@ -673,7 +673,7 @@ function renderWelcomePost(a: InitAnswers): string {
   lines.push(`# Welcome to ${a.title}`);
   lines.push('');
   lines.push('This is your first post. Edit it in `content/posts/welcome.md`,');
-  lines.push('or scaffold a new one with `nectar new post "My Title"`.');
+  lines.push('or scaffold a new one with `laurel new post "My Title"`.');
   lines.push('');
   return lines.join('\n');
 }
@@ -722,7 +722,7 @@ async function promptAnswersInteractive(
   titleFallback: string,
   agentOverride?: AgentChoice,
 ): Promise<InitAnswers> {
-  clack.intro('Nectar project setup');
+  clack.intro('Laurel project setup');
   const title = await clack.text({
     message: 'Site title',
     placeholder: titleFallback,
@@ -793,7 +793,7 @@ async function promptAnswersFromStdin(
   agentOverride?: AgentChoice,
 ): Promise<InitAnswers> {
   const reader = createLineReader();
-  process.stdout.write('Nectar project setup — press Enter to accept defaults.\n\n');
+  process.stdout.write('Laurel project setup — press Enter to accept defaults.\n\n');
 
   const title = await ask(reader, `Site title [${titleFallback}]: `, titleFallback);
   const url = await ask(reader, `Site URL [${defaults.url}]: `, defaults.url);

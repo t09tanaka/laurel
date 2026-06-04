@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
 import type {
   ThemeCardAssets,
@@ -24,7 +24,7 @@ const imageSizeSchema: z.ZodType<ThemeImageSize> = z
 
 const cardAssetsSchema = z.union([
   z.boolean(),
-  // Legacy Nectar accepted an array before matching Ghost's documented
+  // Legacy Laurel accepted an array before matching Ghost's documented
   // `{ exclude: [...] }` shape. Treat it as an exclude list so existing themes
   // do not flip from "partially excluded" to "fully enabled".
   z.array(z.string()),
@@ -83,7 +83,7 @@ export async function loadThemePackage(rootDir: string): Promise<ThemePackage> {
   try {
     json = JSON.parse(raw);
   } catch (err) {
-    throw new NectarError({
+    throw new LaurelError({
       message: `invalid theme package.json at ${path}: ${err instanceof Error ? err.message : String(err)}`,
       file: path,
       cause: err,

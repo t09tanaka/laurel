@@ -21,7 +21,7 @@ const QUIET_ENV = globalEnvVarName('quiet');
 const VERBOSE_ENV = globalEnvVarName('verbose');
 const JSON_ENV = globalEnvVarName('json');
 const LOG_FORMAT_ENV = globalEnvVarName('log-format');
-const NO_COLOR_ENV_NECTAR = globalEnvVarName('no-color');
+const NO_COLOR_ENV_LAUREL = globalEnvVarName('no-color');
 const DEBUG_ENV = globalEnvVarName('debug');
 const WARNINGS_AS_ERRORS_ENV = globalEnvVarName('warnings-as-errors');
 const LOCALE_ENV = globalEnvVarName('locale');
@@ -29,11 +29,11 @@ const LOCALE_ENV = globalEnvVarName('locale');
 // Strips top-level verbosity / output-mode flags from argv so subcommand
 // parsers (which run node:util `parseArgs` in strict mode) don't choke on
 // them. Flags may appear anywhere before `--`; after `--`, tokens are passed
-// through untouched. CLI flags take priority over env-var and .nectarrc fallbacks
-// (NECTAR_QUIET / NECTAR_VERBOSE / NECTAR_LOG_FORMAT / NECTAR_JSON /
-// NECTAR_NO_COLOR / NECTAR_DEBUG / NECTAR_WARNINGS_AS_ERRORS).
+// through untouched. CLI flags take priority over env-var and .laurelrc fallbacks
+// (LAUREL_QUIET / LAUREL_VERBOSE / LAUREL_LOG_FORMAT / LAUREL_JSON /
+// LAUREL_NO_COLOR / LAUREL_DEBUG / LAUREL_WARNINGS_AS_ERRORS).
 // We also recognise the conventional `NO_COLOR` (any non-empty value disables
-// color) and `FORCE_COLOR` (overrides env-level no-color defaults) so nectar
+// color) and `FORCE_COLOR` (overrides env-level no-color defaults) so laurel
 // matches the rest of the CLI ecosystem out of the box.
 export function extractGlobalFlags(
   argv: string[],
@@ -168,16 +168,16 @@ export function extractGlobalFlags(
   }
   const forceColor = parseForceColor(env.FORCE_COLOR);
   // `NO_COLOR` (conventional) -> off whenever set to a non-empty value.
-  // `NECTAR_NO_COLOR` (project-specific) parses the usual boolean spelling so
+  // `LAUREL_NO_COLOR` (project-specific) parses the usual boolean spelling so
   // `0`/`false` can explicitly re-enable color even when the upstream env has
   // it disabled, e.g. when running inside a CI that exports `NO_COLOR=1`
-  // globally. Precedence: CLI > FORCE_COLOR > NECTAR_NO_COLOR > NO_COLOR.
+  // globally. Precedence: CLI > FORCE_COLOR > LAUREL_NO_COLOR > NO_COLOR.
   if (!noColorFromCli) {
     if (forceColor !== undefined) {
       noColor = !forceColor;
-    } else if (env[NO_COLOR_ENV_NECTAR] !== undefined) {
-      const nectarRaw = env[NO_COLOR_ENV_NECTAR];
-      noColor = parseBooleanEnv(nectarRaw, NO_COLOR_ENV_NECTAR);
+    } else if (env[NO_COLOR_ENV_LAUREL] !== undefined) {
+      const laurelRaw = env[NO_COLOR_ENV_LAUREL];
+      noColor = parseBooleanEnv(laurelRaw, NO_COLOR_ENV_LAUREL);
     } else if (env.NO_COLOR !== undefined && env.NO_COLOR !== '') {
       noColor = true;
     }
@@ -217,12 +217,12 @@ export function extractGlobalFlags(
     if (!logFormatFromCli && logFormatRaw === undefined) {
       const rcLogFormat = readGlobalRcString(rc, 'log-format');
       if (rcLogFormat !== undefined)
-        logFormat = parseLogFormat(rcLogFormat, '.nectarrc global.log-format');
+        logFormat = parseLogFormat(rcLogFormat, '.laurelrc global.log-format');
     }
     if (
       !noColorFromCli &&
       forceColor === undefined &&
-      env[NO_COLOR_ENV_NECTAR] === undefined &&
+      env[NO_COLOR_ENV_LAUREL] === undefined &&
       (env.NO_COLOR === undefined || env.NO_COLOR === '')
     ) {
       noColor = readGlobalRcBoolean(rc, 'no-color') ?? noColor;
@@ -246,7 +246,7 @@ export function extractGlobalFlags(
 
 function readGlobalRcBoolean(rc: Record<string, unknown>, key: string): boolean | undefined {
   try {
-    return readRcBoolean(rcValue(rc, key), `.nectarrc global.${key}`);
+    return readRcBoolean(rcValue(rc, key), `.laurelrc global.${key}`);
   } catch (err) {
     throw new CliUsageError(err instanceof Error ? err.message : String(err));
   }
@@ -254,7 +254,7 @@ function readGlobalRcBoolean(rc: Record<string, unknown>, key: string): boolean 
 
 function readGlobalRcInteger(rc: Record<string, unknown>, key: string): number | undefined {
   try {
-    return readRcInteger(rcValue(rc, key), `.nectarrc global.${key}`);
+    return readRcInteger(rcValue(rc, key), `.laurelrc global.${key}`);
   } catch (err) {
     throw new CliUsageError(err instanceof Error ? err.message : String(err));
   }
@@ -262,7 +262,7 @@ function readGlobalRcInteger(rc: Record<string, unknown>, key: string): number |
 
 function readGlobalRcString(rc: Record<string, unknown>, key: string): string | undefined {
   try {
-    return readRcString(rcValue(rc, key), `.nectarrc global.${key}`);
+    return readRcString(rcValue(rc, key), `.laurelrc global.${key}`);
   } catch (err) {
     throw new CliUsageError(err instanceof Error ? err.message : String(err));
   }

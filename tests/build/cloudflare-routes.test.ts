@@ -13,7 +13,7 @@ describe('cloudflare _routes.json', () => {
   });
 
   test('writes _routes.json when enabled', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-cf-routes-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-cf-routes-'));
     try {
       await emitCloudflareRoutes({ outputDir: dir, enabled: true });
       const body = await readFile(join(dir, '_routes.json'), 'utf8');
@@ -25,7 +25,7 @@ describe('cloudflare _routes.json', () => {
   });
 
   test('skips emission when disabled', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-cf-routes-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-cf-routes-'));
     try {
       await emitCloudflareRoutes({ outputDir: dir, enabled: false });
       const path = join(dir, '_routes.json');

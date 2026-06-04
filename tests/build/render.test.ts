@@ -39,6 +39,6 @@ describe('render.yaml sample', () => {
     }
 
     expect(recipe).toContain('Render Static Sites read Netlify-style');
-    expect(guide).toContain('Nectar reuses the Netlify emitter');
+    expect(guide).toContain('Laurel reuses the Netlify emitter');
   });
 });

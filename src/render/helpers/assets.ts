@@ -1,9 +1,9 @@
 import type Handlebars from 'handlebars';
 import { assetPublicUrl, joinPath } from '~/theme/assets.ts';
 import type { ThemeAsset, ThemeImageSize } from '~/theme/types.ts';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 
-export function registerAssetHelpers(engine: NectarEngine): void {
+export function registerAssetHelpers(engine: LaurelEngine): void {
   const basePath = engine.config.build.base_path;
 
   engine.hb.registerHelper(

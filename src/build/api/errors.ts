@@ -24,7 +24,7 @@ export function buildContentApiNotFoundEnvelope(): GhostContentApiErrorEnvelope 
         property: null,
         help: null,
         code: null,
-        id: 'nectar-content-api-404',
+        id: 'laurel-content-api-404',
       },
     ],
   };

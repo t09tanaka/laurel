@@ -4,8 +4,8 @@ import { dirname, join } from 'node:path';
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const CACHE_SCHEMA_VERSION = 1;
-const NPM_LATEST_URL = 'https://registry.npmjs.org/nectar/latest';
-const GITHUB_LATEST_URL = 'https://api.github.com/repos/t09tanaka/nectar/releases/latest';
+const NPM_LATEST_URL = 'https://registry.npmjs.org/laurel/latest';
+const GITHUB_LATEST_URL = 'https://api.github.com/repos/t09tanaka/laurel/releases/latest';
 
 type ReleaseSource = 'npm' | 'github';
 type ReleaseCheckStatus = 'disabled' | 'update-available' | 'up-to-date' | 'unknown';
@@ -43,12 +43,12 @@ export async function checkLatestRelease(
   const now = options.now ?? (() => new Date());
   const currentVersion = normalizeVersion(options.currentVersion);
 
-  if (isUpdateCheckDisabled(env.NECTAR_NO_UPDATE_CHECK)) {
+  if (isUpdateCheckDisabled(env.LAUREL_NO_UPDATE_CHECK)) {
     return {
       status: 'disabled',
       currentVersion,
       cached: false,
-      message: 'Update check disabled by NECTAR_NO_UPDATE_CHECK.',
+      message: 'Update check disabled by LAUREL_NO_UPDATE_CHECK.',
     };
   }
 
@@ -76,11 +76,11 @@ export async function checkLatestRelease(
 }
 
 export function defaultReleaseCachePath(): string {
-  return join(homedir(), '.cache', 'nectar', 'release.json');
+  return join(homedir(), '.cache', 'laurel', 'release.json');
 }
 
 export function formatReleaseCheck(result: ReleaseCheckResult): string {
-  const lines = [`nectar ${result.currentVersion}`];
+  const lines = [`laurel ${result.currentVersion}`];
   switch (result.status) {
     case 'disabled':
       lines.push(result.message ?? 'Update check disabled.');
@@ -127,7 +127,7 @@ async function writeReleaseCache(cachePath: string, entry: ReleaseCacheEntry): P
     await writeFile(tempPath, `${JSON.stringify(entry, null, 2)}\n`, 'utf8');
     await rename(tempPath, cachePath);
   } catch {
-    // A read-only or broken cache directory must not make `nectar version --check` fail.
+    // A read-only or broken cache directory must not make `laurel version --check` fail.
   }
 }
 
@@ -166,7 +166,7 @@ async function fetchJson(fetchFn: ReleaseFetch, url: string): Promise<unknown> {
     response = await fetchFn(url, {
       headers: {
         accept: 'application/json',
-        'user-agent': `nectar/${CACHE_SCHEMA_VERSION} update-check`,
+        'user-agent': `laurel/${CACHE_SCHEMA_VERSION} update-check`,
       },
     });
   } catch {

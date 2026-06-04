@@ -4,7 +4,7 @@
 
 **Goal:** Replace the JSON `page-bundle` with a kind-aware (posts + pages) **zip** bundle that exports an entry as "send for review" (stamping `status: needs-review`) and imports it back (overwrite-on-collision, landing as needs-review), giving dashboard-only editors a review handoff with no server.
 
-**Architecture:** One zip codec (`createZipArchive` writer + `readZipArchive` reader in `zip-writer.ts`) underpins a rewritten `src/entry-bundle/` module that resolves entries by `kind` against `posts_dir`/`pages_dir`, reuses the proven asset-collection / path-safety / conflict logic from the deleted page-bundle, and carries a `nectar-bundle.json` manifest. Workflow state lives in frontmatter `status`; the build already emits only `published`, so `needs-review` is excluded for free. Dashboard endpoints, CLI commands, client API, and `ContentTable` UI migrate to the new system.
+**Architecture:** One zip codec (`createZipArchive` writer + `readZipArchive` reader in `zip-writer.ts`) underpins a rewritten `src/entry-bundle/` module that resolves entries by `kind` against `posts_dir`/`pages_dir`, reuses the proven asset-collection / path-safety / conflict logic from the deleted page-bundle, and carries a `laurel-bundle.json` manifest. Workflow state lives in frontmatter `status`; the build already emits only `published`, so `needs-review` is excluded for free. Dashboard endpoints, CLI commands, client API, and `ContentTable` UI migrate to the new system.
 
 **Tech Stack:** Bun, TypeScript (strict, no `any`), Zod (frontmatter schema), `node:zlib` deflateRaw/inflateRaw, React (dashboard web), bun test, Biome.
 
@@ -114,7 +114,7 @@ import { join } from 'node:path';
 import { loadContent } from '~/content/loader.ts'; // confirm exported entry point name
 
 async function fixture(status: string): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'nectar-loader-'));
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-loader-'));
   await mkdir(join(dir, 'content', 'posts'), { recursive: true });
   await writeFile(
     join(dir, 'content', 'posts', 'p.md'),
@@ -423,7 +423,7 @@ const enc = new TextEncoder();
 
 function makeZip(manifest: unknown, md: string, assets: { path: string; bytes: Uint8Array }[] = []) {
   return createZipArchive([
-    { path: 'nectar-bundle.json', bytes: enc.encode(JSON.stringify(manifest)) },
+    { path: 'laurel-bundle.json', bytes: enc.encode(JSON.stringify(manifest)) },
     { path: 'entry.md', bytes: enc.encode(md) },
     ...assets,
   ]);
@@ -457,7 +457,7 @@ describe('parseEntryBundleZip', () => {
 
   test('rejects an unknown schema', () => {
     const zip = makeZip(
-      { schema: 'nectar.page.v1', kind: 'post', slug: 'h', path: 'x', generated_at: 'x' },
+      { schema: 'laurel.page.v1', kind: 'post', slug: 'h', path: 'x', generated_at: 'x' },
       '---\ntitle: H\n---\n',
     );
     expect(() => parseEntryBundleZip(zip)).toThrow(/schema/i);
@@ -477,7 +477,7 @@ Expected: FAIL — module/exports missing.
 import { parseFrontmatter } from '~/content/frontmatter.ts';
 import { readZipArchive, type ZipFileEntry } from './zip.ts';
 
-export const BUNDLE_SCHEMA = 'nectar.bundle.v1';
+export const BUNDLE_SCHEMA = 'laurel.bundle.v1';
 export type EntryKind = 'post' | 'page';
 
 export interface EntryBundleManifest {
@@ -509,8 +509,8 @@ export function parseEntryBundleZip(zip: Uint8Array): ParsedEntryBundle {
   const total = entries.reduce((n, e) => n + e.bytes.length, 0);
   if (total > MAX_TOTAL_BYTES) throw new Error('Bundle is too large');
 
-  const manifestEntry = entries.find((e) => e.path === 'nectar-bundle.json');
-  if (!manifestEntry) throw new Error('Invalid bundle: missing nectar-bundle.json manifest');
+  const manifestEntry = entries.find((e) => e.path === 'laurel-bundle.json');
+  if (!manifestEntry) throw new Error('Invalid bundle: missing laurel-bundle.json manifest');
   const manifest = parseManifest(JSON.parse(new TextDecoder().decode(manifestEntry.bytes)));
 
   const mdEntry = entries.find((e) => e.path === 'entry.md');
@@ -521,7 +521,7 @@ export function parseEntryBundleZip(zip: Uint8Array): ParsedEntryBundle {
 
   const assets: ZipFileEntry[] = [];
   for (const entry of entries) {
-    if (entry.path === 'nectar-bundle.json' || entry.path === 'entry.md') continue;
+    if (entry.path === 'laurel-bundle.json' || entry.path === 'entry.md') continue;
     if (!entry.path.startsWith('assets/')) {
       throw new Error(`Invalid bundle: unexpected entry path ${entry.path}`);
     }
@@ -612,17 +612,17 @@ import { join } from 'node:path';
 import { exportEntryBundle } from '~/entry-bundle/index.ts';
 import { readZipArchive } from '~/entry-bundle/zip.ts';
 
-// Minimal config matching NectarConfig content + site fields used by export.
+// Minimal config matching LaurelConfig content + site fields used by export.
 function cfg() {
   return {
     site: { title: 'T', url: 'https://e.example' },
     content: { posts_dir: 'content/posts', pages_dir: 'content/pages', assets_dir: 'content/images' },
-  } as unknown as import('~/config/schema.ts').NectarConfig;
+  } as unknown as import('~/config/schema.ts').LaurelConfig;
 }
 
 describe('exportEntryBundle', () => {
   test('bundles a post and stamps needs-review on the copy in the zip', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-export-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-export-'));
     await mkdir(join(dir, 'content', 'posts'), { recursive: true });
     await writeFile(
       join(dir, 'content', 'posts', 'hello.md'),
@@ -633,7 +633,7 @@ describe('exportEntryBundle', () => {
     const entries = readZipArchive(zip);
     const md = new TextDecoder().decode(entries.find((e) => e.path === 'entry.md')?.bytes);
     expect(md).toMatch(/status:\s*needs-review/);
-    expect(entries.some((e) => e.path === 'nectar-bundle.json')).toBe(true);
+    expect(entries.some((e) => e.path === 'laurel-bundle.json')).toBe(true);
   });
 });
 ```
@@ -650,12 +650,12 @@ Expected: FAIL — `exportEntryBundle` not exported.
 import { readFile } from 'node:fs/promises';
 import { relative, sep } from 'node:path';
 import { absolutise, resolveContentSlugPath } from '~/cli/content-paths.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { formatContentSource } from '~/content/format.ts';
 import { createZipArchive, type ZipInputEntry } from '~/cli/dashboard/zip-writer.ts';
 // plus the ported collectBundleAssets / assetRelFromReference helpers (see Task 5 note)
 
-function entryRoot(cwd: string, config: NectarConfig, kind: EntryKind): string {
+function entryRoot(cwd: string, config: LaurelConfig, kind: EntryKind): string {
   return absolutise(cwd, kind === 'post' ? config.content.posts_dir : config.content.pages_dir);
 }
 
@@ -666,7 +666,7 @@ export async function exportEntryBundle({
   slug,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   kind: EntryKind;
   slug: string;
 }): Promise<{ zip: Uint8Array; omittedAssets: string[] }> {
@@ -699,7 +699,7 @@ export async function exportEntryBundle({
 
   const entryMd = serializeEntryMarkdown(frontmatter, parsed.body, resolved.path);
   const zipInputs: ZipInputEntry[] = [
-    { path: 'nectar-bundle.json', bytes: new TextEncoder().encode(JSON.stringify(manifest, null, 2)) },
+    { path: 'laurel-bundle.json', bytes: new TextEncoder().encode(JSON.stringify(manifest, null, 2)) },
     { path: 'entry.md', bytes: new TextEncoder().encode(entryMd) },
     ...assets.map((a) => ({ path: `assets/${a.rel}`, bytes: a.bytes })),
   ];
@@ -749,7 +749,7 @@ import { importEntryBundle } from '~/entry-bundle/index.ts';
 
 describe('importEntryBundle', () => {
   test('overwrites an existing post and keeps needs-review', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-import-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-import-'));
     await mkdir(join(dir, 'content', 'posts'), { recursive: true });
     await writeFile(join(dir, 'content', 'posts', 'hello.md'), '---\ntitle: Old\nstatus: published\n---\n\nold\n', 'utf8');
 
@@ -764,7 +764,7 @@ describe('importEntryBundle', () => {
   });
 
   test('dryRun writes nothing', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-import-dry-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-import-dry-'));
     await mkdir(join(dir, 'content', 'posts'), { recursive: true });
     await writeFile(join(dir, 'content', 'posts', 'src.md'), '---\ntitle: New\n---\n\nnew\n', 'utf8');
     const { zip } = await exportEntryBundle({ cwd: dir, config: cfg(), kind: 'post', slug: 'src' });
@@ -808,7 +808,7 @@ export async function importEntryBundle({
   dryRun = false,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   zip: Uint8Array;
   onConflict: ConflictPolicy;
   dryRun?: boolean;
@@ -892,7 +892,7 @@ Export means "sent for review": the source file on disk must also become `needs-
 import { markEntryNeedsReview } from '~/entry-bundle/index.ts';
 
 test('markEntryNeedsReview rewrites the source file status', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'nectar-mark-'));
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-mark-'));
   await mkdir(join(dir, 'content', 'posts'), { recursive: true });
   await writeFile(join(dir, 'content', 'posts', 'hello.md'), '---\ntitle: Hello\nstatus: draft\n---\n\nbody\n', 'utf8');
   await markEntryNeedsReview({ cwd: dir, config: cfg(), kind: 'post', slug: 'hello' });
@@ -917,7 +917,7 @@ export async function markEntryNeedsReview({
   slug,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   kind: EntryKind;
   slug: string;
 }): Promise<void> {
@@ -978,7 +978,7 @@ if (request.method === 'GET' && url.pathname === '/api/bundles/export') {
   return new Response(zip, {
     headers: {
       'content-type': 'application/zip',
-      'content-disposition': `attachment; filename="${slug}.nectar.zip"`,
+      'content-disposition': `attachment; filename="${slug}.laurel.zip"`,
     },
   });
 }
@@ -1100,7 +1100,7 @@ export async function importBundle(
 
 - [ ] **Step 1:** Grep for leftover references:
 
-Run: `grep -rn "page-bundle\|PageBundle\|page-bundles\|nectar.page.v1\|exportPageBundle" src tests`
+Run: `grep -rn "page-bundle\|PageBundle\|page-bundles\|laurel.page.v1\|exportPageBundle" src tests`
 Expected: no matches. Fix any stragglers (`specs.ts`, `bundled-assets.ts`, web components, tests).
 
 - [ ] **Step 2:** Delete the module and its test:
@@ -1114,7 +1114,7 @@ git rm src/page-bundle/index.ts tests/page-bundle/index.test.ts
 Run: `bun run check && bun run typecheck && bun test`
 Expected: PASS, no `any`, Biome clean.
 
-- [ ] **Step 4:** Manual e2e in the dashboard dev server: export a post → `<slug>.nectar.zip` downloads; the source post shows `needs-review`; import the zip into the same site → confirm dialog → overwrite → post is `needs-review`; build (`nectar build`) excludes it from `dist`.
+- [ ] **Step 4:** Manual e2e in the dashboard dev server: export a post → `<slug>.laurel.zip` downloads; the source post shows `needs-review`; import the zip into the same site → confirm dialog → overwrite → post is `needs-review`; build (`laurel build`) excludes it from `dist`.
 
 - [ ] **Step 5:** Commit
 

@@ -31,7 +31,7 @@ describe('Admin dashboard design docs', () => {
   test('documents the Admin dashboard design system tokens', async () => {
     const doc = await readFile(join(ROOT, 'docs', 'admin-dashboard-design-system.md'), 'utf8');
 
-    expect(doc).toContain('# Nectar Admin Dashboard Design System');
+    expect(doc).toContain('# Laurel Admin Dashboard Design System');
     expect(doc).toContain('note (https://note.com/)');
     expect(doc).toContain('Text primary: #08131a');
     expect(doc).toContain('Article body: 18px / line-height 2');

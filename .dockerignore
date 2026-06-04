@@ -11,8 +11,8 @@ node_modules/
 dist/
 dist-bin/
 coverage/
-.nectar/
-.nectar-cache/
+.laurel/
+.laurel-cache/
 example/dist/
 docs-site/dist/
 *.tsbuildinfo

@@ -1,7 +1,7 @@
 # Theme Reference
 
-A compact, machine-checked index of Nectar's theme surface: every Handlebars
-helper Nectar registers, and the public shape of every content object Nectar
+A compact, machine-checked index of Laurel's theme surface: every Handlebars
+helper Laurel registers, and the public shape of every content object Laurel
 exposes to templates (`post`, `page`, `tag`, `author`, `@site`, pagination).
 
 This document is the **shape-only** reference. For per-helper edge cases,
@@ -112,7 +112,7 @@ the rest return plain strings and Handlebars escapes them.
 
 ## Built-in context shapes
 
-Nectar's render context maps directly to Ghost's resource shape. The
+Laurel's render context maps directly to Ghost's resource shape. The
 JSDoc-style listing below mirrors the exact TypeScript types declared in
 [`src/content/model.ts`](../src/content/model.ts) and
 [`src/render/types.ts`](../src/render/types.ts). Optional fields are typed
@@ -149,7 +149,7 @@ interface Post {
   /**
    * Ghost-compatible visibility. `tiers` (gated to specific tiers) and
    * `filter` (NQL expression) are treated as members-grade gating since
-   * Nectar has no signed-in viewer, but the exact upstream value is
+   * Laurel has no signed-in viewer, but the exact upstream value is
    * preserved on this field. See #325.
    */
   visibility: 'public' | 'members' | 'paid' | 'tiers' | 'filter';
@@ -205,7 +205,7 @@ interface Page {
   created_at: string;
   reading_time: number;
   word_count: number;
-  /** Pages are always public — Nectar does not gate pages. */
+  /** Pages are always public — Laurel does not gate pages. */
   visibility: 'public';
   status: 'published' | 'draft';
   tags: Tag[];
@@ -353,8 +353,8 @@ interface SiteData {
 
 `@site.build` is omitted for ordinary local builds. When metadata env vars are
 present, themes can read `@site.build.branch`, `@site.build.build_id`, and
-`@site.build.commit_sha`. Precedence is explicit `NECTAR_BUILD_METADATA_*`
-vars, short Nectar aliases such as `NECTAR_BUILD_ID` / `NECTAR_COMMIT_SHA`,
+`@site.build.commit_sha`. Precedence is explicit `LAUREL_BUILD_METADATA_*`
+vars, short Laurel aliases such as `LAUREL_BUILD_ID` / `LAUREL_COMMIT_SHA`,
 provider vars such as `CF_PAGES_COMMIT_SHA` / `VERCEL_GIT_COMMIT_SHA`, then
 generic CI vars such as `BUILD_ID`, `COMMIT_SHA`, `COMMIT_REF`, and
 `GITHUB_SHA`.

@@ -4,15 +4,15 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const DEFAULT_TEMPLATE = fileURLToPath(
-  new URL('../packaging/homebrew/Formula/nectar.rb.template', import.meta.url),
+  new URL('../packaging/homebrew/Formula/laurel.rb.template', import.meta.url),
 );
-const DEFAULT_OUTPUT = 'packaging/homebrew/Formula/nectar.rb';
+const DEFAULT_OUTPUT = 'packaging/homebrew/Formula/laurel.rb';
 
 const REQUIRED_ARTIFACTS = [
-  ['nectar-darwin-arm64', '{{DARWIN_ARM64_SHA256}}'],
-  ['nectar-darwin-x64', '{{DARWIN_X64_SHA256}}'],
-  ['nectar-linux-arm64', '{{LINUX_ARM64_SHA256}}'],
-  ['nectar-linux-x64', '{{LINUX_X64_SHA256}}'],
+  ['laurel-darwin-arm64', '{{DARWIN_ARM64_SHA256}}'],
+  ['laurel-darwin-x64', '{{DARWIN_X64_SHA256}}'],
+  ['laurel-linux-arm64', '{{LINUX_ARM64_SHA256}}'],
+  ['laurel-linux-x64', '{{LINUX_X64_SHA256}}'],
 ] as const;
 
 interface CliOptions {
@@ -135,7 +135,7 @@ function requireValue(name: string, value: string | undefined): string {
 }
 
 function printUsage(): void {
-  console.log(`Usage: bun run scripts/generate-homebrew-formula.ts --version v1.2.3 --shasums dist-bin/SHASUMS256.txt [--output Formula/nectar.rb]
+  console.log(`Usage: bun run scripts/generate-homebrew-formula.ts --version v1.2.3 --shasums dist-bin/SHASUMS256.txt [--output Formula/laurel.rb]
 
 Generates a Homebrew formula from the checked-in template and release binary checksums.
 Use --stdout instead of --output to print the formula.`);

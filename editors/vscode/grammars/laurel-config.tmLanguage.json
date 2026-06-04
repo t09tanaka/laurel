@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-  "name": "Nectar Config",
-  "scopeName": "source.nectar-config",
+  "name": "Laurel Config",
+  "scopeName": "source.laurel-config",
   "patterns": [
     {
       "include": "#comment"
@@ -30,7 +30,7 @@
       "patterns": [
         {
           "match": "\\b(true|false)\\b",
-          "name": "constant.language.boolean.nectar-config"
+          "name": "constant.language.boolean.laurel-config"
         }
       ]
     },
@@ -38,7 +38,7 @@
       "patterns": [
         {
           "match": "#.*$",
-          "name": "comment.line.number-sign.nectar-config"
+          "name": "comment.line.number-sign.laurel-config"
         }
       ]
     },
@@ -46,7 +46,7 @@
       "patterns": [
         {
           "match": "\\b\\d{4}-\\d{2}-\\d{2}(?:[Tt ][0-9:.+-Zz]+)?\\b",
-          "name": "constant.other.datetime.nectar-config"
+          "name": "constant.other.datetime.laurel-config"
         }
       ]
     },
@@ -55,10 +55,10 @@
         {
           "captures": {
             "1": {
-              "name": "variable.other.member.nectar-config"
+              "name": "variable.other.member.laurel-config"
             },
             "2": {
-              "name": "keyword.operator.assignment.nectar-config"
+              "name": "keyword.operator.assignment.laurel-config"
             }
           },
           "match": "^\\s*([A-Za-z0-9_.-]+)\\s*(=)"
@@ -69,7 +69,7 @@
       "patterns": [
         {
           "match": "(?<![\\w.-])[+-]?(?:\\d+\\.\\d+|\\d+)(?![\\w.-])",
-          "name": "constant.numeric.nectar-config"
+          "name": "constant.numeric.laurel-config"
         }
       ]
     },
@@ -78,28 +78,28 @@
         {
           "begin": "\"\"\"",
           "end": "\"\"\"",
-          "name": "string.quoted.triple.double.nectar-config"
+          "name": "string.quoted.triple.double.laurel-config"
         },
         {
           "begin": "'''",
           "end": "'''",
-          "name": "string.quoted.triple.single.nectar-config"
+          "name": "string.quoted.triple.single.laurel-config"
         },
         {
           "begin": "\"",
           "end": "\"",
-          "name": "string.quoted.double.nectar-config",
+          "name": "string.quoted.double.laurel-config",
           "patterns": [
             {
               "match": "\\\\(?:[btnfr\"\\\\]|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})",
-              "name": "constant.character.escape.nectar-config"
+              "name": "constant.character.escape.laurel-config"
             }
           ]
         },
         {
           "begin": "'",
           "end": "'",
-          "name": "string.quoted.single.nectar-config"
+          "name": "string.quoted.single.laurel-config"
         }
       ]
     },
@@ -108,13 +108,13 @@
         {
           "captures": {
             "1": {
-              "name": "punctuation.definition.table.begin.nectar-config"
+              "name": "punctuation.definition.table.begin.laurel-config"
             },
             "2": {
-              "name": "entity.name.section.table.nectar-config"
+              "name": "entity.name.section.table.laurel-config"
             },
             "3": {
-              "name": "punctuation.definition.table.end.nectar-config"
+              "name": "punctuation.definition.table.end.laurel-config"
             }
           },
           "match": "^\\s*(\\[\\[?)\\s*([A-Za-z0-9_.-]+)\\s*(\\]\\]?)"

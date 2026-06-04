@@ -1,14 +1,14 @@
 Print or install a shell completion script
 
 Usage:
-  nectar completions [--json] [--shell <auto|bash|zsh|fish|pwsh>] [shell-or-action] [install-shell]
+  laurel completions [--json] [--shell <auto|bash|zsh|fish|pwsh>] [shell-or-action] [install-shell]
 
 Arguments:
   shell-or-action     Target shell (bash, zsh, fish, pwsh) or `install`
   install-shell       Optional install target shell: auto, bash, zsh, fish, or pwsh
 
 End of options:
-  Use `--` before positional values that start with `-`, for example `nectar new post -- --config`.
+  Use `--` before positional values that start with `-`, for example `laurel new post -- --config`.
 
 Options:
   -j, --json          No-op for `completions`; accepted so the global `--json` flag does not error here. The output is always shell-script text
@@ -16,9 +16,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --json → NECTAR_COMPLETIONS_JSON
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --json → LAUREL_COMPLETIONS_JSON
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -26,9 +26,9 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar completion bash >> ~/.bashrc         # singular alias
-  nectar completions bash >> ~/.bashrc
-  nectar completions zsh > ~/.zsh/_nectar
-  nectar completions fish > ~/.config/fish/completions/nectar.fish
-  nectar completions install                 # install for the detected shell
-  nectar completions install --shell zsh     # install under a user-writable zsh path
+  laurel completion bash >> ~/.bashrc         # singular alias
+  laurel completions bash >> ~/.bashrc
+  laurel completions zsh > ~/.zsh/_laurel
+  laurel completions fish > ~/.config/fish/completions/laurel.fish
+  laurel completions install                 # install for the detected shell
+  laurel completions install --shell zsh     # install under a user-writable zsh path

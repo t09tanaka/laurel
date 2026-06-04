@@ -9,11 +9,11 @@ import {
   createRawContentCache,
   loadContent,
 } from '~/content/loader.ts';
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
 
 async function fixture(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'nectar-content-'));
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-content-'));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
@@ -30,7 +30,7 @@ featured: true
 
 # Hello
 
-Welcome to Nectar.
+Welcome to Laurel.
 `,
     'utf8',
   );
@@ -96,7 +96,7 @@ async function readRenderCacheEntry(
     };
   };
 }> {
-  const cacheDir = join(cwd, '.nectar/cache/markdown');
+  const cacheDir = join(cwd, '.laurel/cache/markdown');
   const files = await readdir(cacheDir);
   for (const file of files) {
     if (!file.endsWith('.json')) continue;
@@ -127,7 +127,7 @@ describe('loadContent', () => {
     expect(graph.authors[0]?.name).toBe('Casper');
     expect(graph.authors.find((a) => a.slug === 'casper')?.count.posts).toBe(1);
     expect(graph.tags.find((t) => t.slug === 'news')?.count.posts).toBe(1);
-    expect(graph.posts[1]?.html).toContain('Welcome to Nectar.');
+    expect(graph.posts[1]?.html).toContain('Welcome to Laurel.');
     expect(graph.posts[1]?.post_class.split(' ')).toEqual(
       expect.arrayContaining(['post', 'tag-news', 'featured', 'access', 'no-image']),
     );
@@ -184,7 +184,7 @@ featured: true
 
 # Hello
 
-Welcome to edited Nectar.
+Welcome to edited Laurel.
 `,
       'utf8',
     );
@@ -198,7 +198,7 @@ Welcome to edited Nectar.
     });
     expect(edited.posts.find((post) => post.slug === 'hello')?.title).toBe('Hello edited');
     expect(edited.posts.find((post) => post.slug === 'hello')?.html).toContain(
-      'Welcome to edited Nectar.',
+      'Welcome to edited Laurel.',
     );
   });
 
@@ -211,13 +211,13 @@ Welcome to edited Nectar.
       cwd,
       config,
       rawContentCache,
-      markdownTransforms: [(body) => body.replace('Welcome to Nectar.', 'Transformed once.')],
+      markdownTransforms: [(body) => body.replace('Welcome to Laurel.', 'Transformed once.')],
     });
     const second = await loadContent({
       cwd,
       config,
       rawContentCache,
-      markdownTransforms: [(body) => body.replace('Welcome to Nectar.', 'Transformed twice.')],
+      markdownTransforms: [(body) => body.replace('Welcome to Laurel.', 'Transformed twice.')],
     });
 
     expect(rawContentCache.stats()).toEqual({
@@ -236,37 +236,37 @@ Welcome to edited Nectar.
       site: {
         title: 'X',
         url: 'https://x.test',
-        twitter: '@nectar',
-        facebook: 'nectar.blog',
-        linkedin: 'nectar-ssg',
-        bluesky: 'nectar.example',
-        mastodon: 'nectar@hachyderm.io',
-        threads: '@nectar',
-        tiktok: '@nectar',
-        youtube: '@nectarvideo',
-        instagram: '@nectargram',
-        github: 't09tanaka/nectar',
+        twitter: '@laurel',
+        facebook: 'laurel.blog',
+        linkedin: 'laurel-ssg',
+        bluesky: 'laurel.example',
+        mastodon: 'laurel@hachyderm.io',
+        threads: '@laurel',
+        tiktok: '@laurel',
+        youtube: '@laurelvideo',
+        instagram: '@laurelgram',
+        github: 't09tanaka/laurel',
       },
     });
 
     const graph = await loadContent({ cwd, config });
 
     expect(graph.site).toMatchObject({
-      twitter: '@nectar',
-      facebook: 'nectar.blog',
-      linkedin: 'nectar-ssg',
-      bluesky: 'nectar.example',
-      mastodon: 'nectar@hachyderm.io',
-      threads: '@nectar',
-      tiktok: '@nectar',
-      youtube: '@nectarvideo',
-      instagram: '@nectargram',
-      github: 't09tanaka/nectar',
+      twitter: '@laurel',
+      facebook: 'laurel.blog',
+      linkedin: 'laurel-ssg',
+      bluesky: 'laurel.example',
+      mastodon: 'laurel@hachyderm.io',
+      threads: '@laurel',
+      tiktok: '@laurel',
+      youtube: '@laurelvideo',
+      instagram: '@laurelgram',
+      github: 't09tanaka/laurel',
     });
   });
 
   test('normalizes Ghost excerpt fields from custom_excerpt or 50 plaintext words', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-excerpt-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-excerpt-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await mkdir(join(cwd, 'content/pages'), { recursive: true });
     await mkdir(join(cwd, 'content/authors'), { recursive: true });
@@ -351,7 +351,7 @@ ${longPlaintext}
   });
 
   test('strips email cards before plaintext, excerpt, and feed fields are derived', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-email-card-derived-fields-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-email-card-derived-fields-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/email-cards.md'),
@@ -513,7 +513,7 @@ featured: true
 
 # Hello
 
-Welcome to Nectar.
+Welcome to Laurel.
 `,
       'utf8',
     );
@@ -540,7 +540,7 @@ About body
   });
 
   test('counts primary and secondary author posts from the public post graph', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-author-count-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-author-count-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await mkdir(join(cwd, 'content/pages'), { recursive: true });
     await mkdir(join(cwd, 'content/authors'), { recursive: true });
@@ -795,7 +795,7 @@ Fresh body.
   });
 
   test('starts markdown normalization for sibling posts in parallel before rendering', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-parallel-markdown-render-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-parallel-markdown-render-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/a.md'),
@@ -917,7 +917,7 @@ second body
   });
 
   test('loads locale-scoped content trees and frontmatter locale into localized model URLs', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-locales-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-locales-'));
     await mkdir(join(cwd, 'content/en/posts'), { recursive: true });
     await mkdir(join(cwd, 'content/ja/posts'), { recursive: true });
     await mkdir(join(cwd, 'content/ja/pages'), { recursive: true });
@@ -1124,7 +1124,7 @@ About JA.
             portal_button_icon: 'icon-2',
             portal_button_signup_text: 'Join now',
             portal_button_style: 'icon-and-text',
-            portal_name: 'Nectar Portal',
+            portal_name: 'Laurel Portal',
             portal_plans: ['free', 'monthly'],
             portal_signup_checkbox_required: true,
             portal_signup_terms_html: '<p>Terms apply</p>',
@@ -1138,7 +1138,7 @@ About JA.
     expect(graph.site.portal_button_icon).toBe('icon-2');
     expect(graph.site.portal_button_signup_text).toBe('Join now');
     expect(graph.site.portal_button_style).toBe('icon-and-text');
-    expect(graph.site.portal_name).toBe('Nectar Portal');
+    expect(graph.site.portal_name).toBe('Laurel Portal');
     expect(graph.site.portal_plans).toEqual(['free', 'monthly']);
     expect(graph.site.portal_signup_checkbox_required).toBe(true);
     expect(graph.site.portal_signup_terms_html).toBe('<p>Terms apply</p>');
@@ -1467,7 +1467,7 @@ Members-only body.
 
 describe('loadContent feature image dimensions', () => {
   test('reads intrinsic SVG width/height from local feature_image', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-dims-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-dims-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(
@@ -1495,7 +1495,7 @@ body
   });
 
   test('counts feature_image in Ghost-compatible reading_time', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-feature-reading-time-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-feature-reading-time-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await mkdir(join(cwd, 'content/pages'), { recursive: true });
     await mkdir(join(cwd, 'content/authors'), { recursive: true });
@@ -1519,7 +1519,7 @@ ${'word '.repeat(400)}
   });
 
   test('honors explicit frontmatter dimensions over file probe', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-dims-explicit-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-dims-explicit-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(
@@ -1549,7 +1549,7 @@ body
   });
 
   test('leaves dimensions undefined for remote feature images', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-dims-remote-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-dims-remote-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/remote.md'),
@@ -1573,7 +1573,7 @@ body
 
 describe('loadContent slug sanitization', () => {
   test('sanitizes malicious frontmatter slug for posts (path traversal)', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-slug-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-slug-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/evil.md'),
@@ -1597,7 +1597,7 @@ body
   });
 
   test('sanitizes malicious tag slugs from post frontmatter', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-slug-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-slug-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/p.md'),
@@ -1620,7 +1620,7 @@ body
   });
 
   test('sanitizes malicious author slug from author markdown frontmatter', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-slug-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-slug-'));
     await mkdir(join(cwd, 'content/authors'), { recursive: true });
     await writeFile(
       join(cwd, 'content/authors/x.md'),
@@ -1640,9 +1640,9 @@ name: Escape
   });
 
   test('skips symlinked markdown files instead of following them outside the content tree', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-symlink-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-symlink-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
-    const outside = await mkdtemp(join(tmpdir(), 'nectar-outside-'));
+    const outside = await mkdtemp(join(tmpdir(), 'laurel-outside-'));
     const secret = join(outside, 'secret.md');
     await writeFile(
       secret,
@@ -1664,7 +1664,7 @@ name: Escape
   });
 
   test('strips raw <script> from post body by default', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-xss-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-xss-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/xss.md'),
@@ -1687,7 +1687,7 @@ Body
   });
 
   test('passes raw HTML through when unsafe_html: true', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-xss-optout-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-xss-optout-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/trusted.md'),
@@ -1709,7 +1709,7 @@ unsafe_html: true
   });
 
   test('drops codeinjection_head/codeinjection_foot from frontmatter by default', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-codeinj-default-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-codeinj-default-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/evil.md'),
@@ -1732,7 +1732,7 @@ body
   });
 
   test('passes codeinjection through when build.allow_code_injection: true', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-codeinj-optin-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-codeinj-optin-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/trusted.md'),
@@ -1762,10 +1762,10 @@ body
   // post-loader gates raw HTML behind frontmatter `unsafe_html: true` (the
   // same opt-in used elsewhere), so an author who needs an HTML card to keep
   // its `<script>` payload — e.g. a third-party embed pulled forward from
-  // Ghost via `nectar import-ghost` — can preserve it by flipping the flag.
+  // Ghost via `laurel import-ghost` — can preserve it by flipping the flag.
   // Without the flag, sanitisation strips both for XSS defence.
   test('preserves <script> from HTML card content when unsafe_html: true (issue #322)', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-html-card-script-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-html-card-script-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/embed.md'),
@@ -1790,7 +1790,7 @@ Outro paragraph.
   });
 
   test('preserves <style> from HTML card content when unsafe_html: true (issue #322)', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-html-card-style-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-html-card-style-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/styled.md'),
@@ -1814,7 +1814,7 @@ unsafe_html: true
   });
 
   test('still strips <script>/<style> when unsafe_html is not set (issue #322 XSS guard)', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-html-card-default-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-html-card-default-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/untrusted.md'),
@@ -1839,8 +1839,8 @@ Body.
     expect(html).not.toContain('alert(1)');
   });
 
-  test('surfaces malformed YAML frontmatter as a NectarError with the offending file path', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-bad-yaml-'));
+  test('surfaces malformed YAML frontmatter as a LaurelError with the offending file path', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-bad-yaml-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     const file = join(cwd, 'content/posts/bad.md');
     await writeFile(
@@ -1859,16 +1859,16 @@ body
       await loadContent({ cwd, config });
       throw new Error('expected loadContent to throw');
     } catch (err) {
-      expect(err).toBeInstanceOf(NectarError);
-      const ne = err as NectarError;
+      expect(err).toBeInstanceOf(LaurelError);
+      const ne = err as LaurelError;
       expect(ne.file).toBe(file);
       expect(ne.line).toBe(3);
       expect(ne.message).toMatch(/invalid frontmatter/);
     }
   });
 
-  test('surfaces unparseable post date as a NectarError instead of silently sorting to 1970', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-bad-date-'));
+  test('surfaces unparseable post date as a LaurelError instead of silently sorting to 1970', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-bad-date-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     const file = join(cwd, 'content/posts/bad-date.md');
     await writeFile(
@@ -1887,8 +1887,8 @@ body
       await loadContent({ cwd, config });
       throw new Error('expected loadContent to throw');
     } catch (err) {
-      expect(err).toBeInstanceOf(NectarError);
-      const ne = err as NectarError;
+      expect(err).toBeInstanceOf(LaurelError);
+      const ne = err as LaurelError;
       expect(ne.file).toBe(file);
       expect(ne.code).toBe('content');
       expect(ne.message).toMatch(/Invalid date in frontmatter/);
@@ -1900,7 +1900,7 @@ body
   });
 
   test('uses a fixed epoch fallback when post frontmatter omits date fields', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-missing-date-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-missing-date-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     const file = join(cwd, 'content/posts/no-date.md');
     await writeFile(
@@ -1928,7 +1928,7 @@ body
   });
 
   test('strips raw <script> from feature_image_caption frontmatter', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-caption-xss-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-caption-xss-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/cap.md'),
@@ -1952,7 +1952,7 @@ body
   });
 
   test('drops event handler attributes and javascript: hrefs from feature_image_caption', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-caption-handlers-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-caption-handlers-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/cap.md'),
@@ -1976,7 +1976,7 @@ body
   });
 
   test('preserves safe inline formatting in feature_image_caption', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-caption-safe-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-caption-safe-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/cap.md'),
@@ -1998,7 +1998,7 @@ body
   });
 
   test('throws when explicit frontmatter slug sanitizes to empty', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-slug-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-slug-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/p.md'),
@@ -2021,7 +2021,7 @@ body
     // runner (marked.parse is CPU-bound and quadratic on pathological input).
     // Enforce the cap at stat() so the body is never loaded into memory and the
     // error points at the offending path.
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-md-size-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-md-size-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     const file = join(cwd, 'content/posts/big.md');
     const header = '---\ntitle: Big\ndate: 2026-01-01T00:00:00Z\n---\n\n';
@@ -2036,8 +2036,8 @@ body
       await loadContent({ cwd, config });
       throw new Error('expected loadContent to throw');
     } catch (err) {
-      expect(err).toBeInstanceOf(NectarError);
-      const ne = err as NectarError;
+      expect(err).toBeInstanceOf(LaurelError);
+      const ne = err as LaurelError;
       expect(ne.file).toBe(file);
       expect(ne.message).toMatch(/exceed/i);
       expect(ne.hint).toMatch(/max_markdown_bytes/);
@@ -2045,7 +2045,7 @@ body
   });
 
   test('content.max_markdown_bytes = 0 disables the size check entirely', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-md-size-off-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-md-size-off-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     const file = join(cwd, 'content/posts/big.md');
     const header = '---\ntitle: Big\ndate: 2026-01-01T00:00:00Z\n---\n\n';
@@ -2064,7 +2064,7 @@ body
 
 describe('loadContent page custom_template (issue #1005)', () => {
   test('reads `template` frontmatter and stores it as the canonical custom-<name>', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-page-tmpl-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-page-tmpl-'));
     await mkdir(join(cwd, 'content/pages'), { recursive: true });
     await writeFile(
       join(cwd, 'content/pages/about.md'),
@@ -2083,7 +2083,7 @@ About body
   });
 
   test('accepts pre-prefixed `custom-foo` without double-prefixing', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-page-tmpl-pref-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-page-tmpl-pref-'));
     await mkdir(join(cwd, 'content/pages'), { recursive: true });
     await writeFile(
       join(cwd, 'content/pages/about.md'),
@@ -2102,7 +2102,7 @@ About body
   });
 
   test('rejects unsafe template names (path traversal, slashes, dots)', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-page-tmpl-bad-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-page-tmpl-bad-'));
     await mkdir(join(cwd, 'content/pages'), { recursive: true });
     await writeFile(
       join(cwd, 'content/pages/about.md'),
@@ -2130,7 +2130,7 @@ About body
 
 describe('loadContent post custom_template alternate layouts (issue #704)', () => {
   test('reads `template` frontmatter and stores it as the canonical custom-<name>', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-post-tmpl-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-post-tmpl-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/hello.md'),
@@ -2149,7 +2149,7 @@ Hello body
   });
 
   test('accepts Dawn pre-prefixed custom-no-feature-image without double-prefixing', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-post-tmpl-pref-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-post-tmpl-pref-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/hello.md'),
@@ -2168,7 +2168,7 @@ Hello body
   });
 
   test('rejects unsafe post template names', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-post-tmpl-bad-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-post-tmpl-bad-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/hello.md'),
@@ -2189,7 +2189,7 @@ Hello body
 
 describe('loadContent scheduled posts', () => {
   test('excludes scheduled posts whose published_at is still in the future', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-scheduled-future-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-scheduled-future-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     const futureIso = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
     await writeFile(
@@ -2223,10 +2223,10 @@ Public.
   test('excludes scheduled posts even when published_at has already passed', async () => {
     // Ghost only ships a post once the author flips `status` from `scheduled`
     // to `published`. A scheduled post with a past date means the cron flip
-    // hasn't happened yet (or the author edited the date), so Nectar must keep
+    // hasn't happened yet (or the author edited the date), so Laurel must keep
     // it out of the build until the status is updated — otherwise issue #447's
     // silent leak path reopens.
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-scheduled-past-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-scheduled-past-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     const pastIso = new Date(Date.now() - 60 * 1000).toISOString();
     await writeFile(
@@ -2250,7 +2250,7 @@ Now live.
     // Issue #444: a post staged with `status: published` and a future date
     // would otherwise ship immediately on the next build, defeating the date
     // gate Ghost authors expect.
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-future-published-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-future-published-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     const futureIso = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
     await writeFile(
@@ -2283,7 +2283,7 @@ Already out.
   });
 
   test('include_future_posts config opts back into future-dated and scheduled posts', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-include-future-config-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-include-future-config-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     const futureIso = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
     await writeFile(
@@ -2331,7 +2331,7 @@ Past.
   });
 
   test('includeFuturePosts option overrides default exclusion', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-include-future-option-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-include-future-option-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     const futureIso = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
     await writeFile(
@@ -2357,7 +2357,7 @@ Secret.
     // Drafts and future-dated content are independently gated. A scheduled
     // *and* draft post stays hidden unless both opt-ins are flipped, so the
     // looser preview policy can't accidentally promote WIP work.
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-future-not-drafts-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-future-not-drafts-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/wip.md'),
@@ -2380,7 +2380,7 @@ Not ready.
   });
 
   test('excludes drafts by default regardless of date', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-draft-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-draft-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/wip.md'),
@@ -2400,7 +2400,7 @@ Not ready.
   });
 
   test('includes drafts when includeDrafts is true', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-draft-opt-in-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-draft-opt-in-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/wip.md'),
@@ -2431,7 +2431,7 @@ Published.
   });
 
   test('includeDrafts also surfaces draft pages', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-draft-page-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-draft-page-'));
     await mkdir(join(cwd, 'content/pages'), { recursive: true });
     await writeFile(
       join(cwd, 'content/pages/wip-page.md'),
@@ -2452,7 +2452,7 @@ Not ready.
   });
 
   test('includeDrafts does not unmask scheduled posts whose date is still in the future', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-draft-scheduled-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-draft-scheduled-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     const futureIso = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
     await writeFile(
@@ -2475,7 +2475,7 @@ Secret.
 
 describe('loadContent workflow status exclusion', () => {
   test('excludes needs-review posts from default build', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-needs-review-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-needs-review-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/in-review.md'),
@@ -2507,7 +2507,7 @@ Public.
   });
 
   test('excludes approved posts from default build', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-approved-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-approved-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/approved.md'),
@@ -2539,7 +2539,7 @@ Public.
   });
 
   test('excludes needs-review pages from default build', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-needs-review-page-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-needs-review-page-'));
     await mkdir(join(cwd, 'content/pages'), { recursive: true });
     await writeFile(
       join(cwd, 'content/pages/under-review.md'),
@@ -2558,7 +2558,7 @@ Pending review.
   });
 
   test('excludes approved pages from default build', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-approved-page-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-approved-page-'));
     await mkdir(join(cwd, 'content/pages'), { recursive: true });
     await writeFile(
       join(cwd, 'content/pages/approved-page.md'),
@@ -2577,7 +2577,7 @@ Approved but not yet published.
   });
 
   test('includeDrafts surfaces needs-review and approved posts', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-review-opt-in-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-review-opt-in-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/in-review.md'),
@@ -2632,7 +2632,7 @@ describe('loadContent parallel markdown loading is deterministic', () => {
   // both rendering paths (regular + paywalled re-render) across 60 posts so
   // the chunking layer (32-wide) is forced to do at least two batches.
   test('every slug ends up with its own body across many posts', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-parallel-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-parallel-'));
     await mkdir(join(dir, 'content/posts'), { recursive: true });
     const POST_COUNT = 60;
     for (let i = 0; i < POST_COUNT; i += 1) {
@@ -2658,7 +2658,7 @@ describe('loadContent parallel markdown loading is deterministic', () => {
   // as the title (Ghost behaviour), but the loader now warns at build time
   // so contributors notice the synthesised headline.
   test('warns when frontmatter title is missing or empty and uses slug as fallback', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-empty-title-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-empty-title-'));
     await mkdir(join(dir, 'content/posts'), { recursive: true });
     await writeFile(
       join(dir, 'content/posts/no-title.md'),
@@ -2700,7 +2700,7 @@ describe('loadContent parallel markdown loading is deterministic', () => {
   // string (e.g. `_index.md`) are refused at load time. Better than silently
   // shipping an unreachable post under an empty URL.
   test('throws when a filename slugifies to an empty string', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-empty-slug-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-empty-slug-'));
     await mkdir(join(dir, 'content/posts'), { recursive: true });
     await writeFile(
       join(dir, 'content/posts/_.md'),
@@ -2708,14 +2708,14 @@ describe('loadContent parallel markdown loading is deterministic', () => {
       'utf8',
     );
     const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
-    await expect(loadContent({ cwd: dir, config })).rejects.toThrow(NectarError);
+    await expect(loadContent({ cwd: dir, config })).rejects.toThrow(LaurelError);
   });
 
   // #860: a typo'd tag slug in frontmatter (e.g. `tags: [neews]`) used to
   // produce a phantom archive with no warning. The loader now warns once
   // per missing tag/author slug so the operator notices the orphan.
   test('warns once per auto-created tag and author slug missing a backing .md', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-auto-create-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-auto-create-'));
     await mkdir(join(dir, 'content/posts'), { recursive: true });
     // Two posts reference the same orphan tag/author — the warn should
     // emit once per slug, not once per reference.
@@ -2756,7 +2756,7 @@ describe('loadContent parallel markdown loading is deterministic', () => {
   });
 
   test('does not warn for internal hash-prefixed tags (Ghost workflow)', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'nectar-hash-tag-'));
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-hash-tag-'));
     await mkdir(join(dir, 'content/posts'), { recursive: true });
     await writeFile(
       join(dir, 'content/posts/a.md'),
@@ -2794,7 +2794,7 @@ describe('loadContent email_only frontmatter (#505)', () => {
   // them via `emailOnlyPosts` for opt-in stub emission downstream.
 
   test('email_only post is excluded from posts and indices, present in emailOnlyPosts', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-emailonly-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-emailonly-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/visible.md'),
@@ -2836,7 +2836,7 @@ Subscribers-only body.
   });
 
   test('email_only post url is rewritten to /email-only/<slug>/', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-emailonly-url-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-emailonly-url-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/issue-1.md'),
@@ -2856,7 +2856,7 @@ body
   });
 
   test('missing email_only defaults to false (regular post, present in posts)', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-emailonly-default-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-emailonly-default-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/plain.md'),
@@ -2876,7 +2876,7 @@ body
   });
 
   test('post exposes Ghost-compatible comment and newsletter metadata defaults', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-post-ghost-fields-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-post-ghost-fields-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/plain.md'),
@@ -2909,7 +2909,7 @@ body
   });
 
   test('post exposes imported Ghost newsletter card metadata and raw frontmatter deck', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-post-ghost-frontmatter-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-post-ghost-frontmatter-'));
     await mkdir(join(cwd, 'content/posts'), { recursive: true });
     await writeFile(
       join(cwd, 'content/posts/newsletter.md'),

@@ -56,7 +56,7 @@ function runList(asJson: boolean): number {
     return EXIT_CODES.ok;
   }
   if (BUNDLED_SKILLS.length === 0) {
-    process.stdout.write('No skills bundled with this Nectar build.\n');
+    process.stdout.write('No skills bundled with this Laurel build.\n');
     return EXIT_CODES.ok;
   }
   const slugWidth = BUNDLED_SKILLS.reduce((w, s) => Math.max(w, s.slug.length), 0);
@@ -104,7 +104,7 @@ async function runInstall(cwd: string, slugs: string[], formatArg: unknown): Pro
 
 async function runRemove(cwd: string, slugs: string[], formatArg: unknown): Promise<number> {
   if (slugs.length === 0) {
-    process.stderr.write('Usage: nectar skill remove <slug> [--format claude|codex|all]\n');
+    process.stderr.write('Usage: laurel skill remove <slug> [--format claude|codex|all]\n');
     return EXIT_CODES.usage;
   }
   const formats = resolveFormats(cwd, formatArg);

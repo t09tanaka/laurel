@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { type RoutesYaml, emptyRoutesYaml } from '~/build/routes-yaml.ts';
 import { planRoutes } from '~/build/routes.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/model.ts';
 import { createEngine } from '~/render/engine.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
@@ -48,7 +48,7 @@ function makeSite(): SiteData {
   } as unknown as SiteData;
 }
 
-function makeConfig(siteUrl = 'https://example.com'): NectarConfig {
+function makeConfig(siteUrl = 'https://example.com'): LaurelConfig {
   return {
     site: {
       title: 'Example',
@@ -72,7 +72,7 @@ function makeConfig(siteUrl = 'https://example.com'): NectarConfig {
     content: { dir: 'content' },
     build: { output_dir: 'dist', posts_per_page: 5, base_path: '' },
     components: {},
-  } as unknown as NectarConfig;
+  } as unknown as LaurelConfig;
 }
 
 function makePost(slug: string, overrides: Partial<Post> = {}): Post {
@@ -496,42 +496,42 @@ describe('planRoutes — multi-locale route prefixes', () => {
 describe('planRoutes — home meta title includes site description', () => {
   test('home meta.title combines site.title and site.description with em dash', () => {
     const config = makeConfig('https://example.com');
-    config.site.title = 'Nectar Example';
-    config.site.description = 'A demo blog built with Nectar against the Ghost Source theme';
+    config.site.title = 'Laurel Example';
+    config.site.description = 'A demo blog built with Laurel against the Ghost Source theme';
     const content = makeGraph({ posts: [makePost('a')] });
     const theme = makeTheme();
     const routes = planRoutes({ config, content, theme });
     const home = routes.find((r) => r.kind === 'home');
     expect(home?.meta.title).toBe(
-      'Nectar Example — A demo blog built with Nectar against the Ghost Source theme',
+      'Laurel Example — A demo blog built with Laurel against the Ghost Source theme',
     );
   });
 
   test('home meta.title falls back to site.title when description is empty', () => {
     const config = makeConfig('https://example.com');
-    config.site.title = 'Nectar Example';
+    config.site.title = 'Laurel Example';
     config.site.description = '';
     const content = makeGraph({ posts: [makePost('a')] });
     const theme = makeTheme();
     const routes = planRoutes({ config, content, theme });
     const home = routes.find((r) => r.kind === 'home');
-    expect(home?.meta.title).toBe('Nectar Example');
+    expect(home?.meta.title).toBe('Laurel Example');
   });
 
   test('home meta.title trims whitespace-only description before falling back', () => {
     const config = makeConfig('https://example.com');
-    config.site.title = 'Nectar Example';
+    config.site.title = 'Laurel Example';
     config.site.description = '   ';
     const content = makeGraph({ posts: [makePost('a')] });
     const theme = makeTheme();
     const routes = planRoutes({ config, content, theme });
     const home = routes.find((r) => r.kind === 'home');
-    expect(home?.meta.title).toBe('Nectar Example');
+    expect(home?.meta.title).toBe('Laurel Example');
   });
 
   test('paginated index pages do not include site.description in title', () => {
     const config = makeConfig('https://example.com');
-    config.site.title = 'Nectar Example';
+    config.site.title = 'Laurel Example';
     config.site.description = 'Demo blog';
     config.build.posts_per_page = 2;
     const posts = Array.from({ length: 5 }, (_, i) => makePost(`p${i}`));
@@ -539,7 +539,7 @@ describe('planRoutes — home meta title includes site description', () => {
     const theme = makeTheme();
     const routes = planRoutes({ config, content, theme });
     const page2 = routes.find((r) => r.kind === 'index' && r.url === '/page/2/');
-    expect(page2?.meta.title).toBe('Nectar Example - Page 2');
+    expect(page2?.meta.title).toBe('Laurel Example - Page 2');
   });
 });
 
@@ -1663,7 +1663,7 @@ describe('planRoutes — pagination URL prefix (#788)', () => {
     config.components = {
       ...(config.components ?? {}),
       pagination: { prefix: 'seite' },
-    } as NectarConfig['components'];
+    } as LaurelConfig['components'];
     const tag = makeTag('news');
     const author = makeAuthor('alice');
     const posts = makePosts(5).map((p) =>
@@ -1699,7 +1699,7 @@ describe('planRoutes — pagination URL prefix (#788)', () => {
     config.components = {
       ...(config.components ?? {}),
       pagination: { prefix: 'p' },
-    } as NectarConfig['components'];
+    } as LaurelConfig['components'];
     const content = makeGraph({ posts: makePosts(5) });
     const theme = makeTheme();
     const routes = planRoutes({ config, content, theme });
@@ -1754,7 +1754,7 @@ describe('planRoutes — min_posts_per_tag / min_posts_per_author (#152)', () =>
     config.components = {
       ...(config.components ?? {}),
       tags: { min_posts_per_tag: 0 },
-    } as NectarConfig['components'];
+    } as LaurelConfig['components'];
     const populated = makeTag('news');
     const empty = makeTag('legacy');
     const content = makeGraph({
@@ -1774,7 +1774,7 @@ describe('planRoutes — min_posts_per_tag / min_posts_per_author (#152)', () =>
     config.components = {
       ...(config.components ?? {}),
       tags: { min_posts_per_tag: 2 },
-    } as NectarConfig['components'];
+    } as LaurelConfig['components'];
     const popular = makeTag('news');
     const oneOff = makeTag('typo');
     const content = makeGraph({
@@ -1798,7 +1798,7 @@ describe('planRoutes — min_posts_per_tag / min_posts_per_author (#152)', () =>
     config.components = {
       ...(config.components ?? {}),
       authors: { min_posts_per_author: 0 },
-    } as NectarConfig['components'];
+    } as LaurelConfig['components'];
     const populated = makeAuthor('alice');
     const empty = makeAuthor('bob');
     const content = makeGraph({
@@ -1915,7 +1915,7 @@ describe('planRoutes — email_only posts (#505)', () => {
     config.build = {
       ...config.build,
       emit_email_only_stub: true,
-    } as NectarConfig['build'];
+    } as LaurelConfig['build'];
     const post = makePost('weekly-digest', { email_only: true });
     const content = graphWithEmailOnly([post]);
     const theme = makeTheme();
@@ -1933,7 +1933,7 @@ describe('planRoutes — email_only posts (#505)', () => {
     config.build = {
       ...config.build,
       emit_email_only_stub: true,
-    } as NectarConfig['build'];
+    } as LaurelConfig['build'];
     const post = makePost('issue-7', { email_only: true });
     const content = graphWithEmailOnly([post]);
     const theme = makeTheme();
@@ -1947,7 +1947,7 @@ describe('planRoutes — email_only posts (#505)', () => {
     config.build = {
       ...config.build,
       emit_email_only_stub: true,
-    } as NectarConfig['build'];
+    } as LaurelConfig['build'];
     const emailPost = makePost('newsletter-1', { email_only: true });
     const visible = makePost('public-1');
     const content = graphWithEmailOnly([emailPost], [visible]);

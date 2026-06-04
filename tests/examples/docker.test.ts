@@ -6,7 +6,7 @@ const root = join(import.meta.dir, '..', '..');
 const sampleDir = join(root, 'examples', 'docker');
 
 describe('examples/docker nginx-alpine sample', () => {
-  test('builds a slim nginx image from an already-built Nectar dist directory', async () => {
+  test('builds a slim nginx image from an already-built Laurel dist directory', async () => {
     const body = await readFile(join(sampleDir, 'Dockerfile'), 'utf8');
 
     expect(body).toContain('FROM nginx:1.27-alpine');
@@ -16,12 +16,12 @@ describe('examples/docker nginx-alpine sample', () => {
     expect(body).toContain('HEALTHCHECK CMD wget -q -O /dev/null http://localhost/healthz');
   });
 
-  test('builds Nectar inside a Bun stage before serving dist with nginx', async () => {
+  test('builds Laurel inside a Bun stage before serving dist with nginx', async () => {
     const body = await readFile(join(sampleDir, 'Dockerfile.multi-stage'), 'utf8');
 
     expect(body).toContain('FROM oven/bun AS build');
     expect(body).toContain('RUN bun install');
-    expect(body).toContain('RUN bunx nectar build');
+    expect(body).toContain('RUN bunx laurel build');
     expect(body).toContain('FROM nginx:1.27-alpine');
     expect(body).toContain('COPY nginx.conf /etc/nginx/conf.d/default.conf');
     expect(body).toContain('COPY --from=build /app/dist/ /usr/share/nginx/html/');
@@ -41,7 +41,7 @@ describe('examples/docker nginx-alpine sample', () => {
     expect(entries).toContain('dist/');
   });
 
-  test('serves Nectar static output with pretty URLs and the generated 404 page', async () => {
+  test('serves Laurel static output with pretty URLs and the generated 404 page', async () => {
     const body = await readFile(join(sampleDir, 'nginx.conf'), 'utf8');
 
     expect(body).toContain('listen 80;');
@@ -62,9 +62,9 @@ describe('examples/docker nginx-alpine sample', () => {
     expect(body).toContain('dockerfile: Dockerfile.multi-stage');
     expect(body).toContain('expose:');
     expect(body).toContain('- "80"');
-    expect(body).toContain('traefik.http.routers.nectar.rule');
-    expect(body).toContain('traefik.http.services.nectar.loadbalancer.server.port: "80"');
-    expect(body).toContain('reverse_proxy nectar:80');
+    expect(body).toContain('traefik.http.routers.laurel.rule');
+    expect(body).toContain('traefik.http.services.laurel.loadbalancer.server.port: "80"');
+    expect(body).toContain('reverse_proxy laurel:80');
     expect(body).toContain('external: true');
   });
 

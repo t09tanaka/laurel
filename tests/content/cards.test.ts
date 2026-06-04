@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { renderMarkdown } from '~/content/markdown.ts';
 
-// Smoke-test corpus for every Ghost / Koenig card type Nectar's
+// Smoke-test corpus for every Ghost / Koenig card type Laurel's
 // `renderMarkdown` is expected to round-trip. Each fixture under
 // `tests/fixtures/cards/<name>.md` documents the canonical input shape;
 // the regression assertions below pin the structural HTML output so a
@@ -33,7 +33,7 @@ describe('card fixture corpus', () => {
     const md = [
       'Intro paragraph.',
       '',
-      '<div class="nectar-card" id="wrapper"><figure id="hello-heading" class="kg-card kg-image-card kg-width-full"><img src="https://cdn.test/a.jpg" alt=""></figure></div>',
+      '<div class="laurel-card" id="wrapper"><figure id="hello-heading" class="kg-card kg-image-card kg-width-full"><img src="https://cdn.test/a.jpg" alt=""></figure></div>',
       '',
       '{{< audio src="https://cdn.test/audio.mp3" title="Episode" />}}',
       '',
@@ -50,7 +50,7 @@ describe('card fixture corpus', () => {
         '\n\n\n' +
         '<p>Outro paragraph.</p>\n',
     );
-    expect(html).not.toContain('nectar-card');
+    expect(html).not.toContain('laurel-card');
     expect(html).not.toContain('id="hello-heading"');
     expect(html).not.toMatch(/<[^>]*\bclass="[^"]*\bkg-card\b[^"]*"[^>]*\bid=/);
     expect(html).not.toMatch(/<[^>]*\bid="[^"]*"[^>]*\bclass="[^"]*\bkg-card\b/);
@@ -161,13 +161,13 @@ describe('card fixture corpus', () => {
     const { html } = await renderMarkdown(
       [
         '{{< figure src="https://cdn.test/cover.jpg" alt="Cover"',
-        'caption="Photo by **Jane** and [Nectar](https://nectar.test/about) ![tracking](https://evil.test/pixel.jpg)<figure><img src=https://evil.test/nested.jpg></figure>" />}}',
+        'caption="Photo by **Jane** and [Laurel](https://laurel.test/about) ![tracking](https://evil.test/pixel.jpg)<figure><img src=https://evil.test/nested.jpg></figure>" />}}',
       ].join(' '),
     );
 
     const figcaption = getFigcaptionHtml(html);
     expect(figcaption).toContain('<strong>Jane</strong>');
-    expect(figcaption).toContain('<a href="https://nectar.test/about">Nectar</a>');
+    expect(figcaption).toContain('<a href="https://laurel.test/about">Laurel</a>');
     expect(figcaption).not.toContain('<img');
     expect(figcaption).not.toContain('<figure');
   });
@@ -297,7 +297,7 @@ describe('card fixture corpus', () => {
       '{{< embed url="https://twitter.com/jack/status/20" provider="twitter" caption="Open on Twitter" />}}',
     );
     expect(html).toContain('class="kg-card kg-embed-card kg-width-regular kg-card-hascaption"');
-    expect(html).toContain('data-nectar-embed-provider="twitter"');
+    expect(html).toContain('data-laurel-embed-provider="twitter"');
     expect(html).toContain('class="kg-bookmark-container kg-embed-card-fallback"');
     expect(html).toContain('href="https://twitter.com/jack/status/20"');
     expect(html).toContain('Twitter/X embed');

@@ -4,7 +4,7 @@ export function renderDashboardHtml(): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nectar Dashboard</title>
+<title>Laurel Dashboard</title>
 <link rel="stylesheet" href="/assets/dashboard.css">
 <link rel="stylesheet" href="/api/themes/active/css">
 </head>

@@ -157,7 +157,7 @@ describe('cli import-ghost — --on-conflict', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-cli-')));
     exportFile = join(dir, 'export.json');
     await writeFile(exportFile, exportPayload());
   });
@@ -238,7 +238,7 @@ describe('cli import-ghost — folder input + --assets (#73)', () => {
   let exportFolder: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-cli-')));
     exportFolder = join(dir, 'ghost-export');
     await Bun.write(join(exportFolder, 'my-blog.ghost.2024-01-01.json'), exportPayload());
     await Bun.write(join(exportFolder, 'content/images/2024/cover.jpg'), 'COVER');
@@ -354,7 +354,7 @@ describe('cli import-ghost — input validation', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-validate-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-cli-validate-')));
   });
 
   afterEach(async () => {
@@ -406,7 +406,7 @@ describe('cli import-ghost — --dry-run (#502)', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-cli-')));
   });
 
   afterEach(async () => {
@@ -488,7 +488,7 @@ describe('cli import-ghost — partial filters (#809)', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-filters-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-cli-filters-')));
     exportFile = join(dir, 'export.json');
     await writeFile(exportFile, filteredExportPayload());
   });
@@ -581,7 +581,7 @@ describe('cli import-ghost — --output (#265)', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-output-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-cli-output-')));
     exportFile = join(dir, 'export.json');
     await writeFile(exportFile, exportPayload());
   });
@@ -631,7 +631,7 @@ describe('cli import-ghost — post progress (#810)', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-progress-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-cli-progress-')));
     exportFile = join(dir, 'large-export.json');
     await writeFile(exportFile, exportPayloadWithPosts(120));
   });
@@ -689,7 +689,7 @@ describe('cli import-ghost — --max-size (#558)', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-maxsize-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-cli-maxsize-')));
     exportFile = join(dir, 'export.json');
     await writeFile(exportFile, exportPayload());
   });
@@ -735,7 +735,7 @@ describe('cli import-ghost — --max-image-size (#239)', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-maximg-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-cli-maximg-')));
     exportFile = join(dir, 'export.json');
     await writeFile(exportFile, exportPayload());
   });
@@ -776,7 +776,7 @@ describe('cli import-ghost — --max-post-html-size (#1157)', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-maxhtml-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-cli-maxhtml-')));
     exportFile = join(dir, 'export.json');
     await writeFile(
       exportFile,
@@ -838,7 +838,7 @@ describe('cli import-ghost — --keep-code-injection (#561)', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-ci-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-cli-ci-')));
     exportFile = join(dir, 'export.json');
     await writeFile(
       exportFile,
@@ -915,7 +915,7 @@ describe('cli import-ghost — --keep-html (#808)', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-cli-html-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-cli-html-')));
     exportFile = join(dir, 'export.json');
     await writeFile(exportFile, exportPayload());
   });

@@ -1,4 +1,4 @@
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { type TextStreamWriter, writeTextAndGzipStreams } from './emit.ts';
 import { escapeXmlText } from './escaping.ts';
 import {
@@ -65,7 +65,7 @@ const SITEMAP_KIND_DEFAULTS: Record<
 const SITEMAP_UNCLASSIFIED_DEFAULT = { changefreq: 'monthly', priority: 0.5 } as const;
 
 export async function emitSitemap(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   outputDir: string;
   urls: SitemapEntry[];
   previousFeeds?: FeedManifestMap | undefined;
@@ -114,7 +114,7 @@ export async function emitSitemap(opts: {
 async function writeSitemapUrlsetWithCache(opts: {
   outputDir: string;
   filename: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   entries: SitemapEntry[];
   previousFeeds?: FeedManifestMap | undefined;
   nextFeeds?: FeedManifestMap | undefined;
@@ -148,7 +148,7 @@ async function writeSitemapIndexWithCache(opts: {
   outputDir: string;
   filename: string;
   entries: { loc: string; lastmod: string | undefined }[];
-  config: NectarConfig;
+  config: LaurelConfig;
   previousFeeds?: FeedManifestMap | undefined;
   nextFeeds?: FeedManifestMap | undefined;
 }): Promise<void> {
@@ -180,7 +180,7 @@ async function writeSitemapIndexWithCache(opts: {
 async function writeSitemapUrlset(
   writer: TextStreamWriter,
   entries: SitemapEntry[],
-  config: NectarConfig,
+  config: LaurelConfig,
 ): Promise<void> {
   const hasImages = entries.some((entry) =>
     (entry.images ?? []).some((image) => normalizeSitemapImageUrl(image.url, config)),
@@ -217,7 +217,7 @@ async function writeSitemapIndex(
   await writeSitemapDocumentClose(writer, 'sitemapindex');
 }
 
-function renderSitemapImages(images: SitemapImage[], config: NectarConfig): string[] {
+function renderSitemapImages(images: SitemapImage[], config: LaurelConfig): string[] {
   const blocks: string[] = [];
   for (const image of images) {
     const loc = normalizeSitemapImageUrl(image.url, config);
@@ -232,7 +232,7 @@ function renderSitemapImages(images: SitemapImage[], config: NectarConfig): stri
   return blocks;
 }
 
-function normalizeSitemapImageUrl(url: string, config: NectarConfig): string | undefined {
+function normalizeSitemapImageUrl(url: string, config: LaurelConfig): string | undefined {
   const trimmed = url.trim();
   if (!trimmed) return undefined;
   if (/^\/\//.test(trimmed)) return `https:${trimmed}`;
@@ -317,7 +317,7 @@ function sitemapKindFilename(kind: SitemapKind, page: number): string {
   return page === 1 ? `sitemap-${kind}.xml` : `sitemap-${kind}-${page}.xml`;
 }
 
-function sitemapHashConfig(config: NectarConfig): Record<string, unknown> {
+function sitemapHashConfig(config: LaurelConfig): Record<string, unknown> {
   return {
     siteUrl: config.site.url,
     basePath: config.build.base_path,

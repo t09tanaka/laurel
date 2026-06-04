@@ -7,7 +7,7 @@ import { buildNginxServerBlock, emitNginxConf, toNginxLocationHead } from '~/bui
 import { configSchema } from '~/config/schema.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-nginx-'));
+  return mkdtemp(join(tmpdir(), 'laurel-nginx-'));
 }
 
 const DEFAULT_HEADERS_CONFIG = configSchema.parse({ site: { title: 'x' } }).deploy.headers;
@@ -52,9 +52,9 @@ describe('buildNginxServerBlock', () => {
     expect(out.endsWith('\n')).toBe(true);
   });
 
-  test('defaults root to /var/www/nectar and server_name to `_` so the snippet is portable', () => {
+  test('defaults root to /var/www/laurel and server_name to `_` so the snippet is portable', () => {
     const out = buildNginxServerBlock({ headers: DEFAULT_HEADERS_CONFIG, rules: [] });
-    expect(out).toContain('    root /var/www/nectar;');
+    expect(out).toContain('    root /var/www/laurel;');
     expect(out).toContain('    server_name _;');
   });
 
@@ -76,7 +76,7 @@ describe('buildNginxServerBlock', () => {
     expect(out).not.toContain('expires ');
   });
 
-  test('uses Nectar 404.html as the internal nginx 404 response body', () => {
+  test('uses Laurel 404.html as the internal nginx 404 response body', () => {
     const out = buildNginxServerBlock({ headers: DEFAULT_HEADERS_CONFIG, rules: [] });
     const notFoundBlock = extractLocationBlock(out, 'location = /404.html');
 
@@ -288,10 +288,10 @@ describe('emitNginxConf', () => {
       rules: [],
     });
 
-    expect(existsSync(join(outputDir, '.nectar', 'nginx.conf'))).toBe(false);
+    expect(existsSync(join(outputDir, '.laurel', 'nginx.conf'))).toBe(false);
   });
 
-  test('writes nginx.conf under `.nectar/` rather than the publish root when enabled', async () => {
+  test('writes nginx.conf under `.laurel/` rather than the publish root when enabled', async () => {
     const outputDir = await makeOutputDir();
 
     await emitNginxConf({
@@ -301,7 +301,7 @@ describe('emitNginxConf', () => {
       rules: [],
     });
 
-    expect(existsSync(join(outputDir, '.nectar', 'nginx.conf'))).toBe(true);
+    expect(existsSync(join(outputDir, '.laurel', 'nginx.conf'))).toBe(true);
     // The bare publish root should never expose nginx.conf — nginx would
     // happily 200 it over HTTP if it lived alongside index.html.
     expect(existsSync(join(outputDir, 'nginx.conf'))).toBe(false);
@@ -317,14 +317,14 @@ describe('emitNginxConf', () => {
       rules: [{ from: '/old', to: '/new', status: 301, force: false }],
     });
 
-    const body = await readFile(join(outputDir, '.nectar', 'nginx.conf'), 'utf8');
+    const body = await readFile(join(outputDir, '.laurel', 'nginx.conf'), 'utf8');
     expect(body.endsWith('\n')).toBe(true);
     expect(body).toContain('server {');
     expect(body).toContain('}\n');
     expect(body).toContain('location = /old { return 301 /new; }');
   });
 
-  test('creates the `.nectar/` subdirectory when the output dir does not yet contain one', async () => {
+  test('creates the `.laurel/` subdirectory when the output dir does not yet contain one', async () => {
     const root = await makeOutputDir();
     const outputDir = join(root, 'nested', 'dist');
 
@@ -335,7 +335,7 @@ describe('emitNginxConf', () => {
       rules: [],
     });
 
-    expect(existsSync(join(outputDir, '.nectar', 'nginx.conf'))).toBe(true);
+    expect(existsSync(join(outputDir, '.laurel', 'nginx.conf'))).toBe(true);
   });
 
   test('threads the configured root and server_name into the emitted file', async () => {
@@ -350,9 +350,9 @@ describe('emitNginxConf', () => {
       serverName: 'blog.example.com',
     });
 
-    const body = await readFile(join(outputDir, '.nectar', 'nginx.conf'), 'utf8');
+    const body = await readFile(join(outputDir, '.laurel', 'nginx.conf'), 'utf8');
     expect(body).toContain('    root /srv/blog;');
     expect(body).toContain('    server_name blog.example.com;');
-    expect(body).toContain('#   include /srv/blog/.nectar/nginx.conf;');
+    expect(body).toContain('#   include /srv/blog/.laurel/nginx.conf;');
   });
 });

@@ -19,7 +19,7 @@ async function makeMinimalThemePkg(themeDir: string): Promise<void> {
 
 describe('loadTheme symlink protection', () => {
   test('skips symlinked .hbs templates and partials, and symlinked locale files', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-load-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-load-'));
     const themeDir = join(cwd, 'themes', 'sym');
     await mkdir(join(themeDir, 'partials'), { recursive: true });
     await mkdir(join(themeDir, 'locales'), { recursive: true });
@@ -30,7 +30,7 @@ describe('loadTheme symlink protection', () => {
     await writeFile(join(themeDir, 'partials', 'real.hbs'), '<span>real</span>');
     await writeFile(join(themeDir, 'locales', 'en.json'), '{"hello":"hi"}');
 
-    const outside = await mkdtemp(join(tmpdir(), 'nectar-outside-'));
+    const outside = await mkdtemp(join(tmpdir(), 'laurel-outside-'));
     const secretTemplate = join(outside, 'secret.hbs');
     const secretPartial = join(outside, 'secret-partial.hbs');
     const secretLocale = join(outside, 'secret.json');

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Cross-cutting integration tests for `nectar serve` (#663 / #692).
+// Cross-cutting integration tests for `laurel serve` (#663 / #692).
 // Per-feature serve behaviour (host binding, watch mode, auto-build) lives in
 // tests/cli/commands/serve.test.ts; here we only verify help/version output and
 // a short-lived spawn that is terminated by SIGINT (smoke regression for the
@@ -61,8 +61,8 @@ async function readUntil(
 }
 
 async function makeServeFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-serve-int-')));
-  await Bun.write(join(dir, 'nectar.toml'), '[site]\ntitle = "x"\n');
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-serve-int-')));
+  await Bun.write(join(dir, 'laurel.toml'), '[site]\ntitle = "x"\n');
   await Bun.write(join(dir, 'dist/index.html'), '<!doctype html><title>ok</title>');
   return dir;
 }

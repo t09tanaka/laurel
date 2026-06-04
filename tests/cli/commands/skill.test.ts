@@ -23,7 +23,7 @@ describe('cli skill', () => {
   let cwd: string;
 
   beforeEach(async () => {
-    cwd = await mkdtemp(join(tmpdir(), 'nectar-skill-cmd-'));
+    cwd = await mkdtemp(join(tmpdir(), 'laurel-skill-cmd-'));
   });
 
   afterEach(async () => {

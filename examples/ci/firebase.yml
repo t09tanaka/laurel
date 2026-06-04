@@ -1,11 +1,11 @@
-# Deploy a Nectar site to Firebase Hosting.
+# Deploy a Laurel site to Firebase Hosting.
 #
 # Copy this file to .github/workflows/firebase.yml in your repo. In Firebase,
 # initialize Hosting once, then add these repository settings:
 #   - secret FIREBASE_SERVICE_ACCOUNT  (created by `firebase init hosting:github`)
 #   - variable FIREBASE_PROJECT_ID     (your Firebase project ID)
 #
-# Enable the Nectar Firebase emitter before using this workflow:
+# Enable the Laurel Firebase emitter before using this workflow:
 #
 #   [deploy.firebase]
 #   enabled = true
@@ -46,7 +46,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build site
-        run: bunx nectar build
+        run: bunx laurel build
 
       - name: Verify Firebase Hosting config
         run: test -f dist/firebase.json

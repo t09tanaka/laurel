@@ -24,14 +24,14 @@ async function runCli(args: string[], cwd?: string): Promise<RunResult> {
 }
 
 async function makeFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-export-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-export-')));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
   await mkdir(join(dir, 'content/images'), { recursive: true });
   await mkdir(join(dir, 'content/tags'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Export Test Site"',
@@ -130,14 +130,14 @@ describe('cli export', () => {
       const { stdout, exitCode } = await runCli(['export', 'json'], dir);
       expect(exitCode).toBe(0);
       const parsed = JSON.parse(stdout) as {
-        nectar: { schema: string };
+        laurel: { schema: string };
         site: { title: string; url: string };
         posts: Array<{ slug: string; title: string; tags: string[] }>;
         pages: Array<{ slug: string; title: string }>;
         tags: Array<{ slug: string }>;
         authors: Array<{ slug: string }>;
       };
-      expect(parsed.nectar.schema).toBe('nectar.export.v1');
+      expect(parsed.laurel.schema).toBe('laurel.export.v1');
       expect(parsed.site.title).toBe('Export Test Site');
       expect(parsed.site.url).toBe('https://export.test');
       expect(parsed.posts.length).toBe(1);
@@ -254,7 +254,7 @@ describe('cli export', () => {
           '',
         ].join('\n'),
       );
-      const outPath = join(dir, 'hello-world.nectar.zip');
+      const outPath = join(dir, 'hello-world.laurel.zip');
       const { stdout, stderr, exitCode } = await runCli(
         ['export', 'entry', 'hello-world', '--output', outPath],
         dir,
@@ -291,7 +291,7 @@ describe('cli export', () => {
           '',
         ].join('\n'),
       );
-      const outPath = join(dir, 'about.nectar.zip');
+      const outPath = join(dir, 'about.laurel.zip');
       const { stderr, exitCode } = await runCli(
         ['export', 'entry', 'about', '--kind', 'page', '--output', outPath],
         dir,
@@ -309,7 +309,7 @@ describe('cli export', () => {
     }
   });
 
-  test('export entry defaults output to <slug>.nectar.zip in cwd', async () => {
+  test('export entry defaults output to <slug>.laurel.zip in cwd', async () => {
     const dir = await makeFixture();
     try {
       const { stderr, exitCode } = await runCli(['export', 'entry', 'hello-world'], dir);
@@ -318,7 +318,7 @@ describe('cli export', () => {
       // export carries it along and notes it on stderr.
       expect(stderr).toContain('Bundled 1 tag definition(s): release');
       const bytes = new Uint8Array(
-        await Bun.file(join(dir, 'hello-world.nectar.zip')).arrayBuffer(),
+        await Bun.file(join(dir, 'hello-world.laurel.zip')).arrayBuffer(),
       );
       const bundle = parseEntryBundleZip(bytes);
       expect(bundle.slug).toBe('hello-world');
@@ -333,7 +333,7 @@ describe('cli export', () => {
     try {
       // Remove the asset so it becomes omitted
       await rm(join(dir, 'content/images/about.txt'));
-      const outPath = join(dir, 'about.nectar.zip');
+      const outPath = join(dir, 'about.laurel.zip');
       const { stderr, exitCode } = await runCli(
         ['export', 'entry', 'about', '--kind', 'page', '--output', outPath],
         dir,
@@ -379,7 +379,7 @@ describe('cli export', () => {
   test('export components writes a zip of every component to --output', async () => {
     const dir = await makeFixture();
     await seedComponents(dir);
-    const outPath = join(dir, 'out', 'components.nectar.zip');
+    const outPath = join(dir, 'out', 'components.laurel.zip');
     try {
       const { stderr, exitCode } = await runCli(['export', 'components', '--output', outPath], dir);
       expect(exitCode).toBe(0);
@@ -395,7 +395,7 @@ describe('cli export', () => {
   test('export components --slugs selects a subset and warns on unknown', async () => {
     const dir = await makeFixture();
     await seedComponents(dir);
-    const outPath = join(dir, 'subset.nectar.zip');
+    const outPath = join(dir, 'subset.laurel.zip');
     try {
       const { stderr, exitCode } = await runCli(
         ['export', 'components', '--slugs', 'callout,ghost', '--output', outPath],
@@ -409,13 +409,13 @@ describe('cli export', () => {
     }
   });
 
-  test('export components defaults output to components.nectar.zip in cwd', async () => {
+  test('export components defaults output to components.laurel.zip in cwd', async () => {
     const dir = await makeFixture();
     await seedComponents(dir);
     try {
       const { exitCode } = await runCli(['export', 'components'], dir);
       expect(exitCode).toBe(0);
-      const bytes = new Uint8Array(await readFile(join(dir, 'components.nectar.zip')));
+      const bytes = new Uint8Array(await readFile(join(dir, 'components.laurel.zip')));
       expect(bytes.byteLength).toBeGreaterThan(0);
     } finally {
       await rm(dir, { recursive: true, force: true });

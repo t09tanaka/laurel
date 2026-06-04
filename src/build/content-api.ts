@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { htmlToPlaintext } from '~/content/markdown.ts';
 import type { Author, ContentGraph, Page, Post, SiteData, Tag } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
-import { getNectarVersion } from '~/util/nectar-version.ts';
+import { getLaurelVersion } from '~/util/laurel-version.ts';
 import { absoluteUrl, absoluteUrlWithBasePath } from '~/util/url.ts';
 import { buildContentApiNotFoundEnvelope } from './api/errors.ts';
 import { projectPagination } from './api/pagination.ts';
@@ -32,7 +32,7 @@ import { buildContentApiHeadersBody, buildContentApiHtaccessBody } from './heade
 //   content/newsletters.json                 — empty newsletter stub
 //   content/settings.json                    — site settings singleton
 //   content/404.json                         — Ghost-shaped 404 error envelope
-//   .well-known/ghost.json                   — Nectar/Ghost-compatible discovery
+//   .well-known/ghost.json                   — Laurel/Ghost-compatible discovery
 //
 // Pre-baked tag shards exist because arbitrary Ghost NQL filtering needs a
 // server. Operators who need a different filter can shape it client-side off
@@ -299,9 +299,9 @@ async function writeSettingsDump(outputDir: string, site: SiteData): Promise<voi
 }
 
 async function writeServiceDiscovery(outputDir: string, basePath: string): Promise<void> {
-  const version = await getNectarVersion();
+  const version = await getLaurelVersion();
   await writeJson(join(outputDir, '.well-known', 'ghost.json'), {
-    generator: 'nectar',
+    generator: 'laurel',
     version,
     ghost_api_version: 'v5.0',
     endpoints: {
@@ -314,11 +314,11 @@ async function writeServiceDiscovery(outputDir: string, basePath: string): Promi
 async function writeContentApiKeyRegistry(outputDir: string, enabled: boolean): Promise<void> {
   if (!enabled) return;
   await writeJson(join(outputDir, '.well-known', 'ghost-content-keys.json'), {
-    generator: 'nectar',
+    generator: 'laurel',
     mode: 'static',
     accepts_any_key: true,
     validation: 'disabled',
-    note: 'Nectar emits static Ghost Content API JSON and does not validate ?key= values at runtime.',
+    note: 'Laurel emits static Ghost Content API JSON and does not validate ?key= values at runtime.',
   });
 }
 
@@ -472,7 +472,7 @@ function serializeSettings(site: SiteData): Record<string, unknown> {
     // here to keep API consumers happy.
     secondary_navigation: site.secondary_navigation ?? [],
     // Members-related fields are intentionally hardcoded false / empty:
-    // Nectar is static-only and never authenticates members.
+    // Laurel is static-only and never authenticates members.
     members_enabled: false,
     paid_members_enabled: false,
     members_invite_only: false,

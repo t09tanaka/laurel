@@ -1,7 +1,7 @@
 Run content-level lint checks (titles, alt text, broken local links, future dates, duplicate slugs, malformed frontmatter)
 
 Usage:
-  nectar lint [--config <path>] [--json] [--strict] [--max-title-length <n>]
+  laurel lint [--config <path>] [--json] [--strict] [--max-title-length <n>]
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -11,9 +11,9 @@ Options:
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --config → NECTAR_LINT_CONFIG
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → LAUREL_LINT_CONFIG
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -21,7 +21,7 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar lint                                  # warn-level summary table
-  nectar lint --strict                         # exit non-zero on any warning
-  nectar lint --json | jq                      # CI-friendly findings stream
-  nectar lint --max-title-length 60
+  laurel lint                                  # warn-level summary table
+  laurel lint --strict                         # exit non-zero on any warning
+  laurel lint --json | jq                      # CI-friendly findings stream
+  laurel lint --max-title-length 60

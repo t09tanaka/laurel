@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 
 interface MissingAssetReference {
@@ -16,7 +16,7 @@ export function findMissingAssetReferences({
   outputDir,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   outputDir?: string | undefined;
 }): MissingAssetReference[] {

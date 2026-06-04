@@ -4,10 +4,10 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { emitTierWelcomePages } from '~/build/tier-welcome-pages.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { Tier } from '~/content/model.ts';
 
-function makeConfig(overrides: Partial<NectarConfig> = {}): NectarConfig {
+function makeConfig(overrides: Partial<LaurelConfig> = {}): LaurelConfig {
   return {
     site: {
       title: 'Example',
@@ -17,7 +17,7 @@ function makeConfig(overrides: Partial<NectarConfig> = {}): NectarConfig {
     },
     build: { base_path: '/', output_dir: 'dist' },
     ...overrides,
-  } as unknown as NectarConfig;
+  } as unknown as LaurelConfig;
 }
 
 function makeTier(overrides: Partial<Tier> = {}): Tier {
@@ -41,7 +41,7 @@ function makeTier(overrides: Partial<Tier> = {}): Tier {
 
 describe('emitTierWelcomePages', () => {
   test('emits a default free-tier welcome page', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-tier-welcome-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-tier-welcome-'));
     try {
       const emitted = await emitTierWelcomePages({
         config: makeConfig(),
@@ -60,10 +60,10 @@ describe('emitTierWelcomePages', () => {
   });
 
   test('honours safe root-relative welcome_page_url and skips reserved routes', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-tier-welcome-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-tier-welcome-'));
     try {
       const emitted = await emitTierWelcomePages({
-        config: makeConfig({ build: { base_path: '/blog/', output_dir: 'dist' } } as NectarConfig),
+        config: makeConfig({ build: { base_path: '/blog/', output_dir: 'dist' } } as LaurelConfig),
         outputDir,
         tiers: [makeTier({ slug: 'supporter', welcome_page_url: '/members/welcome' })],
         reservedOutputPaths: new Set(['welcome/free/index.html']),
@@ -79,7 +79,7 @@ describe('emitTierWelcomePages', () => {
   });
 
   test('does not emit external, unsafe, or route-owned welcome pages', async () => {
-    const outputDir = await mkdtemp(join(tmpdir(), 'nectar-tier-welcome-'));
+    const outputDir = await mkdtemp(join(tmpdir(), 'laurel-tier-welcome-'));
     try {
       const emitted = await emitTierWelcomePages({
         config: makeConfig(),

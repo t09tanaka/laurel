@@ -30,7 +30,7 @@ describe('cli import-hugo/import-jekyll', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-static-cli-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-static-cli-')));
   });
 
   afterEach(async () => {

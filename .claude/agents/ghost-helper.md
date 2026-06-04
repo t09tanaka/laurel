@@ -1,6 +1,6 @@
 ---
 name: ghost-helper
-description: Use proactively when implementing or debugging a Ghost theme helper. Checks Ghost's reference implementation, the helper's documented contract, and existing Nectar helpers, then proposes a self-contained implementation.
+description: Use proactively when implementing or debugging a Ghost theme helper. Checks Ghost's reference implementation, the helper's documented contract, and existing Laurel helpers, then proposes a self-contained implementation.
 tools: [Read, Glob, Grep, WebFetch, Bash]
 ---
 

@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ContentGraph, Page, Post } from '~/content/model.ts';
 import { ensureDir } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
@@ -48,7 +48,7 @@ async function loadResvg(): Promise<ResvgConstructor | null> {
 
 interface GenerateOgImagesOptions {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   outputDir: string;
 }

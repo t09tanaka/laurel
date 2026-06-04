@@ -7,7 +7,7 @@ import { gfmHeadingId } from 'marked-gfm-heading-id';
 import sanitizeHtml, { type IOptions } from 'sanitize-html';
 import { codeToHtml } from 'shiki';
 import { stripGhostUrlPlaceholder } from '~/ghost/url-placeholder.ts';
-import { NectarError, suggestClosest } from '~/util/errors.ts';
+import { LaurelError, suggestClosest } from '~/util/errors.ts';
 import { promoteImagesToFigures } from './figure-images.ts';
 import { GALLERY_IMAGE_SIZES } from './gallery-images.ts';
 import { cjkFriendlyEmphasis } from './markdown-cjk-emphasis.ts';
@@ -121,7 +121,7 @@ const sanitizeOptions: IOptions = {
     ],
     audio: ['src', 'controls', 'preload', 'loop'],
     track: ['src', 'kind', 'srclang', 'label', 'default'],
-    figure: ['class', 'data-nectar-embed-provider', 'role', 'aria-labelledby'],
+    figure: ['class', 'data-laurel-embed-provider', 'role', 'aria-labelledby'],
     details: ['open'],
     pre: ['class', 'style', 'tabindex'],
     code: ['class', 'style'],
@@ -129,7 +129,7 @@ const sanitizeOptions: IOptions = {
     h2: ['style', 'data-text-color'],
     h3: ['style', 'data-text-color'],
     p: ['style', 'data-text-color'],
-    form: ['class', 'data-members-form', 'data-nectar-subscribe', 'method'],
+    form: ['class', 'data-members-form', 'data-laurel-subscribe', 'method'],
     input: [
       'class',
       'type',
@@ -282,7 +282,7 @@ export async function renderMarkdown(
   const stripped = stripGhostUrlPlaceholder(body);
   const shortcodeDiagnostic = findMalformedKoenigShortcode(stripped);
   if (shortcodeDiagnostic) {
-    throw new NectarError({
+    throw new LaurelError({
       message: malformedKoenigShortcodeMessage(shortcodeDiagnostic),
       line: shortcodeDiagnostic.line,
       col: shortcodeDiagnostic.col,
@@ -292,7 +292,7 @@ export async function renderMarkdown(
   }
   const validationDiagnostic = findInvalidKoenigShortcode(stripped);
   if (validationDiagnostic) {
-    throw new NectarError({
+    throw new LaurelError({
       message: invalidKoenigShortcodeMessage(validationDiagnostic),
       line: validationDiagnostic.line,
       col: validationDiagnostic.col,
@@ -511,14 +511,14 @@ function relinkSiblings(nodes: ChildNode[]): void {
 
 // Ghost's editor emits newsletter/member-related card wrappers that need
 // different web-build treatment:
-//   - `kg-email-card`: email-only body content. Static Nectar output has no
+//   - `kg-email-card`: email-only body content. Static Laurel output has no
 //     authenticated newsletter renderer, so this content must never reach
 //     public HTML, plaintext, excerpts, or feeds.
 //   - `kg-email-cta-card`: email-only CTA. The same content is rendered into
 //     the newsletter email but should never reach the web (Ghost hides it
 //     server-side; in a static build we strip at render time so anonymous web
 //     readers never see "Get this in your inbox" duplicated below every post).
-//   - `kg-signup-card`: portal signup widget. Nectar preserves the form shell
+//   - `kg-signup-card`: portal signup widget. Laurel preserves the form shell
 //     and stamps the Ghost members hooks that imports can omit so the build-time
 //     subscribe adapter can wire it to a configured static provider.
 //   - `kg-paywall-card`: Koenig's drag-in paywall marker. The loader's paywall
@@ -621,7 +621,7 @@ function htmlAttribute(tag: string, attr: string): string | undefined {
   return value.toLowerCase();
 }
 
-// `nectar import-ghost` round-trips Ghost's Koenig cards through Turndown by
+// `laurel import-ghost` round-trips Ghost's Koenig cards through Turndown by
 // emitting self-describing shortcodes (see `src/ghost/turndown-rules.ts`).
 // Without an expansion step here, the shortcode survives as literal text in
 // the rendered HTML, the theme's `kg-bookmark-card` CSS never matches, and the
@@ -648,7 +648,7 @@ const TOGGLE_SHORTCODE_RE =
 const LIQUID_TOGGLE_SHORTCODE_RE =
   /\{%\s+toggle((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*%\}([\s\S]*?)\{%\s*\/toggle\s*%\}/g;
 const TOGGLE_DIRECTIVE_COMMENT_RE =
-  /<!--NECTAR-KOENIG-TOGGLE-OPEN:([^>]*)-->|<!--NECTAR-KOENIG-TOGGLE-CLOSE-->/g;
+  /<!--LAUREL-KOENIG-TOGGLE-OPEN:([^>]*)-->|<!--LAUREL-KOENIG-TOGGLE-CLOSE-->/g;
 
 // Block-form `{{< callout emoji="💡" color="blue" >}}body markdown{{< /callout >}}`.
 // Ghost themes (Casper, Source) target `kg-callout-card` + an optional
@@ -659,7 +659,7 @@ const CALLOUT_SHORTCODE_RE =
 const LIQUID_CALLOUT_SHORTCODE_RE =
   /\{%\s+callout((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*%\}([\s\S]*?)\{%\s*\/callout\s*%\}/g;
 const CALLOUT_DIRECTIVE_COMMENT_RE =
-  /<!--NECTAR-KOENIG-CALLOUT-OPEN:([^>]*)-->|<!--NECTAR-KOENIG-CALLOUT-CLOSE-->/g;
+  /<!--LAUREL-KOENIG-CALLOUT-OPEN:([^>]*)-->|<!--LAUREL-KOENIG-CALLOUT-CLOSE-->/g;
 
 const CODE_SHORTCODE_RE =
   /\{\{<\s+code((?:\s+[a-zA-Z][\w-]*="(?:\\.|[^"\\])*")*)\s*>\}\}([\s\S]*?)\{\{<\s*\/code\s*>\}\}/g;
@@ -1228,7 +1228,7 @@ function renderFigureHtml(attrs: Record<string, string>): string {
 
 function isGifUrl(src: string): boolean {
   try {
-    const url = new URL(src, 'https://nectar.invalid');
+    const url = new URL(src, 'https://laurel.invalid');
     return url.pathname.toLowerCase().endsWith('.gif');
   } catch {
     return src.split(/[?#]/, 1)[0]?.toLowerCase().endsWith('.gif') === true;
@@ -1422,7 +1422,7 @@ function renderEmbedFallbackLink(
   const href = provider === 'twitter' && truthyShortcodeAttr(attrs.dnt) ? twitterDntUrl(url) : url;
   const providerName = embedProviderLabel(provider);
   const providerAttr = scriptHydratedEmbedProvider(provider)
-    ? ` data-nectar-embed-provider="${escapeHtmlAttr(provider)}"`
+    ? ` data-laurel-embed-provider="${escapeHtmlAttr(provider)}"`
     : '';
   const title = attrs.title || (providerName ? `${providerName} embed` : 'Embedded link');
   const description = providerName
@@ -1574,7 +1574,7 @@ function safeEmbedPathToken(value: string): string {
 function renderToggleDirective(attrs: Record<string, string>, body: string): string {
   const encodedAttrs = encodeURIComponent(JSON.stringify(attrs));
   const innerMarkdown = expandKoenigShortcodes(body.trim());
-  return `\n\n<!--NECTAR-KOENIG-TOGGLE-OPEN:${encodedAttrs}-->\n\n${innerMarkdown}\n\n<!--NECTAR-KOENIG-TOGGLE-CLOSE-->\n\n`;
+  return `\n\n<!--LAUREL-KOENIG-TOGGLE-OPEN:${encodedAttrs}-->\n\n${innerMarkdown}\n\n<!--LAUREL-KOENIG-TOGGLE-CLOSE-->\n\n`;
 }
 
 function renderToggleOpenHtml(attrs: Record<string, string>): string {
@@ -1588,7 +1588,7 @@ function renderToggleOpenHtml(attrs: Record<string, string>): string {
 }
 
 function restoreKoenigToggleDirectives(html: string): string {
-  if (!html.includes('NECTAR-KOENIG-TOGGLE')) return html;
+  if (!html.includes('LAUREL-KOENIG-TOGGLE')) return html;
   let openToggles = 0;
   return html.replace(TOGGLE_DIRECTIVE_COMMENT_RE, (match, encodedAttrs: string | undefined) => {
     if (encodedAttrs === undefined) {
@@ -1632,11 +1632,11 @@ function calloutEmojiSlotHtml(attrs: Record<string, string>): string {
 function renderCalloutDirective(attrs: Record<string, string>, body: string): string {
   const encodedAttrs = encodeURIComponent(JSON.stringify(attrs));
   const innerMarkdown = body.trim();
-  return `\n\n<!--NECTAR-KOENIG-CALLOUT-OPEN:${encodedAttrs}-->\n\n${innerMarkdown}\n\n<!--NECTAR-KOENIG-CALLOUT-CLOSE-->\n\n`;
+  return `\n\n<!--LAUREL-KOENIG-CALLOUT-OPEN:${encodedAttrs}-->\n\n${innerMarkdown}\n\n<!--LAUREL-KOENIG-CALLOUT-CLOSE-->\n\n`;
 }
 
 function restoreKoenigCalloutDirectives(html: string): string {
-  if (!html.includes('NECTAR-KOENIG-CALLOUT')) return html;
+  if (!html.includes('LAUREL-KOENIG-CALLOUT')) return html;
   let openCallouts = 0;
   return html.replace(CALLOUT_DIRECTIVE_COMMENT_RE, (match, encodedAttrs: string | undefined) => {
     if (encodedAttrs === undefined) {
@@ -2158,7 +2158,7 @@ function countWords(text: string, locale: string | undefined): number {
 // Ghost's 275 wpm rate is calibrated for whitespace-separated languages. For
 // CJK scripts the meaningful unit is the character (kanji/kana/hanzi/hangul
 // syllable), and typical silent reading speed is around 500 characters per
-// minute. We pick the rule from the configured site locale so a single nectar
+// minute. We pick the rule from the configured site locale so a single laurel
 // build emits one consistent reading_time per locale.
 const CJK_LANGS = new Set(['ja', 'zh', 'ko']);
 const WORDS_PER_MINUTE = 275;

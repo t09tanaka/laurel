@@ -31,7 +31,7 @@ export async function runCache(args: string[]): Promise<number> {
 
   const sub = parsed.positionals[0];
   const cwd = process.cwd();
-  const cacheDir = resolve(cwd, '.nectar/cache');
+  const cacheDir = resolve(cwd, '.laurel/cache');
   const asJson = parsed.values.json === true;
 
   if (sub === 'dir') {

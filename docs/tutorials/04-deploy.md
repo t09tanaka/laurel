@@ -2,13 +2,13 @@
 
 **Goal:** `dist/` live on the internet, rebuilt on every Git push.
 
-Nectar emits plain static files. Any static host or web server will serve
+Laurel emits plain static files. Any static host or web server will serve
 them. The configs below are the minimum to get a working CI build on each
 major free-tier host, plus Render Static Sites, DigitalOcean App Platform,
 Firebase Hosting, AWS-native S3 + CloudFront, Bunny.net Storage + CDN, and
 self-hosted nginx quickstarts. Docker is covered as both a runtime wrapper
 around a pre-built `dist/` directory and a multi-stage Bun build + nginx serve
-image; Nectar ships
+image; Laurel ships
 [`examples/docker/Dockerfile`](../../examples/docker/Dockerfile),
 [`examples/docker/Dockerfile.multi-stage`](../../examples/docker/Dockerfile.multi-stage),
 [`examples/docker/.dockerignore`](../../examples/docker/.dockerignore), and
@@ -16,12 +16,12 @@ image; Nectar ships
 reverse-proxy compose snippet at
 [`examples/docker/docker-compose.yml`](../../examples/docker/docker-compose.yml).
 Fly.io is covered as a container runtime around that pre-built output, using
-Nectar's generated `dist/.nectar/nginx.conf` for redirects and headers.
+Laurel's generated `dist/.laurel/nginx.conf` for redirects and headers.
 
 **Universal pre-flight:**
 
 ```bash
-bunx nectar build        # confirm a green build locally first
+bunx laurel build        # confirm a green build locally first
 ls dist/                 # sanity-check the output
 ```
 
@@ -30,7 +30,7 @@ Git repo on GitHub, GitLab, or wherever your chosen host integrates with.
 `init` already wrote a sensible `.gitignore`.
 
 If you deploy to a path other than `/` (e.g. `https://example.com/blog/`),
-set `[build] base_path = "/blog/"` in `nectar.toml` and update `[site] url`
+set `[build] base_path = "/blog/"` in `laurel.toml` and update `[site] url`
 accordingly.
 
 ---
@@ -49,20 +49,20 @@ For the focused Docker guide, including the sample
 and nginx config caveats, see
 [`docs/deploy/docker.md`](../deploy/docker.md).
 
-Nectar does not build inside a container by default. Build first, then mount
+Laurel does not build inside a container by default. Build first, then mount
 `dist/` into an external nginx container:
 
 ```bash
-bunx nectar build
+bunx laurel build
 docker run --rm \
-  --name nectar-static \
+  --name laurel-static \
   -p 8080:80 \
   -v "$PWD/dist:/usr/share/nginx/html:ro" \
   nginx:alpine
 ```
 
 Open `http://localhost:8080/`. This minimal command uses nginx's stock config,
-so it does not apply Nectar-generated redirects, cache headers, or security
+so it does not apply Laurel-generated redirects, cache headers, or security
 headers. For a reusable image, copy `examples/docker/Dockerfile` and
 `examples/docker/nginx.conf` into your project root after building `dist/`,
 then run `docker build`.
@@ -71,7 +71,7 @@ If your host expects the Docker build itself to install dependencies and build
 the site, copy
 [`examples/docker/Dockerfile.multi-stage`](../../examples/docker/Dockerfile.multi-stage)
 and [`examples/docker/.dockerignore`](../../examples/docker/.dockerignore)
-instead. It runs `bun install`, `bunx nectar build`, then copies the generated
+instead. It runs `bun install`, `bunx laurel build`, then copies the generated
 `dist/` into the same nginx runtime image while leaving host-local `.git/`,
 `node_modules/`, and `dist/` out of the build context.
 
@@ -80,11 +80,11 @@ For a closer self-hosted nginx setup, enable the existing nginx emitter:
 ```toml
 [deploy.nginx]
 enabled = true
-root = "/var/www/nectar"
+root = "/var/www/laurel"
 server_name = "_"
 ```
 
-Then rebuild and use `dist/.nectar/nginx.conf` with an nginx image compatible
+Then rebuild and use `dist/.laurel/nginx.conf` with an nginx image compatible
 with the generated directives. The generated config includes `brotli_static`;
 the stock `nginx:alpine` image may not include that module, so treat the
 default-config command above as the portable smoke test.
@@ -94,7 +94,7 @@ default-config command above as the portable smoke test.
 ## Fly.io
 
 **Recommended for:** teams that want Fly's container rollout model, regions,
-and TLS while serving a static Nectar build.
+and TLS while serving a static Laurel build.
 
 For the focused Fly guide, including the generated nginx config flow, see
 [`docs/deploy/fly.md`](../deploy/fly.md).
@@ -117,7 +117,7 @@ cp examples/fly/Dockerfile Dockerfile
 ```
 
 The sample `Dockerfile` serves the already-built `dist/` directory with nginx
-and copies `dist/.nectar/nginx.conf` into `/etc/nginx/conf.d/default.conf`.
+and copies `dist/.laurel/nginx.conf` into `/etc/nginx/conf.d/default.conf`.
 That generated config translates `redirects.yaml` and `[deploy.headers]` into
 nginx rules for Fly. The checked-in `examples/fly/nginx.conf` remains available
 only as a static fallback if you intentionally do not enable `[deploy.nginx]`.
@@ -132,7 +132,7 @@ Then edit `app` and `primary_region` in `fly.toml`. The sample points Fly's
 HTTP service at nginx port 80:
 
 ```toml
-app = "my-nectar-site"
+app = "my-laurel-site"
 primary_region = "sjc"
 
 [build]
@@ -154,7 +154,7 @@ primary_region = "sjc"
 ```
 
 The Fly check targets nginx's lightweight `/healthz` endpoint, which the
-generated `dist/.nectar/nginx.conf` serves with `200 ok`.
+generated `dist/.laurel/nginx.conf` serves with `200 ok`.
 
 Copy [`examples/ci/fly.yml`](../../examples/ci/fly.yml) to
 `.github/workflows/fly.yml`, add repository secret `FLY_API_TOKEN`, and push
@@ -172,7 +172,7 @@ should serve `.br` sidecars directly.
 
 **Recommended for:** global CDN edge, generous free tier, zero config.
 
-For the full Cloudflare-specific guide, including `nectar deploy cloudflare`,
+For the full Cloudflare-specific guide, including `laurel deploy cloudflare`,
 see [`docs/deploy/cloudflare-pages.md`](../deploy/cloudflare-pages.md).
 
 1. Cloudflare dashboard → **Workers & Pages → Create → Pages → Connect to Git**.
@@ -181,7 +181,7 @@ see [`docs/deploy/cloudflare-pages.md`](../deploy/cloudflare-pages.md).
    | Field                    | Value                       |
    | ------------------------ | --------------------------- |
    | Framework preset         | *None*                      |
-   | Build command            | `bunx nectar build`         |
+   | Build command            | `bunx laurel build`         |
    | Build output directory   | `dist`                      |
    | Root directory           | *(blank, unless monorepo)*  |
 
@@ -191,20 +191,20 @@ see [`docs/deploy/cloudflare-pages.md`](../deploy/cloudflare-pages.md).
 4. Save and deploy. First build takes ~1 minute; subsequent builds are cached.
 
 The `_redirects` and `_headers` files at the root of `dist/` are picked up by
-Cloudflare. Set `[deploy.cloudflare_pages].enabled = true` in `nectar.toml` and
-Nectar will write `_headers` plus `_routes.json` on every build. Custom
+Cloudflare. Set `[deploy.cloudflare_pages].enabled = true` in `laurel.toml` and
+Laurel will write `_headers` plus `_routes.json` on every build. Custom
 redirects go in a `redirects.yaml` at the project root; the default
 `[components.redirects]` emitter writes them to `dist/_redirects`. Supported
 status codes are 301, 302, 307, and 308; the first rule per `from` wins on
 overlap.
 
-For branch preview builds, Cloudflare Pages sets `CF_PAGES_BRANCH`. Nectar
+For branch preview builds, Cloudflare Pages sets `CF_PAGES_BRANCH`. Laurel
 marks non-`main` / non-`master` branches (or branches other than
 `CF_PAGES_PRODUCTION_BRANCH` when set) as preview builds, injects
 `<meta name="robots" content="noindex">`, and emits `X-Robots-Tag: noindex`
 through `dist/_headers` so crawlers do not index the preview URL.
 
-Nectar also emits `dist/404.html` on every build. Because the Cloudflare Pages
+Laurel also emits `dist/404.html` on every build. Because the Cloudflare Pages
 build output directory is `dist`, that file is deployed at the publish root as
 `404.html`; Pages automatically uses it as the custom 404 page for unmatched
 static routes. You do not need a catch-all `_redirects` rewrite to route missing
@@ -216,7 +216,7 @@ enabled = true
 ```
 
 If you deploy `dist/` through Cloudflare Workers Static Assets rather than
-Pages, configure the asset bundle to use Nectar's generated 404 page:
+Pages, configure the asset bundle to use Laurel's generated 404 page:
 
 ```toml
 [assets]
@@ -224,9 +224,9 @@ directory = "./dist"
 not_found_handling = "404-page"
 ```
 
-Nectar is a multi-page static site, so direct navigation should resolve the
+Laurel is a multi-page static site, so direct navigation should resolve the
 matching HTML file and real misses should use `dist/404.html`. Avoid
-`not_found_handling = "single-page-application"` for normal Nectar deploys
+`not_found_handling = "single-page-application"` for normal Laurel deploys
 because it can serve the homepage for missing navigation requests and weaken
 the intended 404 behavior.
 
@@ -240,7 +240,7 @@ the intended 404 behavior.
 ```
 
 For direct deploys outside the Git-connected Pages build, configure the Pages
-project name and let Nectar call Wrangler:
+project name and let Laurel call Wrangler:
 
 ```toml
 [deploy.cloudflare]
@@ -248,7 +248,7 @@ project_name = "my-blog"
 ```
 
 ```bash
-bunx nectar deploy cloudflare --build
+bunx laurel deploy cloudflare --build
 ```
 
 Advanced users who want GitHub Actions to call Wrangler directly can copy
@@ -270,7 +270,7 @@ the static site on Pages and sync only the image subtree to Cloudflare R2.
 First check the build size:
 
 ```bash
-bunx nectar build
+bunx laurel build
 find dist -type f | wc -l
 ```
 
@@ -292,7 +292,7 @@ deploy`, then restore it for the R2 sync step. A Worker mounted on
 `/content/images/*` can read the private R2 bucket and keep image URLs
 same-origin.
 
-Nectar also has an R2 deploy target:
+Laurel also has an R2 deploy target:
 
 ```toml
 [deploy.r2]
@@ -302,7 +302,7 @@ delete = true
 ```
 
 ```bash
-bunx nectar deploy r2 --build --dry-run
+bunx laurel deploy r2 --build --dry-run
 ```
 
 That command syncs the whole build output directory (`dist/` by default) to
@@ -318,10 +318,10 @@ for the full Worker, custom-domain, and CI workflow.
 **Recommended for:** the simplest end-to-end Git-to-URL flow.
 
 For the full Vercel-specific guide, including generated `vercel.json`,
-prebuilt GitHub Actions deploys, and `nectar deploy vercel`, see
+prebuilt GitHub Actions deploys, and `laurel deploy vercel`, see
 [`docs/deploy/vercel.md`](../deploy/vercel.md).
 
-Enable the Vercel emitter in `nectar.toml` so builds include Vercel-formatted
+Enable the Vercel emitter in `laurel.toml` so builds include Vercel-formatted
 headers and redirects:
 
 ```toml
@@ -335,7 +335,7 @@ enabled = true
 
    | Field             | Value                |
    | ----------------- | -------------------- |
-   | Build command     | `bunx nectar build`  |
+   | Build command     | `bunx laurel build`  |
    | Output directory  | `dist`               |
    | Install command   | *(leave blank — Vercel auto-detects Bun via `bun.lock`)* |
 
@@ -344,24 +344,24 @@ enabled = true
 Vercel reads `bun.lock` and uses Bun automatically. No environment variable
 required for the default Git-connected build.
 
-For preview deployments, Vercel sets `VERCEL_ENV=preview`. Nectar injects
+For preview deployments, Vercel sets `VERCEL_ENV=preview`. Laurel injects
 `<meta name="robots" content="noindex">` and emits `X-Robots-Tag: noindex`
 through `dist/vercel.json`, even when `[deploy.vercel].enabled` is not set, so
 preview URLs are not indexed. `VERCEL_ENV=production` does not get these
 markers.
 
-Nectar is not a Next.js project; it builds static files into `dist/` directly.
+Laurel is not a Next.js project; it builds static files into `dist/` directly.
 Do not add Next.js `output: 'export'`, `next.config.js`, or Vercel adapter
 settings for this deploy path. Use Vercel's `Other` preset with the `dist`
 output directory instead.
 
-Every Nectar build includes `dist/404.html`. On Vercel, that root-level file
+Every Laurel build includes `dist/404.html`. On Vercel, that root-level file
 is served as the custom not-found page for unmatched static routes, with a 404
 status, so the standard setup above does not need a catch-all rewrite for
 `404.html`.
 
 Custom redirects go in `redirects.yaml`; with `[deploy.vercel].enabled = true`,
-Nectar folds them into `dist/vercel.json` alongside cache and security
+Laurel folds them into `dist/vercel.json` alongside cache and security
 headers. Supported status codes are 301, 302, 307, and 308; the first rule per
 `from` wins on overlap. Vercel always applies redirects even when a static file
 exists at the source path, so `force` is only informational on this target.
@@ -376,16 +376,16 @@ exists at the source path, so `force` is only informational on this target.
   status: 308
 ```
 
-For direct deploys outside the Git-connected Vercel build, let Nectar call the
+For direct deploys outside the Git-connected Vercel build, let Laurel call the
 Vercel CLI:
 
 ```bash
-bunx nectar deploy vercel --build
+bunx laurel deploy vercel --build
 ```
 
-The command runs `nectar build`, checks for `dist/.nectar-manifest.json`, then
+The command runs `laurel build`, checks for `dist/.laurel-manifest.json`, then
 executes `vercel deploy dist --prod`. Set `VERCEL_TOKEN` in CI, and use
-`bunx nectar deploy vercel --dry-run` to audit the command before uploading.
+`bunx laurel deploy vercel --dry-run` to audit the command before uploading.
 
 ---
 
@@ -397,7 +397,7 @@ For the full Firebase-specific guide, including generated `firebase.json`,
 redirect notes, and header behavior, see
 [`docs/deploy/firebase-hosting.md`](../deploy/firebase-hosting.md).
 
-Nectar does not currently have a `nectar deploy firebase` command. Enable the
+Laurel does not currently have a `laurel deploy firebase` command. Enable the
 Firebase emitter, build the static site, then let the Firebase CLI upload
 `dist/`:
 
@@ -407,14 +407,14 @@ enabled = true
 ```
 
 ```bash
-bunx nectar build
+bunx laurel build
 cd dist
 firebase deploy --only hosting
 ```
 
 The emitter writes `dist/firebase.json` with `hosting.public = "."`, shared
 headers, redirects, `cleanUrls: true`, the configured trailing-slash policy,
-and an empty `rewrites` array so Nectar is not treated as an SPA.
+and an empty `rewrites` array so Laurel is not treated as an SPA.
 
 For GitHub Actions, copy
 [`examples/ci/firebase.yml`](../../examples/ci/firebase.yml) to
@@ -428,7 +428,7 @@ with `channelId: live` and `entryPoint: dist`.
 
 **Recommended for:** form handling, branch previews, plugin ecosystem.
 
-Enable the Netlify emitter in `nectar.toml` so builds include the generated
+Enable the Netlify emitter in `laurel.toml` so builds include the generated
 `_headers` file and Netlify-formatted redirects:
 
 ```toml
@@ -442,7 +442,7 @@ to `netlify.toml` at the repo root:
 
 ```toml
 [build]
-  command = "bunx nectar build"
+  command = "bunx laurel build"
   publish = "dist"
 
 [build.environment]
@@ -453,21 +453,21 @@ Then **Netlify dashboard → Add new site → Import from Git → pick repo →
 Deploy**. The `netlify.toml` overrides any guesses Netlify makes.
 
 For deploy previews and branch deploys, Netlify sets `DEPLOY_PRIME_URL`.
-Nectar uses that value automatically as `site.url` for the build, falling back
+Laurel uses that value automatically as `site.url` for the build, falling back
 to `DEPLOY_URL` and then `URL` if needed. Canonical links, `og:url`, RSS,
 robots, and sitemap output therefore point at the preview hostname. Explicit
-overrides still win: `--base-url` takes precedence over `NECTAR_BUILD_BASE_URL`,
-then `NECTAR_SITE_URL`, then the Netlify deploy URL, then the configured
+overrides still win: `--base-url` takes precedence over `LAUREL_BUILD_BASE_URL`,
+then `LAUREL_SITE_URL`, then the Netlify deploy URL, then the configured
 `[site] url`.
 
-Nectar also treats Netlify `deploy-preview` and `branch-deploy` contexts as
+Laurel also treats Netlify `deploy-preview` and `branch-deploy` contexts as
 preview builds: it injects `<meta name="robots" content="noindex">` and emits
 `X-Robots-Tag: noindex` through `dist/_headers`, even when
 `[deploy.netlify].enabled` is not set. Netlify `production` context is left
 indexable.
 
-Nectar emits `dist/404.html` on every build. If your theme provides
-`error-404.hbs`, that template becomes the file; otherwise Nectar writes a
+Laurel emits `dist/404.html` on every build. If your theme provides
+`error-404.hbs`, that template becomes the file; otherwise Laurel writes a
 default branded noindex page. Netlify automatically uses a publish-root
 `404.html` as the custom response body for unmatched paths, so do not add a
 catch-all `/* /404.html 404` redirect unless you are intentionally replacing
@@ -475,10 +475,10 @@ Netlify's built-in static 404 behavior.
 
 Netlify's Bun support is via the `BUN_VERSION` build environment variable —
 without it, the build runs Node and `bunx` will fail. The sample also shows
-where optional Netlify build plugin blocks belong; Nectar build-time plugins
-stay in `nectar.toml`'s top-level `plugins` array.
+where optional Netlify build plugin blocks belong; Laurel build-time plugins
+stay in `laurel.toml`'s top-level `plugins` array.
 
-Custom redirects go in `redirects.yaml`; Nectar emits them to
+Custom redirects go in `redirects.yaml`; Laurel emits them to
 `dist/_redirects` when `[deploy.netlify].enabled = true`. Netlify's
 `force: true` semantics are supported via the `!` status suffix:
 
@@ -509,20 +509,20 @@ configure the resource as a static site:
 
 | Field | Value |
 | --- | --- |
-| Source directory | `/` unless Nectar lives in a monorepo subdirectory |
-| Build command | `bunx nectar build` |
+| Source directory | `/` unless Laurel lives in a monorepo subdirectory |
+| Build command | `bunx laurel build` |
 | Output directory | `dist` |
 
 DigitalOcean can scan for common static output directories, including `dist`,
 but setting it explicitly makes the deploy contract clear. App Platform
 detects Bun from `bun.lock` / `bun.lockb`; set a build-time `BUN_VERSION`
-environment variable if you want to pin the builder. Nectar does not currently
+environment variable if you want to pin the builder. Laurel does not currently
 emit `.do/app.yaml`, DigitalOcean headers, or DigitalOcean redirects; keep any
 App Spec sample minimal and configure App Platform-owned behavior in
 DigitalOcean or an external edge layer.
 
 ```yaml
-name: my-nectar-site
+name: my-laurel-site
 static_sites:
   - name: web
     github:
@@ -530,7 +530,7 @@ static_sites:
       branch: main
       deploy_on_push: true
     source_dir: /
-    build_command: bunx nectar build
+    build_command: bunx laurel build
     output_dir: dist
     envs:
       - key: BUN_VERSION
@@ -550,12 +550,12 @@ current header / redirect limitations, see
 [`docs/deploy/render.md`](../deploy/render.md).
 
 1. Render dashboard -> **New -> Static Site**.
-2. Connect the Git repo that contains the Nectar project.
+2. Connect the Git repo that contains the Laurel project.
 3. In the service settings:
 
    | Field             | Value                                                  |
    | ----------------- | ------------------------------------------------------ |
-   | Build command     | `bun install --frozen-lockfile && bunx nectar build`   |
+   | Build command     | `bun install --frozen-lockfile && bunx laurel build`   |
    | Publish directory | `dist`                                                 |
    | Root directory    | *(blank, unless monorepo)*                             |
 
@@ -567,7 +567,7 @@ If you prefer Render Blueprints, copy
 `render.yaml` at the repository root. The sample defines a Static Site service
 that runs `bun install && bun run build` and publishes `./dist`.
 
-Render serves the generated `dist/` directory directly. Nectar does not
+Render serves the generated `dist/` directory directly. Laurel does not
 currently emit a Render-specific `render.yaml`, nor does it translate
 `[deploy.headers]` or `redirects.yaml` into Render-native dashboard rules.
 Configure custom headers and redirects in Render for now. The optional
@@ -620,7 +620,7 @@ jobs:
         with:
           bun-version: 1.3.0
       - run: bun install --frozen-lockfile
-      - run: bunx nectar build
+      - run: bunx laurel build
         env:
           GITHUB_PAGES: "true"
       - uses: actions/upload-pages-artifact@v3
@@ -643,7 +643,7 @@ Then in the repo settings: **Pages → Build and deployment → Source = GitHub
 Actions**. Push to `main` and the action publishes the site.
 
 If your site lives at `https://<user>.github.io/<repo>/` (project pages, not
-a custom domain or user site), set the deployed URL in `nectar.toml`:
+a custom domain or user site), set the deployed URL in `laurel.toml`:
 
 ```toml
 [site]
@@ -651,11 +651,11 @@ url = "https://<user>.github.io/<repo>/"
 ```
 
 In GitHub Actions, `GITHUB_PAGES=true` plus `GITHUB_REPOSITORY=<owner>/<repo>`
-lets Nectar derive `base_path = "/<repo>/"` automatically so `{{asset}}`,
+lets Laurel derive `base_path = "/<repo>/"` automatically so `{{asset}}`,
 `{{url}}`, and navigation links emit correct URLs for the subdirectory. Set
 `[build].base_path` manually only if you need to override that derived path.
 
-Nectar also writes `dist/.nojekyll` on every successful build so GitHub Pages
+Laurel also writes `dist/.nojekyll` on every successful build so GitHub Pages
 serves underscore-prefixed assets and directories instead of running them
 through Jekyll. If `[deploy.github_pages].custom_domain` is set, the build
 writes `dist/CNAME` with that hostname for Pages custom-domain binding.
@@ -675,7 +675,7 @@ CloudFront-managed TLS / caching.
 
 For the focused AWS guide, including OIDC setup, the CloudFront Function for
 directory-style URLs, CloudFront custom error responses for `404.html`, and
-`nectar deploy s3`, see
+`laurel deploy s3`, see
 [`docs/deploy/s3-cloudfront.md`](../deploy/s3-cloudfront.md).
 
 Copy [`examples/ci/s3-cloudfront.yml`](../../examples/ci/s3-cloudfront.yml)
@@ -688,11 +688,11 @@ to `.github/workflows/s3-cloudfront.yml`, then set:
 | Variable | `AWS_REGION` |
 | Variable | `S3_BUCKET` |
 
-The workflow builds with Bun, verifies `dist/.nectar-manifest.json`, syncs
+The workflow builds with Bun, verifies `dist/.laurel-manifest.json`, syncs
 `dist/` to S3 with cache-control metadata, and invalidates CloudFront. Pair a
 private S3 origin with the CloudFront Function at
 [`examples/s3-cloudfront/append-index.js`](../../examples/s3-cloudfront/append-index.js)
-so `/about/` resolves to Nectar's generated `/about/index.html` object.
+so `/about/` resolves to Laurel's generated `/about/index.html` object.
 
 If your site has `redirects.yaml`, S3 + CloudFront will not read the generated
 `dist/_redirects` file. Generate a CloudFront Function from that YAML instead:
@@ -711,7 +711,7 @@ reaches the S3 origin.
 Also configure CloudFront custom error responses for both `403` and `404`
 origin errors. Point them at `/404.html` and keep the viewer response code as
 `404`. Private S3 origins can report a missing key as `403` or `404` depending
-on bucket permissions; mapping both errors gives visitors Nectar's generated
+on bucket permissions; mapping both errors gives visitors Laurel's generated
 not-found page without turning real misses into successful `200` responses.
 
 For local uploads after a successful build, configure:
@@ -726,7 +726,7 @@ region = "us-east-1"
 Then run:
 
 ```bash
-bunx nectar deploy s3 --build
+bunx laurel deploy s3 --build
 ```
 
 The CLI syncs `dist/` to the bucket and forwards `--region` when configured.
@@ -744,15 +744,15 @@ keep using the workflow for the full production S3 + CloudFront path.
 `dist/` output in Bunny Storage and deliver it through a Pull Zone.
 
 For the focused Bunny.net guide, including the current no-emitter/no
-`nectar deploy bunny` status, see [`docs/deploy/bunny.md`](../deploy/bunny.md).
+`laurel deploy bunny` status, see [`docs/deploy/bunny.md`](../deploy/bunny.md).
 
 The minimal flow is:
 
 1. Build locally:
 
    ```bash
-   bunx nectar build
-   test -f dist/.nectar-manifest.json
+   bunx laurel build
+   test -f dist/.laurel-manifest.json
    ```
 
 2. In Bunny, create a Storage Zone, then create or connect a Pull Zone with
@@ -769,8 +769,8 @@ The minimal flow is:
    curl -sI https://my-blog.b-cdn.net/404.html | sort
    ```
 
-Bunny does not consume Nectar's `_headers`, `_redirects`, `vercel.json`, or
-`dist/.nectar/nginx.conf` files. Configure cache headers, security headers,
+Bunny does not consume Laurel's `_headers`, `_redirects`, `vercel.json`, or
+`dist/.laurel/nginx.conf` files. Configure cache headers, security headers,
 redirects, custom hostnames, SSL, stale-file cleanup, and CDN purges in Bunny
 or your deploy pipeline. If you need redirect fallbacks without Bunny Edge
 Rules, `[components.redirects].emit_html = true` can emit browser-level
@@ -791,28 +791,28 @@ For the focused nginx guide, including TLS notes and troubleshooting, see
    ```toml
    [deploy.nginx]
    enabled = true
-   root = "/var/www/nectar"
+   root = "/var/www/laurel"
    server_name = "example.com"
    ```
 
 2. Build locally and confirm the generated config exists:
 
    ```bash
-   bunx nectar build
-   test -f dist/.nectar/nginx.conf
+   bunx laurel build
+   test -f dist/.laurel/nginx.conf
    ```
 
 3. Sync the complete `dist/` directory to the server:
 
    ```bash
-   rsync -avz --delete dist/ user@host:/var/www/nectar/
+   rsync -avz --delete dist/ user@host:/var/www/laurel/
    ```
 
 4. Include the generated server block from nginx's main config, under the
    top-level `http { ... }` context:
 
    ```nginx
-   include /var/www/nectar/.nectar/nginx.conf;
+   include /var/www/laurel/.laurel/nginx.conf;
    ```
 
 5. Test and reload nginx on the server:
@@ -823,8 +823,8 @@ For the focused nginx guide, including TLS notes and troubleshooting, see
    ```
 
 The generated file folds `[deploy.headers]` and `redirects.yaml` into a full
-`server { ... }` block at `dist/.nectar/nginx.conf`. It sets `Cache-Control`
-for Nectar's default asset paths, repeats security headers inside each
+`server { ... }` block at `dist/.laurel/nginx.conf`. It sets `Cache-Control`
+for Laurel's default asset paths, repeats security headers inside each
 `location`, enables `gzip_static` and `brotli_static`, serves
 `slug/index.html` URLs with `try_files $uri $uri/ $uri/index.html =404;`, and
 uses `dist/404.html` as the nginx 404 response body before turning redirect
@@ -864,10 +864,10 @@ rules into nginx `return` directives.
   `scripts/generate-cloudfront-redirects.ts`, then publish the generated
   function on the viewer-request event.
 - **Render deploys but redirects or headers do not apply.** Render Static
-  Sites do not consume Nectar's generated `_redirects` / `_headers` as a
+  Sites do not consume Laurel's generated `_redirects` / `_headers` as a
   platform contract. Configure those rules in the Render dashboard until
-  Nectar has a Render-specific emitter.
-- **Site builds but RSS / sitemap missing.** Check `nectar.toml` — those are
+  Laurel has a Render-specific emitter.
+- **Site builds but RSS / sitemap missing.** Check `laurel.toml` — those are
   optional components; they default to enabled but can be turned off:
   ```toml
   [components.rss]
@@ -877,7 +877,7 @@ rules into nginx `return` directives.
 For preview deploys against a subpath, build with `--base-path`:
 
 ```bash
-bunx nectar build --base-path /preview/feature-x/
+bunx laurel build --base-path /preview/feature-x/
 ```
 
 ## Security headers
@@ -890,9 +890,9 @@ or serve a custom domain.
 
 See [`docs/security/hosting.md`](../security/hosting.md) for
 copy-pasteable `_headers` / `vercel.json` / `netlify.toml` snippets with
-a Nectar-calibrated baseline `Content-Security-Policy`,
+a Laurel-calibrated baseline `Content-Security-Policy`,
 `Strict-Transport-Security`, `Referrer-Policy`, `Permissions-Policy`, and
 related headers. nginx users should set the same values under
 `[deploy.headers].security` so they are emitted into
-`dist/.nectar/nginx.conf`. GitHub Pages users will find the workarounds for
+`dist/.laurel/nginx.conf`. GitHub Pages users will find the workarounds for
 the host's hard-coded headers there too.

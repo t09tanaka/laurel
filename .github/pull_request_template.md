@@ -1,5 +1,5 @@
 <!--
-Thanks for contributing to Nectar!
+Thanks for contributing to Laurel!
 Please fill in the sections below so reviewers have the context they need.
 -->
 
@@ -50,8 +50,8 @@ migration story below.
 -->
 
 - [ ] No breaking changes
-- [ ] Breaking change to the public CLI (`nectar build`, `nectar import-*`, …)
-- [ ] Breaking change to `nectar.toml` schema or required config keys
+- [ ] Breaking change to the public CLI (`laurel build`, `laurel import-*`, …)
+- [ ] Breaking change to `laurel.toml` schema or required config keys
 - [ ] Breaking change to the Ghost compatibility surface (helpers, contexts, theme API)
 - [ ] Breaking change to the Markdown frontmatter / content layout under `content/`
 

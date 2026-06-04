@@ -1,8 +1,8 @@
 # Repository settings managed by the GitHub Settings app.
 repository:
-  name: nectar
+  name: laurel
   description: Ghost-theme-compatible static site generator powered by Markdown and Bun
-  homepage: https://github.com/t09tanaka/nectar#readme
+  homepage: https://github.com/t09tanaka/laurel#readme
   private: false
   has_issues: true
   has_projects: false

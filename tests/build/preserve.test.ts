@@ -13,9 +13,9 @@ interface Fixture {
 }
 
 async function makeFixture(): Promise<Fixture> {
-  const cwd = await mkdtemp(join(tmpdir(), 'nectar-preserve-cwd-'));
-  const finalOutputDir = await mkdtemp(join(tmpdir(), 'nectar-preserve-final-'));
-  const stagingDir = await mkdtemp(join(tmpdir(), 'nectar-preserve-staging-'));
+  const cwd = await mkdtemp(join(tmpdir(), 'laurel-preserve-cwd-'));
+  const finalOutputDir = await mkdtemp(join(tmpdir(), 'laurel-preserve-final-'));
+  const stagingDir = await mkdtemp(join(tmpdir(), 'laurel-preserve-staging-'));
   return { cwd, finalOutputDir, stagingDir };
 }
 
@@ -28,13 +28,13 @@ afterEach(() => {
 });
 
 describe('loadPreservePatterns', () => {
-  test('returns empty array when .nectarignore is missing', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-preserve-cwd-'));
+  test('returns empty array when .laurelignore is missing', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-preserve-cwd-'));
     expect(await loadPreservePatterns(cwd)).toEqual([]);
   });
 
   test('parses lines, trims whitespace, drops comments and blanks', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-preserve-cwd-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-preserve-cwd-'));
     await writeFile(
       join(cwd, PRESERVE_FILE),
       ['# comment', '', 'CNAME', '  _headers  ', '.well-known/', '#another comment'].join('\n'),
@@ -44,7 +44,7 @@ describe('loadPreservePatterns', () => {
 });
 
 describe('preserveUserFiles', () => {
-  test('no-op when .nectarignore is missing', async () => {
+  test('no-op when .laurelignore is missing', async () => {
     const fx = await makeFixture();
     const result = await preserveUserFiles(fx);
     expect(result).toEqual({ copied: 0, skipped: 0 });

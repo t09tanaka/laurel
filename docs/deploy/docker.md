@@ -1,41 +1,41 @@
-# Deploying Nectar with Docker
+# Deploying Laurel with Docker
 
 ## Official build image
 
-Release tags publish a multi-arch Nectar CLI image for `linux/amd64` and
+Release tags publish a multi-arch Laurel CLI image for `linux/amd64` and
 `linux/arm64` to both GHCR and Docker Hub:
 
 ```sh
-docker pull ghcr.io/t09tanaka/nectar:latest
-docker pull t09tanaka/nectar:latest
+docker pull ghcr.io/t09tanaka/laurel:latest
+docker pull t09tanaka/laurel:latest
 ```
 
 The image is based on `oven/bun:1.3.0-alpine`, uses `/workspace` as its working
-directory, and exposes `nectar build` as its entrypoint. Mount a Nectar project
+directory, and exposes `laurel build` as its entrypoint. Mount a Laurel project
 at `/workspace` to build it:
 
 ```sh
 docker run --rm \
   -v "$PWD:/workspace" \
-  ghcr.io/t09tanaka/nectar:latest
+  ghcr.io/t09tanaka/laurel:latest
 ```
 
-Arguments are passed to `nectar build`:
+Arguments are passed to `laurel build`:
 
 ```sh
 docker run --rm \
   -v "$PWD:/workspace" \
-  ghcr.io/t09tanaka/nectar:latest \
-  --config nectar.toml --output dist
+  ghcr.io/t09tanaka/laurel:latest \
+  --config laurel.toml --output dist
 ```
 
-Use `--entrypoint nectar` when you need another command:
+Use `--entrypoint laurel` when you need another command:
 
 ```sh
 docker run --rm \
-  --entrypoint nectar \
+  --entrypoint laurel \
   -v "$PWD:/workspace" \
-  ghcr.io/t09tanaka/nectar:latest \
+  ghcr.io/t09tanaka/laurel:latest \
   check
 ```
 
@@ -46,31 +46,31 @@ prefix (`0.1.0`, `0.1`, `0`), and `latest`.
 
 The release workflow pushes the same multi-arch image to:
 
-- `ghcr.io/t09tanaka/nectar`
-- `docker.io/<DOCKERHUB_USERNAME>/nectar`
+- `ghcr.io/t09tanaka/laurel`
+- `docker.io/<DOCKERHUB_USERNAME>/laurel`
 
 GHCR uses the workflow `GITHUB_TOKEN` with `packages: write` permission. Docker
 Hub requires these repository secrets:
 
-- `DOCKERHUB_USERNAME`: Docker Hub namespace that owns the `nectar` repository
+- `DOCKERHUB_USERNAME`: Docker Hub namespace that owns the `laurel` repository
 - `DOCKERHUB_TOKEN`: Docker Hub access token with push access
 
 The workflow fails before building the image if either Docker Hub secret is
 missing, so tag releases do not silently skip Docker Hub publishing.
 
-Nectar ships two nginx-alpine samples under
+Laurel ships two nginx-alpine samples under
 [`examples/docker/`](../../examples/docker/):
 [`Dockerfile`](../../examples/docker/Dockerfile) serves an already-built
 `dist/`, while
 [`Dockerfile.multi-stage`](../../examples/docker/Dockerfile.multi-stage)
-runs `bun install` and `bunx nectar build` in an `oven/bun` build stage before
+runs `bun install` and `bunx laurel build` in an `oven/bun` build stage before
 copying `dist/` into an `nginx:1.27-alpine` runtime image. Both use the
 matching [`nginx.conf`](../../examples/docker/nginx.conf). The multi-stage
 sample also pairs with
 [`examples/docker/.dockerignore`](../../examples/docker/.dockerignore) to keep
 local-only directories out of the Docker build context. A reverse-proxy compose
 snippet is available at
-[`docker-compose.yml`](../../examples/docker/docker-compose.yml). Nectar still
+[`docker-compose.yml`](../../examples/docker/docker-compose.yml). Laurel still
 does not require Docker-specific package scripts.
 
 ## Quickstart: local nginx container
@@ -78,14 +78,14 @@ does not require Docker-specific package scripts.
 1. Build the site on the host:
 
    ```sh
-   bunx nectar build
+   bunx laurel build
    ```
 
 2. Serve the generated `dist/` directory with the stock nginx image:
 
    ```sh
    docker run --rm \
-     --name nectar-static \
+     --name laurel-static \
      -p 8080:80 \
      -v "$PWD/dist:/usr/share/nginx/html:ro" \
      nginx:alpine
@@ -99,28 +99,28 @@ does not require Docker-specific package scripts.
    ```
 
 This path is intentionally minimal: it proves the static output serves from a
-container, but it uses nginx's default config. That means Nectar's generated
+container, but it uses nginx's default config. That means Laurel's generated
 cache headers, security headers, pretty-URL fallback, and redirects are not
 applied unless you add an nginx config.
 
 ## Build the sample image
 
 The checked-in sample is for hosts that require a Dockerfile but do not need to
-build the Nectar site inside the image. Build the site first, then copy the
+build the Laurel site inside the image. Build the site first, then copy the
 sample files into the build context:
 
 ```sh
-bunx nectar build
+bunx laurel build
 cp examples/docker/Dockerfile .
 cp examples/docker/nginx.conf .
-docker build -t nectar-static .
-docker run --rm --name nectar-static -p 8080:80 nectar-static
+docker build -t laurel-static .
+docker run --rm --name laurel-static -p 8080:80 laurel-static
 ```
 
 The Dockerfile uses `nginx:1.27-alpine`, copies `dist/` into
 `/usr/share/nginx/html/`, installs the sample nginx config, and exposes port
 80. The sample config keeps directory-style pretty URLs working with
-`try_files $uri $uri/ $uri/index.html =404;` and serves Nectar's generated
+`try_files $uri $uri/ $uri/index.html =404;` and serves Laurel's generated
 `404.html` through `error_page 404 /404.html;`.
 
 ## Build the site inside Docker
@@ -132,12 +132,12 @@ dependencies and produce `dist/` during `docker build`:
 cp examples/docker/Dockerfile.multi-stage Dockerfile
 cp examples/docker/nginx.conf .
 cp examples/docker/.dockerignore .dockerignore
-docker build -t nectar-static .
-docker run --rm --name nectar-static -p 8080:80 nectar-static
+docker build -t laurel-static .
+docker run --rm --name laurel-static -p 8080:80 laurel-static
 ```
 
 The first stage starts from `oven/bun`, copies the site source, installs
-dependencies with `bun install`, and runs `bunx nectar build`. The final
+dependencies with `bun install`, and runs `bunx laurel build`. The final
 `nginx:1.27-alpine` stage contains only the sample nginx config and the
 generated `/app/dist/` files, so build tools and source files do not ship in
 the runtime layer. The sample `.dockerignore` excludes `.git/`, `node_modules/`,
@@ -161,26 +161,26 @@ The sample builds with `Dockerfile.multi-stage`, exposes nginx port `80` to
 the `proxy` network, includes Traefik labels for `blog.example.com`, and keeps
 `127.0.0.1:8080:80` for local smoke tests or a host-level Caddy proxy. Change
 the hostname and network name to match your proxy stack. For a Caddy container
-on the same network, point the site block at `reverse_proxy nectar:80`.
+on the same network, point the site block at `reverse_proxy laurel:80`.
 
-## Optional: generate a Nectar nginx config
+## Optional: generate a Laurel nginx config
 
-For a Docker runtime that mirrors Nectar's self-hosted nginx behavior, enable
+For a Docker runtime that mirrors Laurel's self-hosted nginx behavior, enable
 the nginx deploy target before building:
 
 ```toml
-# nectar.toml
+# laurel.toml
 [deploy.nginx]
 enabled = true
-root = "/var/www/nectar"
+root = "/var/www/laurel"
 server_name = "_"
 ```
 
 Then build:
 
 ```sh
-bunx nectar build
-test -f dist/.nectar/nginx.conf
+bunx laurel build
+test -f dist/.laurel/nginx.conf
 ```
 
 The generated file folds `deploy.headers` and `redirects.yaml` into an nginx
@@ -190,10 +190,10 @@ config over nginx's default site config and mount `dist/` at the same root:
 
 ```sh
 docker run --rm \
-  --name nectar-nginx \
+  --name laurel-nginx \
   -p 8080:80 \
-  -v "$PWD/dist:/var/www/nectar:ro" \
-  -v "$PWD/dist/.nectar/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
+  -v "$PWD/dist:/var/www/laurel:ro" \
+  -v "$PWD/dist/.laurel/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
   your-nginx-brotli-image:tag
 ```
 
@@ -208,7 +208,7 @@ for local smoke tests.
 Some hosts, such as Fly.io, expect a Dockerfile even for static content.
 You can copy the sample files from
 [`examples/docker/`](../../examples/docker/) after CI has already run
-`bunx nectar build`:
+`bunx laurel build`:
 
 ```Dockerfile
 FROM nginx:1.27-alpine
@@ -221,7 +221,7 @@ That Dockerfile applies the sample `examples/docker/nginx.conf`, which covers
 pretty URLs, `404.html`, long-lived cache headers for asset directories, and
 short-lived cache headers for HTML. For production deployments that need
 redirects, custom security headers, or a different document root, generate and
-review `dist/.nectar/nginx.conf` from `[deploy.nginx]` instead.
+review `dist/.laurel/nginx.conf` from `[deploy.nginx]` instead.
 
 For a Fly.io-specific workflow, including the matching `fly.toml` shape and
 GitHub Actions setup, see [`docs/deploy/fly.md`](./fly.md).
@@ -243,15 +243,15 @@ GitHub Actions setup, see [`docs/deploy/fly.md`](./fly.md).
 ## Troubleshooting
 
 - **Container starts but every deep page 404s:** the stock nginx config does
-  not include Nectar's `try_files $uri $uri/ $uri/index.html =404;` fallback.
+  not include Laurel's `try_files $uri $uri/ $uri/index.html =404;` fallback.
   Enable `[deploy.nginx]` and use an nginx image compatible with the generated
   config, or add an equivalent custom config.
 - **`brotli_static` fails:** use an nginx image with the Brotli static module,
   or remove that directive from your own copied config. Do not edit
-  `dist/.nectar/nginx.conf` in place as a long-term source of truth; regenerate
-  it from `nectar.toml`.
+  `dist/.laurel/nginx.conf` in place as a long-term source of truth; regenerate
+  it from `laurel.toml`.
 - **No Docker command in `package.json`:** this is expected. Use
-  `bunx nectar build` or the existing `build` script, then run Docker against
+  `bunx laurel build` or the existing `build` script, then run Docker against
   the resulting `dist/` directory, or use
   `examples/docker/Dockerfile.multi-stage` when the image build should run
-  `bunx nectar build` itself.
+  `bunx laurel build` itself.

@@ -27,9 +27,9 @@ async function runCli(args: string[], cwd?: string): Promise<RunResult> {
 }
 
 async function makeFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-check-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-check-')));
   await Bun.write(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     ['[site]', 'title = "Check Test"', '', '[theme]', 'name = "minimal"', 'dir = "themes"'].join(
       '\n',
     ),
@@ -87,8 +87,8 @@ describe('cli check', () => {
   });
 
   test('keeps check JSON shape for config validation errors', async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-check-invalid-config-')));
-    await writeFile(join(dir, 'nectar.toml'), '[site]\ntitle = 123\n');
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-check-invalid-config-')));
+    await writeFile(join(dir, 'laurel.toml'), '[site]\ntitle = 123\n');
 
     const { stdout, stderr, exitCode } = await runCli(['check', '--json'], dir);
     expect(exitCode).toBe(1);
@@ -177,7 +177,7 @@ describe('cli check', () => {
   test('does not warn for a redirect outside the configured base_path', async () => {
     dir = await makeFixture();
     await Bun.write(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       [
         '[site]',
         'title = "Check Test"',
@@ -211,7 +211,7 @@ describe('cli check', () => {
   test('warns for a redirect that shadows a route under the configured base_path', async () => {
     dir = await makeFixture();
     await Bun.write(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       [
         '[site]',
         'title = "Check Test"',
@@ -247,7 +247,7 @@ describe('cli check', () => {
   test('does not warn for slash-only mismatch when trailing_slash is never', async () => {
     dir = await makeFixture();
     await Bun.write(
-      join(dir, 'nectar.toml'),
+      join(dir, 'laurel.toml'),
       [
         '[site]',
         'title = "Check Test"',

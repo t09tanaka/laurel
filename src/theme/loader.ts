@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, isAbsolute, join, relative, resolve } from 'node:path';
-import type { NectarConfig } from '~/config/schema.ts';
-import { NectarError } from '~/util/errors.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
+import { LaurelError } from '~/util/errors.ts';
 import { pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { logger } from '~/util/logger.ts';
 import { loadThemeAssets } from './assets.ts';
@@ -11,7 +11,7 @@ import type { ThemeBundle, ThemeLocale, ThemeLocaleMap } from './types.ts';
 
 interface LoadThemeOptions {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
 }
 
 export const THEME_MEMBERS_REQUIRED_WITHOUT_PORTAL_WARNING =
@@ -24,9 +24,9 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
   if (!existsSync(rootDir)) {
     const relRoot = relative(cwd, rootDir);
     const cloneTarget = relRoot && !relRoot.startsWith('..') ? relRoot : rootDir;
-    throw new NectarError({
+    throw new LaurelError({
       message: `Theme directory not found: ${rootDir}`,
-      hint: `Vendor a Ghost theme into this directory before building. For the default Source theme, run:\n  git clone https://github.com/TryGhost/Source ${cloneTarget}\nOther Ghost-compatible themes (Casper, Headline, Edition, Wave, Liebling, …) follow the same pattern — clone the repository into the directory shown above. Or set [theme].dir to a directory holding the theme (or to an npm package name like \`@scope/nectar-theme-foo\` resolvable via \`node_modules/<spec>\`).`,
+      hint: `Vendor a Ghost theme into this directory before building. For the default Source theme, run:\n  git clone https://github.com/TryGhost/Source ${cloneTarget}\nOther Ghost-compatible themes (Casper, Headline, Edition, Wave, Liebling, …) follow the same pattern — clone the repository into the directory shown above. Or set [theme].dir to a directory holding the theme (or to an npm package name like \`@scope/laurel-theme-foo\` resolvable via \`node_modules/<spec>\`).`,
       code: 'theme',
     });
   }
@@ -38,7 +38,7 @@ export async function loadTheme({ cwd, config }: LoadThemeOptions): Promise<Them
       join(cwd, 'content', 'translations'),
       join(cwd, 'content', 'themes', config.theme.name, 'locales'),
     ]),
-    loadThemeAssets(rootDir, { cacheDir: join(cwd, '.nectar/cache') }),
+    loadThemeAssets(rootDir, { cacheDir: join(cwd, '.laurel/cache') }),
   ]);
   warnIfMembersRequiredWithoutPortal(pkg, config);
   warnIfGhostEngineUnsupported(pkg);
@@ -104,7 +104,7 @@ function isEmailTemplateName(name: string): boolean {
   return (THEME_EMAIL_TEMPLATE_NAMES as readonly string[]).includes(name);
 }
 
-function warnIfMembersRequiredWithoutPortal(pkg: ThemeBundle['pkg'], config: NectarConfig): void {
+function warnIfMembersRequiredWithoutPortal(pkg: ThemeBundle['pkg'], config: LaurelConfig): void {
   if (pkg.members !== 'required') return;
   if (config.components.portal.provider !== 'none') return;
   logger.warn(THEME_MEMBERS_REQUIRED_WITHOUT_PORTAL_WARNING);
@@ -115,7 +115,7 @@ function warnIfGhostEngineUnsupported(pkg: ThemeBundle['pkg']): void {
   if (!range) return;
   if (ghostEngineAllowsMajor(range, GHOST_COMPAT_MAJOR)) return;
   logger.warn(
-    `Theme package.json declares engines.ghost = "${range}", which does not include Ghost ${GHOST_COMPAT_MAJOR}.x; Nectar targets Ghost ${GHOST_COMPAT_MAJOR} theme compatibility.`,
+    `Theme package.json declares engines.ghost = "${range}", which does not include Ghost ${GHOST_COMPAT_MAJOR}.x; Laurel targets Ghost ${GHOST_COMPAT_MAJOR} theme compatibility.`,
   );
 }
 
@@ -213,7 +213,7 @@ function compareVersions(a: [number, number, number], b: [number, number, number
 //      The config loader rewrites relative `theme.dir` values to absolute
 //      paths anchored at the config file's directory, so this branch is hit
 //      whenever the config was loaded via `--config <path>` (#853).
-//   3. npm package spec: `@scope/nectar-theme-foo` or `nectar-theme-foo` ->
+//   3. npm package spec: `@scope/laurel-theme-foo` or `laurel-theme-foo` ->
 //      `<cwd>/node_modules/<spec>/`. Falls back to this branch only when the
 //      local-directory resolution didn't find anything on disk, so the
 //      pre-existing `theme.dir = "themes"` default keeps working even though

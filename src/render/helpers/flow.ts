@@ -1,5 +1,5 @@
 import type Handlebars from 'handlebars';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 import { isUnauthenticatedMember } from '../member-stub.ts';
 
 interface HelperOptionsWithContextPath extends Handlebars.HelperOptions {
@@ -14,7 +14,7 @@ interface HandlebarsRuntimeUtils {
   isFunction(value: unknown): value is (...args: unknown[]) => unknown;
 }
 
-export function registerFlowHelpers(engine: NectarEngine): void {
+export function registerFlowHelpers(engine: LaurelEngine): void {
   // Handlebars provides if/unless/each/with by default; expose a couple of
   // Ghost-flavoured aliases that themes occasionally use.
   engine.hb.registerHelper('if', function ifHelper(this: unknown, ...args: unknown[]) {
@@ -101,7 +101,7 @@ export function registerFlowHelpers(engine: NectarEngine): void {
   // Ghost's `{{access}}` returns whether the current viewer can read the full
   // post body. Themes use it to gate locked-content UI (e.g. `post-card.hbs`'s
   // padlock icon path, or `{{#unless access}}…{{/unless}}` wrappers around the
-  // body). Nectar is members-out-of-scope (see CLAUDE.md), so there is no
+  // body). Laurel is members-out-of-scope (see CLAUDE.md), so there is no
   // viewer state to consult — every reader sees every post in full, which means
   // `access` is unconditionally truthy. Implementing it explicitly (rather than
   // relying on the missing-helper fallback) lets themes call it both inline and
@@ -116,7 +116,7 @@ export function registerFlowHelpers(engine: NectarEngine): void {
 }
 
 function isTruthyForHandlebars(
-  engine: NectarEngine,
+  engine: LaurelEngine,
   value: unknown,
   options: Handlebars.HelperOptions,
 ): boolean {

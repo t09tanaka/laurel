@@ -42,13 +42,13 @@ import { createDashboardUiState, reduceDashboardUiState } from '~/cli/dashboard/
 import { loadConfig } from '~/config/loader.ts';
 
 async function makeDashboardFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-dashboard-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-dashboard-')));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
   await mkdir(join(dir, 'content/tags'), { recursive: true });
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Dashboard Test"',
@@ -193,7 +193,7 @@ describe('dashboard data', () => {
         'content/tags/news.md',
       );
       expect(state.settings.contentDirs.assets).toBe('content/images');
-      expect(state.settings.configPath).toBe('nectar.toml');
+      expect(state.settings.configPath).toBe('laurel.toml');
       expect(state.sync.status).toBe('synced');
       expect(state.sync.loadStartedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(state.sync.loadFinishedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
@@ -828,9 +828,9 @@ describe('dashboard data', () => {
   test('loads content templates and internal link helpers for markdown-first creation', async () => {
     const dir = await makeDashboardFixture();
     try {
-      await mkdir(join(dir, '.nectar/templates/content'), { recursive: true });
+      await mkdir(join(dir, '.laurel/templates/content'), { recursive: true });
       await writeFile(
-        join(dir, '.nectar/templates/content/review.md'),
+        join(dir, '.laurel/templates/content/review.md'),
         '---\ntitle: {{title}}\nslug: {{slug}}\nstatus: draft\n---\n\nReview {{title}}\n',
         'utf8',
       );
@@ -928,8 +928,8 @@ describe('dashboard data', () => {
       const badBody = (await badResponse.json()) as { error: string };
       expect(badBody.error).toContain('maxImageSizeBytes');
       // Validation must run before the upload is staged so a rejected
-      // request never leaks a copy of the export under .nectar/.
-      const stagedRoot = join(dir, '.nectar');
+      // request never leaks a copy of the export under .laurel/.
+      const stagedRoot = join(dir, '.laurel');
       const stagedEntries = await readdir(stagedRoot).catch(() => [] as string[]);
       expect(stagedEntries.some((name) => name.startsWith('import-ghost-'))).toBe(false);
     } finally {
@@ -1029,8 +1029,8 @@ describe('dashboard data', () => {
       expect(rejected.status).toBe(400);
       const rejectedBody = (await rejected.json()) as { error?: string };
       expect(rejectedBody.error).toMatch(/maxImageSizeBytes/);
-      // Bad-request must not leave a half-staged upload behind under .nectar/.
-      const stagedAfterReject = await readdir(join(dir, '.nectar')).catch(() => [] as string[]);
+      // Bad-request must not leave a half-staged upload behind under .laurel/.
+      const stagedAfterReject = await readdir(join(dir, '.laurel')).catch(() => [] as string[]);
       expect(stagedAfterReject.filter((name) => name.startsWith('import-ghost-'))).toEqual([]);
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -1074,7 +1074,7 @@ describe('dashboard data', () => {
 
       // Dry-run import (rename conflict policy) → written:false, file not created
       const dryRunForm = new FormData();
-      dryRunForm.append('file', new File([zipBytes], 'about.nectar.zip'));
+      dryRunForm.append('file', new File([zipBytes], 'about.laurel.zip'));
       dryRunForm.append('onConflict', 'rename');
       dryRunForm.append('dryRun', 'true');
       const preview = await handleDashboardRequest(
@@ -1097,7 +1097,7 @@ describe('dashboard data', () => {
 
       // Apply import
       const applyForm = new FormData();
-      applyForm.append('file', new File([zipBytes], 'about.nectar.zip'));
+      applyForm.append('file', new File([zipBytes], 'about.laurel.zip'));
       applyForm.append('onConflict', 'rename');
       applyForm.append('dryRun', 'false');
       const applied = await handleDashboardRequest(
@@ -1164,7 +1164,7 @@ describe('dashboard data', () => {
 
       // POST /api/bundles/import with multipart zip → written:true, status preserved
       const form = new FormData();
-      form.append('file', new File([zipBytes], 'old.nectar.zip'));
+      form.append('file', new File([zipBytes], 'old.laurel.zip'));
       form.append('onConflict', 'overwrite');
       form.append('dryRun', 'false');
       const imported = await handleDashboardRequest(
@@ -1235,14 +1235,14 @@ describe('dashboard data', () => {
       expect(zipBytes.length).toBeGreaterThan(0);
 
       // Import into a fresh target directory.
-      const target = await realpath(await mkdtemp(join(tmpdir(), 'nectar-comp-import-')));
+      const target = await realpath(await mkdtemp(join(tmpdir(), 'laurel-comp-import-')));
       await writeFile(
-        join(target, 'nectar.toml'),
+        join(target, 'laurel.toml'),
         ['[site]', 'title = "T"', 'url = "https://t.test"', ''].join('\n'),
         'utf8',
       );
       const form = new FormData();
-      form.append('file', new File([zipBytes], 'components.nectar.zip'));
+      form.append('file', new File([zipBytes], 'components.laurel.zip'));
       form.append('onConflict', 'overwrite');
       form.append('dryRun', 'false');
       const imported = await handleDashboardRequest(
@@ -1275,7 +1275,7 @@ describe('dashboard data', () => {
         { cwd: dir, changeBus: createChangeBus() },
       );
       expect(partial.status).toBe(200);
-      expect(partial.headers.get('x-nectar-missing-components')).toBe('ghost');
+      expect(partial.headers.get('x-laurel-missing-components')).toBe('ghost');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -1328,14 +1328,14 @@ describe('dashboard data', () => {
     }
   });
 
-  test('writes site settings only when nectar.toml still matches', async () => {
+  test('writes site settings only when laurel.toml still matches', async () => {
     const dir = await makeDashboardFixture();
     try {
       const settings = await readDashboardSettings({ cwd: dir });
       expect(settings.site.title).toBe('Dashboard Test');
 
       await writeFile(
-        join(dir, 'nectar.toml'),
+        join(dir, 'laurel.toml'),
         [
           '[site]',
           'title = "Changed Outside"',
@@ -1356,7 +1356,7 @@ describe('dashboard data', () => {
       expect(stale.ok).toBe(false);
       if (stale.ok) throw new Error('expected settings conflict');
       expect(stale.reason).toBe('conflict');
-      expect(await readFile(join(dir, 'nectar.toml'), 'utf8')).toContain('Changed Outside');
+      expect(await readFile(join(dir, 'laurel.toml'), 'utf8')).toContain('Changed Outside');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -1384,7 +1384,7 @@ describe('dashboard data', () => {
       });
 
       expect(written.ok).toBe(true);
-      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      const raw = await readFile(join(dir, 'laurel.toml'), 'utf8');
       expect(raw).toContain('[theme]');
       expect(raw).toContain('name = "casper"');
       expect(raw).toContain('dir = "themes"');
@@ -1399,7 +1399,7 @@ describe('dashboard data', () => {
       expect(missing.ok).toBe(false);
       if (missing.ok) throw new Error('expected invalid theme result');
       expect(missing.reason).toBe('invalid-theme');
-      expect(await readFile(join(dir, 'nectar.toml'), 'utf8')).toContain('name = "casper"');
+      expect(await readFile(join(dir, 'laurel.toml'), 'utf8')).toContain('name = "casper"');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -1427,8 +1427,8 @@ describe('dashboard data', () => {
       expect(invalid.status).toBe(400);
 
       await writeFile(
-        join(dir, 'nectar.toml'),
-        (await readFile(join(dir, 'nectar.toml'), 'utf8')).replace(
+        join(dir, 'laurel.toml'),
+        (await readFile(join(dir, 'laurel.toml'), 'utf8')).replace(
           'name = "source"',
           'name = "casper"',
         ),
@@ -1446,7 +1446,7 @@ describe('dashboard data', () => {
         { cwd: dir, changeBus },
       );
       expect(stale.status).toBe(409);
-      expect(await readFile(join(dir, 'nectar.toml'), 'utf8')).toContain('name = "casper"');
+      expect(await readFile(join(dir, 'laurel.toml'), 'utf8')).toContain('name = "casper"');
 
       const current = await readDashboardSettings({ cwd: dir });
       const ok = await handleDashboardRequest(
@@ -1461,11 +1461,11 @@ describe('dashboard data', () => {
         { cwd: dir, changeBus },
       );
       expect(ok.status).toBe(200);
-      expect(await readFile(join(dir, 'nectar.toml'), 'utf8')).toContain('name = "source"');
+      expect(await readFile(join(dir, 'laurel.toml'), 'utf8')).toContain('name = "source"');
       expect(changeBus.snapshot().lastEvent).toMatchObject({
         reason: 'theme-settings-write',
         kind: 'settings',
-        changedPath: 'nectar.toml',
+        changedPath: 'laurel.toml',
       });
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -1476,7 +1476,7 @@ describe('dashboard data', () => {
     const dir = await makeDashboardFixture();
     try {
       await writeDashboardThemeFixture(dir, 'source');
-      const stagingDir = await mkdtemp(join(tmpdir(), 'nectar-theme-zip-'));
+      const stagingDir = await mkdtemp(join(tmpdir(), 'laurel-theme-zip-'));
       const themeStaging = join(stagingDir, 'newcomer');
       await mkdir(themeStaging, { recursive: true });
       await writeFile(join(themeStaging, 'index.hbs'), '<h1>Newcomer</h1>\n', 'utf8');
@@ -1519,7 +1519,7 @@ describe('dashboard data', () => {
       const body = (await response.json()) as Record<string, unknown>;
       expect(body).toMatchObject({ ok: true, name: 'newcomer', active: true });
 
-      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      const raw = await readFile(join(dir, 'laurel.toml'), 'utf8');
       expect(raw).toContain('name = "newcomer"');
 
       const settings = await readDashboardSettings({ cwd: dir });
@@ -1558,10 +1558,10 @@ describe('dashboard data', () => {
       );
 
       expect(approved.status).toBe(201);
-      expect(await readFile(join(dir, '.nectar/approvals/pages/about.json'), 'utf8')).toContain(
+      expect(await readFile(join(dir, '.laurel/approvals/pages/about.json'), 'utf8')).toContain(
         '"approvedBy": "Takuto"',
       );
-      expect(await readFile(join(dir, '.nectar/approvals/pages/about.md'), 'utf8')).toContain(
+      expect(await readFile(join(dir, '.laurel/approvals/pages/about.md'), 'utf8')).toContain(
         'About body',
       );
 
@@ -1590,7 +1590,7 @@ describe('dashboard data', () => {
       expect(changeBus.snapshot().lastEvent).toMatchObject({
         reason: 'page-approval-write',
         kind: 'pages',
-        changedPath: '.nectar/approvals/pages/about.json',
+        changedPath: '.laurel/approvals/pages/about.json',
       });
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -1602,7 +1602,7 @@ describe('dashboard data', () => {
     try {
       await writeDashboardThemeFixture(dir, 'casper');
       await writeFile(
-        join(dir, 'nectar.toml'),
+        join(dir, 'laurel.toml'),
         [
           'plugins = []',
           '',
@@ -1621,7 +1621,7 @@ describe('dashboard data', () => {
       });
 
       expect(written.ok).toBe(true);
-      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      const raw = await readFile(join(dir, 'laurel.toml'), 'utf8');
       expect(raw.indexOf('plugins = []')).toBeLessThan(raw.indexOf('[site]'));
       expect(raw.indexOf('[theme]')).toBeGreaterThan(raw.indexOf('[site]'));
       expect(raw).toContain('name = "casper"');
@@ -1635,7 +1635,7 @@ describe('dashboard data', () => {
     try {
       await writeDashboardThemeFixture(dir, 'source');
       await writeFile(
-        join(dir, 'nectar.toml'),
+        join(dir, 'laurel.toml'),
         [
           '[site]',
           'title = "Dashboard Test"',
@@ -1660,7 +1660,7 @@ describe('dashboard data', () => {
       });
 
       expect(written.ok).toBe(true);
-      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      const raw = await readFile(join(dir, 'laurel.toml'), 'utf8');
       expect(raw.indexOf('name = "source"')).toBeGreaterThan(raw.indexOf('[theme]'));
       expect(raw.indexOf('name = "source"')).toBeLessThan(raw.indexOf('[[navigation]]'));
     } finally {
@@ -1743,7 +1743,7 @@ describe('dashboard data', () => {
       });
       expect(written.ok).toBe(true);
 
-      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      const raw = await readFile(join(dir, 'laurel.toml'), 'utf8');
       expect(raw).toContain('codeinjection_head =');
       expect(raw).toContain('codeinjection_foot =');
       // No [build] section auto-inserted when allow_code_injection isn't in
@@ -1777,7 +1777,7 @@ describe('dashboard data', () => {
       });
       expect(written.ok).toBe(true);
 
-      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      const raw = await readFile(join(dir, 'laurel.toml'), 'utf8');
       expect(raw).toContain('codeinjection_head = "<script>ga()</script>"');
       expect(raw).toContain('[build]');
       expect(raw).toContain('allow_code_injection = true');
@@ -1794,7 +1794,7 @@ describe('dashboard data', () => {
     try {
       // Seed: head present, gate on.
       await writeFile(
-        join(dir, 'nectar.toml'),
+        join(dir, 'laurel.toml'),
         [
           '[site]',
           'title = "Dashboard Test"',
@@ -1818,7 +1818,7 @@ describe('dashboard data', () => {
       });
       expect(written.ok).toBe(true);
 
-      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      const raw = await readFile(join(dir, 'laurel.toml'), 'utf8');
       expect(raw).toContain('allow_code_injection = false');
       // Empty head/foot in payload (omitted) → existing values untouched.
       expect(raw).toContain('codeinjection_head = "<script>old()</script>"');
@@ -1872,7 +1872,7 @@ describe('dashboard data', () => {
       });
       expect(written.ok).toBe(true);
 
-      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      const raw = await readFile(join(dir, 'laurel.toml'), 'utf8');
       expect(raw).toContain(`og_image = "${ogImage}"`);
       // Existing [site] keys must survive the targeted update.
       expect(raw).toContain('title = "Dashboard Test"');
@@ -1894,7 +1894,7 @@ describe('dashboard data', () => {
         headers: {
           'content-type': 'application/json',
           origin: 'http://127.0.0.1',
-          'x-nectar-dashboard-token': 'test-token',
+          'x-laurel-dashboard-token': 'test-token',
         },
         body: JSON.stringify({
           fingerprint: settings.fingerprint,
@@ -1931,7 +1931,7 @@ describe('dashboard data', () => {
         headers: {
           'content-type': 'application/json',
           origin: 'http://127.0.0.1',
-          'x-nectar-dashboard-token': 'test-token',
+          'x-laurel-dashboard-token': 'test-token',
         },
         body: JSON.stringify({
           fingerprint: settings.fingerprint,
@@ -1957,7 +1957,7 @@ describe('dashboard data', () => {
     try {
       await writeFile(join(dir, 'themes-file'), 'not a directory\n', 'utf8');
       await writeFile(
-        join(dir, 'nectar.toml'),
+        join(dir, 'laurel.toml'),
         '[site]\ntitle = "Dashboard Test"\nurl = "https://dashboard.test"\n\n[theme]\nname = "source"\ndir = "themes-file"\n',
         'utf8',
       );
@@ -1978,7 +1978,7 @@ describe('dashboard data', () => {
       // Fixture references `[theme] name = "source"` but never vendors the
       // directory, so both surfaces should flag it as missing and offer a
       // ready-to-paste git clone command pointing at the canonical Source
-      // theme repo. This mirrors the `NectarError` that `loadTheme()` raises
+      // theme repo. This mirrors the `LaurelError` that `loadTheme()` raises
       // at build time.
       expect(state.settings.theme.status.missing).toBe(true);
       expect(state.settings.theme.status.expectedPath).toBe('themes/source');
@@ -2036,12 +2036,12 @@ describe('dashboard data', () => {
     }
   });
 
-  test('loads and creates settings when nectar.toml does not exist yet', async () => {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-dashboard-no-config-')));
+  test('loads and creates settings when laurel.toml does not exist yet', async () => {
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-dashboard-no-config-')));
     try {
       const settings = await readDashboardSettings({ cwd: dir });
-      expect(settings.configPath).toBe('nectar.toml');
-      expect(settings.fingerprint).toEqual({ path: 'nectar.toml', mtimeMs: 0, size: 0 });
+      expect(settings.configPath).toBe('laurel.toml');
+      expect(settings.fingerprint).toEqual({ path: 'laurel.toml', mtimeMs: 0, size: 0 });
 
       const written = await writeDashboardSiteSettings({
         cwd: dir,
@@ -2051,8 +2051,8 @@ describe('dashboard data', () => {
 
       expect(written.ok).toBe(true);
       if (!written.ok) throw new Error('expected settings write');
-      expect(written.changedPath).toBe('nectar.toml');
-      expect(await readFile(join(dir, 'nectar.toml'), 'utf8')).toContain(
+      expect(written.changedPath).toBe('laurel.toml');
+      expect(await readFile(join(dir, 'laurel.toml'), 'utf8')).toContain(
         'title = "Created Dashboard Config"',
       );
     } finally {
@@ -2062,7 +2062,7 @@ describe('dashboard data', () => {
 
   test('rejects dashboard writes through symlinks that resolve outside content directories', async () => {
     const dir = await makeDashboardFixture();
-    const outside = await realpath(await mkdtemp(join(tmpdir(), 'nectar-dashboard-outside-')));
+    const outside = await realpath(await mkdtemp(join(tmpdir(), 'laurel-dashboard-outside-')));
     try {
       await writeFile(join(outside, 'secret.md'), '---\nname: Secret\n---\n', 'utf8');
       await symlink(join(outside, 'secret.md'), join(dir, 'content/tags/secret.md'));
@@ -2116,7 +2116,7 @@ describe('dashboard data', () => {
           headers: {
             'content-type': 'application/json',
             origin: 'http://evil.test',
-            'x-nectar-dashboard-token': 'dashboard-token',
+            'x-laurel-dashboard-token': 'dashboard-token',
           },
           body,
         }),
@@ -2130,7 +2130,7 @@ describe('dashboard data', () => {
           headers: {
             'content-type': 'application/json',
             origin: 'http://127.0.0.1:4322',
-            'x-nectar-dashboard-token': 'dashboard-token',
+            'x-laurel-dashboard-token': 'dashboard-token',
             'content-length': '181',
           },
           body,
@@ -2370,7 +2370,7 @@ describe('dashboard data', () => {
     const dir = await makeDashboardFixture();
     try {
       await writeFile(
-        join(dir, 'nectar.toml'),
+        join(dir, 'laurel.toml'),
         [
           '[site]',
           'title = "Dashboard Test"',
@@ -2462,7 +2462,7 @@ describe('dashboard data', () => {
   test('renders the minimal Preact dashboard shell with bundle references', () => {
     const html = renderDashboardHtml();
 
-    expect(html).toContain('<title>Nectar Dashboard</title>');
+    expect(html).toContain('<title>Laurel Dashboard</title>');
     expect(html).toContain('data-theme="system"');
     expect(html).toContain('<link rel="stylesheet" href="/assets/dashboard.css">');
     expect(html).toContain('<link rel="stylesheet" href="/api/themes/active/css">');
@@ -2471,7 +2471,7 @@ describe('dashboard data', () => {
     expect(html).toContain('href="#main"');
 
     // The CSRF token now ships via /api/dashboard/bootstrap, not a meta tag.
-    expect(html).not.toContain('nectar-dashboard-token');
+    expect(html).not.toContain('laurel-dashboard-token');
     // Inline `<style>` tag and bundled vanilla JS are gone — the shell only
     // loads the Preact bundle from the served assets.
     expect(html).not.toContain('<style>');
@@ -2506,13 +2506,13 @@ describe('dashboard data', () => {
       });
       expect(response.status).toBe(200);
       const body = await response.text();
-      expect(body).toContain('<title>Nectar Dashboard</title>');
+      expect(body).toContain('<title>Laurel Dashboard</title>');
       expect(body).toContain('<div id="root"></div>');
     }
   });
 
   test('reports a clear error when the dashboard bundle is missing on disk', async () => {
-    const tmpCwd = await mkdtemp(join(tmpdir(), 'nectar-bundle-'));
+    const tmpCwd = await mkdtemp(join(tmpdir(), 'laurel-bundle-'));
     try {
       const response = await handleDashboardRequest(
         new Request('http://127.0.0.1:4322/assets/dashboard.js'),
@@ -2689,7 +2689,7 @@ describe('dashboard favicon (site.icon)', () => {
       });
       expect(written.ok).toBe(true);
 
-      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      const raw = await readFile(join(dir, 'laurel.toml'), 'utf8');
       expect(raw).toContain('icon = "/content/images/favicon.png"');
       // Existing [site] keys untouched.
       expect(raw).toContain('title = "Dashboard Test"');
@@ -2719,7 +2719,7 @@ describe('dashboard favicon (site.icon)', () => {
       });
       expect(cleared.ok).toBe(true);
 
-      const raw = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      const raw = await readFile(join(dir, 'laurel.toml'), 'utf8');
       expect(raw).toContain('icon = ""');
 
       const after = await readDashboardSettings({ cwd: dir });

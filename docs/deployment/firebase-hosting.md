@@ -1,14 +1,14 @@
 # Firebase Hosting deployment recipe
 
-Use this target when Firebase Hosting should serve Nectar's static `dist/`
-output. Enable `[deploy.firebase]` to emit `dist/firebase.json` from Nectar's
+Use this target when Firebase Hosting should serve Laurel's static `dist/`
+output. Enable `[deploy.firebase]` to emit `dist/firebase.json` from Laurel's
 shared deploy headers, redirects, clean URL, and trailing-slash config.
 
 ## Recipe
 
 1. Set `site.url` to the Firebase Hosting URL or custom domain.
-2. Add `[deploy.firebase] enabled = true` to `nectar.toml`.
-3. Run `bunx nectar build`.
+2. Add `[deploy.firebase] enabled = true` to `laurel.toml`.
+3. Run `bunx laurel build`.
 4. Deploy from `dist/`, or use the GitHub Actions sample that points
    FirebaseExtended/action-hosting-deploy at `entryPoint: dist`.
 5. Run `firebase deploy --only hosting` for local CLI deploys.

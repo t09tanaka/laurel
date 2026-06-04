@@ -1,11 +1,11 @@
 
-   Nectar <version>  -  Ghost-theme-compatible static site generator
+   Laurel <version>  -  Ghost-theme-compatible static site generator
 
    Usage:
-     nectar [global options] <command> [options]
+     laurel [global options] <command> [options]
 
    Commands:
-     init              Scaffold a new Nectar project in the current (or given) directory
+     init              Scaffold a new Laurel project in the current (or given) directory
      build             Build the site into the configured output directory
      build:email       Render a theme email template for one post
      new               Scaffold a new Markdown content file
@@ -17,31 +17,31 @@
      check             Validate config, theme, and content
      doctor            Run health checks on the project (bun, config, theme, content, network)
      diagnostics       Create support-safe diagnostics bundles
-     clean             Remove dist/ and .nectar/cache build artifacts
-     cache             Inspect or remove the local .nectar/cache directory
+     clean             Remove dist/ and .laurel/cache build artifacts
+     cache             Inspect or remove the local .laurel/cache directory
      completions       Print or install a shell completion script
-     config            Inspect or update the loaded Nectar config
-     schema            Print JSON Schema for Nectar config, frontmatter, or theme package.json
-     skill             Install bundled agent skills (Claude Code / Codex) so AI assistants understand how to work in this Nectar project
+     config            Inspect or update the loaded Laurel config
+     schema            Print JSON Schema for Laurel config, frontmatter, or theme package.json
+     skill             Install bundled agent skills (Claude Code / Codex) so AI assistants understand how to work in this Laurel project
      content           Inspect or modify content in the project (posts, pages)
      redirects         Inspect redirect rules loaded from redirects.yaml and Ghost exports
-     info              Print Nectar, Bun, and project environment information
+     info              Print Laurel, Bun, and project environment information
      lint              Run content-level lint checks (titles, alt text, broken local links, future dates, duplicate slugs, malformed frontmatter)
      fmt               Format content Markdown frontmatter in place
      tags              Inspect or modify tags in the project
      authors           Inspect or modify authors in the project
      theme             Manage themes in the project. `list` shows available themes; `new <name>` scaffolds a minimal theme; `zip` packs the active theme into a `<name>-<version>.zip` archive; `lint <path>` checks a theme directory for required templates / helpers / partials; `serve` runs a fast fixture-backed theme dev server
-     migrate           Convert content from another platform into Nectar Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>`
+     migrate           Convert content from another platform into Laurel Markdown. `ghost <file>`, `wordpress <wxr.xml>`, `hugo <dir>`, `jekyll <dir>`, or `eleventy <dir>`
      deploy            Publish the built site to a hosting target. Targets: cloudflare, netlify, vercel, github-pages, s3, r2, rsync
      export            Dump the loaded content, a single entry bundle, a components bundle, or regenerate the RSS feed without running a full build
-     import            Import a Nectar zip bundle: an entry (post or page) or a components bundle
-     upgrade           Upgrade the installed Nectar CLI when the install method supports it
+     import            Import a Laurel zip bundle: an entry (post or page) or a components bundle
+     upgrade           Upgrade the installed Laurel CLI when the install method supports it
      telemetry         Manage opt-in anonymous usage telemetry
-     plugins           Inspect future Nectar plugins
+     plugins           Inspect future Laurel plugins
      import-ghost      Convert a Ghost JSON export into Markdown content
      import-wordpress  Convert a WordPress WXR XML export into Markdown content
-     import-hugo       Convert Hugo Markdown posts into Nectar content
-     import-jekyll     Convert Jekyll Markdown posts into Nectar content
+     import-hugo       Convert Hugo Markdown posts into Laurel content
+     import-jekyll     Convert Jekyll Markdown posts into Laurel content
      version           Print the version, optionally as JSON, or check for updates
      help              Show this help or help for a command
 
@@ -51,8 +51,8 @@
      -j, --json                  Emit one JSON object per log line + JSON-shaped command output where supported
      --log-format <json|pretty>  Choose logger output format without changing command output
      --locale <tag>              Set the process locale for CLI diagnostics and locale-sensitive output
-     --no-color                  Disable ANSI color (also NO_COLOR=1 / NECTAR_NO_COLOR=1; FORCE_COLOR overrides)
-     --debug                     Show full stack traces on error (also NECTAR_DEBUG=1; default prints a short message)
+     --no-color                  Disable ANSI color (also NO_COLOR=1 / LAUREL_NO_COLOR=1; FORCE_COLOR overrides)
+     --debug                     Show full stack traces on error (also LAUREL_DEBUG=1; default prints a short message)
      --warnings-as-errors        Treat logger warnings as errors and exit 1 if any warning is emitted
 
-   Run `nectar <command> --help` for details on each command.
+   Run `laurel <command> --help` for details on each command.

@@ -6,7 +6,7 @@ Zone and served through a connected Pull Zone.
 ## Recipe
 
 1. Set `site.url` to the Bunny Pull Zone URL or custom domain.
-2. Run `bunx nectar build`.
+2. Run `bunx laurel build`.
 3. Upload the contents of `dist/` to the Storage Zone.
 4. Configure the Pull Zone to serve the uploaded files.
 5. Add cache and security headers in Bunny's edge rules or a fronting layer.

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { emitNojekyll } from '~/build/nojekyll.ts';
 
 async function makeOutputDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-nojekyll-'));
+  return mkdtemp(join(tmpdir(), 'laurel-nojekyll-'));
 }
 
 describe('emitNojekyll', () => {

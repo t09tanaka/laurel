@@ -61,7 +61,7 @@ describe('cli import-wordpress', () => {
   let exportFile: string;
 
   beforeEach(async () => {
-    dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-import-wp-cli-')));
+    dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-wp-cli-')));
     exportFile = join(dir, 'export.xml');
     await writeFile(exportFile, wxrPayload());
   });

@@ -4,10 +4,10 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { computeFavicons, copyFavicons } from '~/build/favicons.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ThemeAsset, ThemeBundle } from '~/theme/types.ts';
 
-function makeConfig(siteOverrides: Partial<NectarConfig['site']> = {}): NectarConfig {
+function makeConfig(siteOverrides: Partial<LaurelConfig['site']> = {}): LaurelConfig {
   return {
     site: {
       title: 'Test',
@@ -37,8 +37,8 @@ function makeConfig(siteOverrides: Partial<NectarConfig['site']> = {}): NectarCo
     },
     navigation: [],
     secondary_navigation: [],
-    components: {} as NectarConfig['components'],
-  } as unknown as NectarConfig;
+    components: {} as LaurelConfig['components'],
+  } as unknown as LaurelConfig;
 }
 
 function makeTheme(assets: Record<string, string> = {}): ThemeBundle {
@@ -115,7 +115,7 @@ describe('computeFavicons', () => {
   });
 
   test('falls back to site.icon when theme ships no favicons', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-fav-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-fav-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(join(cwd, 'content/images/logo.svg'), '<svg/>');
     const result = computeFavicons({
@@ -134,7 +134,7 @@ describe('computeFavicons', () => {
   });
 
   test('emits apple-touch-icon when site.icon is PNG and theme has none', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-fav-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-fav-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(join(cwd, 'content/images/logo.png'), 'png');
     const result = computeFavicons({
@@ -148,7 +148,7 @@ describe('computeFavicons', () => {
   });
 
   test('does not duplicate apple-touch-icon when theme already provides one', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-fav-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-fav-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(join(cwd, 'content/images/logo.png'), 'png');
     const result = computeFavicons({
@@ -164,7 +164,7 @@ describe('computeFavicons', () => {
   });
 
   test('skips site.icon when theme already provides rel=icon', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-fav-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-fav-'));
     await mkdir(join(cwd, 'content/images'), { recursive: true });
     await writeFile(join(cwd, 'content/images/logo.svg'), '<svg/>');
     const result = computeFavicons({
@@ -200,7 +200,7 @@ describe('computeFavicons', () => {
   });
 
   test('skips site.icon when the source file does not exist', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'nectar-fav-'));
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-fav-'));
     const result = computeFavicons({
       config: makeConfig({ icon: '/content/images/missing.png' }),
       theme: makeTheme(),
@@ -212,8 +212,8 @@ describe('computeFavicons', () => {
 
 describe('copyFavicons', () => {
   test('copies each declared source file into the output dir', async () => {
-    const src = await mkdtemp(join(tmpdir(), 'nectar-fav-src-'));
-    const out = await mkdtemp(join(tmpdir(), 'nectar-fav-out-'));
+    const src = await mkdtemp(join(tmpdir(), 'laurel-fav-src-'));
+    const out = await mkdtemp(join(tmpdir(), 'laurel-fav-out-'));
     await writeFile(join(src, 'favicon.ico'), 'ico-bytes');
     await writeFile(join(src, 'apple-touch-icon.png'), 'png-bytes');
 

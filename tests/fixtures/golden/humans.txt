@@ -1,5 +1,5 @@
 /* SITE */
-Title: Nectar Example
-Description: A demo blog built with Nectar against the Ghost Casper theme
-URL: https://nectar.example.com
-Generator: Nectar
+Title: Laurel Example
+Description: A demo blog built with Laurel against the Ghost Casper theme
+URL: https://laurel.example.com
+Generator: Laurel

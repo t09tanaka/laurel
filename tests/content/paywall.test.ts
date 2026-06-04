@@ -77,7 +77,7 @@ interface FixtureOptions {
 }
 
 async function fixture(opts: FixtureOptions = {}): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'nectar-paywall-'));
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-paywall-'));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
@@ -215,7 +215,7 @@ describe('visibility_policy', () => {
 
   // #325 — Ghost exposes `tiers` (gated to specific tiers) and `filter` (NQL
   // expression) on top of the public/members/paid tri-state. Both require a
-  // signed-in viewer to resolve, so Nectar treats them as members-grade
+  // signed-in viewer to resolve, so Laurel treats them as members-grade
   // gating end-to-end: paywall stub is injected, body is truncated under the
   // default `truncate` policy, and `post.visibility` keeps the exact value
   // for themes that branch on it.
@@ -293,7 +293,7 @@ describe('visibility_policy', () => {
   });
 
   async function markerFixture(body: string, visibility: 'public' | 'members' = 'members') {
-    const tmp = await mkdtemp(join(tmpdir(), 'nectar-paywall-marker-'));
+    const tmp = await mkdtemp(join(tmpdir(), 'laurel-paywall-marker-'));
     await mkdir(join(tmp, 'content/posts'), { recursive: true });
     await mkdir(join(tmp, 'content/pages'), { recursive: true });
     await mkdir(join(tmp, 'content/authors'), { recursive: true });

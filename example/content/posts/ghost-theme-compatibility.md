@@ -5,11 +5,11 @@ date: 2026-05-05T08:00:00Z
 authors: [casper]
 tags: [news]
 feature_image: "/content/images/compat-cover.svg"
-feature_image_alt: "A browser window showing Ghost theme components connected to Nectar"
-custom_excerpt: "Which Ghost helpers Nectar implements, and which it deliberately doesn't."
+feature_image_alt: "A browser window showing Ghost theme components connected to Laurel"
+custom_excerpt: "Which Ghost helpers Laurel implements, and which it deliberately doesn't."
 ---
 
-Nectar implements the Ghost theme helper surface needed to render real-world
+Laurel implements the Ghost theme helper surface needed to render real-world
 themes against static Markdown content. The full coverage matrix lives in
 `docs/GHOST_COMPATIBILITY.md` — here are the highlights.
 

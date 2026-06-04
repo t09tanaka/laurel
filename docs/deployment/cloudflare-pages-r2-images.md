@@ -9,7 +9,7 @@ large `/content/images/` output from R2.
 1. Build locally and count files with `find dist -type f | wc -l`.
 2. If the deploy is image-heavy, plan the R2 split before Pages rejects it.
 3. Deploy the non-image Pages bundle with Cloudflare Pages.
-4. Sync image output to R2 with Nectar's R2 deploy target or an S3-compatible
+4. Sync image output to R2 with Laurel's R2 deploy target or an S3-compatible
    sync command.
 5. Put a Worker or equivalent route in front of image requests.
 6. Verify old Ghost image URLs and responsive variants.

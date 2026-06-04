@@ -9,10 +9,10 @@ import {
 } from '~/cli/legacy-cache-warning.ts';
 
 async function tempCwd(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'nectar-legacy-cache-'));
+  return mkdtemp(join(tmpdir(), 'laurel-legacy-cache-'));
 }
 
-describe('legacy .nectar-cache startup warning', () => {
+describe('legacy .laurel-cache startup warning', () => {
   test('returns no message when the legacy directory is absent', async () => {
     const cwd = await tempCwd();
     try {
@@ -26,12 +26,12 @@ describe('legacy .nectar-cache startup warning', () => {
   test('returns a message naming the legacy path when it exists', async () => {
     const cwd = await tempCwd();
     try {
-      await Bun.write(join(cwd, '.nectar-cache/marker'), 'legacy');
+      await Bun.write(join(cwd, '.laurel-cache/marker'), 'legacy');
       const message = legacyCacheWarning(cwd);
       expect(message).toBeDefined();
-      expect(message).toContain('.nectar-cache');
-      expect(message).toContain('.nectar/cache');
-      expect(message).toContain(join(cwd, '.nectar-cache'));
+      expect(message).toContain('.laurel-cache');
+      expect(message).toContain('.laurel/cache');
+      expect(message).toContain(join(cwd, '.laurel-cache'));
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -40,11 +40,11 @@ describe('legacy .nectar-cache startup warning', () => {
   test('warnIfLegacyCacheDir invokes the warn callback when the directory exists', async () => {
     const cwd = await tempCwd();
     try {
-      await Bun.write(join(cwd, '.nectar-cache/marker'), 'legacy');
+      await Bun.write(join(cwd, '.laurel-cache/marker'), 'legacy');
       const messages: string[] = [];
       warnIfLegacyCacheDir((message) => messages.push(message), cwd);
       expect(messages).toHaveLength(1);
-      expect(messages[0]).toContain('.nectar/cache');
+      expect(messages[0]).toContain('.laurel/cache');
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }

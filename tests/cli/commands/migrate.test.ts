@@ -48,8 +48,8 @@ describe('cli migrate', () => {
   });
 
   test('hugo source dry-run reports zero copies on empty tree', async () => {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-migrate-')));
-    const src = await realpath(await mkdtemp(join(tmpdir(), 'nectar-migrate-src-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-migrate-')));
+    const src = await realpath(await mkdtemp(join(tmpdir(), 'laurel-migrate-src-')));
     try {
       await mkdir(join(src, 'content/posts'), { recursive: true });
       await writeFile(join(src, 'content/posts/hello.md'), '---\ntitle: Hello\n---\nbody\n');
@@ -62,8 +62,8 @@ describe('cli migrate', () => {
   });
 
   test('hugo source copies posts into content/posts/', async () => {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-migrate-')));
-    const src = await realpath(await mkdtemp(join(tmpdir(), 'nectar-migrate-src-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-migrate-')));
+    const src = await realpath(await mkdtemp(join(tmpdir(), 'laurel-migrate-src-')));
     try {
       await mkdir(join(src, 'content/posts'), { recursive: true });
       await writeFile(join(src, 'content/posts/hello.md'), '---\ntitle: Hello\n---\nbody\n');
@@ -78,7 +78,7 @@ describe('cli migrate', () => {
   });
 
   test('passes Ghost max-post-html-size through to import-ghost', async () => {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-migrate-ghost-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-migrate-ghost-')));
     const exportFile = join(dir, 'ghost.json');
     try {
       await writeFile(

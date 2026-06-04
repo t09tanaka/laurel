@@ -17,9 +17,9 @@ import {
 let dir: string | undefined;
 
 async function makeEnv(): Promise<NodeJS.ProcessEnv> {
-  dir = await mkdtemp(join(tmpdir(), 'nectar-telemetry-'));
+  dir = await mkdtemp(join(tmpdir(), 'laurel-telemetry-'));
   return {
-    NECTAR_TELEMETRY_CONFIG: join(dir, 'telemetry.json'),
+    LAUREL_TELEMETRY_CONFIG: join(dir, 'telemetry.json'),
   };
 }
 
@@ -36,7 +36,7 @@ describe('cli telemetry crash reports', () => {
         '/repo/src/cli/index.ts',
         'build',
         '--config',
-        '/Users/me/private/nectar.toml',
+        '/Users/me/private/laurel.toml',
         '--base-url=https://secret.example',
         '-p',
         '4000',
@@ -65,7 +65,7 @@ describe('cli telemetry crash reports', () => {
     const stack = [
       'TypeError: boom',
       '    at run (/Users/me/site/src/cli/index.ts:10:5)',
-      '    at Object.<anonymous> (/tmp/nectar-fixture/secret.js:2:1)',
+      '    at Object.<anonymous> (/tmp/laurel-fixture/secret.js:2:1)',
     ].join('\n');
 
     expect(sanitizeStack(stack)).toEqual(
@@ -83,14 +83,14 @@ describe('cli telemetry crash reports', () => {
 
     const payload = buildCrashReportPayload(err, {
       argv: ['bun', '/repo/src/cli/index.ts', 'build', '--config', 'secret.toml'],
-      versions: { nectar: '0.1.0', bun: '1.3.14', node: 'v24.0.0', commit: 'abc' },
+      versions: { laurel: '0.1.0', bun: '1.3.14', node: 'v24.0.0', commit: 'abc' },
     });
 
     expect(payload.error).toEqual({ class: 'TypeError', message: 'token abc123 failed' });
     expect(payload.argv).toEqual(['bun', '[entry]', 'build', '--config', '[redacted]']);
     expect(payload.stack).toBe('TypeError: token abc123 failed\n    at run ([path]:10:5)');
     expect(payload.versions).toEqual({
-      nectar: '0.1.0',
+      laurel: '0.1.0',
       bun: '1.3.14',
       node: 'v24.0.0',
       commit: 'abc',
@@ -100,8 +100,8 @@ describe('cli telemetry crash reports', () => {
   test('non-TTY skips prompt and sender', async () => {
     let sent = false;
     const result = await handleCrashReportPrompt(new Error('boom'), {
-      argv: ['bun', 'nectar', 'build'],
-      versions: { nectar: '0.1.0', bun: null, node: 'v24.0.0', commit: null },
+      argv: ['bun', 'laurel', 'build'],
+      versions: { laurel: '0.1.0', bun: null, node: 'v24.0.0', commit: null },
       isTty: false,
       prompt: async () => 'y',
       send: async () => {
@@ -118,7 +118,7 @@ describe('cli telemetry crash reports', () => {
     let payload: ReturnType<typeof buildCrashReportPayload> | undefined;
     const result = await handleCrashReportPrompt(new Error('boom'), {
       argv: ['bun', '/repo/src/cli/index.ts', 'build', '--config', 'secret.toml'],
-      versions: { nectar: '0.1.0', bun: null, node: 'v24.0.0', commit: null },
+      versions: { laurel: '0.1.0', bun: null, node: 'v24.0.0', commit: null },
       isTty: true,
       prompt: async () => 'y',
       send: async (nextPayload) => {
@@ -136,8 +136,8 @@ describe('cli telemetry crash reports', () => {
     const configPath = telemetryConfigPath(env);
     let promptCount = 0;
     const first = await handleCrashReportPrompt(new Error('boom'), {
-      argv: ['bun', 'nectar', 'build'],
-      versions: { nectar: '0.1.0', bun: null, node: 'v24.0.0', commit: null },
+      argv: ['bun', 'laurel', 'build'],
+      versions: { laurel: '0.1.0', bun: null, node: 'v24.0.0', commit: null },
       configPath,
       isTty: true,
       prompt: async () => {
@@ -149,8 +149,8 @@ describe('cli telemetry crash reports', () => {
       },
     });
     const second = await handleCrashReportPrompt(new Error('boom'), {
-      argv: ['bun', 'nectar', 'build'],
-      versions: { nectar: '0.1.0', bun: null, node: 'v24.0.0', commit: null },
+      argv: ['bun', 'laurel', 'build'],
+      versions: { laurel: '0.1.0', bun: null, node: 'v24.0.0', commit: null },
       configPath,
       isTty: true,
       prompt: async () => {
@@ -200,8 +200,8 @@ describe('telemetry config', () => {
   test('usage telemetry changes preserve crash report preference', async () => {
     const env = await makeEnv();
     await handleCrashReportPrompt(new Error('boom'), {
-      argv: ['bun', 'nectar', 'build'],
-      versions: { nectar: '0.1.0', bun: null, node: 'v24.0.0', commit: null },
+      argv: ['bun', 'laurel', 'build'],
+      versions: { laurel: '0.1.0', bun: null, node: 'v24.0.0', commit: null },
       configPath: telemetryConfigPath(env),
       isTty: true,
       prompt: async () => 'never',
@@ -238,7 +238,7 @@ describe('telemetry payload and sending', () => {
       success: false,
       exit_code: 1,
     });
-    expect(payload.nectar_version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(payload.laurel_version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(typeof payload.bun_version === 'string' || payload.bun_version === null).toBe(true);
     expect(payload.os.platform).toBeTruthy();
     expect(payload.os.arch).toBeTruthy();
@@ -295,7 +295,7 @@ describe('telemetry payload and sending', () => {
 
   test('environment endpoint overrides stored endpoint', async () => {
     const env = await makeEnv();
-    env.NECTAR_TELEMETRY_ENDPOINT = 'https://override.test/usage';
+    env.LAUREL_TELEMETRY_ENDPOINT = 'https://override.test/usage';
     await enableTelemetry('https://stored.test/usage', env);
     let observedUrl = '';
 

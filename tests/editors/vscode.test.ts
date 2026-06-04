@@ -12,7 +12,7 @@ async function readJson<T>(path: string): Promise<T> {
 }
 
 describe('VS Code extension', () => {
-  test('manifest contributes Nectar language, tasks, problem matcher, and snippets', async () => {
+  test('manifest contributes Laurel language, tasks, problem matcher, and snippets', async () => {
     const manifest = await readJson<{
       main: string;
       activationEvents: string[];
@@ -26,50 +26,50 @@ describe('VS Code extension', () => {
     }>(join(extensionRoot, 'package.json'));
 
     expect(manifest.main).toBe('./extension.js');
-    expect(manifest.activationEvents).toContain('onTaskType:nectar');
+    expect(manifest.activationEvents).toContain('onTaskType:laurel');
     expect(manifest.contributes.languages).toContainEqual(
       expect.objectContaining({
-        id: 'nectar-config',
-        filenames: expect.arrayContaining(['nectar.config.toml', 'nectar.toml']),
+        id: 'laurel-config',
+        filenames: expect.arrayContaining(['laurel.config.toml', 'laurel.toml']),
       }),
     );
     expect(manifest.contributes.grammars).toContainEqual(
-      expect.objectContaining({ language: 'nectar-config' }),
+      expect.objectContaining({ language: 'laurel-config' }),
     );
     expect(manifest.contributes.snippets).toContainEqual(
       expect.objectContaining({ language: 'markdown' }),
     );
     const problemMatcher = manifest.contributes.problemMatchers[0];
-    if (!problemMatcher) throw new Error('missing Nectar problem matcher');
+    if (!problemMatcher) throw new Error('missing Laurel problem matcher');
     expect(problemMatcher).toMatchObject({
-      name: 'nectar',
+      name: 'laurel',
       pattern: {
         regexp: '^----\\s+(.+?)(?::(\\d+)(?::(\\d+))?)?\\s+-\\s+(.+)$',
       },
     });
     const taskDefinition = manifest.contributes.taskDefinitions[0];
-    if (!taskDefinition) throw new Error('missing Nectar task definition');
+    if (!taskDefinition) throw new Error('missing Laurel task definition');
     expect(taskDefinition.properties.task.enum).toEqual(['build', 'dev', 'check']);
   });
 
   test('extension JSON assets are valid', async () => {
-    await readJson(join(extensionRoot, 'language-configuration/nectar-config.json'));
-    await readJson(join(extensionRoot, 'grammars/nectar-config.tmLanguage.json'));
+    await readJson(join(extensionRoot, 'language-configuration/laurel-config.json'));
+    await readJson(join(extensionRoot, 'grammars/laurel-config.tmLanguage.json'));
     const snippets = await readJson<Record<string, { prefix: string }>>(
       join(extensionRoot, 'snippets/frontmatter.code-snippets'),
     );
 
     expect(Object.values(snippets).map((snippet) => snippet.prefix)).toEqual([
-      'nectar-post',
-      'nectar-page',
-      'nectar-tag',
-      'nectar-author',
+      'laurel-post',
+      'laurel-page',
+      'laurel-tag',
+      'laurel-author',
     ]);
   });
 
   test('bundled config schema matches the CLI schema output', async () => {
     const bundled = await readFile(
-      join(extensionRoot, 'schemas/nectar.config.schema.json'),
+      join(extensionRoot, 'schemas/laurel.config.schema.json'),
       'utf8',
     );
     const proc = Bun.spawn(['bun', cliEntry, 'schema', 'config'], {

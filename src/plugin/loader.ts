@@ -9,11 +9,11 @@ export interface LoadPluginsOptions {
   cwd: string;
   // Explicit plugin specs from `[plugins]` config. Each entry is either a
   // file path (`./plugins/my-plugin.ts`) resolved against `cwd`, a bare
-  // module specifier resolvable by Bun/Node (`nectar-plugin-foo`), or an
+  // module specifier resolvable by Bun/Node (`laurel-plugin-foo`), or an
   // already-instantiated `Plugin` object (used in tests).
   specs?: ReadonlyArray<string | Plugin>;
   // When true, scan `node_modules/` for packages named
-  // `nectar-plugin-*` or `@scope/nectar-plugin-*` and auto-load them. Opt-in
+  // `laurel-plugin-*` or `@scope/laurel-plugin-*` and auto-load them. Opt-in
   // because a one-time `bun install` of an unrelated package should not flip
   // a site into running new build-time code without an explicit config edit.
   autoDetect?: boolean;
@@ -113,7 +113,7 @@ async function loadPluginFromSpec(spec: string, cwd: string): Promise<Plugin> {
 // Load an auto-detected plugin directly from `<cwd>/node_modules/<spec>/`.
 // We resolve through the host project's node_modules rather than relying on
 // the consumer's bundler so the autoDetect contract is honest: anything that
-// lives under their `node_modules/nectar-plugin-*` works, full stop.
+// lives under their `node_modules/laurel-plugin-*` works, full stop.
 async function loadAutoDetectedPlugin(spec: string, cwd: string): Promise<Plugin> {
   const pkgRoot = join(cwd, 'node_modules', spec);
   const pkgJsonPath = join(pkgRoot, 'package.json');
@@ -158,7 +158,7 @@ async function materializePlugin(mod: PluginModuleShape): Promise<Plugin> {
   return candidate;
 }
 
-// Discover `nectar-plugin-*` and `@scope/nectar-plugin-*` packages in the
+// Discover `laurel-plugin-*` and `@scope/laurel-plugin-*` packages in the
 // project's `node_modules/`. Scoped scan is one directory level deep so we
 // don't accidentally walk every dependency's nested node_modules.
 async function discoverAutoPlugins(cwd: string): Promise<string[]> {
@@ -171,7 +171,7 @@ async function discoverAutoPlugins(cwd: string): Promise<string[]> {
     return discovered;
   }
   for (const entry of entries) {
-    if (entry.startsWith('nectar-plugin-')) {
+    if (entry.startsWith('laurel-plugin-')) {
       discovered.push(entry);
       continue;
     }
@@ -183,7 +183,7 @@ async function discoverAutoPlugins(cwd: string): Promise<string[]> {
         continue;
       }
       for (const inner of scoped) {
-        if (inner.startsWith('nectar-plugin-')) {
+        if (inner.startsWith('laurel-plugin-')) {
           discovered.push(`${entry}/${inner}`);
         }
       }

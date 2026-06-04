@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { startDashboardServer } from '~/cli/commands/dashboard.ts';
 
 async function makeMinimalProject(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-dashboard-dev-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-dashboard-dev-')));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
@@ -13,7 +13,7 @@ async function makeMinimalProject(): Promise<string> {
   await mkdir(join(dir, 'themes/source'), { recursive: true });
   await writeFile(join(dir, 'themes/source/index.hbs'), '<h1>{{@site.title}}</h1>\n', 'utf8');
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Dev Mode Smoke"',
@@ -30,7 +30,7 @@ async function makeMinimalProject(): Promise<string> {
   return dir;
 }
 
-describe('nectar dashboard --dev', () => {
+describe('laurel dashboard --dev', () => {
   let originalCwd: string;
   let projectDir: string;
 

@@ -1,22 +1,22 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
-import type { NectarEngine } from '~/render/engine.ts';
+import type { LaurelEngine } from '~/render/engine.ts';
 import { registerUrlHelpers } from '~/render/helpers/urls.ts';
 
-function makeEngine(siteUrl = 'https://example.com'): NectarEngine {
+function makeEngine(siteUrl = 'https://example.com'): LaurelEngine {
   const hb = Handlebars.create();
   return {
     hb,
-    config: {} as NectarEngine['config'],
-    content: { site: { url: siteUrl } } as unknown as NectarEngine['content'],
-    theme: {} as NectarEngine['theme'],
+    config: {} as LaurelEngine['config'],
+    content: { site: { url: siteUrl } } as unknown as LaurelEngine['content'],
+    theme: {} as LaurelEngine['theme'],
     templates: {},
     layouts: {},
     sortedCache: new Map<string, readonly unknown[]>(),
     render() {
       throw new Error('not used');
     },
-  } as unknown as NectarEngine;
+  } as unknown as LaurelEngine;
 }
 
 describe('url helper', () => {
@@ -139,7 +139,7 @@ describe('social_url helper', () => {
     const engine = makeEngine();
     registerUrlHelpers(engine);
     const tpl = engine.hb.compile('{{social_url type="twitter"}}');
-    expect(tpl({ twitter: '@nectar' })).toBe('https://twitter.com/nectar');
+    expect(tpl({ twitter: '@laurel' })).toBe('https://twitter.com/laurel');
   });
 
   test('builds a Mastodon URL from a user@host handle by routing to the host', () => {
@@ -193,8 +193,8 @@ describe('social_url helper', () => {
       '{{social_url @site type="twitter"}}|{{social_url author type="github"}}',
     );
     expect(
-      tpl({ author: { github: 'nectar-dev' } }, { data: { site: { twitter: '@nectar' } } }),
-    ).toBe('https://twitter.com/nectar|https://github.com/nectar-dev');
+      tpl({ author: { github: 'laurel-dev' } }, { data: { site: { twitter: '@laurel' } } }),
+    ).toBe('https://twitter.com/laurel|https://github.com/laurel-dev');
   });
 
   test('supports Ghost social aliases for x, youtube_channel, github, and mailto', () => {
@@ -210,13 +210,13 @@ describe('social_url helper', () => {
     );
     expect(
       tpl({
-        twitter: '@nectar',
-        youtube_channel: '@nectarvideo',
-        github: 'nectar-dev',
+        twitter: '@laurel',
+        youtube_channel: '@laurelvideo',
+        github: 'laurel-dev',
         mailto: 'hello@example.com',
       }),
     ).toBe(
-      'https://twitter.com/nectar|https://www.youtube.com/@nectarvideo|https://github.com/nectar-dev|mailto:hello@example.com',
+      'https://twitter.com/laurel|https://www.youtube.com/@laurelvideo|https://github.com/laurel-dev|mailto:hello@example.com',
     );
   });
 
@@ -253,14 +253,14 @@ describe('social_url helper', () => {
     const engine = makeEngine();
     registerUrlHelpers(engine);
     const tpl = engine.hb.compile('{{social_url type="discord"}}');
-    expect(tpl({ discord: 'https://discord.gg/nectar' })).toBe('https://discord.gg/nectar');
+    expect(tpl({ discord: 'https://discord.gg/laurel' })).toBe('https://discord.gg/laurel');
   });
 
   test('returns a Twitter profile URL unchanged when the value is already a URL', () => {
     const engine = makeEngine();
     registerUrlHelpers(engine);
     const tpl = engine.hb.compile('{{social_url type="twitter"}}');
-    expect(tpl({ twitter: 'https://twitter.com/nectar' })).toBe('https://twitter.com/nectar');
+    expect(tpl({ twitter: 'https://twitter.com/laurel' })).toBe('https://twitter.com/laurel');
   });
 
   test('rejects a Mastodon handle whose host contains attribute-breaking characters', () => {
@@ -311,15 +311,15 @@ describe('twitter_url / facebook_url helpers', () => {
     const engine = makeEngine();
     registerUrlHelpers(engine);
     const tpl = engine.hb.compile('{{twitter_url @site.twitter}}');
-    expect(tpl({}, { data: { site: { twitter: '@nectar' } } })).toBe('https://twitter.com/nectar');
+    expect(tpl({}, { data: { site: { twitter: '@laurel' } } })).toBe('https://twitter.com/laurel');
   });
 
   test('builds a Facebook URL from a positional handle', () => {
     const engine = makeEngine();
     registerUrlHelpers(engine);
     const tpl = engine.hb.compile('{{facebook_url @site.facebook}}');
-    expect(tpl({}, { data: { site: { facebook: 'nectar.blog' } } })).toBe(
-      'https://facebook.com/nectar.blog',
+    expect(tpl({}, { data: { site: { facebook: 'laurel.blog' } } })).toBe(
+      'https://facebook.com/laurel.blog',
     );
   });
 
@@ -329,10 +329,10 @@ describe('twitter_url / facebook_url helpers', () => {
     const tpl = engine.hb.compile('{{twitter_url twitter}} {{facebook_url facebook}}');
     expect(
       tpl({
-        twitter: 'https://twitter.com/nectar',
-        facebook: 'https://facebook.com/nectar.blog',
+        twitter: 'https://twitter.com/laurel',
+        facebook: 'https://facebook.com/laurel.blog',
       }),
-    ).toBe('https://twitter.com/nectar https://facebook.com/nectar.blog');
+    ).toBe('https://twitter.com/laurel https://facebook.com/laurel.blog');
   });
 
   test('returns an empty string when the positional value is missing or not a string', () => {
@@ -407,18 +407,18 @@ describe('social_accounts helper', () => {
         {
           data: {
             site: {
-              twitter: '@nectar',
-              facebook: 'nectar.blog',
-              instagram: 'nectargram',
+              twitter: '@laurel',
+              facebook: 'laurel.blog',
+              instagram: 'laurelgram',
             },
           },
         },
       ),
     ).toBe(
       [
-        '1:x/X/@nectar/https://twitter.com/nectar|',
-        '2:facebook/Facebook/nectar.blog/https://facebook.com/nectar.blog|',
-        '3:instagram/Instagram/nectargram/https://www.instagram.com/nectargram!',
+        '1:x/X/@laurel/https://twitter.com/laurel|',
+        '2:facebook/Facebook/laurel.blog/https://facebook.com/laurel.blog|',
+        '3:instagram/Instagram/laurelgram/https://www.instagram.com/laurelgram!',
       ].join(''),
     );
   });

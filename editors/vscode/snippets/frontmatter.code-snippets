@@ -1,8 +1,8 @@
 {
-  "Nectar post frontmatter": {
+  "Laurel post frontmatter": {
     "scope": "markdown",
-    "prefix": "nectar-post",
-    "description": "Insert Nectar post frontmatter.",
+    "prefix": "laurel-post",
+    "description": "Insert Laurel post frontmatter.",
     "body": [
       "---",
       "title: ${1:Post title}",
@@ -19,10 +19,10 @@
       "$0"
     ]
   },
-  "Nectar page frontmatter": {
+  "Laurel page frontmatter": {
     "scope": "markdown",
-    "prefix": "nectar-page",
-    "description": "Insert Nectar page frontmatter.",
+    "prefix": "laurel-page",
+    "description": "Insert Laurel page frontmatter.",
     "body": [
       "---",
       "title: ${1:Page title}",
@@ -36,10 +36,10 @@
       "$0"
     ]
   },
-  "Nectar tag frontmatter": {
+  "Laurel tag frontmatter": {
     "scope": "markdown",
-    "prefix": "nectar-tag",
-    "description": "Insert Nectar tag frontmatter.",
+    "prefix": "laurel-tag",
+    "description": "Insert Laurel tag frontmatter.",
     "body": [
       "---",
       "name: ${1:Tag name}",
@@ -51,10 +51,10 @@
       "$0"
     ]
   },
-  "Nectar author frontmatter": {
+  "Laurel author frontmatter": {
     "scope": "markdown",
-    "prefix": "nectar-author",
-    "description": "Insert Nectar author frontmatter.",
+    "prefix": "laurel-author",
+    "description": "Insert Laurel author frontmatter.",
     "body": [
       "---",
       "name: ${1:Author name}",

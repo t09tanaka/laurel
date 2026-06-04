@@ -43,7 +43,7 @@ interface BuildOpts {
 }
 
 async function makeFixture(opts: BuildOpts): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-xss-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-xss-')));
   // Theme: copy the vendored Source theme.
   await mkdir(join(dir, 'themes'), { recursive: true });
   await cp(SOURCE_THEME, join(dir, 'themes/source'), { recursive: true });
@@ -87,7 +87,7 @@ async function makeFixture(opts: BuildOpts): Promise<string> {
     ? 'allow_code_injection = true'
     : 'allow_code_injection = false';
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "XSS Test"',
@@ -255,7 +255,7 @@ describe('security: XSS / sanitisation (#693)', () => {
 
   describe('content loader rejects raw NUL bytes in frontmatter at parse time', () => {
     test('a frontmatter value containing a literal NUL byte fails fast (YAML parser refuses it) — defense in depth before any escaping path runs', async () => {
-      const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-xss-nul-')));
+      const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-xss-nul-')));
       try {
         await mkdir(join(dir, 'content/posts'), { recursive: true });
         await writeFile(

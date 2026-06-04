@@ -136,7 +136,7 @@ jobs:
         run: |
           {
             echo "body<<PREVIEW_EOF"
-            echo "## Nectar PR preview"
+            echo "## Laurel PR preview"
             echo ""
             echo "Built \`example/\` from commit \`${PR_HEAD_SHA:0:7}\`."
             echo ""
@@ -159,5 +159,5 @@ jobs:
         if: env.IS_FORK == 'false'
         uses: marocchino/sticky-pull-request-comment@v3
         with:
-          header: nectar-pr-preview
+          header: laurel-pr-preview
           message: ${{ steps.body.outputs.body }}

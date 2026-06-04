@@ -1,16 +1,16 @@
 {
-  "name": "nectar",
+  "name": "laurel",
   "version": "0.1.0",
   "description": "Ghost-theme-compatible static site generator powered by Markdown and Bun",
   "license": "MIT",
   "author": "Takuto Tanaka <t09tanaka@gmail.com>",
-  "homepage": "https://github.com/t09tanaka/nectar#readme",
+  "homepage": "https://github.com/t09tanaka/laurel#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/t09tanaka/nectar.git"
+    "url": "git+https://github.com/t09tanaka/laurel.git"
   },
   "bugs": {
-    "url": "https://github.com/t09tanaka/nectar/issues"
+    "url": "https://github.com/t09tanaka/laurel/issues"
   },
   "keywords": [
     "ghost",
@@ -28,7 +28,7 @@
     "provenance": true
   },
   "bin": {
-    "nectar": "./dist/cli.mjs"
+    "laurel": "./dist/cli.mjs"
   },
   "types": "./dist/types/types.d.ts",
   "exports": {
@@ -78,7 +78,7 @@
     "build:binary:shasums": "bun run scripts/compile.ts --all --shasums",
     "homebrew:formula": "bun run scripts/generate-homebrew-formula.ts",
     "scoop:manifest": "bun run scripts/generate-scoop-manifest.ts",
-    "sbom:cyclonedx": "mkdir -p dist-sbom && cdxgen -t js --no-install-deps --json-pretty --output dist-sbom/nectar.cyclonedx.json .",
+    "sbom:cyclonedx": "mkdir -p dist-sbom && cdxgen -t js --no-install-deps --json-pretty --output dist-sbom/laurel.cyclonedx.json .",
     "docs:cli": "bun run src/cli/docs.ts",
     "docs:config": "bun run src/config/docs.ts",
     "docs:theme-reference": "bun run scripts/docs-theme-reference.ts",

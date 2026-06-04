@@ -1,7 +1,7 @@
 Build the site into the configured output directory
 
 Usage:
-  nectar build [--config <path>] [--output <dir>] [--base-path <path>] [--base-url <url>] [--strict] [--profile] [--atomic] [--no-atomic] [--concurrency <n>] [--dry-run] [--include-drafts] [--force] [--clean] [--no-clean] [--cache] [--no-cache] [--progress] [--no-progress] [--copy-content-assets] [--no-copy-content-assets] [--watch] [--emit-content-api] [--no-emit-content-api] [--json]
+  laurel build [--config <path>] [--output <dir>] [--base-path <path>] [--base-url <url>] [--strict] [--profile] [--atomic] [--no-atomic] [--concurrency <n>] [--dry-run] [--include-drafts] [--force] [--clean] [--no-clean] [--cache] [--no-cache] [--progress] [--no-progress] [--copy-content-assets] [--no-copy-content-assets] [--watch] [--emit-content-api] [--no-emit-content-api] [--json]
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
@@ -9,31 +9,31 @@ Options:
   --base-path <path>  Override build.base_path from the config (e.g. /preview/ for PR previews or /repo/ for GitHub Pages)
   --base-url <url>    Override site.url from the config with an absolute host (e.g. https://pr-42.example.com) so canonical, OG, RSS, and sitemap URLs target preview deploys (Netlify/Vercel/Cloudflare PR URL). Distinct from --base-path, which prefixes the path on a host
   --strict            Exit with non-zero status if any warnings are emitted
-  --profile           Write dist/.nectar-build-stats.json with phase timings, per-route render durations, slowest routes, helper hotspots, and peak RSS for diagnosing slow or memory-heavy builds
+  --profile           Write dist/.laurel-build-stats.json with phase timings, per-route render durations, slowest routes, helper hotspots, and peak RSS for diagnosing slow or memory-heavy builds
   --atomic            Use atomic staging: write into a sibling temp dir before renaming into build.output_dir
-  --no-atomic         Disable atomic staging: write directly into build.output_dir instead of a sibling temp dir. Faster on slow filesystems but a mid-build failure leaves a half-written output and skips .nectarignore preservation; intended as an escape hatch for sandboxed CI runners where the rename-into-place step is restricted
+  --no-atomic         Disable atomic staging: write directly into build.output_dir instead of a sibling temp dir. Faster on slow filesystems but a mid-build failure leaves a half-written output and skips .laurelignore preservation; intended as an escape hatch for sandboxed CI runners where the rename-into-place step is restricted
   --concurrency <n>   Cap on how many routes render in parallel (positive integer). Defaults to availableParallelism() (CPU count). Lower it on memory-constrained CI runners; raise it cautiously — the render path is CPU-bound on the single JS thread so values above CPU count rarely help
   --dry-run           Plan routes, load templates, and render every route into memory without writing anything to disk (no staging dir, no asset copies, no manifest, no sitemap/RSS/etc.). Prints the same summary line as a real build; pair with --verbose to also print a per-route table (URL, template, bytes, output path)
-  --include-drafts    Include posts and pages whose status is not published or scheduled (`status: draft`, `needs-review`, or `approved`) in the build. Default is to exclude them so a forgotten WIP or in-review entry cannot accidentally ship. Emits a "Building with drafts" warning so the looser policy is visible in CI logs. NECTAR_DRAFTS=1 is honoured as a shorter env-var alias alongside the standard NECTAR_BUILD_INCLUDE_DRAFTS
-  --force             Ignore the previous build manifest (.nectar-manifest.json in the output dir) and re-render every route from scratch. Default behaviour reuses unchanged route HTML when the per-route hash (config + site + theme + template + route data) matches the last successful build; use --force as an escape hatch when the incremental cache appears stale or corrupted
+  --include-drafts    Include posts and pages whose status is not published or scheduled (`status: draft`, `needs-review`, or `approved`) in the build. Default is to exclude them so a forgotten WIP or in-review entry cannot accidentally ship. Emits a "Building with drafts" warning so the looser policy is visible in CI logs. LAUREL_DRAFTS=1 is honoured as a shorter env-var alias alongside the standard LAUREL_BUILD_INCLUDE_DRAFTS
+  --force             Ignore the previous build manifest (.laurel-manifest.json in the output dir) and re-render every route from scratch. Default behaviour reuses unchanged route HTML when the per-route hash (config + site + theme + template + route data) matches the last successful build; use --force as an escape hatch when the incremental cache appears stale or corrupted
   --clean             Delete stale files from build.output_dir after the current build completes. Enabled by default; pass --no-clean when the deploy target owns cleanup, such as hashed filenames retained across releases
   --no-clean          Skip stale-file cleanup in build.output_dir, preserving files that were not emitted by the current build
   --cache             Use the previous build manifest to skip unchanged route HTML. Enabled by default; pass --no-cache to force every route to render without consulting the incremental cache
   --no-cache          Force every route to render without consulting the incremental cache
-  --progress          Print human-readable build progress and summary lines to stdout. Interactive terminals show an in-place spinner and route counter such as `Rendering 12/150...`; piped output uses periodic plain progress logs. Enabled by default; pass --no-progress to keep warnings/errors on stderr while suppressing build progress output. This keeps warnings/errors visible when running `nectar build > build.log`
+  --progress          Print human-readable build progress and summary lines to stdout. Interactive terminals show an in-place spinner and route counter such as `Rendering 12/150...`; piped output uses periodic plain progress logs. Enabled by default; pass --no-progress to keep warnings/errors on stderr while suppressing build progress output. This keeps warnings/errors visible when running `laurel build > build.log`
   --no-progress       Suppress human-readable build progress and summary lines on stdout while keeping warnings/errors on stderr
   --copy-content-assets  Copy files from content.assets_dir into the output. Enabled by default from config; pass --no-copy-content-assets to skip that copy for this build
   --no-copy-content-assets  Skip copying files from content.assets_dir into the output
-  -w, --watch         After the initial build, keep the process alive and rebuild on changes to content/, theme/, and nectar.toml. Uses fs.watch with a 100ms debounce; no HTTP server (pair with `nectar serve` or an external static host). Errors in follow-up builds are logged but do not exit; Ctrl-C / SIGTERM stops the loop
+  -w, --watch         After the initial build, keep the process alive and rebuild on changes to content/, theme/, and laurel.toml. Uses fs.watch with a 100ms debounce; no HTTP server (pair with `laurel serve` or an external static host). Errors in follow-up builds are logged but do not exit; Ctrl-C / SIGTERM stops the loop
   --emit-content-api  Override `[components.content_api].enabled` for this build: passing the flag forces the Ghost Content API JSON shadows under `dist/content/` and `dist/ghost/api/content/` on regardless of the config. Without the flag and env var the config value (default `false`) is used
   --no-emit-content-api  Force Ghost Content API JSON shadows off for this build without editing the config
-  -j, --json          Emit the build completion event as one final JSON line ({ event: "build.done", routeCount, assetCount, outputDir, warningCount, renderedCount, skippedCount, dryRun }) on stdout for CI consumption. Human progress is suppressed; warnings/errors still go to stderr so `nectar build --json > build.jsonl` does not hide failures
+  -j, --json          Emit the build completion event as one final JSON line ({ event: "build.done", routeCount, assetCount, outputDir, warningCount, renderedCount, skippedCount, dryRun }) on stdout for CI consumption. Human progress is suppressed; warnings/errors still go to stderr so `laurel build --json > build.jsonl` does not hide failures
   -h, --help          Show help for this command
 
 Environment variables:
-  Every flag has an env var fallback (CLI flag > env var > .nectarrc > config > default).
-  Naming: NECTAR_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
-  Example: --config → NECTAR_BUILD_CONFIG
+  Every flag has an env var fallback (CLI flag > env var > .laurelrc > config > default).
+  Naming: LAUREL_<COMMAND>_<FLAG> (uppercased, dashes become underscores).
+  Example: --config → LAUREL_BUILD_CONFIG
 
 Repeated flags:
   Scalar string flags use the last value.
@@ -41,11 +41,11 @@ Repeated flags:
   Boolean flags use the last positive or negated spelling.
 
 Examples:
-  nectar build                                 # one-shot build into dist/
-  nectar build --strict                        # fail when the build emits any warnings
-  nectar build --output dist-preview --base-path /preview/
-  nectar build --dry-run --verbose             # plan routes without writing anything
-  nectar build --profile                       # write timings and peak RSS to dist/.nectar-build-stats.json
-  BUN_INSPECT=1 nectar build --profile         # attach Bun inspector for heap snapshots while profiling
-  nectar build --watch                         # rebuild on content/theme/config changes
-  nectar build --json                          # emit the summary as JSON for CI
+  laurel build                                 # one-shot build into dist/
+  laurel build --strict                        # fail when the build emits any warnings
+  laurel build --output dist-preview --base-path /preview/
+  laurel build --dry-run --verbose             # plan routes without writing anything
+  laurel build --profile                       # write timings and peak RSS to dist/.laurel-build-stats.json
+  BUN_INSPECT=1 laurel build --profile         # attach Bun inspector for heap snapshots while profiling
+  laurel build --watch                         # rebuild on content/theme/config changes
+  laurel build --json                          # emit the summary as JSON for CI

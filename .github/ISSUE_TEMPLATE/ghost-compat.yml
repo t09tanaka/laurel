@@ -1,5 +1,5 @@
 name: Ghost compatibility gap
-description: A Ghost theme renders differently in Nectar than in upstream Ghost (helper, context, or template behaviour).
+description: A Ghost theme renders differently in Laurel than in upstream Ghost (helper, context, or template behaviour).
 title: "[Ghost-compat] "
 labels:
   - bug
@@ -10,15 +10,15 @@ body:
       value: |
         Use this template when a Ghost theme — preferably the vendored
         [Source](https://github.com/TryGhost/Source) theme — produces output
-        in Nectar that differs from real Ghost in a way that looks unintended.
+        in Laurel that differs from real Ghost in a way that looks unintended.
 
-        Nectar's Ghost compatibility surface is scoped. Before filing, please
+        Laurel's Ghost compatibility surface is scoped. Before filing, please
         skim the **Implemented / Out of scope** lists in
-        [`CLAUDE.md`](https://github.com/t09tanaka/nectar/blob/main/CLAUDE.md).
+        [`CLAUDE.md`](https://github.com/t09tanaka/laurel/blob/main/CLAUDE.md).
         If the missing behaviour is explicitly out of scope (members,
         server-side search, drafts via API, multi-locale routing, email-only
         posts, ...), this isn't a compat bug — it's a feature request, and
-        should go through [Discussions → Ideas](https://github.com/t09tanaka/nectar/discussions/categories/ideas).
+        should go through [Discussions → Ideas](https://github.com/t09tanaka/laurel/discussions/categories/ideas).
   - type: textarea
     id: summary
     attributes:
@@ -53,7 +53,7 @@ body:
     id: content
     attributes:
       label: Content / fixtures
-      description: The Markdown frontmatter, `nectar.toml` snippet, or content
+      description: The Markdown frontmatter, `laurel.toml` snippet, or content
         graph state that the snippet runs against. A minimal reproduction in
         the shape of `example/` (a couple of posts, one tag, one author) is
         ideal.
@@ -87,7 +87,7 @@ body:
   - type: textarea
     id: actual
     attributes:
-      label: What Nectar does
+      label: What Laurel does
       description: The actual rendered HTML / error / behaviour. Paste the
         relevant slice of the generated output or the thrown error.
     validations:
@@ -103,10 +103,10 @@ body:
     validations:
       required: true
   - type: input
-    id: nectar-version
+    id: laurel-version
     attributes:
-      label: Nectar version
-      description: Output of `nectar --version`, or the commit SHA you're on.
+      label: Laurel version
+      description: Output of `laurel --version`, or the commit SHA you're on.
       placeholder: "0.1.0 / commit 5148f15"
     validations:
       required: true
@@ -123,7 +123,7 @@ body:
     attributes:
       label: Anything else
       description: Links to the Ghost docs you're comparing against, a side-by-side
-        diff of Nectar vs Ghost output, related issues, things you already
+        diff of Laurel vs Ghost output, related issues, things you already
         ruled out.
     validations:
       required: false

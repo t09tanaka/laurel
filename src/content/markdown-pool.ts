@@ -37,7 +37,7 @@ export function createMarkdownPool(options: MarkdownPoolOptions): MarkdownPool {
 }
 
 function decideWorkerCount(estimatedJobs: number): number {
-  if (process.env.NECTAR_NO_WORKERS === '1') return 0;
+  if (process.env.LAUREL_NO_WORKERS === '1') return 0;
   if (estimatedJobs < MIN_JOBS_FOR_WORKERS) return 0;
   const cores = availableParallelism();
   if (cores <= 1) return 0;

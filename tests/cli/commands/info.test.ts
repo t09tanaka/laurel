@@ -20,11 +20,11 @@ async function runCli(
 }
 
 async function makeFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-info-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-info-')));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Info Test Site"',
@@ -53,18 +53,18 @@ describe('cli info', () => {
     expect(stdout).toContain('--config');
   });
 
-  test('json output includes nectar/runtime/os/project blocks', async () => {
+  test('json output includes laurel/runtime/os/project blocks', async () => {
     const dir = await makeFixture();
     try {
       const { stdout, exitCode } = await runCli(['info', '--json'], dir);
       expect(exitCode).toBe(0);
       const parsed = JSON.parse(stdout) as {
-        nectar: { version: string };
+        laurel: { version: string };
         runtime: { bun: string | null; node: string };
         os: { platform: string };
         project: { site_title: string | null; base_path: string | null; locale: string | null };
       };
-      expect(parsed.nectar.version).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(parsed.laurel.version).toMatch(/^\d+\.\d+\.\d+$/);
       expect(parsed.runtime.node).toMatch(/^v\d+\./);
       expect(parsed.os.platform.length).toBeGreaterThan(0);
       expect(parsed.project.site_title).toBe('Info Test Site');
@@ -80,8 +80,8 @@ describe('cli info', () => {
     try {
       const { stdout, exitCode } = await runCli(['env', '--json'], dir);
       expect(exitCode).toBe(0);
-      const parsed = JSON.parse(stdout) as { nectar: { version: string } };
-      expect(parsed.nectar.version).toMatch(/^\d+\.\d+\.\d+$/);
+      const parsed = JSON.parse(stdout) as { laurel: { version: string } };
+      expect(parsed.laurel.version).toMatch(/^\d+\.\d+\.\d+$/);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -92,7 +92,7 @@ describe('cli info', () => {
     try {
       const { stdout, exitCode } = await runCli(['info'], dir);
       expect(exitCode).toBe(0);
-      expect(stdout).toContain('Nectar');
+      expect(stdout).toContain('Laurel');
       expect(stdout).toContain('Bun');
       expect(stdout).toContain('Project');
       expect(stdout).toContain('Info Test Site');

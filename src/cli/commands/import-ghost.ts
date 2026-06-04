@@ -137,13 +137,13 @@ export async function runImportGhost(args: string[]): Promise<number> {
   let inputFile = file;
   try {
     if (file === '-') {
-      const raw = await readStdinText('Pipe a Ghost JSON export into `nectar import-ghost -`.');
+      const raw = await readStdinText('Pipe a Ghost JSON export into `laurel import-ghost -`.');
       if (raw.trim().length === 0) {
         process.stderr.write('No Ghost export JSON was read from stdin.\n\n');
         process.stderr.write(formatCommandHelp(IMPORT_GHOST_SPEC));
         return 2;
       }
-      stdinTempRoot = await mkdtemp(join(tmpdir(), 'nectar-import-ghost-stdin-'));
+      stdinTempRoot = await mkdtemp(join(tmpdir(), 'laurel-import-ghost-stdin-'));
       inputFile = join(stdinTempRoot, 'stdin.json');
       await writeFile(inputFile, raw, 'utf8');
     }

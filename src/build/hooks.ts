@@ -18,8 +18,8 @@ export async function runPostBuildHook({
     cwd,
     env: {
       ...process.env,
-      NECTAR_PROJECT_DIR: cwd,
-      NECTAR_OUTPUT_DIR: outputDir,
+      LAUREL_PROJECT_DIR: cwd,
+      LAUREL_OUTPUT_DIR: outputDir,
     },
     stdout: 'inherit',
     stderr: 'inherit',

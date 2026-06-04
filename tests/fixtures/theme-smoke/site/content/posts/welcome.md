@@ -2,7 +2,7 @@
 title: "Welcome to the smoke fixture"
 slug: welcome
 date: 2026-01-15T09:00:00Z
-authors: [nectar-bot]
+authors: [laurel-bot]
 tags: [general]
 featured: true
 feature_image: "/content/images/cover.svg"

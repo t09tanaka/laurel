@@ -4,7 +4,7 @@ import type { Server, ServerWebSocket } from 'bun';
 import { type BuildSummary, build } from '~/build/pipeline.ts';
 import { findOutdatedSkills } from '~/cli/skill/check-updates.ts';
 import { loadConfig } from '~/config/loader.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { type DevChangeCategory, decideDevReuse } from '~/dev/incremental.ts';
 import {
   LIVERELOAD_CLIENT_JS,
@@ -14,8 +14,8 @@ import {
   injectLiveReload,
 } from '~/dev/livereload.ts';
 import { EXIT_CODES, exitCodeForError } from '~/util/errors.ts';
+import { getLaurelVersion } from '~/util/laurel-version.ts';
 import { logger, setWarningSubscriber } from '~/util/logger.ts';
-import { getNectarVersion } from '~/util/nectar-version.ts';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { reportError } from '../report.ts';
 import { DEV_SPEC } from '../specs.ts';
@@ -36,9 +36,9 @@ const DEFAULT_PORT = 4321;
 const DEFAULT_HOST = 'localhost';
 const REBUILD_DEBOUNCE_MS = 100;
 
-// `nectar dev` is the operator-facing wrapper for "build once, serve dist/,
+// `laurel dev` is the operator-facing wrapper for "build once, serve dist/,
 // rebuild on every change, reload the browser". Under the hood it composes
-// the same three pieces as `nectar serve` (build → Bun.serve → fs.watch loop)
+// the same three pieces as `laurel serve` (build → Bun.serve → fs.watch loop)
 // but with dev-specific defaults baked in:
 //   * always force a fresh initial build (no stale dist/ surprises)
 //   * always watch (no `--no-watch` opt-out)
@@ -82,7 +82,7 @@ export async function runDev(args: string[]): Promise<number> {
   const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
   const cwd = process.cwd();
 
-  let config: NectarConfig;
+  let config: LaurelConfig;
   try {
     config = await loadConfig({ cwd, configPath });
   } catch (err) {
@@ -91,7 +91,7 @@ export async function runDev(args: string[]): Promise<number> {
   }
   const distDir = join(cwd, config.build.output_dir);
   const watchPaths = gatherWatchPaths(cwd, config);
-  const version = await getNectarVersion();
+  const version = await getLaurelVersion();
 
   // Banner -> build -> ready ordering: dev.start advertises what is about
   // to spin up, the build runs with warnings captured into a buffer, and
@@ -226,7 +226,7 @@ export async function runDev(args: string[]): Promise<number> {
     writeBlock(
       renderNotice(
         'info',
-        `${outdatedSkills.length} skill ${outdatedSkills.length === 1 ? 'update' : 'updates'} available — run \`nectar skill install\` to apply.`,
+        `${outdatedSkills.length} skill ${outdatedSkills.length === 1 ? 'update' : 'updates'} available — run \`laurel skill install\` to apply.`,
       ),
     );
   }
@@ -311,8 +311,8 @@ export async function runDev(args: string[]): Promise<number> {
       });
       broadcast({ type: messageType });
     } catch (err) {
-      // file:line format is the responsibility of reportError → formatNectarError;
-      // it pretty-prints NectarError with source location when available and
+      // file:line format is the responsibility of reportError → formatLaurelError;
+      // it pretty-prints LaurelError with source location when available and
       // falls back to the plain message for anything else.
       reportError(err, cwd);
       // A failed build may have left half-mutated reusable state on the table.
@@ -384,7 +384,7 @@ export async function runDev(args: string[]): Promise<number> {
   }
   server.stop(true);
   // 128 + SIGINT(2) = 130 is the POSIX convention for "user cancelled". Aligns
-  // with `nectar serve` and common dev servers (vite, next dev, hugo server).
+  // with `laurel serve` and common dev servers (vite, next dev, hugo server).
   if (signal === 'SIGINT') {
     process.exit(130);
   }
@@ -394,7 +394,7 @@ export async function runDev(args: string[]): Promise<number> {
 function resolvePort(raw: unknown): number | CliUsageError {
   if (typeof raw !== 'string') return DEFAULT_PORT;
   const trimmed = raw.trim();
-  // Allow --port 0 → "kernel picks a free port" because `nectar dev` is the
+  // Allow --port 0 → "kernel picks a free port" because `laurel dev` is the
   // canonical command for ephemeral / CI / smoke-test runs where binding to a
   // fixed port would just trip EADDRINUSE on parallel jobs. The full 0..65535
   // range matches POSIX. The strict `^\d+$` shape stops `--port 80abc` from
@@ -420,7 +420,7 @@ interface WatchTarget {
   category: DevChangeCategory;
 }
 
-function gatherWatchPaths(cwd: string, config: NectarConfig): WatchTarget[] {
+function gatherWatchPaths(cwd: string, config: LaurelConfig): WatchTarget[] {
   const seen = new Set<string>();
   const targets: WatchTarget[] = [];
   const add = (p: string, category: DevChangeCategory): void => {
@@ -436,7 +436,7 @@ function gatherWatchPaths(cwd: string, config: NectarConfig): WatchTarget[] {
   add(config.content.tags_dir, 'content');
   add(config.content.assets_dir, 'content');
   add(join(config.theme.dir, config.theme.name), 'theme');
-  for (const name of ['nectar.toml', 'nectar.config.toml']) {
+  for (const name of ['laurel.toml', 'laurel.config.toml']) {
     add(join(cwd, name), 'config');
   }
   return targets;

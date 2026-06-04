@@ -1,9 +1,9 @@
-# Reverse proxy-friendly compose sample for a Nectar site.
+# Reverse proxy-friendly compose sample for a Laurel site.
 # Copy this file, Dockerfile.multi-stage, and nginx.conf to your site root, then
 # create the external proxy network once with:
 #   docker network create proxy
 services:
-  nectar:
+  laurel:
     build:
       context: .
       dockerfile: Dockerfile.multi-stage
@@ -18,14 +18,14 @@ services:
       - proxy
     labels:
       traefik.enable: "true"
-      traefik.http.routers.nectar.rule: "Host(`blog.example.com`)"
-      traefik.http.routers.nectar.entrypoints: "websecure"
-      traefik.http.routers.nectar.tls: "true"
-      traefik.http.services.nectar.loadbalancer.server.port: "80"
+      traefik.http.routers.laurel.rule: "Host(`blog.example.com`)"
+      traefik.http.routers.laurel.entrypoints: "websecure"
+      traefik.http.routers.laurel.tls: "true"
+      traefik.http.services.laurel.loadbalancer.server.port: "80"
 
       # Caddy container on the same network:
       # blog.example.com {
-      #   reverse_proxy nectar:80
+      #   reverse_proxy laurel:80
       # }
 
 networks:

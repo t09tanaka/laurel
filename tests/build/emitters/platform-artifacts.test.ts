@@ -13,13 +13,13 @@ type DeployTarget =
   | 'firebase';
 
 async function makeSiteWithDeployTarget(target: DeployTarget): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), `nectar-emitter-${target}-`));
+  const dir = await mkdtemp(join(tmpdir(), `laurel-emitter-${target}-`));
   await mkdir(join(dir, 'content/posts'), { recursive: true });
   await mkdir(join(dir, 'content/pages'), { recursive: true });
   await mkdir(join(dir, 'content/authors'), { recursive: true });
 
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       `title = "${target} emitter"`,
@@ -119,9 +119,9 @@ describe('deploy emitter integration outputs (#347)', () => {
   test('Netlify build can add opt-in Early Hints Link headers and route artifacts', async () => {
     const cwd = await makeSiteWithDeployTarget('netlify');
     await writeFile(
-      join(cwd, 'nectar.toml'),
+      join(cwd, 'laurel.toml'),
       [
-        await readFile(join(cwd, 'nectar.toml'), 'utf8'),
+        await readFile(join(cwd, 'laurel.toml'), 'utf8'),
         '',
         '[deploy.early_hints]',
         'enabled = true',

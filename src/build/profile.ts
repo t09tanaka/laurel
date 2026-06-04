@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-export const BUILD_STATS_FILENAME = '.nectar-build-stats.json';
+export const BUILD_STATS_FILENAME = '.laurel-build-stats.json';
 
 export interface BuildStatsPhase {
   name: string;

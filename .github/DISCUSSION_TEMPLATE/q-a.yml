@@ -6,7 +6,7 @@ body:
         Thanks for asking. A few seconds spent filling this in saves a lot of
         back-and-forth.
 
-        **If you have a reproducible bug, please open an [issue](https://github.com/t09tanaka/nectar/issues/new/choose) instead** — Q&A is for usage and "how does this work" questions.
+        **If you have a reproducible bug, please open an [issue](https://github.com/t09tanaka/laurel/issues/new/choose) instead** — Q&A is for usage and "how does this work" questions.
   - type: textarea
     id: question
     attributes:
@@ -26,10 +26,10 @@ body:
     validations:
       required: false
   - type: input
-    id: nectar-version
+    id: laurel-version
     attributes:
-      label: Nectar version
-      description: Output of `nectar --version`, or the commit you're on if
+      label: Laurel version
+      description: Output of `laurel --version`, or the commit you're on if
         running from source.
       placeholder: "0.1.0"
     validations:

@@ -1,4 +1,4 @@
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 import type {
   PortalAdapter,
   ResolvedSubscribeForm,
@@ -12,7 +12,7 @@ export const listmonkAdapter: PortalAdapter = {
   provider: 'listmonk',
   resolve(cfg: SubscribeAdapterConfig): ResolvedSubscribeForm {
     if (!cfg.action) {
-      throw new NectarError({
+      throw new LaurelError({
         message: 'components.subscribe.action is required when provider is "listmonk"',
         hint: 'Set components.subscribe.action to your listmonk public subscription endpoint, e.g. https://lists.example.com/api/public/subscription',
         code: 'config',
@@ -20,7 +20,7 @@ export const listmonkAdapter: PortalAdapter = {
     }
     const listIds = normaliseListIds(cfg);
     if (listIds.length === 0) {
-      throw new NectarError({
+      throw new LaurelError({
         message: 'components.subscribe.list_id is required when provider is "listmonk"',
         hint: 'Set components.subscribe.list_id to the public list UUID, or list_ids for multiple list UUIDs',
         code: 'config',

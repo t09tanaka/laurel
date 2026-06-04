@@ -1,8 +1,8 @@
 import type Handlebars from 'handlebars';
 import { colorToRgba, contrastTextColorFor } from '~/util/color.ts';
-import type { NectarEngine } from '../engine.ts';
+import type { LaurelEngine } from '../engine.ts';
 
-export function registerColorHelpers(engine: NectarEngine): void {
+export function registerColorHelpers(engine: LaurelEngine): void {
   engine.hb.registerHelper('color_to_rgba', function colorToRgbaHelper(...args: unknown[]) {
     const options = args[args.length - 1] as Handlebars.HelperOptions;
     const color = args.length > 1 ? args[0] : undefined;

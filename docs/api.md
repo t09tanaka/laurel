@@ -1,6 +1,6 @@
-# Nectar Content API
+# Laurel Content API
 
-Nectar can emit a static, Ghost-shaped Content API at build time. This document
+Laurel can emit a static, Ghost-shaped Content API at build time. This document
 describes what is and is not supported, and how it diverges from Ghost's
 hosted Content API.
 
@@ -14,7 +14,7 @@ on by setting:
 enabled = true
 ```
 
-This default was flipped to off because most Nectar sites do not consume
+This default was flipped to off because most Laurel sites do not consume
 their own JSON shadows: leaving the surface on emitted roughly half of the
 output file count for a small blog (the SDK shadow tree alone is the bulk of
 that) even when no client was wired up. Opt in when you are using the
@@ -27,7 +27,7 @@ For a minimal browser app that consumes the SDK shadow tree with
 
 ## Layout
 
-Each `nectar build` writes two parallel JSON trees into the output:
+Each `laurel build` writes two parallel JSON trees into the output:
 
 1. **Flat dump** at `/content/*` — for browser-only consumers that
    `fetch('/content/posts.json')` without an SDK.
@@ -55,7 +55,7 @@ a site can serve either entry point (or both) from a single build.
 | `content/tiers.json`                                    | Empty members-tier stub                |
 | `content/newsletters.json`                              | Empty newsletter stub                  |
 | `content/settings.json`                                 | Site settings singleton                |
-| `.well-known/ghost.json`                                | Nectar/Ghost-compatible discovery      |
+| `.well-known/ghost.json`                                | Laurel/Ghost-compatible discovery      |
 
 The same paths exist under `ghost/api/content/...` for SDK consumers.
 
@@ -109,7 +109,7 @@ same file.
 ## `absolute_urls=true`
 
 Ghost's hosted Content API accepts a `?absolute_urls=true` query parameter
-that rewrites relative URLs in HTML body fields to absolute URLs. Nectar
+that rewrites relative URLs in HTML body fields to absolute URLs. Laurel
 mirrors this as a **build-time switch**:
 
 ```toml
@@ -128,17 +128,17 @@ implemented — the rewrite happens at build time, not at request time.
 
 ## `post.html` body markup
 
-`posts[].html` and `pages[].html` are generated from Nectar's Markdown renderer.
+`posts[].html` and `pages[].html` are generated from Laurel's Markdown renderer.
 They are suitable for public reader-facing HTML, but they are not a byte-for-byte
 copy of Ghost's internal Koenig serializer.
 
-Nectar preserves the stable class hooks for supported Koenig cards when content
-was imported from Ghost or authored with Nectar's card shortcodes. For example,
+Laurel preserves the stable class hooks for supported Koenig cards when content
+was imported from Ghost or authored with Laurel's card shortcodes. For example,
 image, bookmark, gallery, callout, button, toggle, file, audio, video, product,
 header, signup, recommendations, and NFT cards may expose `kg-card` and
 card-specific classes so Ghost-theme CSS can still match them.
 
-Nectar does not preserve Ghost editor control comments in API output. Markers
+Laurel does not preserve Ghost editor control comments in API output. Markers
 such as `<!--kg-card-begin: markdown-->`, `<!--kg-card-end: markdown-->`,
 `<!--kg-card-begin: html-->`, and `<!--kg-card-begin: paywall-->` are consumed
 by import, sanitisation, or paywall handling. Likewise, members/email-only card
@@ -163,13 +163,13 @@ const api = new GhostContentAPI({
 });
 ```
 
-Nectar's static dump **accepts and ignores** the `?key=` query parameter.
+Laurel's static dump **accepts and ignores** the `?key=` query parameter.
 Any value (including a real Ghost key, a placeholder, or a 26-char hex
 string) works. The dump is fully public; there is no API key validation
 because there is no server.
 
 This means the SDK init form is compatible as-is. Operators rotating keys
-in their themes do not need to coordinate with Nectar.
+in their themes do not need to coordinate with Laurel.
 
 Set `[components.content_api].emit_key_registry = true` to emit
 `.well-known/ghost-content-keys.json`. The registry declares that the static
@@ -178,7 +178,7 @@ keys.
 
 ## Query parameters
 
-Nectar's Content API is generated at build time, so request-time query
+Laurel's Content API is generated at build time, so request-time query
 parameters do not change the payload. Static hosts strip or ignore query
 strings before resolving the JSON file.
 
@@ -186,7 +186,7 @@ The deliberate divergences are:
 
 - `?fields=title,slug` is ignored. Full records are always emitted; project
   fields in the client if you need a smaller object.
-- `?formats=html,plaintext,mobiledoc,lexical` is ignored. Nectar emits `html`
+- `?formats=html,plaintext,mobiledoc,lexical` is ignored. Laurel emits `html`
   and `plaintext` for posts/pages and does not emit `mobiledoc` or `lexical`.
 - `?include=authors,tags` is ignored. Posts/pages always include `tags`,
   `authors`, `primary_tag`, and `primary_author`.
@@ -194,7 +194,7 @@ The deliberate divergences are:
   `count.posts`.
 - `?order=` is ignored. Canonical output order is posts by
   `published_at desc`, tags by `name asc`, and authors by `name asc`.
-- `?v=v5.0` and older `?v=` values are ignored. Nectar emits one v5-shaped
+- `?v=v5.0` and older `?v=` values are ignored. Laurel emits one v5-shaped
   representation. A future incompatible schema would use a versioned path,
   not query-time branching.
 
@@ -207,8 +207,8 @@ filter expressions:
 ?filter=tag:news+featured:true,visibility:public
 ```
 
-**Arbitrary NQL is not supported by Nectar.** There is no expression
-evaluator on a static host. Instead, Nectar pre-bakes the most common
+**Arbitrary NQL is not supported by Laurel.** There is no expression
+evaluator on a static host. Instead, Laurel pre-bakes the most common
 filter — `tag:<slug>` — into shards at `content/posts/tag/<slug>.json`.
 Consumers that need a different cut should fetch `content/posts.json` and
 filter client-side.
@@ -220,13 +220,13 @@ JSON and applies NQL on the fly).
 ## Static empty resources
 
 Ghost's Content API exposes members/newsletter resources that depend on live
-Ghost services. Nectar emits empty stubs so SDK consumers can call them
+Ghost services. Laurel emits empty stubs so SDK consumers can call them
 without a 404:
 
 - `content/tiers.json` / `ghost/api/content/tiers.json`
 - `content/newsletters.json` / `ghost/api/content/newsletters.json`
 
-Both return an empty array with `meta.pagination`. Nectar does not implement
+Both return an empty array with `meta.pagination`. Laurel does not implement
 members billing, newsletter delivery, offers, or email analytics.
 
 Posts also include static compatibility fields for SDK/type consumers:
@@ -235,7 +235,7 @@ Posts also include static compatibility fields for SDK/type consumers:
 
 ## Other emitted files
 
-The Content API is not the only machine-readable output Nectar can emit.
+The Content API is not the only machine-readable output Laurel can emit.
 Depending on component config, builds may also include:
 
 - `sitemap.xml`
@@ -249,7 +249,7 @@ These are static build artifacts, not Ghost Content API endpoints.
 
 ## Explicit non-support
 
-Nectar does not emit:
+Laurel does not emit:
 
 - AMP routes such as `/post-slug/amp/`
 - `<link rel="amphtml">` in `{{ghost_head}}`, because there is no generated
@@ -257,24 +257,24 @@ Nectar does not emit:
 - Ghost Image API resize URLs like `/content/images/size/w600/...`
 - `GET /oembed/?url=...`
 - Ghost Admin API webhooks or integration endpoints
-- A published `@nectar/content-api-types` package
+- A published `@laurel/content-api-types` package
 
 Use pre-generated images, theme/plugin code, or host/CI deploy hooks for
 those concerns.
 
 ## Admin API
 
-**Nectar does not implement the Ghost Admin API.** Nectar is read-only; the
+**Laurel does not implement the Ghost Admin API.** Laurel is read-only; the
 content source of truth is the Markdown files in `content/`. Authoring
 flows that would normally call the Admin API (`POST /admin/posts/`, etc.)
 should instead:
 
 1. Edit / add Markdown files in the Git repository.
-2. Run `nectar build` to regenerate the static output.
+2. Run `laurel build` to regenerate the static output.
 3. Deploy the new build.
 
 For a CMS-like editing experience, use a Git-backed editor (Decap CMS,
-TinaCMS, Sveltia CMS) that commits Markdown files directly. Nectar will
+TinaCMS, Sveltia CMS) that commits Markdown files directly. Laurel will
 pick up the new content on the next build.
 
 ## Members-only content
@@ -297,7 +297,7 @@ This marks the **payload itself** as the public, anonymous-reader view
 that the body in this response is what an unauthenticated reader sees.
 
 Ghost's `post.access` field is normally a boolean tied to the current
-viewer's permission; in Nectar there is no signed-in viewer, so the
+viewer's permission; in Laurel there is no signed-in viewer, so the
 payload is always the public view and `access` is always `'public'`.
 
 ## Stability

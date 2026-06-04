@@ -6,16 +6,16 @@ served from S3 through CloudFront.
 ## Recipe
 
 1. Set `site.url` to the CloudFront or custom-domain URL.
-2. Run `bunx nectar build`.
+2. Run `bunx laurel build`.
 3. Create a private S3 bucket and CloudFront distribution with OAC.
 4. Add directory-style URL rewriting for `/page/` to `/page/index.html`.
-5. Publish `dist/` with `nectar deploy s3` or the CI workflow.
+5. Publish `dist/` with `laurel deploy s3` or the CI workflow.
 6. Verify custom error responses, redirects, cache policy, RSS, sitemap, and
    old Ghost URLs.
 
 ## Lifecycle controls
 
-Add S3 lifecycle rules before enabling production traffic. Nectar fingerprints
+Add S3 lifecycle rules before enabling production traffic. Laurel fingerprints
 built assets under `assets/built/`, so replaced JS and CSS objects are safe to
 remove after the new build has settled.
 

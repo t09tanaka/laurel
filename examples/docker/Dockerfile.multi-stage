@@ -1,12 +1,12 @@
-# Multi-stage image for hosts that build the Nectar site during docker build.
+# Multi-stage image for hosts that build the Laurel site during docker build.
 # Copy this file and nginx.conf to your site root, then run:
-#   docker build -t nectar-static .
+#   docker build -t laurel-static .
 FROM oven/bun AS build
 
 WORKDIR /app
 COPY . .
 RUN bun install
-RUN bunx nectar build
+RUN bunx laurel build
 
 FROM nginx:1.27-alpine
 

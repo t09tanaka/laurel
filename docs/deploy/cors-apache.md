@@ -1,10 +1,10 @@
 # Content API CORS on Apache HTTPD
 
-Nectar emits Content API JSON under `dist/content/`. Netlify and Cloudflare
+Laurel emits Content API JSON under `dist/content/`. Netlify and Cloudflare
 Pages consume the generated `_headers` files; Apache needs equivalent
 `mod_headers` rules.
 
-If Apache can read `.htaccess`, the simplest option is Nectar's dedicated
+If Apache can read `.htaccess`, the simplest option is Laurel's dedicated
 Content API file:
 
 ```toml
@@ -17,7 +17,7 @@ That writes `dist/content/.htaccess`. Deploy the full `dist/` tree and ensure
 the virtual host allows file-info overrides for the document root:
 
 ```apache
-<Directory "/var/www/nectar">
+<Directory "/var/www/laurel">
     AllowOverride FileInfo
 </Directory>
 ```

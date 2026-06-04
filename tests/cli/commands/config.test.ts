@@ -22,9 +22,9 @@ async function runCli(
 }
 
 async function makeFixture(): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-config-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-config-')));
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     [
       '[site]',
       'title = "Config Test"',
@@ -79,7 +79,7 @@ describe('cli config', () => {
     try {
       const { stdout, exitCode } = await runCli(['config', 'path'], dir);
       expect(exitCode).toBe(0);
-      expect(stdout).toContain(`Config: ${join(dir, 'nectar.toml')}`);
+      expect(stdout).toContain(`Config: ${join(dir, 'laurel.toml')}`);
       expect(stdout).toContain('Project rc: not found');
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -90,13 +90,13 @@ describe('cli config', () => {
     const dir = await makeFixture();
     try {
       await writeFile(
-        join(dir, '.nectarrc.json'),
+        join(dir, '.laurelrc.json'),
         JSON.stringify({ build: { output: 'dist-docs' } }),
       );
       const { stdout, exitCode } = await runCli(['config', 'path'], dir);
       expect(exitCode).toBe(0);
-      expect(stdout).toContain(`Config: ${join(dir, 'nectar.toml')}`);
-      expect(stdout).toContain(`Project rc: ${join(dir, '.nectarrc.json')}`);
+      expect(stdout).toContain(`Config: ${join(dir, 'laurel.toml')}`);
+      expect(stdout).toContain(`Project rc: ${join(dir, '.laurelrc.json')}`);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -105,12 +105,12 @@ describe('cli config', () => {
   test('config command reads json default from project rc below CLI args', async () => {
     const dir = await makeFixture();
     try {
-      await writeFile(join(dir, '.nectarrc.json'), JSON.stringify({ config: { json: true } }));
+      await writeFile(join(dir, '.laurelrc.json'), JSON.stringify({ config: { json: true } }));
       const { stdout, exitCode } = await runCli(['config', 'path'], dir);
       expect(exitCode).toBe(0);
       const parsed = JSON.parse(stdout) as { config_path: string | null; rc_path: string | null };
-      expect(parsed.config_path).toBe(join(dir, 'nectar.toml'));
-      expect(parsed.rc_path).toBe(join(dir, '.nectarrc.json'));
+      expect(parsed.config_path).toBe(join(dir, 'laurel.toml'));
+      expect(parsed.rc_path).toBe(join(dir, '.laurelrc.json'));
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -120,21 +120,21 @@ describe('cli config', () => {
     const dir = await makeFixture();
     try {
       await writeFile(
-        join(dir, '.nectarrc.json'),
+        join(dir, '.laurelrc.json'),
         JSON.stringify({ build: { output: 'dist-docs' } }),
       );
       const { stdout, exitCode } = await runCli(['config', 'path', '--json'], dir);
       expect(exitCode).toBe(0);
       const parsed = JSON.parse(stdout) as { config_path: string | null; rc_path: string | null };
-      expect(parsed.config_path).toBe(join(dir, 'nectar.toml'));
-      expect(parsed.rc_path).toBe(join(dir, '.nectarrc.json'));
+      expect(parsed.config_path).toBe(join(dir, 'laurel.toml'));
+      expect(parsed.rc_path).toBe(join(dir, '.laurelrc.json'));
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
   test('config path --json returns null when no config exists', async () => {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-config-empty-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-config-empty-')));
     try {
       const { stdout, exitCode } = await runCli(['config', 'path', '--json'], dir);
       expect(exitCode).toBe(0);
@@ -211,7 +211,7 @@ describe('cli config', () => {
         ['[site]', 'title = "Layered Config"', ''].join('\n'),
       );
       const { stdout, stderr, exitCode } = await runCli(
-        ['config', 'print', '--config', 'nectar.toml', '--config', 'prod.toml', '--format', 'json'],
+        ['config', 'print', '--config', 'laurel.toml', '--config', 'prod.toml', '--format', 'json'],
         dir,
       );
       expect(exitCode).toBe(0);
@@ -255,13 +255,13 @@ describe('cli config', () => {
   });
 
   test('config validate pretty-prints config errors', async () => {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-config-invalid-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-config-invalid-')));
     try {
-      await writeFile(join(dir, 'nectar.toml'), '[site]\ntitle = 123\n');
+      await writeFile(join(dir, 'laurel.toml'), '[site]\ntitle = 123\n');
       const { stdout, stderr, exitCode } = await runCli(['config', 'validate'], dir);
       expect(exitCode).toBe(1);
       expect(stdout).toBe('');
-      expect(stderr).toContain('nectar.toml');
+      expect(stderr).toContain('laurel.toml');
       expect(stderr).toContain('site.title');
       expect(stderr).toContain('string');
     } finally {
@@ -270,9 +270,9 @@ describe('cli config', () => {
   });
 
   test('config validate --json emits a machine-readable result', async () => {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-config-invalid-json-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-config-invalid-json-')));
     try {
-      await writeFile(join(dir, 'nectar.toml'), '[site]\ntitle = 123\n');
+      await writeFile(join(dir, 'laurel.toml'), '[site]\ntitle = 123\n');
       const { stdout, stderr, exitCode } = await runCli(['config', 'validate', '--json'], dir);
       expect(exitCode).toBe(1);
       expect(stderr).toBe('');
@@ -282,7 +282,7 @@ describe('cli config', () => {
       };
       expect(parsed.ok).toBe(false);
       expect(parsed.errors[0]?.code).toBe('config');
-      expect(parsed.errors[0]?.file).toBe('nectar.toml');
+      expect(parsed.errors[0]?.file).toBe('laurel.toml');
       expect(parsed.errors[0]?.message).toContain('site.title');
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -316,10 +316,10 @@ describe('cli config', () => {
   });
 
   test('config set updates a TOML string value and preserves trailing comments', async () => {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-config-set-toml-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-config-set-toml-')));
     try {
       await writeFile(
-        join(dir, 'nectar.toml'),
+        join(dir, 'laurel.toml'),
         [
           '# Site settings',
           '[site]',
@@ -331,7 +331,7 @@ describe('cli config', () => {
       const result = await runCli(['config', 'set', 'site.title', 'After'], dir);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('Set site.title');
-      const body = await readFile(join(dir, 'nectar.toml'), 'utf8');
+      const body = await readFile(join(dir, 'laurel.toml'), 'utf8');
       expect(body).toContain('# Site settings');
       expect(body).toContain('title = "After" # keep this comment');
       const get = await runCli(['config', 'get', 'site.title'], dir);
@@ -359,15 +359,15 @@ describe('cli config', () => {
   });
 
   test('config set updates JSON config files', async () => {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-config-set-json-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-config-set-json-')));
     try {
       await writeFile(
-        join(dir, 'nectar.config.json'),
+        join(dir, 'laurel.config.json'),
         `${JSON.stringify({ site: { title: 'Before', url: 'https://config.test' } }, null, 2)}\n`,
       );
       const result = await runCli(['config', 'set', 'site.title', 'From JSON'], dir);
       expect(result.exitCode).toBe(0);
-      const body = JSON.parse(await readFile(join(dir, 'nectar.config.json'), 'utf8')) as {
+      const body = JSON.parse(await readFile(join(dir, 'laurel.config.json'), 'utf8')) as {
         site: { title: string };
       };
       expect(body.site.title).toBe('From JSON');
@@ -379,13 +379,13 @@ describe('cli config', () => {
   });
 
   test('config set writes a local TOML override next to TS configs', async () => {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-config-set-ts-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-config-set-ts-')));
     try {
-      await writeFile(join(dir, 'nectar.config.ts'), 'export default {};\n');
+      await writeFile(join(dir, 'laurel.config.ts'), 'export default {};\n');
       const result = await runCli(['config', 'set', 'site.title', 'Local Override'], dir);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('local TOML override');
-      const body = await readFile(join(dir, '.nectar.local.toml'), 'utf8');
+      const body = await readFile(join(dir, '.laurel.local.toml'), 'utf8');
       expect(body).toContain('[site]');
       expect(body).toContain('title = "Local Override"');
       const get = await runCli(['config', 'get', 'site.title'], dir);

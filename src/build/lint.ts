@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import slugify from 'slugify';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import { pathContainsSymlink, scanGlob } from '~/util/fs.ts';
@@ -24,7 +24,7 @@ interface LintReport {
 
 interface LintContentOptions {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   // Opt-in: scan markdown bodies for relative `.md` cross-links and
   // relative image references; flag any that don't resolve on disk.
@@ -45,7 +45,7 @@ type ExternalFetch = (url: string, signal: AbortSignal) => Promise<{ ok: boolean
 // Known frontmatter keys per content kind, mirroring everything the loader reads
 // in `normalizePost` / `normalizePage` / `normalizeAuthor` / `normalizeTag`.
 // Anything outside these sets is flagged as an unknown key so typos like
-// `tittle` or `feature-image` surface during `nectar check` instead of silently
+// `tittle` or `feature-image` surface during `laurel check` instead of silently
 // being ignored at render time.
 const POST_KEYS: ReadonlySet<string> = new Set([
   'uuid',
@@ -332,11 +332,11 @@ function checkDuplicateSlugs(files: FrontmatterFile[], kind: string): LintIssue[
 
 // Asset references we surface as warnings when the underlying file is missing
 // from `content.assets_dir`. Only checks site-relative `/content/images/...`
-// URLs — remote URLs and other absolute paths are skipped because Nectar
+// URLs — remote URLs and other absolute paths are skipped because Laurel
 // neither owns nor can verify them at build time.
 function checkAssetReferences(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   content: ContentGraph,
 ): LintIssue[] {
   return findMissingAssetReferences({ cwd, config, content }).map((ref) => ({
@@ -349,7 +349,7 @@ function checkAssetReferences(
 // Navigation URLs that look like site-internal paths (start with `/`, not `//`,
 // no protocol) but don't map to a known post / page / tag / author / homepage
 // get reported. Anchors (`#foo`), query strings, and absolute URLs are skipped.
-function checkNavigation(config: NectarConfig, content: ContentGraph): LintIssue[] {
+function checkNavigation(config: LaurelConfig, content: ContentGraph): LintIssue[] {
   const issues: LintIssue[] = [];
 
   const check = (group: string, items: ReadonlyArray<{ label: string; url: string }>): void => {
@@ -436,7 +436,7 @@ interface InternalLinkScan {
 // hands back the http/https URLs so `--check-external` doesn't need a second pass.
 function checkInternalLinks(
   cwd: string,
-  config: NectarConfig,
+  config: LaurelConfig,
   files: FrontmatterFile[],
 ): InternalLinkScan {
   const issues: LintIssue[] = [];
@@ -498,7 +498,7 @@ function checkInternalLinks(
   return { issues, externalUrls };
 }
 
-function collectExternalNavUrls(config: NectarConfig): string[] {
+function collectExternalNavUrls(config: LaurelConfig): string[] {
   const urls: string[] = [];
   for (const item of [...config.navigation, ...config.secondary_navigation]) {
     if (/^https?:/i.test(item.url)) urls.push(item.url);

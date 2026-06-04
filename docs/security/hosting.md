@@ -1,14 +1,14 @@
 # Hosting security headers
 
-Nectar emits plain static files. The host serves them. That means **the
-hosting platform is responsible for HTTP response headers** — Nectar itself
+Laurel emits plain static files. The host serves them. That means **the
+hosting platform is responsible for HTTP response headers** — Laurel itself
 cannot send a `Content-Security-Policy` or `Strict-Transport-Security`
-header at request time, because there is no Nectar process at request time.
+header at request time, because there is no Laurel process at request time.
 
 This page collects copy-pasteable header snippets for the hosted platforms
 the [deploy tutorial](../tutorials/04-deploy.md) covers (Cloudflare Pages,
 Vercel, Netlify, Firebase Hosting, GitHub Pages), plus the matching
-`nectar.toml` settings for self-hosted nginx. Pick the one that matches your
+`laurel.toml` settings for self-hosted nginx. Pick the one that matches your
 host and add it to the place that host actually reads.
 
 > If you skip this step, your site ships with the defaults the host gives you.
@@ -19,12 +19,12 @@ host and add it to the place that host actually reads.
 For the build-time side — which frontmatter and config fields ship code to
 visitors, and what to look for when reviewing a contributor's PR — see
 [`threat-model.md`](./threat-model.md). The two pages complement each other:
-`threat-model.md` covers what Nectar emits, `hosting.md` covers what the host
+`threat-model.md` covers what Laurel emits, `hosting.md` covers what the host
 wraps around that output.
 
-## What Nectar actually emits
+## What Laurel actually emits
 
-The CSP below is calibrated for what Nectar puts on the page:
+The CSP below is calibrated for what Laurel puts on the page:
 
 - **Inline `<script type="application/ld+json">`** — the `{{ghost_head}}`
   helper emits JSON-LD for the site, post, and author. JSON-LD blocks are not
@@ -44,7 +44,7 @@ The CSP below is calibrated for what Nectar puts on the page:
 
 This is why the baseline CSP allows `'unsafe-inline'` for `script-src` and
 `style-src`. When `[deploy.headers].security.content_security_policy` is set,
-Nectar also scans the final rendered HTML and appends build-time
+Laurel also scans the final rendered HTML and appends build-time
 `'sha256-...'` sources for every non-empty inline `<script>` body to
 `script-src` in generated deploy artifacts (`_headers`, `vercel.json`,
 self-hosted snippets, and the CloudFront response headers policy). That lets a
@@ -52,7 +52,7 @@ strict CSP allow exactly the inline scripts the build produced without relying
 on `'unsafe-inline'` for scripts.
 
 **Per-request nonces are not viable in the static origin itself** — there is no
-Nectar process at request time to emit a fresh nonce per response. One
+Laurel process at request time to emit a fresh nonce per response. One
 operator-side path remains if you need fresh per-request authorization
 (particularly when `build.allow_code_injection` is on — see
 [`threat-model.md` § Render-side raw-HTML exits](./threat-model.md#render-side-raw-html-exits--ghost_head--ghost_foot)):
@@ -63,7 +63,7 @@ operator-side path remains if you need fresh per-request authorization
    arbitrary `codeinjection_*` content because the nonce is applied to the
    response, not the build output.
 
-Nectar's built-in hashes cover inline scripts only. Inline `<style>` still
+Laurel's built-in hashes cover inline scripts only. Inline `<style>` still
 needs `'unsafe-inline'`, `build.csp_nonce` with a matching static nonce source,
 edge-injected nonces, or an operator-managed style hash pass. The simpler
 alternative — move every inline script out of templates and drop
@@ -119,7 +119,7 @@ deployed policy and see what else the host adds or strips.
 
 Cloudflare Pages reads a `_headers` file at the root of `dist/`. Create one
 with a build step, or check it in if you do not generate it. The simplest
-path is to keep a `public/_headers` in your repo and have Nectar copy it
+path is to keep a `public/_headers` in your repo and have Laurel copy it
 through to `dist/`:
 
 ```bash
@@ -141,7 +141,7 @@ mkdir -p public
 
 Then either:
 
-- Configure Nectar to copy `public/` into `dist/` as a build step
+- Configure Laurel to copy `public/` into `dist/` as a build step
   (`cp -r public/. dist/` in a `predeploy` script), **or**
 - Place `_headers` directly in your repo and let Cloudflare pick it up from
   there if your build output directory is the repo root.
@@ -155,7 +155,7 @@ negation. Full reference:
 ## Vercel
 
 Vercel reads `vercel.json` from the project config or static deploy output.
-For Nectar sites, prefer `[deploy.vercel].enabled = true` so `nectar build`
+For Laurel sites, prefer `[deploy.vercel].enabled = true` so `laurel build`
 emits `dist/vercel.json` from `[deploy.headers]` and `build.trailing_slash`.
 If you manage Vercel config by hand, headers are declarative:
 
@@ -193,10 +193,10 @@ If you manage Vercel config by hand, headers are declarative:
 
 If you already have a hand-maintained `vercel.json`, merge the `headers` array
 into it rather than replacing the file. Keep `cleanUrls: true` with
-`trailingSlash: true` only for Nectar's default `build.trailing_slash =
+`trailingSlash: true` only for Laurel's default `build.trailing_slash =
 "always"` output; for no-slash builds, use `trailingSlash: false` with
 `cleanUrls: true` instead. Otherwise, set the same policies under
-`[deploy.headers]` and let Nectar generate the Vercel file. Vercel reference:
+`[deploy.headers]` and let Laurel generate the Vercel file. Vercel reference:
 <https://vercel.com/docs/projects/project-configuration#headers>.
 
 ---
@@ -230,10 +230,10 @@ Netlify reference:
 ## Firebase Hosting
 
 Firebase Hosting reads response headers from the `headers` array in
-`firebase.json`. Enable `[deploy.firebase]` to have Nectar translate
+`firebase.json`. Enable `[deploy.firebase]` to have Laurel translate
 `[deploy.headers]` into the generated `dist/firebase.json`:
 
-`nectar.toml`:
+`laurel.toml`:
 
 ```toml
 [deploy.firebase]
@@ -260,15 +260,15 @@ The Firebase emitter maps `build.trailing_slash` into the generated
 
 ## nginx
 
-Nectar emits nginx headers into `dist/.nectar/nginx.conf` when
-`[deploy.nginx].enabled = true`. Put the security values in `nectar.toml`
+Laurel emits nginx headers into `dist/.laurel/nginx.conf` when
+`[deploy.nginx].enabled = true`. Put the security values in `laurel.toml`
 under `[deploy.headers].security` so they are generated alongside the cache
 rules and repeated inside every nginx `location` block:
 
 ```toml
 [deploy.nginx]
 enabled = true
-root = "/var/www/nectar"
+root = "/var/www/laurel"
 server_name = "example.com"
 
 [deploy.headers.security]
@@ -285,10 +285,10 @@ Then rebuild and include the generated file from nginx's top-level
 `http { ... }` context:
 
 ```nginx
-include /var/www/nectar/.nectar/nginx.conf;
+include /var/www/laurel/.laurel/nginx.conf;
 ```
 
-Nectar's generated block listens on port 80. Keep TLS certificates,
+Laurel's generated block listens on port 80. Keep TLS certificates,
 HTTP-to-HTTPS redirects, and any load-balancer-specific behavior in your
 operator-managed nginx config. See [`../deploy/nginx.md`](../deploy/nginx.md)
 for the full deploy flow.
@@ -301,7 +301,7 @@ for the full deploy flow.
 sends a fixed set (`Strict-Transport-Security`, `X-Frame-Options: DENY`,
 some others) and ignores `_headers` / `vercel.json` / `netlify.toml`. There
 is no public API to override this, and GitHub Actions cannot change it by
-uploading extra files in the Pages artifact. Nectar's GitHub Pages target only
+uploading extra files in the Pages artifact. Laurel's GitHub Pages target only
 emits files Pages actually consumes, such as `.nojekyll` and optional `CNAME`;
 it intentionally does not promise a headers artifact for Pages.
 
@@ -317,7 +317,7 @@ headers such as `Referrer-Policy`, `Permissions-Policy`, and
 2. **Move the deploy to a host with first-class header config.** Cloudflare
    Pages and Netlify both pull from the same GitHub repo and accept a
    `_headers` file. Vercel accepts `vercel.json`. Self-hosted nginx can use
-   the `dist/.nectar/nginx.conf` generated from `[deploy.headers]`.
+   the `dist/.laurel/nginx.conf` generated from `[deploy.headers]`.
 3. **Put another reverse proxy or CDN in front of Pages.** Any layer that
    terminates HTTPS and controls the response can add the headers before the
    browser sees the page.

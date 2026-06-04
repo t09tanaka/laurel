@@ -1,8 +1,8 @@
 # `examples/ci/` — GitHub Actions deploy templates
 
-This directory holds **starter workflows** for shipping a Nectar build to
+This directory holds **starter workflows** for shipping a Laurel build to
 common static-site hosts. Each file is a self-contained `.yml` that runs
-`nectar build` on push to `main` and hands the resulting `dist/` to a
+`laurel build` on push to `main` and hands the resulting `dist/` to a
 provider-specific deploy step.
 
 These are **templates**, not active CI. To use one, copy the file you want
@@ -17,7 +17,7 @@ Every workflow follows the same shape so they are easy to diff and compare:
 - Uses `oven-sh/setup-bun@v2` pinned to Bun `1.3.0` (matches `package.json#engines`).
 - Installs with `bun install --frozen-lockfile` to lock the dependency tree to
   the committed `bun.lock`.
-- Builds with `bunx nectar build` and treats `dist/` as the deployable artifact.
+- Builds with `bunx laurel build` and treats `dist/` as the deployable artifact.
 - Wraps long-running deploys in a `concurrency` group so back-to-back pushes
   cancel the in-flight run.
 - Pins each `actions/*` to a major version (`@v4`) to dodge breaking changes
@@ -55,7 +55,7 @@ line in the workflow you copy.
   `docs/deploy/netlify.md`. If GitHub Actions should upload `dist/` to a
   Netlify site that is not connected to Git, copy `netlify-cli.yml`.
 - **You already use Firebase:** `firebase.yml`. Enable `[deploy.firebase]` so
-  Nectar emits `dist/firebase.json`, then FirebaseExtended/action-hosting-deploy
+  Laurel emits `dist/firebase.json`, then FirebaseExtended/action-hosting-deploy
   uploads that self-contained output with `entryPoint: dist`.
 - **You already live in AWS:** `s3-cloudfront.yml`. Pair with the CloudFront
   Function at `examples/s3-cloudfront/append-index.js` to keep directory-style

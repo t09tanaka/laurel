@@ -1,6 +1,6 @@
 # AUR Packaging
 
-`PKGBUILD.template` is a downstream-maintainer starting point for `nectar-bin`.
+`PKGBUILD.template` is a downstream-maintainer starting point for `laurel-bin`.
 Replace `{{VERSION}}`, `{{SHA256_LINUX_X64}}`, and `{{SHA256_LINUX_ARM64}}`
 from the GitHub release and its `SHASUMS256.txt` before publishing.
 

@@ -8,11 +8,11 @@ import { assetPublicUrl, loadThemeAssets } from '~/theme/assets.ts';
 
 describe('loadThemeAssets symlink protection', () => {
   test('skips symlinked theme asset files', async () => {
-    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-'));
+    const themeDir = await mkdtemp(join(tmpdir(), 'laurel-theme-'));
     const assetsDir = join(themeDir, 'assets');
     await mkdir(join(assetsDir, 'built'), { recursive: true });
 
-    const outside = await mkdtemp(join(tmpdir(), 'nectar-outside-'));
+    const outside = await mkdtemp(join(tmpdir(), 'laurel-outside-'));
     const secret = join(outside, 'secret.css');
     await writeFile(secret, 'SECRET');
     await symlink(secret, join(assetsDir, 'built', 'oops.css'));
@@ -28,7 +28,7 @@ describe('loadThemeAssets symlink protection', () => {
 
 describe('loadThemeAssets fingerprint cache', () => {
   test('fingerprints image asset filenames instead of relying on query cache busting', async () => {
-    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-image-cache-'));
+    const themeDir = await mkdtemp(join(tmpdir(), 'laurel-theme-image-cache-'));
     const assetsDir = join(themeDir, 'assets', 'images');
     await mkdir(assetsDir, { recursive: true });
     await writeFile(join(assetsDir, 'icon.svg'), '<svg viewBox="0 0 1 1"></svg>');
@@ -44,7 +44,7 @@ describe('loadThemeAssets fingerprint cache', () => {
   });
 
   test('skips source maps and fingerprints font assets', async () => {
-    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-non-code-cache-'));
+    const themeDir = await mkdtemp(join(tmpdir(), 'laurel-theme-non-code-cache-'));
     const assetsDir = join(themeDir, 'assets', 'built');
     await mkdir(assetsDir, { recursive: true });
     await writeFile(join(assetsDir, 'screen.css.map'), '{"version":3}');
@@ -59,7 +59,7 @@ describe('loadThemeAssets fingerprint cache', () => {
   });
 
   test('stores one canonical assets-prefixed key per file', async () => {
-    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-canonical-assets-'));
+    const themeDir = await mkdtemp(join(tmpdir(), 'laurel-theme-canonical-assets-'));
     const assetsDir = join(themeDir, 'assets', 'built');
     await mkdir(assetsDir, { recursive: true });
     await writeFile(join(assetsDir, 'screen.css'), 'body{}');
@@ -71,7 +71,7 @@ describe('loadThemeAssets fingerprint cache', () => {
   });
 
   test('computes sha384 SRI alongside the fingerprint hash', async () => {
-    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-sri-'));
+    const themeDir = await mkdtemp(join(tmpdir(), 'laurel-theme-sri-'));
     const assetsDir = join(themeDir, 'assets', 'built');
     await mkdir(assetsDir, { recursive: true });
     await writeFile(join(assetsDir, 'screen.css'), 'body{color:red}');
@@ -86,8 +86,8 @@ describe('loadThemeAssets fingerprint cache', () => {
   });
 
   test('reuses cached hash when mtime + size are unchanged and rehashes when changed', async () => {
-    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-cache-'));
-    const cacheDir = await mkdtemp(join(tmpdir(), 'nectar-cache-'));
+    const themeDir = await mkdtemp(join(tmpdir(), 'laurel-theme-cache-'));
+    const cacheDir = await mkdtemp(join(tmpdir(), 'laurel-cache-'));
     const assetsDir = join(themeDir, 'assets', 'built');
     await mkdir(assetsDir, { recursive: true });
     const cssPath = join(assetsDir, 'screen.css');
@@ -133,8 +133,8 @@ describe('loadThemeAssets fingerprint cache', () => {
   });
 
   test('treats unreadable cache file as a miss instead of throwing', async () => {
-    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-cache-bad-'));
-    const cacheDir = await mkdtemp(join(tmpdir(), 'nectar-cache-bad-'));
+    const themeDir = await mkdtemp(join(tmpdir(), 'laurel-theme-cache-bad-'));
+    const cacheDir = await mkdtemp(join(tmpdir(), 'laurel-cache-bad-'));
     await mkdir(join(themeDir, 'assets'), { recursive: true });
     await writeFile(join(themeDir, 'assets', 'a.css'), 'body{}');
     await writeFile(join(cacheDir, 'asset-cache.json'), '{ this is not json');
@@ -146,7 +146,7 @@ describe('loadThemeAssets fingerprint cache', () => {
 
 describe('loadThemeAssets parallel hashing', () => {
   test('does not block parallel asset processing with statSync', async () => {
-    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-async-stat-'));
+    const themeDir = await mkdtemp(join(tmpdir(), 'laurel-theme-async-stat-'));
     const assetsDir = join(themeDir, 'assets', 'built');
     await mkdir(assetsDir, { recursive: true });
     await writeFile(join(assetsDir, 'screen.css'), 'body{}');
@@ -168,7 +168,7 @@ describe('loadThemeAssets parallel hashing', () => {
   // file must end up with a well-formed sha256 prefix regardless of how the
   // parallel scheduler interleaves them.
   test('hashes many assets in parallel without losing or reordering entries', async () => {
-    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-parallel-'));
+    const themeDir = await mkdtemp(join(tmpdir(), 'laurel-theme-parallel-'));
     const assetsDir = join(themeDir, 'assets', 'built');
     await mkdir(assetsDir, { recursive: true });
 
@@ -215,7 +215,7 @@ describe('loadThemeAssets parallel hashing', () => {
   // equivalent one-shot sha256 of the same bytes, otherwise fingerprinted
   // URLs would shift across implementations and break long-lived caches.
   test('streaming sha256 matches the equivalent one-shot sha256', async () => {
-    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-stream-'));
+    const themeDir = await mkdtemp(join(tmpdir(), 'laurel-theme-stream-'));
     const assetsDir = join(themeDir, 'assets', 'built');
     await mkdir(assetsDir, { recursive: true });
 
@@ -239,7 +239,7 @@ describe('loadThemeAssets parallel hashing', () => {
   });
 
   test('streams asset files instead of requesting whole-file buffers', async () => {
-    const themeDir = await mkdtemp(join(tmpdir(), 'nectar-theme-stream-only-'));
+    const themeDir = await mkdtemp(join(tmpdir(), 'laurel-theme-stream-only-'));
     const assetsDir = join(themeDir, 'assets', 'built');
     await mkdir(assetsDir, { recursive: true });
 

@@ -1,4 +1,4 @@
-import { NectarError } from '~/util/errors.ts';
+import { LaurelError } from '~/util/errors.ts';
 import type {
   PortalAdapter,
   ResolvedSubscribeForm,
@@ -17,9 +17,9 @@ export const mailchimpAdapter: PortalAdapter = {
   provider: 'mailchimp',
   resolve(cfg: SubscribeAdapterConfig): ResolvedSubscribeForm {
     if (!cfg.action) {
-      throw new NectarError({
+      throw new LaurelError({
         message: 'components.subscribe.action is required when provider is "mailchimp"',
-        hint: 'Set components.subscribe.action in nectar.toml to your Mailchimp list URL',
+        hint: 'Set components.subscribe.action in laurel.toml to your Mailchimp list URL',
         code: 'config',
       });
     }

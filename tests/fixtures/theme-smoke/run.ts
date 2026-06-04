@@ -24,14 +24,14 @@ const SITE_FIXTURE = join(FIXTURE_DIR, 'site');
 export async function runSmoke(options: SmokeOptions): Promise<SmokeResult> {
   const log = options.log ?? defaultLog;
   const themeRoot = resolve(options.themePath);
-  const workDir = await mkdtemp(join(tmpdir(), `nectar-smoke-${options.themeName}-`));
+  const workDir = await mkdtemp(join(tmpdir(), `laurel-smoke-${options.themeName}-`));
   log(`[smoke:${options.themeName}] workdir ${workDir}`);
 
   try {
     await cp(SITE_FIXTURE, workDir, { recursive: true });
     await mkdir(join(workDir, 'themes'), { recursive: true });
     await cp(themeRoot, join(workDir, 'themes', options.themeName), { recursive: true });
-    await writeFile(join(workDir, 'nectar.toml'), renderNectarToml(options.themeName), 'utf8');
+    await writeFile(join(workDir, 'laurel.toml'), renderLaurelToml(options.themeName), 'utf8');
 
     const summary = await build({ cwd: workDir });
     log(
@@ -55,11 +55,11 @@ function defaultLog(message: string): void {
   process.stderr.write(`${message}\n`);
 }
 
-function renderNectarToml(themeName: string): string {
+function renderLaurelToml(themeName: string): string {
   return [
     '[site]',
     'title = "Theme Smoke Fixture"',
-    'description = "Minimal fixture used to smoke-test Ghost themes against Nectar"',
+    'description = "Minimal fixture used to smoke-test Ghost themes against Laurel"',
     'url = "https://smoke.example.com"',
     'locale = "en"',
     'timezone = "UTC"',

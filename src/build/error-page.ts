@@ -1,4 +1,4 @@
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import { joinPath } from '~/theme/assets.ts';
 import { nonceAttr } from '~/util/csp.ts';
@@ -6,7 +6,7 @@ import { writeHtml } from './emit.ts';
 import { EMPTY_FAVICON_SET, type FaviconSet } from './favicons.ts';
 
 export function renderDefault404Html(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   favicons?: FaviconSet;
 }): string {
@@ -45,7 +45,7 @@ export function renderDefault404Html(opts: {
 }
 
 export async function emitDefault404(opts: {
-  config: NectarConfig;
+  config: LaurelConfig;
   content: ContentGraph;
   outputDir: string;
   favicons?: FaviconSet;

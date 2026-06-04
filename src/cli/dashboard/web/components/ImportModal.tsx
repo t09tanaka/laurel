@@ -158,7 +158,7 @@ export function ImportModal({ onClose, onImported, toast }: ImportModalProps): J
       ) : (
         <>
           <p class="meta">
-            Drop a Nectar entry bundle <code>.zip</code>. The imported entry lands as{' '}
+            Drop a Laurel entry bundle <code>.zip</code>. The imported entry lands as{' '}
             <strong>needs&#8209;review</strong>.
           </p>
 

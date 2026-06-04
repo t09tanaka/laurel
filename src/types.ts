@@ -1,11 +1,11 @@
-// Public TypeScript types for Nectar plugin and theme authors. This module
+// Public TypeScript types for Laurel plugin and theme authors. This module
 // is the only documented entry point for downstream code; anything not
 // re-exported here is internal and may change without notice.
 //
-// Import via the `nectar/types` package entry:
-//   import type { NectarPlugin, BuildContext, Post } from 'nectar/types';
+// Import via the `laurel/types` package entry:
+//   import type { LaurelPlugin, BuildContext, Post } from 'laurel/types';
 
-export type { NavigationItem, NectarConfig } from './config/schema.ts';
+export type { NavigationItem, LaurelConfig } from './config/schema.ts';
 
 export type {
   Author,
@@ -18,7 +18,7 @@ export type {
 
 export type { BuildOptions, BuildSummary } from './build/pipeline.ts';
 
-export type { NectarEngine } from './render/engine.ts';
+export type { LaurelEngine } from './render/engine.ts';
 
 export type {
   PaginationInfo,
@@ -38,8 +38,8 @@ export type {
 export type {
   BuildContext,
   MarkdownTransformContext,
-  NectarHelper,
-  NectarPlugin,
+  LaurelHelper,
+  LaurelPlugin,
   Plugin,
   PluginFactory,
   PluginRoute,

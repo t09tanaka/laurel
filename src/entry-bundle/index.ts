@@ -3,7 +3,7 @@ import { lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { absolutise, resolveContentSlugPath } from '~/cli/content-paths.ts';
 import { createZipArchive } from '~/cli/dashboard/zip-writer.ts';
-import type { NectarConfig } from '~/config/schema.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 import { parseFrontmatter } from '~/content/frontmatter.ts';
 import {
   type ConflictPolicy,
@@ -21,14 +21,14 @@ import {
 } from '~/entry-bundle/shared.ts';
 import type { ZipFileEntry } from '~/entry-bundle/zip.ts';
 
-export const BUNDLE_SCHEMA = 'nectar.bundle.v1';
+export const BUNDLE_SCHEMA = 'laurel.bundle.v1';
 
 export type EntryKind = 'post' | 'page';
 export type { ConflictPolicy };
 
 const MAX_ENTRIES = 2000;
 const MAX_TOTAL_BYTES = 100 * 1024 * 1024;
-const MANIFEST_PATH = 'nectar-bundle.json';
+const MANIFEST_PATH = 'laurel-bundle.json';
 const ENTRY_PATH = 'entry.md';
 const ASSETS_PREFIX = 'assets/';
 // Tag definition files referenced by the entry travel under this prefix as
@@ -215,7 +215,7 @@ export async function exportEntryBundle({
   slug,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   kind: EntryKind;
   slug: string;
 }): Promise<{
@@ -351,7 +351,7 @@ export async function importEntryBundle({
   expectedExisting,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   zip: Uint8Array;
   onConflict: ConflictPolicy;
   dryRun?: boolean;
@@ -596,7 +596,7 @@ async function collectBundleAssets({
   extraFrontmatters = [],
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   frontmatter: Record<string, unknown>;
   body: string;
   /** Additional frontmatters (e.g. bundled tag definitions) whose asset
@@ -652,7 +652,7 @@ async function collectReferencedTagDefinitions({
   frontmatter,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   frontmatter: Record<string, unknown>;
 }): Promise<ParsedBundleTag[]> {
   return collectReferencedDefinitions(
@@ -670,7 +670,7 @@ async function collectReferencedAuthorDefinitions({
   frontmatter,
 }: {
   cwd: string;
-  config: NectarConfig;
+  config: LaurelConfig;
   frontmatter: Record<string, unknown>;
 }): Promise<ParsedBundleAuthor[]> {
   return collectReferencedDefinitions(
@@ -756,7 +756,7 @@ async function isSymlink(path: string): Promise<boolean> {
   }
 }
 
-function rootForKind(cwd: string, config: NectarConfig, kind: EntryKind): string {
+function rootForKind(cwd: string, config: LaurelConfig, kind: EntryKind): string {
   return absolutise(cwd, kind === 'post' ? config.content.posts_dir : config.content.pages_dir);
 }
 

@@ -12,8 +12,8 @@ import { parseFrontmatter } from '~/content/frontmatter.ts';
 const repoRoot = resolve(import.meta.dir, '..');
 const distRoot = resolve(repoRoot, 'example/dist');
 const postsRoot = resolve(repoRoot, 'example/content/posts');
-const reportRoot = resolve(distRoot, '.nectar/lighthouse');
-const maxUrls = Number(process.env.NECTAR_LIGHTHOUSE_MAX_URLS ?? '8');
+const reportRoot = resolve(distRoot, '.laurel/lighthouse');
+const maxUrls = Number(process.env.LAUREL_LIGHTHOUSE_MAX_URLS ?? '8');
 
 async function collectHtmlFiles(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
@@ -99,7 +99,7 @@ async function serveDist(): Promise<ReturnType<typeof Bun.serve>> {
 }
 
 function rewriteLocalOrigins(html: string, origin: string): string {
-  return html.replaceAll('https://nectar.example.com', origin);
+  return html.replaceAll('https://laurel.example.com', origin);
 }
 
 async function runLighthouse(target: LighthouseTarget): Promise<LighthouseJsonReport> {

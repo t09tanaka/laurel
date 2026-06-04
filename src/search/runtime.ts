@@ -1,12 +1,12 @@
 // Ghost search trigger runtime shim.
 //
 // Themes built for Ghost expose `[data-ghost-search]` triggers (search buttons
-// / inputs). Ghost itself wires those to Sodo Search, but Nectar is static and
+// / inputs). Ghost itself wires those to Sodo Search, but Laurel is static and
 // does not bundle that runtime by default. This shim gives those triggers a
 // working modal by routing them to either:
 //   - Pagefind UI, when the configured engine emits a Pagefind index.
-//   - Nectar's flat `content/search.json`, for the default JSON search index.
-//   - Nectar's pre-built `search-index.json`, for the Lunr search index.
+//   - Laurel's flat `content/search.json`, for the default JSON search index.
+//   - Laurel's pre-built `search-index.json`, for the Lunr search index.
 //
 // We ship this as a string constant rather than a separate `.js` source so the
 // build pipeline can write it verbatim without a bundler step. The emitted JS
@@ -43,11 +43,11 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
   const lunrIndexUrl = `${basePath}search-index.json`;
   // Use JSON-stringified values so paths with characters needing escaping stay
   // safe inside the emitted JS.
-  return `// Nectar search runtime shim. Auto-generated; do not edit by hand.
+  return `// Laurel search runtime shim. Auto-generated; do not edit by hand.
 (function () {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
-  if (window.__nectarSearchShimLoaded) return;
-  window.__nectarSearchShimLoaded = true;
+  if (window.__laurelSearchShimLoaded) return;
+  window.__laurelSearchShimLoaded = true;
 
   var SEARCH_MODE = ${JSON.stringify(strategy)};
   var PAGEFIND_UI_URL = ${JSON.stringify(pagefindUrl)};
@@ -55,18 +55,18 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
   var SEARCH_JSON_URL = ${JSON.stringify(searchJsonUrl)};
   var LUNR_RUNTIME_URL = ${JSON.stringify(lunrRuntimeUrl)};
   var LUNR_INDEX_URL = ${JSON.stringify(lunrIndexUrl)};
-  var MODAL_ID = 'nectar-search-modal';
+  var MODAL_ID = 'laurel-search-modal';
   var uiPromise = null;
   var jsonPromise = null;
   var lunrRuntimePromise = null;
   var lunrIndexPromise = null;
 
   function ensurePagefindCss() {
-    if (document.querySelector('link[data-nectar-search-css]')) return;
+    if (document.querySelector('link[data-laurel-search-css]')) return;
     var link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = PAGEFIND_CSS_URL;
-    link.setAttribute('data-nectar-search-css', '');
+    link.setAttribute('data-laurel-search-css', '');
     document.head.appendChild(link);
   }
 
@@ -75,7 +75,7 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
     ensurePagefindCss();
     uiPromise = import(/* @vite-ignore */ PAGEFIND_UI_URL).catch(function (err) {
       uiPromise = null;
-      console.warn('[nectar-search] Failed to load Pagefind UI from ' + PAGEFIND_UI_URL + '. Did the build run with engine = "pagefind" or "json+pagefind"?', err);
+      console.warn('[laurel-search] Failed to load Pagefind UI from ' + PAGEFIND_UI_URL + '. Did the build run with engine = "pagefind" or "json+pagefind"?', err);
       throw err;
     });
     return uiPromise;
@@ -88,19 +88,19 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
     style.textContent = [
       '#' + MODAL_ID + '{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.5);display:flex;align-items:flex-start;justify-content:center;padding:10vh 1rem 1rem;box-sizing:border-box;}',
       '#' + MODAL_ID + '[hidden]{display:none;}',
-      '.nectar-search-modal__panel{background:#fff;color:#111;width:100%;max-width:640px;border-radius:8px;padding:1rem;box-shadow:0 20px 60px rgba(0,0,0,.25);box-sizing:border-box;}',
-      '.nectar-search-modal__header{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.75rem;}',
-      '.nectar-search-modal__title{margin:0;font:600 1rem/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}',
-      '.nectar-search-modal__close{appearance:none;border:0;background:transparent;color:inherit;font:inherit;font-size:1.25rem;line-height:1;cursor:pointer;padding:.25rem;}',
-      '.nectar-search-modal__input{width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:6px;padding:.65rem .75rem;font:inherit;color:#111;background:#fff;}',
-      '.nectar-search-modal__input:focus{outline:2px solid #2563eb;outline-offset:2px;}',
-      '.nectar-search-modal__status{margin:.75rem 0 0;color:#6b7280;font:400 .875rem/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}',
-      '.nectar-search-modal__results{list-style:none;margin:.75rem 0 0;padding:0;max-height:55vh;overflow:auto;}',
-      '.nectar-search-modal__result{border-top:1px solid #e5e7eb;padding:.75rem 0;}',
-      '.nectar-search-modal__result a{color:#111;text-decoration:none;font:600 .95rem/1.35 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}',
-      '.nectar-search-modal__result a:hover{color:#2563eb;}',
-      '.nectar-search-modal__result small{display:block;margin-top:.15rem;color:#6b7280;text-transform:capitalize;}',
-      '.nectar-search-modal__result p{margin:.25rem 0 0;color:#4b5563;font:400 .875rem/1.45 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}'
+      '.laurel-search-modal__panel{background:#fff;color:#111;width:100%;max-width:640px;border-radius:8px;padding:1rem;box-shadow:0 20px 60px rgba(0,0,0,.25);box-sizing:border-box;}',
+      '.laurel-search-modal__header{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.75rem;}',
+      '.laurel-search-modal__title{margin:0;font:600 1rem/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}',
+      '.laurel-search-modal__close{appearance:none;border:0;background:transparent;color:inherit;font:inherit;font-size:1.25rem;line-height:1;cursor:pointer;padding:.25rem;}',
+      '.laurel-search-modal__input{width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:6px;padding:.65rem .75rem;font:inherit;color:#111;background:#fff;}',
+      '.laurel-search-modal__input:focus{outline:2px solid #2563eb;outline-offset:2px;}',
+      '.laurel-search-modal__status{margin:.75rem 0 0;color:#6b7280;font:400 .875rem/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}',
+      '.laurel-search-modal__results{list-style:none;margin:.75rem 0 0;padding:0;max-height:55vh;overflow:auto;}',
+      '.laurel-search-modal__result{border-top:1px solid #e5e7eb;padding:.75rem 0;}',
+      '.laurel-search-modal__result a{color:#111;text-decoration:none;font:600 .95rem/1.35 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}',
+      '.laurel-search-modal__result a:hover{color:#2563eb;}',
+      '.laurel-search-modal__result small{display:block;margin-top:.15rem;color:#6b7280;text-transform:capitalize;}',
+      '.laurel-search-modal__result p{margin:.25rem 0 0;color:#4b5563;font:400 .875rem/1.45 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}'
     ].join('');
     document.head.appendChild(style);
   }
@@ -117,16 +117,16 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
     modal.setAttribute('hidden', '');
 
     var panel = document.createElement('div');
-    panel.className = 'nectar-search-modal__panel';
+    panel.className = 'laurel-search-modal__panel';
 
     var header = document.createElement('div');
-    header.className = 'nectar-search-modal__header';
+    header.className = 'laurel-search-modal__header';
     var title = document.createElement('h2');
-    title.className = 'nectar-search-modal__title';
+    title.className = 'laurel-search-modal__title';
     title.textContent = 'Search';
     var close = document.createElement('button');
     close.type = 'button';
-    close.className = 'nectar-search-modal__close';
+    close.className = 'laurel-search-modal__close';
     close.setAttribute('aria-label', 'Close search');
     close.textContent = 'x';
     close.addEventListener('click', closeModal);
@@ -168,7 +168,7 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
     loadPagefindUI().then(function (mod) {
       var PagefindUI = (mod && mod.PagefindUI) || window.PagefindUI;
       if (!PagefindUI) {
-        console.warn('[nectar-search] PagefindUI constructor not found on import.');
+        console.warn('[laurel-search] PagefindUI constructor not found on import.');
         return;
       }
       var mount = document.getElementById(MODAL_ID + '-mount');
@@ -197,7 +197,7 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
       })
       .catch(function (err) {
         jsonPromise = null;
-        console.warn('[nectar-search] Failed to load search index from ' + SEARCH_JSON_URL + '.', err);
+        console.warn('[laurel-search] Failed to load search index from ' + SEARCH_JSON_URL + '.', err);
         throw err;
       });
     return jsonPromise;
@@ -207,7 +207,7 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
     if (typeof window.lunr === 'function') return Promise.resolve(window.lunr);
     if (lunrRuntimePromise) return lunrRuntimePromise;
     lunrRuntimePromise = new Promise(function (resolve, reject) {
-      var existing = document.querySelector('script[data-nectar-lunr-runtime]');
+      var existing = document.querySelector('script[data-laurel-lunr-runtime]');
       if (existing) {
         existing.addEventListener('load', function () {
           if (typeof window.lunr === 'function') resolve(window.lunr);
@@ -219,7 +219,7 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
       var script = document.createElement('script');
       script.src = LUNR_RUNTIME_URL;
       script.defer = true;
-      script.setAttribute('data-nectar-lunr-runtime', '');
+      script.setAttribute('data-laurel-lunr-runtime', '');
       script.addEventListener('load', function () {
         if (typeof window.lunr === 'function') resolve(window.lunr);
         else reject(new Error('lunr runtime missing on window'));
@@ -228,7 +228,7 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
       document.head.appendChild(script);
     }).catch(function (err) {
       lunrRuntimePromise = null;
-      console.warn('[nectar-search] Failed to load Lunr runtime from ' + LUNR_RUNTIME_URL + '.', err);
+      console.warn('[laurel-search] Failed to load Lunr runtime from ' + LUNR_RUNTIME_URL + '.', err);
       throw err;
     });
     return lunrRuntimePromise;
@@ -248,7 +248,7 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
       })
       .catch(function (err) {
         lunrIndexPromise = null;
-        console.warn('[nectar-search] Failed to load Lunr search index from ' + LUNR_INDEX_URL + '.', err);
+        console.warn('[laurel-search] Failed to load Lunr search index from ' + LUNR_INDEX_URL + '.', err);
         throw err;
       });
     return lunrIndexPromise;
@@ -291,18 +291,18 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
     mount.setAttribute('data-json-initialized', 'true');
     var input = document.createElement('input');
     input.id = MODAL_ID + '-input';
-    input.className = 'nectar-search-modal__input';
+    input.className = 'laurel-search-modal__input';
     input.type = 'search';
     input.autocomplete = 'off';
     input.placeholder = 'Search posts, pages, tags, authors';
     input.setAttribute('aria-label', 'Search');
     var status = document.createElement('p');
     status.id = MODAL_ID + '-status';
-    status.className = 'nectar-search-modal__status';
+    status.className = 'laurel-search-modal__status';
     status.textContent = 'Type at least 2 characters.';
     var list = document.createElement('ol');
     list.id = MODAL_ID + '-results';
-    list.className = 'nectar-search-modal__results';
+    list.className = 'laurel-search-modal__results';
     mount.appendChild(input);
     mount.appendChild(status);
     mount.appendChild(list);
@@ -427,7 +427,7 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
     for (var i = 0; i < results.length; i++) {
       var result = results[i];
       var li = document.createElement('li');
-      li.className = 'nectar-search-modal__result';
+      li.className = 'laurel-search-modal__result';
       var a = document.createElement('a');
       a.href = result.url;
       a.textContent = result.title;
@@ -463,8 +463,8 @@ export function renderSearchShim(opts: SearchShimOptions = {}): string {
     var triggers = document.querySelectorAll('[data-ghost-search]');
     for (var i = 0; i < triggers.length; i++) {
       var el = triggers[i];
-      if (el.getAttribute('data-nectar-search-wired') === 'true') continue;
-      el.setAttribute('data-nectar-search-wired', 'true');
+      if (el.getAttribute('data-laurel-search-wired') === 'true') continue;
+      el.setAttribute('data-laurel-search-wired', 'true');
       el.addEventListener('click', function (e) {
         e.preventDefault();
         openModal();

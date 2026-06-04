@@ -97,7 +97,7 @@ export function cardAssetsVersion(cardAssets: ThemeCardAssets): string {
 export function renderCardAssetsCss(cardAssets: ThemeCardAssets): string {
   const exclude = cardAssetsExcludeSet(cardAssets);
   const sections = CARD_NAMES.filter((name) => !exclude.has(name)).map((name) => CARD_CSS[name]);
-  return `/* Nectar Ghost-compatible shared card assets. */\n${sections.join('\n')}\n`;
+  return `/* Laurel Ghost-compatible shared card assets. */\n${sections.join('\n')}\n`;
 }
 
 const cardAssetsCssIntegrityCache = new Map<string, string>();
@@ -242,17 +242,17 @@ export function renderCardAssetsJs(cardAssets: ThemeCardAssets): string {
   if (!exclude.has('signup')) {
     sections.push(`ready(function () {
     each(document.querySelectorAll('.kg-signup-card form'), function (form) {
-      if (!form.hasAttribute('data-nectar-koenig-signup')) {
-        form.setAttribute('data-nectar-koenig-signup', 'static');
+      if (!form.hasAttribute('data-laurel-koenig-signup')) {
+        form.setAttribute('data-laurel-koenig-signup', 'static');
       }
     });
   });`);
   }
 
   if (sections.length === 0) {
-    return '/* Nectar Ghost-compatible shared card assets: no runtime sections enabled. */\n';
+    return '/* Laurel Ghost-compatible shared card assets: no runtime sections enabled. */\n';
   }
-  return `/* Nectar Ghost-compatible shared card assets. */
+  return `/* Laurel Ghost-compatible shared card assets. */
 (function () {
   function closest(el, selector) {
     return el && el.closest ? el.closest(selector) : null;

@@ -1,4 +1,4 @@
-# Example Caddyfile for a Nectar static site.
+# Example Caddyfile for a Laurel static site.
 #
 # Drop into /etc/caddy/Caddyfile, replace `yoursite.example.com` with your
 # hostname, and `sudo systemctl reload caddy`. See docs/deploy/caddy.md for
@@ -8,14 +8,14 @@ yoursite.example.com {
     root * /var/www/yoursite
     encode zstd gzip
 
-    # Pre-compressed sidecars from `nectar build` when [build].precompress = true.
+    # Pre-compressed sidecars from `laurel build` when [build].precompress = true.
     file_server {
         precompressed br gzip
     }
 
     # Cache-Control: pin fingerprinted assets and content images for a year,
     # force HTML to revalidate every request so a redeploy is visible on the
-    # next click. Mirrors nectar's `_headers` defaults.
+    # next click. Mirrors laurel's `_headers` defaults.
     @assets path /assets/* /content/images/* /pagefind/*
     header @assets Cache-Control "public, max-age=31536000, immutable"
 

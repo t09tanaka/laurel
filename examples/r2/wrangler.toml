@@ -1,6 +1,6 @@
-# Copy this sample to the root of a Nectar site when the complete dist/
+# Copy this sample to the root of a Laurel site when the complete dist/
 # directory is synced to a private Cloudflare R2 bucket and served by a Worker.
-name = "nectar-r2-static-site"
+name = "laurel-r2-static-site"
 main = "worker.ts"
 compatibility_date = "2025-04-01"
 

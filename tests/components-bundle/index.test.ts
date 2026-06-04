@@ -35,10 +35,10 @@ function componentMd(slug: string, description = 'A snippet'): string {
 }
 
 async function makeFixture(slugs: string[] = ['alpha', 'beta']): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-components-bundle-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-components-bundle-')));
   await mkdir(join(dir, 'content/components'), { recursive: true });
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     ['[site]', 'title = "Bundle Site"', 'url = "https://bundle.test"', ''].join('\n'),
     'utf8',
   );
@@ -72,7 +72,7 @@ describe('exportComponentsBundle', () => {
       expect(paths).toEqual([
         'components/alpha.md',
         'components/beta.md',
-        'nectar-components.json',
+        'laurel-components.json',
       ]);
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -123,7 +123,7 @@ describe('exportComponentsBundle', () => {
 describe('parseComponentsBundleZip', () => {
   test('parses a valid bundle', () => {
     const zip = createZipArchive([
-      { path: 'nectar-components.json', bytes: manifestBytes() },
+      { path: 'laurel-components.json', bytes: manifestBytes() },
       { path: 'components/alpha.md', bytes: encoder.encode(componentMd('alpha')) },
     ]);
     const parsed = parseComponentsBundleZip(zip);
@@ -134,7 +134,7 @@ describe('parseComponentsBundleZip', () => {
 
   test('rejects unknown schema', () => {
     const zip = createZipArchive([
-      { path: 'nectar-components.json', bytes: manifestBytes({ schema: 'bogus' }) },
+      { path: 'laurel-components.json', bytes: manifestBytes({ schema: 'bogus' }) },
       { path: 'components/alpha.md', bytes: encoder.encode(componentMd('alpha')) },
     ]);
     expect(() => parseComponentsBundleZip(zip)).toThrow(/Unsupported bundle schema/);
@@ -142,7 +142,7 @@ describe('parseComponentsBundleZip', () => {
 
   test('rejects entries outside components/', () => {
     const zip = createZipArchive([
-      { path: 'nectar-components.json', bytes: manifestBytes() },
+      { path: 'laurel-components.json', bytes: manifestBytes() },
       { path: 'evil.md', bytes: encoder.encode(componentMd('alpha')) },
     ]);
     expect(() => parseComponentsBundleZip(zip)).toThrow(/outside components\//);
@@ -150,7 +150,7 @@ describe('parseComponentsBundleZip', () => {
 
   test('rejects duplicate slugs', () => {
     const zip = createZipArchive([
-      { path: 'nectar-components.json', bytes: manifestBytes() },
+      { path: 'laurel-components.json', bytes: manifestBytes() },
       { path: 'components/alpha.md', bytes: encoder.encode(componentMd('alpha')) },
       { path: 'components/copy.md', bytes: encoder.encode(componentMd('alpha')) },
     ]);
@@ -159,7 +159,7 @@ describe('parseComponentsBundleZip', () => {
 
   test('rejects an invalid slug', () => {
     const zip = createZipArchive([
-      { path: 'nectar-components.json', bytes: manifestBytes() },
+      { path: 'laurel-components.json', bytes: manifestBytes() },
       { path: 'components/bad.md', bytes: encoder.encode(componentMd('1bad')) },
     ]);
     expect(() => parseComponentsBundleZip(zip)).toThrow(/Invalid component slug/);
@@ -169,17 +169,17 @@ describe('parseComponentsBundleZip', () => {
     const zip = createZipArchive([
       { path: 'components/alpha.md', bytes: encoder.encode(componentMd('alpha')) },
     ]);
-    expect(() => parseComponentsBundleZip(zip)).toThrow(/missing nectar-components\.json/);
+    expect(() => parseComponentsBundleZip(zip)).toThrow(/missing laurel-components\.json/);
   });
 });
 
 describe('importComponentsBundle round trip', () => {
   test('imports new components into an empty target', async () => {
     const source = await makeFixture(['alpha', 'beta']);
-    const target = await realpath(await mkdtemp(join(tmpdir(), 'nectar-components-target-')));
+    const target = await realpath(await mkdtemp(join(tmpdir(), 'laurel-components-target-')));
     try {
       await writeFile(
-        join(target, 'nectar.toml'),
+        join(target, 'laurel.toml'),
         ['[site]', 'title = "T"', 'url = "https://t.test"', ''].join('\n'),
         'utf8',
       );
@@ -204,10 +204,10 @@ describe('importComponentsBundle round trip', () => {
 
   test('slugs allowlist imports only the selected subset', async () => {
     const source = await makeFixture(['alpha', 'beta', 'gamma']);
-    const target = await realpath(await mkdtemp(join(tmpdir(), 'nectar-components-target-')));
+    const target = await realpath(await mkdtemp(join(tmpdir(), 'laurel-components-target-')));
     try {
       await writeFile(
-        join(target, 'nectar.toml'),
+        join(target, 'laurel.toml'),
         ['[site]', 'title = "T"', 'url = "https://t.test"', ''].join('\n'),
         'utf8',
       );
@@ -283,10 +283,10 @@ describe('importComponentsBundle round trip', () => {
 
   test('dry-run reports without writing', async () => {
     const source = await makeFixture(['alpha']);
-    const target = await realpath(await mkdtemp(join(tmpdir(), 'nectar-components-dry-')));
+    const target = await realpath(await mkdtemp(join(tmpdir(), 'laurel-components-dry-')));
     try {
       await writeFile(
-        join(target, 'nectar.toml'),
+        join(target, 'laurel.toml'),
         ['[site]', 'title = "T"', 'url = "https://t.test"', ''].join('\n'),
         'utf8',
       );
@@ -349,11 +349,11 @@ function assetComponentMd(slug: string): string {
 }
 
 async function makeAssetFixture(slug = 'alpha'): Promise<string> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-components-assets-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-components-assets-')));
   await mkdir(join(dir, 'content/components'), { recursive: true });
   await mkdir(join(dir, 'content/images'), { recursive: true });
   await writeFile(
-    join(dir, 'nectar.toml'),
+    join(dir, 'laurel.toml'),
     ['[site]', 'title = "Bundle Site"', 'url = "https://bundle.test"', ''].join('\n'),
     'utf8',
   );
@@ -462,7 +462,7 @@ describe('components bundle asset handoff', () => {
 
   test('parseComponentsBundleZip rejects a traversing asset path', () => {
     const zip = createZipArchive([
-      { path: 'nectar-components.json', bytes: manifestBytes() },
+      { path: 'laurel-components.json', bytes: manifestBytes() },
       { path: 'components/alpha.md', bytes: encoder.encode(componentMd('alpha')) },
       { path: 'assets/../evil.png', bytes: encoder.encode('x') },
     ]);
@@ -470,12 +470,12 @@ describe('components bundle asset handoff', () => {
   });
 
   test('export carries assets referenced via srcset and a parenthesised url()', async () => {
-    const dir = await realpath(await mkdtemp(join(tmpdir(), 'nectar-components-assets-')));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-components-assets-')));
     try {
       await mkdir(join(dir, 'content/components'), { recursive: true });
       await mkdir(join(dir, 'content/images'), { recursive: true });
       await writeFile(
-        join(dir, 'nectar.toml'),
+        join(dir, 'laurel.toml'),
         ['[site]', 'title = "Bundle Site"', 'url = "https://bundle.test"', ''].join('\n'),
         'utf8',
       );

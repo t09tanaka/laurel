@@ -1,11 +1,11 @@
 # Versioning policy
 
-Nectar follows semantic versioning for the public surfaces documented below.
+Laurel follows semantic versioning for the public surfaces documented below.
 The current package is `0.x`, so the project is still allowed to refine public
 contracts before `1.0.0`, but breaking changes must still be called out
 explicitly in the changelog and paired with migration guidance.
 
-When in doubt, treat a change as breaking. Nectar is used by sites, themes,
+When in doubt, treat a change as breaking. Laurel is used by sites, themes,
 CI jobs, and plugins that cannot always upgrade in lockstep with the core
 package.
 
@@ -13,7 +13,7 @@ package.
 
 ### `0.x`
 
-Minor releases may contain breaking changes while Nectar is pre-`1.0.0`.
+Minor releases may contain breaking changes while Laurel is pre-`1.0.0`.
 Those breaks must be deliberate and documented:
 
 - the release notes must include a **Breaking changes** section;
@@ -28,7 +28,7 @@ after reading the release notes.
 
 ### `1.x` and later
 
-Starting with `1.0.0`, Nectar uses normal SemVer:
+Starting with `1.0.0`, Laurel uses normal SemVer:
 
 - **Major (`2.0.0`)**: removes or changes a documented public contract.
 - **Minor (`1.1.0`)**: adds backwards-compatible functionality.
@@ -46,8 +46,8 @@ consumer can reasonably depend on without importing private source files.
 
 Covered:
 
-- command names and subcommand names, such as `nectar build`,
-  `nectar check`, `nectar theme lint`, and `nectar import-ghost`;
+- command names and subcommand names, such as `laurel build`,
+  `laurel check`, `laurel theme lint`, and `laurel import-ghost`;
 - documented flags, negated flags, positional arguments, and environment
   variable fallbacks from [`docs/cli.md`](./docs/cli.md);
 - exit-code semantics for successful runs, usage errors, validation errors,
@@ -75,9 +75,9 @@ Non-breaking examples:
 
 Covered:
 
-- `nectar.toml` / `nectar.config.toml` discovery rules;
+- `laurel.toml` / `laurel.config.toml` discovery rules;
 - documented config keys and value types from [`docs/config.md`](./docs/config.md);
-- JSON Schema emitted by `nectar schema config`;
+- JSON Schema emitted by `laurel schema config`;
 - documented environment and CLI override precedence.
 
 Breaking examples:
@@ -153,7 +153,7 @@ is not a breaking change.
 
 Covered:
 
-- package exports under `nectar/plugin` and documented plugin types;
+- package exports under `laurel/plugin` and documented plugin types;
 - hook names, hook order guarantees, hook argument shapes, and allowed return
   values;
 - documented helper registration APIs and rendering/build context objects that
@@ -177,18 +177,18 @@ Non-breaking examples:
 
 ## Theme compatibility guarantee
 
-Theme compatibility is pinned to the Nectar major version.
+Theme compatibility is pinned to the Laurel major version.
 
-For the `0.x` line, Nectar targets real-world Ghost theme compatibility with
+For the `0.x` line, Laurel targets real-world Ghost theme compatibility with
 the vendored Source theme as the main compatibility fixture, but the exact
 surface may still change in minor releases as the renderer matures.
 
 Starting with `1.0.0`, a Ghost-style theme that:
 
 - uses documented helpers, partials, contexts, and template fallback rules;
-- passes `nectar theme lint` and `nectar check` on the same major line;
+- passes `laurel theme lint` and `laurel check` on the same major line;
 - does not depend on private files in `src/` or undocumented generated markup;
-- does not require a Ghost server runtime feature that Nectar documents as out
+- does not require a Ghost server runtime feature that Laurel documents as out
   of scope, such as Members sessions, Admin API writes, or dynamic Portal
   POST handlers;
 
@@ -207,7 +207,7 @@ After `1.0.0`, removals should go through a deprecation period whenever the
 old behaviour can be kept safely:
 
 1. Add the replacement and keep the old path working.
-2. Emit a clear warning from `nectar check`, `nectar theme lint`, or the
+2. Emit a clear warning from `laurel check`, `laurel theme lint`, or the
    relevant command.
 3. Document the removal target in the changelog.
 4. Remove the deprecated path only in the next major release.
@@ -223,12 +223,12 @@ Before upgrading across a breaking release:
 1. Read the changelog entry for **Breaking changes** and **Deprecations**.
 2. Update the installed version deliberately (`~0.x.y` during `0.x`, or the
    next major range after `1.0.0`).
-3. Run `nectar check --strict`.
-4. Run `nectar theme lint <path-to-theme>` for each custom theme.
-5. Rebuild with `nectar build` and inspect representative pages, generated
+3. Run `laurel check --strict`.
+4. Run `laurel theme lint <path-to-theme>` for each custom theme.
+5. Rebuild with `laurel build` and inspect representative pages, generated
    JSON, RSS, sitemap, and deployment helper files that your site consumes.
 6. For plugins, run the plugin's typecheck and test suite against the new
-   `nectar/plugin` types.
+   `laurel/plugin` types.
 
 Sites with custom themes should keep a small golden build or visual snapshot
 for the home page, a post, a page, a tag archive, an author archive, and any

@@ -7,7 +7,7 @@ import {
 } from '~/build/page-weight.ts';
 
 const repoRoot = resolve(import.meta.dir, '..');
-const distRoot = resolve(repoRoot, process.env.NECTAR_PAGE_WEIGHT_DIST ?? 'example/dist');
+const distRoot = resolve(repoRoot, process.env.LAUREL_PAGE_WEIGHT_DIST ?? 'example/dist');
 
 async function collectHtmlFiles(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
@@ -15,7 +15,7 @@ async function collectHtmlFiles(dir: string): Promise<string[]> {
     entries.map(async (entry) => {
       const path = resolve(dir, entry.name);
       if (entry.isDirectory()) {
-        if (entry.name === '.nectar') return [];
+        if (entry.name === '.laurel') return [];
         return collectHtmlFiles(path);
       }
       return entry.isFile() && entry.name.endsWith('.html') ? [path] : [];

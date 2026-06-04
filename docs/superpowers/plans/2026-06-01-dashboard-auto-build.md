@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** When `nectar dashboard` (prod, the default mode) is launched from a repository source checkout, serve a freshly built frontend bundle without a manual pre-build or restart; leave the published binary and the `--dev` HMR path unchanged.
+**Goal:** When `laurel dashboard` (prod, the default mode) is launched from a repository source checkout, serve a freshly built frontend bundle without a manual pre-build or restart; leave the published binary and the `--dev` HMR path unchanged.
 
 **Architecture:** A new isolated module `src/cli/dashboard/source-bundle.ts` detects a source checkout (web entrypoint + tailwind present), compares `web/**` mtimes to the embedded `bundled-assets.ts`, and — only when stale — builds JS (`Bun.build`) and CSS (tailwind CLI) into in-memory strings. `runDashboard` calls this, threads the resulting asset map through `startDashboardServer` → request context, and `serveDashboardBundleAsset` prefers the runtime map over the embedded `DASHBOARD_BUNDLE_ASSETS`. `startDashboardServer` never builds on its own, so tests and the visual-QA script are untouched.
 
@@ -45,7 +45,7 @@ import {
 
 const tmps: string[] = [];
 async function makeBase(opts: { tailwind: boolean }): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'nectar-srcbundle-'));
+  const root = await mkdtemp(join(tmpdir(), 'laurel-srcbundle-'));
   tmps.push(root);
   // baseDir is <root>/src/cli/dashboard so tailwindBin resolves to <root>/node_modules/.bin
   const base = join(root, 'src', 'cli', 'dashboard');
@@ -102,7 +102,7 @@ describe('mtime staleness', () => {
   });
 
   test('maxMtimeMsUnder returns 0 for a missing directory', async () => {
-    expect(await maxMtimeMsUnder(join(tmpdir(), 'nectar-does-not-exist-xyz'))).toBe(0);
+    expect(await maxMtimeMsUnder(join(tmpdir(), 'laurel-does-not-exist-xyz'))).toBe(0);
   });
 });
 ```
@@ -552,7 +552,7 @@ In `src/cli/specs.ts`, inside `DASHBOARD_SPEC.options`, add immediately after th
 And add an example to `DASHBOARD_SPEC.examples` (after the `--dev` example):
 
 ```ts
-    'nectar dashboard --no-build                  # serve the embedded bundle without rebuilding',
+    'laurel dashboard --no-build                  # serve the embedded bundle without rebuilding',
 ```
 
 - [ ] **Step 2: Implement the runDashboard wiring**
@@ -646,8 +646,8 @@ Expected: FAIL — stdout now includes `--no-build`, so it differs from the comm
 Run (applies the same version normalization the test uses, then writes the fixture):
 
 ```bash
-NO_COLOR=1 NECTAR_NO_COLOR=1 FORCE_COLOR=0 bun run src/cli/index.ts dashboard --help \
-  | sed -E 's/^nectar [0-9]+\.[0-9]+\.[0-9]+$/nectar <version>/; s/(Nectar) [0-9]+\.[0-9]+\.[0-9]+/\1 <version>/g' \
+NO_COLOR=1 LAUREL_NO_COLOR=1 FORCE_COLOR=0 bun run src/cli/index.ts dashboard --help \
+  | sed -E 's/^laurel [0-9]+\.[0-9]+\.[0-9]+$/laurel <version>/; s/(Laurel) [0-9]+\.[0-9]+\.[0-9]+/\1 <version>/g' \
   > tests/fixtures/cli-help-snapshots/dashboard.txt
 ```
 
@@ -679,7 +679,7 @@ In `CLAUDE.md`, in the "## Dashboard frontend development" section, replace the 
   checkout, now auto-builds the frontend bundle into memory at startup if any
   `src/cli/dashboard/web/**` file is newer than the embedded
   `src/cli/dashboard/bundled-assets.ts` (mtime fast path skips the rebuild when
-  the source is unchanged). So a plain `nectar dashboard` reflects your latest
+  the source is unchanged). So a plain `laurel dashboard` reflects your latest
   `web/**` edits without a manual `build-dashboard-bundle.ts` run. Pass
   `--no-build` to skip the auto-build and serve the embedded bundle as-is. The
   published npm CLI / compiled binary has no `web/**` source or tailwind, so it
@@ -688,12 +688,12 @@ In `CLAUDE.md`, in the "## Dashboard frontend development" section, replace the 
   path; the auto-build only refreshes once per launch.
 ```
 
-Then update the later "After rebuilding the bundle, RESTART any running prod dashboard" bullet to clarify it now applies only to the explicit `build-dashboard-bundle.ts` / published-bundle workflow, not to a plain source-run `nectar dashboard` (which rebuilds on launch). Change its first sentence to:
+Then update the later "After rebuilding the bundle, RESTART any running prod dashboard" bullet to clarify it now applies only to the explicit `build-dashboard-bundle.ts` / published-bundle workflow, not to a plain source-run `laurel dashboard` (which rebuilds on launch). Change its first sentence to:
 
 ```markdown
 - **When you run `scripts/build-dashboard-bundle.ts` and serve the committed
   `dist/dashboard-bundle/` (the published-CLI path), RESTART any running prod
-  dashboard.** A plain source-run `nectar dashboard` rebuilds on launch, so this
+  dashboard.** A plain source-run `laurel dashboard` rebuilds on launch, so this
   only bites the explicit-bundle workflow.
 ```
 

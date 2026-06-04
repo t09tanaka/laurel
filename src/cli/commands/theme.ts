@@ -265,8 +265,8 @@ async function collectThemeFiles(root: string): Promise<ZipSource[]> {
     'dist',
     'build',
     '.cache',
-    '.nectar',
-    '.nectar-cache',
+    '.laurel',
+    '.laurel-cache',
     '.DS_Store',
   ]);
   // Pattern test for build artifacts we always want to strip from the bundle.
@@ -459,7 +459,7 @@ async function scaffoldMinimalTheme(destAbs: string, themeName: string): Promise
 
   const pkg = {
     name: themeName,
-    description: `Nectar theme ${themeName}`,
+    description: `Laurel theme ${themeName}`,
     version: '0.1.0',
     engines: { ghost: '>=5.0.0' },
     license: 'MIT',
@@ -533,7 +533,7 @@ async function scaffoldMinimalTheme(destAbs: string, themeName: string): Promise
   await writeFile(join(destAbs, 'locales/en.json'), '{}\n', 'utf8');
   await writeFile(
     join(destAbs, 'README.md'),
-    `# ${themeName}\n\nA Nectar theme scaffolded with \`nectar theme new ${themeName}\`.\n`,
+    `# ${themeName}\n\nA Laurel theme scaffolded with \`laurel theme new ${themeName}\`.\n`,
     'utf8',
   );
 }

@@ -1,8 +1,8 @@
-# Deploying Nectar to Netlify
+# Deploying Laurel to Netlify
 
-Netlify can either build a Nectar site from Git or receive a pre-built
+Netlify can either build a Laurel site from Git or receive a pre-built
 `dist/` directory from the Netlify CLI. This guide covers both paths, plus the
-generated `_headers` / `_redirects` files Nectar writes when
+generated `_headers` / `_redirects` files Laurel writes when
 `[deploy.netlify]` is enabled.
 
 Use Netlify's Git integration when you want Netlify to own checkout, build, and
@@ -10,23 +10,23 @@ publish from a connected repository. Use the Netlify CLI path when GitHub
 Actions (or another CI system) should build with Bun and upload `dist/` to a
 Netlify site that is not connected to Git.
 
-Nectar builds always include `dist/404.html`: themes can provide it with an
-`error-404.hbs` template, and otherwise Nectar writes a default noindex page.
+Laurel builds always include `dist/404.html`: themes can provide it with an
+`error-404.hbs` template, and otherwise Laurel writes a default noindex page.
 Netlify automatically serves a publish-root `404.html` as the custom 404 page
 for unmatched paths, so no `_redirects` rule or `netlify.toml` fallback is
 required for normal static-site 404s.
 
 ## Quickstart: Netlify builds from Git
 
-1. Add the Netlify deploy target to `nectar.toml`:
+1. Add the Netlify deploy target to `laurel.toml`:
 
    ```toml
    [deploy.netlify]
    enabled = true
    ```
 
-   This makes `nectar build` write Netlify-compatible `_headers` at the
-   publish root. If `redirects.yaml` exists, Nectar also writes `_redirects`
+   This makes `laurel build` write Netlify-compatible `_headers` at the
+   publish root. If `redirects.yaml` exists, Laurel also writes `_redirects`
    using Netlify's `301!` force syntax for rules with `force: true`.
 
    If your Netlify plan/site configuration supports `103 Early Hints`, you can
@@ -37,7 +37,7 @@ required for normal static-site 404s.
    enabled = true
    ```
 
-   Nectar then writes `early-hints.json` beside each route with critical
+   Laurel then writes `early-hints.json` beside each route with critical
    same-origin preloads, and adds matching `Link: <...>; rel=preload` entries
    to `_headers`. Unsupported hosts ignore the JSON artifact as an ordinary
    static file.
@@ -48,7 +48,7 @@ required for normal static-site 404s.
 
    ```toml
    [build]
-     command = "bunx nectar build"
+     command = "bunx laurel build"
      publish = "dist"
 
    [build.environment]
@@ -56,9 +56,9 @@ required for normal static-site 404s.
    ```
 
    Netlify installs Bun when `BUN_VERSION` is set. Without it, the build image
-   runs Node and `bunx nectar build` will fail. The sample also includes a
-   commented `[[plugins]]` block for Netlify build plugins; keep Nectar
-   build-time plugins in `nectar.toml`'s top-level `plugins` array.
+   runs Node and `bunx laurel build` will fail. The sample also includes a
+   commented `[[plugins]]` block for Netlify build plugins; keep Laurel
+   build-time plugins in `laurel.toml`'s top-level `plugins` array.
 
 3. In Netlify, choose **Add new site -> Import from Git**, pick the repo, and
    deploy. The checked-in `netlify.toml` should fill the build command and
@@ -75,7 +75,7 @@ required for normal static-site 404s.
 
    The HTML response should include the baseline security headers, and
    fingerprinted assets should receive long-lived immutable cache headers. The
-   missing path should return `404` while using Nectar's generated
+   missing path should return `404` while using Laurel's generated
    `404.html` body.
 
 ## Quickstart: GitHub Actions uploads `dist/`
@@ -103,11 +103,11 @@ deploy.
 The same flow can be run locally after a build:
 
 ```sh
-bunx nectar build
-NETLIFY_AUTH_TOKEN=<token> nectar deploy netlify --site-id <api-site-id>
+bunx laurel build
+NETLIFY_AUTH_TOKEN=<token> laurel deploy netlify --site-id <api-site-id>
 ```
 
-`nectar deploy netlify` shells out to `netlify deploy --dir dist --prod`.
+`laurel deploy netlify` shells out to `netlify deploy --dir dist --prod`.
 Set `[deploy.netlify].site_id` to avoid passing `--site-id` each time. The
 command warns when `NETLIFY_AUTH_TOKEN` is missing because the Netlify CLI will
 fall back to interactive login.
@@ -126,7 +126,7 @@ Put custom redirects in `redirects.yaml` at the project root:
   status: 308
 ```
 
-With `[deploy.netlify].enabled = true`, Nectar prepends those rules to
+With `[deploy.netlify].enabled = true`, Laurel prepends those rules to
 `dist/_redirects`:
 
 ```txt
@@ -140,19 +140,19 @@ static file exists at the source path. If two rules share the same `from`, the
 first rule wins, matching Netlify's first-match behavior. Supported status
 codes are `301`, `302`, `307`, and `308`; omitted status defaults to `301`.
 
-Do not add a catch-all redirect such as `/* /404.html 404` for a normal Nectar
+Do not add a catch-all redirect such as `/* /404.html 404` for a normal Laurel
 site. Netlify's `404.html` convention already handles missing paths after
 static files and redirects are considered. A catch-all redirect can also shadow
 legitimate paths if it is ordered incorrectly or marked as forced.
 
 ## Custom 404 page
 
-Netlify's static hosting convention is publish-root `404.html`. Nectar matches
+Netlify's static hosting convention is publish-root `404.html`. Laurel matches
 that convention by writing `dist/404.html` on every build:
 
 - If the active theme has `error-404.hbs`, the rendered theme error route is
   written to `404.html`.
-- If the theme does not provide that template, Nectar writes a small branded
+- If the theme does not provide that template, Laurel writes a small branded
   fallback page with `<meta name="robots" content="noindex">`.
 
 Because Netlify consumes the file by name, keep `publish = "dist"` in
@@ -161,7 +161,7 @@ deploy, request any missing URL and confirm the response status is `404`, then
 inspect `https://your-site.netlify.app/404.html` directly if you need to review
 the rendered page.
 
-When `[components.content_api].enabled = true`, Nectar also writes
+When `[components.content_api].enabled = true`, Laurel also writes
 `dist/content/404.json` with a Ghost-shaped `errors` envelope. This keeps
 browser SDK consumers from receiving HTML when a post slug JSON file is
 missing. Netlify can route missing Content API JSON requests to that file while
@@ -190,13 +190,13 @@ The defaults mirror Cloudflare Pages:
 The catch-all route also receives the baseline security headers from
 `[deploy.headers].security`, including `X-Content-Type-Options` and
 `Referrer-Policy` by default. Customize cache or security policy in
-`nectar.toml` under `[deploy.headers]`; do not duplicate those rules in
+`laurel.toml` under `[deploy.headers]`; do not duplicate those rules in
 `netlify.toml` unless you intentionally want Netlify-owned config to take over.
 
 ## Netlify Image CDN
 
 Netlify can resize local Ghost-style uploads without pre-generating every image
-variant. Enable Nectar's image CDN post-process when `/content/images/...`
+variant. Enable Laurel's image CDN post-process when `/content/images/...`
 contains many migrated images and you want emitted `<img>` tags to point at
 Netlify's `/.netlify/images` endpoint:
 
@@ -226,26 +226,26 @@ and you still want those URLs to include `w=`.
 
 ## Preview deploys
 
-On Netlify Git builds, Nectar automatically uses `DEPLOY_PRIME_URL` as
+On Netlify Git builds, Laurel automatically uses `DEPLOY_PRIME_URL` as
 `site.url` during `deploy-preview` and `branch-deploy` builds. If
 `DEPLOY_PRIME_URL` is not present, it falls back to `DEPLOY_URL`, then `URL`.
 That retargets canonical links, `og:url`, RSS, robots, and sitemap URLs to the
-published preview hostname without editing `nectar.toml`.
+published preview hostname without editing `laurel.toml`.
 
 The precedence is:
 
 ```text
---base-url > NECTAR_BUILD_BASE_URL > NECTAR_SITE_URL > Netlify deploy URL > site.url
+--base-url > LAUREL_BUILD_BASE_URL > LAUREL_SITE_URL > Netlify deploy URL > site.url
 ```
 
 Use `--base-url` when you need to force a different host:
 
 ```sh
-bunx nectar build --base-url https://deploy-preview-42--your-site.netlify.app
+bunx laurel build --base-url https://deploy-preview-42--your-site.netlify.app
 ```
 
 If the preview is served from a subpath, pair that with `--base-path` or set
-`[build] base_path = "/preview/"` in `nectar.toml`.
+`[build] base_path = "/preview/"` in `laurel.toml`.
 
 ## Troubleshooting
 
@@ -255,6 +255,6 @@ If the preview is served from a subpath, pair that with `--base-path` or set
   and that no file in the static passthrough directory overwrote `_headers`.
 - **Redirect exists but does not override a real file:** set `force: true` in
   `redirects.yaml` and rebuild; the emitted status should end in `!`.
-- **`nectar deploy netlify` opens an interactive login:** set
+- **`laurel deploy netlify` opens an interactive login:** set
   `NETLIFY_AUTH_TOKEN` in the environment and pass `--site-id` or set
   `[deploy.netlify].site_id`.
