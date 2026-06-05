@@ -5,7 +5,7 @@ description: Use when preparing a new npm release of the Laurel CLI. Runs the pr
 
 # Releasing Laurel to npm
 
-Laurel's only first-class distribution channel is npm (the GitHub Release binary and Homebrew/Scoop tap are convenience wrappers around the published package). There is no CI workflow that publishes on tag — every release is a deliberate manual act so a half-baked merge can never accidentally ship.
+Laurel's only distribution channel is npm. Pushing a `v*` tag triggers `.github/workflows/release.yml`, which re-runs the full verification suite and publishes to npm with provenance. This skill covers the manual preparation (version bump, bundle regeneration, validation, commit + tag) that must happen before that tag is pushed.
 
 The `prepublishOnly` hook in `package.json` already runs the full bundle chain (`build:dashboard-bundle && build:skill-bundle && build:cli && build:types`), so `npm publish` from a clean checkout is sufficient to produce a correct artifact. This skill walks through the safety gates that go around that.
 
@@ -76,27 +76,28 @@ git tag v<X.Y.Z>
 
 Use `release:` as the commit prefix so the tag and changelog story stay easy to grep. Never `git commit --amend` a release commit — if you need to fix something after tagging, delete the tag, make a new commit, re-tag.
 
-### 7. Push and publish
+### 7. Push the release commit and tag
 
 ```sh
 git push origin main
 git push origin v<X.Y.Z>
-npm publish
 ```
 
-`npm publish` re-runs `prepublishOnly` from a clean install, so even if you skipped step 4 locally it will catch a broken state.
+Pushing the `v<X.Y.Z>` tag triggers `.github/workflows/release.yml`, which
+re-runs `check` / `typecheck` / `test`, rebuilds the bundles, and runs
+`npm publish --provenance --access public`. Do not run `npm publish` by hand —
+CI owns the publish so provenance is attached and a half-baked local tree can
+never ship. Watch the Release workflow run to green.
+
+If you ever need to publish manually as a fallback (CI down, etc.), `npm publish`
+from a clean checkout re-runs `prepublishOnly` and produces the same artifact.
 
 ### 8. Verify
 
 ```sh
 npm view laurel version          # should match the new tag
 npx laurel@latest --version      # round-trip through the registry
-```
-
-Then create a GitHub Release for the tag (optional but recommended):
-
-```sh
-gh release create v<X.Y.Z> --generate-notes
+npm audit signatures             # confirms the npm provenance attestation
 ```
 
 ## When something breaks
@@ -111,5 +112,4 @@ gh release create v<X.Y.Z> --generate-notes
 ## Out of scope
 
 - CHANGELOG.md generation — not enforced yet. If you maintain one, update it before step 6
-- CI-driven publish — intentionally not implemented. The single manual step is the safety
-- GitHub Release binary / Homebrew tap / Scoop manifest — separate flows (`scripts/compile.ts`, `scripts/generate-homebrew-formula.ts`, `scripts/generate-scoop-manifest.ts`) consumed by their own release jobs after npm publish lands
+- Non-npm distribution (binaries, Homebrew, Scoop, Docker images) — not provided. npm is the only official channel; any other packaging is left to downstream maintainers

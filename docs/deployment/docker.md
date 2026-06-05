@@ -1,13 +1,13 @@
 # Docker deployment recipe
 
-Use this target when you want to build a site with the published Laurel image
-or package a prebuilt Laurel `dist/` directory behind nginx in a container.
+Use this target when you want to package a prebuilt Laurel `dist/` directory
+behind nginx in a container.
 
 ## Recipe
 
 1. Set `site.url` and any required `build.base_path`.
-2. Build with `docker run --rm -v "$PWD:/workspace" ghcr.io/t09tanaka/laurel:latest`,
-   or run `bunx laurel build` on the host.
+2. Build the site with `bunx laurel build` on the host (or inside the
+   multi-stage Docker sample).
 3. To serve the output from a container, choose the single-stage or multi-stage Docker sample.
 4. Copy the sample Dockerfile and nginx config into the site repository.
    If you run behind Traefik or Caddy, also copy

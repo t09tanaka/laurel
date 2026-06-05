@@ -17,8 +17,10 @@ is no shared code with Ghost.
 
 ## Does Laurel require Bun?
 
-End users running a prebuilt binary do not need Bun. Building Laurel from
-source — and developing on it — requires [Bun](https://bun.sh) >= 1.3.
+Yes. Laurel is distributed on npm and runs on the [Bun](https://bun.sh) runtime,
+so end users need Bun >= 1.3 installed (`npm i -g laurel`, then `laurel build`,
+or `bunx laurel build`). Building Laurel from source and developing on it have
+the same requirement.
 
 ## Can I keep my Ghost theme?
 

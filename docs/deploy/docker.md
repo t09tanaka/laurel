@@ -1,62 +1,9 @@
 # Deploying Laurel with Docker
 
-## Official build image
-
-Release tags publish a multi-arch Laurel CLI image for `linux/amd64` and
-`linux/arm64` to both GHCR and Docker Hub:
-
-```sh
-docker pull ghcr.io/t09tanaka/laurel:latest
-docker pull t09tanaka/laurel:latest
-```
-
-The image is based on `oven/bun:1.3.0-alpine`, uses `/workspace` as its working
-directory, and exposes `laurel build` as its entrypoint. Mount a Laurel project
-at `/workspace` to build it:
-
-```sh
-docker run --rm \
-  -v "$PWD:/workspace" \
-  ghcr.io/t09tanaka/laurel:latest
-```
-
-Arguments are passed to `laurel build`:
-
-```sh
-docker run --rm \
-  -v "$PWD:/workspace" \
-  ghcr.io/t09tanaka/laurel:latest \
-  --config laurel.toml --output dist
-```
-
-Use `--entrypoint laurel` when you need another command:
-
-```sh
-docker run --rm \
-  --entrypoint laurel \
-  -v "$PWD:/workspace" \
-  ghcr.io/t09tanaka/laurel:latest \
-  check
-```
-
-Tags include the pushed Git tag (`v0.1.0`), semver tags without the `v`
-prefix (`0.1.0`, `0.1`, `0`), and `latest`.
-
-## Release publishing setup
-
-The release workflow pushes the same multi-arch image to:
-
-- `ghcr.io/t09tanaka/laurel`
-- `docker.io/<DOCKERHUB_USERNAME>/laurel`
-
-GHCR uses the workflow `GITHUB_TOKEN` with `packages: write` permission. Docker
-Hub requires these repository secrets:
-
-- `DOCKERHUB_USERNAME`: Docker Hub namespace that owns the `laurel` repository
-- `DOCKERHUB_TOKEN`: Docker Hub access token with push access
-
-The workflow fails before building the image if either Docker Hub secret is
-missing, so tag releases do not silently skip Docker Hub publishing.
+Laurel is a build-time CLI distributed on npm; there is no official Laurel
+container image. Run `laurel build` with `bunx laurel build` (or `npm i -g
+laurel`), then serve the generated static `dist/` directory from a container.
+This page covers the nginx-based hosting samples Laurel ships for that purpose.
 
 Laurel ships two nginx-alpine samples under
 [`examples/docker/`](../../examples/docker/):
