@@ -74,7 +74,7 @@ describe('ci supply-chain', () => {
 
     const content = release?.content ?? '';
     expect(content).toContain('bun run sbom:cyclonedx');
-    expect(content).toContain('release/laurel.cyclonedx.json');
+    expect(content).toContain('dist-sbom/laurel.cyclonedx.json');
     expect(content).toContain('if: ${{ !github.event.repository.private }}');
     expect(content).toContain('npm publish --provenance --access public');
   });
