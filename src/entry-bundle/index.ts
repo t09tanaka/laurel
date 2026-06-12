@@ -219,7 +219,7 @@ export async function exportEntryBundle({
   kind: EntryKind;
   slug: string;
 }): Promise<{
-  zip: Uint8Array;
+  zip: Uint8Array<ArrayBuffer>;
   omittedAssets: string[];
   bundledTags: string[];
   bundledAuthors: string[];

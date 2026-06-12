@@ -179,7 +179,7 @@ export async function exportComponentsBundle({
   /** When omitted, every component is exported. Otherwise the listed slugs. */
   slugs?: string[];
 }): Promise<{
-  zip: Uint8Array;
+  zip: Uint8Array<ArrayBuffer>;
   exportedSlugs: string[];
   missing: string[];
   omittedAssets: string[];

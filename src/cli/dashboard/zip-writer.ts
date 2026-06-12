@@ -128,7 +128,7 @@ export interface ZipInputEntry {
   bytes: Uint8Array;
 }
 
-export function createZipArchive(inputs: ZipInputEntry[]): Uint8Array {
+export function createZipArchive(inputs: ZipInputEntry[]): Uint8Array<ArrayBuffer> {
   const encoder = new TextEncoder();
   const chunks: Uint8Array[] = [];
   const entries: ZipEntry[] = [];
