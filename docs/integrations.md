@@ -102,18 +102,13 @@ observability stack.
 
 ## Packaging
 
-Official release automation covers npm, Docker, Homebrew, and Scoop. Arch and
-Nix users can package the prebuilt release binaries without rebuilding the
-TypeScript project:
+Laurel's only official distribution channel is npm. Install it with
+`npm i -g laurel` (or run it with `bunx laurel`) on a host that has
+[Bun](https://bun.sh) >= 1.3.
 
-- AUR packages should install the matching `laurel-linux-x64` or
-  `laurel-linux-arm64` release asset as `/usr/bin/laurel` and verify
-  `SHASUMS256.txt`.
-- Nix flakes should fetch the same release asset for the current system,
-  install it into `$out/bin/laurel`, and run `laurel --help` in `installCheck`.
-
-Keep AUR PKGBUILD files and Nix flakes in downstream package repositories until
-there is a maintainer willing to own update cadence and checksum bumps.
+Any other packaging (Homebrew, Scoop, AUR, Nix, container images) is left to
+downstream maintainers who wrap the npm package and own their own update
+cadence; the project does not publish or maintain those artifacts.
 
 ## i18n
 

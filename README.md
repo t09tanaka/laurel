@@ -52,59 +52,33 @@ plus wiring examples for Buttondown / Beehiiv / Substack.
 
 ## Install
 
-Laurel ships as a self-contained binary for each tagged release, so you do not
-need Bun on your machine to use it. Grab the artifact that matches your platform
-from the latest [GitHub Release](https://github.com/t09tanaka/laurel/releases),
-verify the checksum, and drop it on your `$PATH`.
-
-Homebrew users can install Laurel from the project tap:
+Laurel is distributed on npm. It runs on the [Bun](https://bun.sh) runtime, so
+install Bun >= 1.3 first, then install the CLI globally:
 
 ```bash
-# Homebrew tap (macOS/Linux)
-brew tap t09tanaka/laurel
-brew install laurel
+npm i -g laurel
+laurel --help
 ```
 
-```powershell
-# Scoop bucket (Windows)
-scoop bucket add laurel https://github.com/t09tanaka/scoop-laurel
-scoop install laurel
-```
+Or run it without a global install:
 
 ```bash
-# macOS (Apple Silicon) — substitute the triple that matches your machine
-curl -L -o laurel \
-  https://github.com/t09tanaka/laurel/releases/latest/download/laurel-darwin-arm64
-chmod +x laurel
-./laurel --help
+bunx laurel --help
 ```
 
-Available triples: `laurel-linux-x64`, `laurel-linux-arm64`,
-`laurel-darwin-x64`, `laurel-darwin-arm64`, `laurel-windows-x64.exe`. Each
-release also publishes `SHASUMS256.txt` for verification. macOS release
-binaries are signed and notarized, and the Windows binary is Authenticode-signed;
-release operator notes live in [`docs/release.md`](./docs/release.md).
-
-Prefer npm? `npm i -g laurel` works too once Bun is installed locally.
+To update an existing install, `laurel upgrade` detects how Laurel was installed
+(`npm i -g`, `bun install -g`, or `bunx`) and runs the matching command. Release
+operator notes live in [`docs/release.md`](./docs/release.md).
 
 ## Quickstart
 
-Requires [Bun](https://bun.sh) >= 1.3 for development. End users running a
-prebuilt binary do not need Bun.
+Requires [Bun](https://bun.sh) >= 1.3 to run Laurel.
 
 ```bash
 bun install
 bun run build
 cd example && bun ../src/cli/index.ts build
 open example/dist/index.html
-```
-
-To produce a single-file binary locally (useful for smoke-testing the release
-artifact before tagging):
-
-```bash
-bun run compile            # host platform only → dist-bin/laurel-<triple>
-bun run compile:all        # every CI target → dist-bin/laurel-*
 ```
 
 ## Tutorials

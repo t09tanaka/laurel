@@ -55,17 +55,6 @@ describe('cli upgrade', () => {
     expect(plan.command).toEqual(['bunx', 'laurel@latest']);
   });
 
-  test('detects Homebrew installs', () => {
-    const plan = detectUpgradePlan({
-      argv: ['bun', '/opt/homebrew/bin/laurel'],
-      ...fakeFs('/opt/homebrew/Cellar/laurel/0.1.0/bin/laurel'),
-    });
-
-    expect(plan.method).toBe('homebrew');
-    expect(plan.selfUpdatable).toBe(true);
-    expect(plan.command).toEqual(['brew', 'upgrade', 'laurel']);
-  });
-
   test('dry-run prints the command without spawning it', async () => {
     const stdout = makeWriter();
     const calls: string[][] = [];

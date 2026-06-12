@@ -154,7 +154,7 @@ Scopes are optional but help readers. Examples seen in `git log`:
 
 - `feat(seo): emit BreadcrumbList JSON-LD on post pages`
 - `fix(build): rewrite Ghost members form action to configured provider`
-- `docs(packaging): surface single-file binary downloads to end users`
+- `docs(packaging): document npm install and bunx usage for end users`
 - `ci(release): add CHANGELOG.md and release-please pipeline`
 
 Breaking changes: add `!` after the type/scope and include a `BREAKING CHANGE:`

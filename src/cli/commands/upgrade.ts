@@ -3,7 +3,7 @@ import { normalize } from 'node:path';
 import { CliUsageError, type ParsedCommand, formatCommandHelp, parseCommand } from '../parse.ts';
 import { UPGRADE_SPEC } from '../specs.ts';
 
-type InstallMethod = 'bun-global' | 'npm-global' | 'bunx' | 'homebrew' | 'unknown';
+type InstallMethod = 'bun-global' | 'npm-global' | 'bunx' | 'unknown';
 
 interface UpgradePlan {
   method: InstallMethod;
@@ -114,15 +114,6 @@ export function detectUpgradePlan(runtime: UpgradeRuntime = {}): UpgradePlan {
   const lower = joined.toLowerCase();
   const userAgent = env.npm_config_user_agent?.toLowerCase() ?? '';
   const execPath = env.npm_execpath?.toLowerCase() ?? '';
-
-  if (lower.includes('/homebrew/cellar/') || lower.includes('/cellar/laurel/')) {
-    return {
-      method: 'homebrew',
-      command: ['brew', 'upgrade', PACKAGE_NAME],
-      selfUpdatable: true,
-      reason: 'Homebrew install detected.',
-    };
-  }
 
   if (lower.includes('/.bun/install/cache/')) {
     return {
