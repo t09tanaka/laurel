@@ -31,7 +31,8 @@ for (const { entrypoint, outName, bin } of entries) {
     format: 'esm',
     naming: { entry: outName },
     external,
-    sourcemap: 'external',
+    sourcemap: 'none',
+    minify: true,
   });
 
   if (!result.success) {

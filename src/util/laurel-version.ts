@@ -19,7 +19,7 @@ export async function getLaurelVersion(): Promise<string> {
     try {
       const raw = await readFile(path, 'utf8');
       const json = JSON.parse(raw) as { name?: string; version?: string };
-      if (json.name === 'laurel' && typeof json.version === 'string') {
+      if (json.name === '@t09tanaka/laurel' && typeof json.version === 'string') {
         cached = json.version;
         return cached;
       }

@@ -233,7 +233,7 @@ describe('packaging', () => {
       }
     });
 
-    test('build:cli emits source maps and maps debug stacks back to TypeScript sources', async () => {
+    test('build:cli emits no source maps and keeps the bundle slim', async () => {
       const outRoot = join(REPO_ROOT, '.laurel/cache');
       await mkdir(outRoot, { recursive: true });
       const outdir = await mkdtemp(join(outRoot, 'test-cli-sourcemaps-'));
@@ -256,9 +256,9 @@ describe('packaging', () => {
         expect(buildStdout).toContain(`Built ${join(outdir, 'cli.mjs')}`);
 
         const bundledCli = join(outdir, 'cli.mjs');
-        const cliMap = await readFile(`${bundledCli}.map`, 'utf8');
-        expect(cliMap).toContain('src/cli/index.ts');
-        expect(cliMap).toContain('src/config/loader.ts');
+        // Source maps are intentionally not emitted to keep the published npm
+        // package small; `--debug` still prints a full (bundled) stack trace.
+        expect(await Bun.file(`${bundledCli}.map`).exists()).toBe(false);
 
         const missingConfig = join(outdir, 'missing.toml');
         const outputDir = join(outdir, 'site');
@@ -314,8 +314,9 @@ describe('packaging', () => {
 
         expect(debugExitCode).toBe(1);
         expect(debugStderr).toContain('missing.toml');
-        expect(debugStderr).toContain('src/config/loader.ts');
-        expect(debugStderr).not.toContain(`${bundledCli}:`);
+        // Without source maps the debug stack still surfaces frames, now
+        // pointing at the bundled entry rather than the original TypeScript.
+        expect(debugStderr).toContain('\n    at ');
       } finally {
         await rm(outdir, { recursive: true, force: true });
       }

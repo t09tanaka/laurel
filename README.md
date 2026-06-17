@@ -56,14 +56,14 @@ Laurel is distributed on npm. It runs on the [Bun](https://bun.sh) runtime, so
 install Bun >= 1.3 first, then install the CLI globally:
 
 ```bash
-npm i -g laurel
+npm i -g @t09tanaka/laurel
 laurel --help
 ```
 
 Or run it without a global install:
 
 ```bash
-bunx laurel --help
+bunx @t09tanaka/laurel --help
 ```
 
 To update an existing install, `laurel upgrade` detects how Laurel was installed

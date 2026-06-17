@@ -22,7 +22,7 @@ interface UpgradeRuntime {
   exists?: (path: string) => boolean;
 }
 
-const PACKAGE_NAME = 'laurel';
+const PACKAGE_NAME = '@t09tanaka/laurel';
 
 export async function runUpgrade(args: string[], runtime: UpgradeRuntime = {}): Promise<number> {
   let parsed: ParsedCommand;
@@ -133,7 +133,10 @@ export function detectUpgradePlan(runtime: UpgradeRuntime = {}): UpgradePlan {
     };
   }
 
-  if (lower.includes('/node_modules/laurel/') || lower.includes('/node_modules/.bin/laurel')) {
+  if (
+    lower.includes('/node_modules/@t09tanaka/laurel/') ||
+    lower.includes('/node_modules/.bin/laurel')
+  ) {
     return {
       method: 'npm-global',
       command: ['npm', 'install', '-g', `${PACKAGE_NAME}@latest`],

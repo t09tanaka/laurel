@@ -1,5 +1,5 @@
 {
-  "name": "laurel",
+  "name": "@t09tanaka/laurel",
   "version": "0.1.0",
   "description": "Ghost-theme-compatible static site generator powered by Markdown and Bun",
   "license": "MIT",
@@ -25,7 +25,7 @@
   "type": "module",
   "publishConfig": {
     "access": "public",
-    "provenance": true
+    "provenance": false
   },
   "bin": {
     "laurel": "./dist/cli.mjs"
@@ -56,7 +56,7 @@
   },
   "files": [
     "dist",
-    "dist/dashboard-bundle",
+    "!dist/dashboard-bundle",
     "README.md",
     "TELEMETRY.md",
     "LICENSE",
