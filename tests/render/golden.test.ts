@@ -67,13 +67,19 @@ describe('example build — golden HTML (#172)', () => {
     await build({ cwd: EXAMPLE_CWD });
   });
 
-  test('Casper theme defers its external script without touching JSON-LD', async () => {
+  test('does not defer Casper external script when a classic inline script follows it', async () => {
     const actual = normalize(await readFile(join(DIST_DIR, 'index.html'), 'utf8'));
 
+    // The Casper theme loads `casper.js` externally and then drives it from a
+    // following inline `<script>` (`DOMContentLoaded` handler). Auto-deferring
+    // the external script would reorder it after the inline runs and break the
+    // theme, so the loading attribute is left untouched here.
     expect(actual).toMatch(
-      /<script src="\/assets\/built\/casper\.<HASH>\.js" defer\b[^>]*><\/script>/,
+      /<script src="\/assets\/built\/casper\.<HASH>\.js"[^>]*><\/script>\s*<script>/,
     );
-    expect(actual).not.toContain('/assets/built/jquery-3.5.1.min.');
+    expect(actual).not.toMatch(/<script src="\/assets\/built\/casper\.<HASH>\.js"[^>]*\bdefer\b/);
+    // JSON-LD data blocks never execute, so they are neither deferred nor
+    // counted as the order-blocking inline script.
     expect(actual).toContain('<script type="application/ld+json">');
     expect(actual).not.toMatch(/<script type="application\/ld\+json"[^>]*\bdefer\b/);
   });

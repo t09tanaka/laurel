@@ -248,4 +248,52 @@ describe('normalizeResourceTagAttributes', () => {
 
     expect(normalizeResourceTagAttributes(html)).toBe(html);
   });
+
+  test('does not defer external scripts followed by a classic inline script', () => {
+    const html = [
+      '<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>',
+      '<script src="/built/casper.js"></script>',
+      '<script>$(document).ready(function () {});</script>',
+    ].join('\n');
+
+    const out = normalizeResourceTagAttributes(html);
+
+    expect(out).not.toContain('defer');
+    expect(out).toBe(html);
+  });
+
+  test('still defers external scripts when the only later inline script is data', () => {
+    const html = [
+      '<script src="/built/source.js"></script>',
+      '<script type="application/ld+json">{"@context":"https://schema.org"}</script>',
+    ].join('\n');
+
+    const out = normalizeResourceTagAttributes(html);
+
+    expect(out).toContain('<script src="/built/source.js" defer></script>');
+  });
+
+  test('a later module inline script does not block deferring earlier classic scripts', () => {
+    const html = [
+      '<script src="/built/source.js"></script>',
+      '<script type="module">import "./x.js";</script>',
+    ].join('\n');
+
+    const out = normalizeResourceTagAttributes(html);
+
+    expect(out).toContain('<script src="/built/source.js" defer></script>');
+  });
+
+  test('only the scripts preceding a classic inline are left untouched', () => {
+    const html = [
+      '<script src="/built/lib.js"></script>',
+      '<script>useLib();</script>',
+      '<script src="/built/late.js"></script>',
+    ].join('\n');
+
+    const out = normalizeResourceTagAttributes(html);
+
+    expect(out).toContain('<script src="/built/lib.js"></script>');
+    expect(out).toContain('<script src="/built/late.js" defer></script>');
+  });
 });
