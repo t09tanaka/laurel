@@ -1,8 +1,7 @@
-import { existsSync } from 'node:fs';
-import { join, relative, resolve, sep } from 'node:path';
 import type Handlebars from 'handlebars';
-import { type ImageDimensions, readImageDimensions } from '~/util/image-size.ts';
+import type { ImageDimensions } from '~/util/image-size.ts';
 import type { LaurelEngine } from '../engine.ts';
+import { probeLocalImage } from './local-image.ts';
 
 // Ghost's `image_dimensions` walks a fixed list of known image URL fields on
 // the current context. Mirrors Ghost-Core's `image_dimensions.js` so themes
@@ -17,9 +16,6 @@ const IMAGE_FIELDS = [
   'og_image',
   'twitter_image',
 ] as const;
-
-const URL_PROTOCOL_RE = /^[a-z][a-z0-9+.-]*:/i;
-const ASSETS_URL_MARKER = '/content/images/';
 
 export function registerImageDimensionHelpers(engine: LaurelEngine): void {
   // Per-engine cache keyed by absolute file path. Null entries record
@@ -49,33 +45,4 @@ export function registerImageDimensionHelpers(engine: LaurelEngine): void {
       return options.fn(extended);
     },
   );
-}
-
-function probeLocalImage(
-  engine: LaurelEngine,
-  url: string,
-  cache: Map<string, ImageDimensions | null>,
-): ImageDimensions | undefined {
-  const cwd = engine.cwd;
-  if (!cwd) return undefined;
-  if (URL_PROTOCOL_RE.test(url)) return undefined;
-  if (url.startsWith('//')) return undefined;
-  const cleaned = url.split(/[?#]/)[0] ?? '';
-  const idx = cleaned.indexOf(ASSETS_URL_MARKER);
-  if (idx < 0) return undefined;
-  const rest = cleaned.slice(idx + ASSETS_URL_MARKER.length);
-  if (rest === '' || rest.includes('..')) return undefined;
-  const assetsRoot = resolve(cwd, engine.config.content.assets_dir);
-  const filePath = join(assetsRoot, rest);
-  const rel = relative(assetsRoot, filePath);
-  if (rel.startsWith('..') || rel.startsWith(`..${sep}`)) return undefined;
-  const cached = cache.get(filePath);
-  if (cached !== undefined) return cached ?? undefined;
-  if (!existsSync(filePath)) {
-    cache.set(filePath, null);
-    return undefined;
-  }
-  const dims = readImageDimensions(filePath);
-  cache.set(filePath, dims ?? null);
-  return dims;
 }
