@@ -352,6 +352,44 @@ describe('cli dev — base_path is forced to / (served from root)', () => {
   }, 30000);
 });
 
+describe('cli dev — self-referential URLs use the local host (#675)', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await makeDevFixture();
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('canonical and og:url point at localhost, not the production site.url', async () => {
+    const proc = Bun.spawn(['bun', CLI_ENTRY, 'dev', '--port', '0'], {
+      cwd: dir,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    try {
+      const stdout = await readUntil(proc.stdout, 'Ready in', 15_000);
+      const match = stdout.match(/http:\/\/localhost:(\d+)/);
+      expect(match).not.toBeNull();
+      if (match === null) return;
+      const port = Number(match[1]);
+      const res = await fetch(`http://localhost:${port}/`);
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      // The fixture's laurel.toml sets url = "https://dev.test"; dev must not
+      // leak that production origin into self-referential URLs.
+      expect(html).not.toContain('https://dev.test');
+      expect(html).toContain(`<link rel="canonical" href="http://localhost:${port}/`);
+      expect(html).toContain(`<meta property="og:url" content="http://localhost:${port}/`);
+    } finally {
+      proc.kill('SIGTERM');
+      await proc.exited;
+    }
+  }, 30000);
+});
+
 describe('cli dev — production build does NOT inject the livereload script', () => {
   let dir: string;
 

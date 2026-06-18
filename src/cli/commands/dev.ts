@@ -84,6 +84,15 @@ export async function runDev(args: string[]): Promise<number> {
     return EXIT_CODES.usage;
   }
   const hostname = hostResult;
+  const displayHost = hostname === '0.0.0.0' ? 'localhost' : hostname;
+  // Self-referential absolute URLs (canonical, rel=prev/next, og:url, JSON-LD,
+  // RSS, sitemap) should point at the local dev server, not the production
+  // `site.url`, so links and infinite-scroll fetches resolve locally instead of
+  // hitting production. A fixed port is known now; `--port 0` (kernel-assigned)
+  // is only known after the server starts, so it picks up the override on the
+  // first rebuild. Passed as `baseUrl`, which the pipeline folds into
+  // `config.site.url`.
+  let devBaseUrl: string | undefined = port !== 0 ? `http://${displayHost}:${port}` : undefined;
 
   const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
   const cwd = process.cwd();
@@ -122,31 +131,6 @@ export async function runDev(args: string[]): Promise<number> {
   let reusable: NonNullable<BuildSummary['reusable']> | undefined;
   let routeCount = 0;
   let assetCount = 0;
-  const capturedWarnings: string[] = [];
-  const buildStarted = performance.now();
-  setWarningSubscriber((msg) => {
-    capturedWarnings.push(msg);
-    emitStartupEvent('build.warning', { message: msg });
-    return true;
-  });
-  try {
-    const summary = await build({
-      cwd,
-      configPath,
-      captureReusable: true,
-      basePath: DEV_BASE_PATH,
-    });
-    reusable = summary.reusable;
-    routeCount = summary.routeCount;
-    assetCount = summary.assetCount;
-  } catch (err) {
-    setWarningSubscriber(undefined);
-    writeBlock(renderWarnings(capturedWarnings));
-    reportError(err, cwd);
-    return exitCodeForError(err);
-  }
-  setWarningSubscriber(undefined);
-  const buildElapsedMs = performance.now() - buildStarted;
 
   const clients = new Set<ServerWebSocket<unknown>>();
   // Recent Bun types require an explicit WebSocket data parameter even when
@@ -217,7 +201,40 @@ export async function runDev(args: string[]): Promise<number> {
   }
 
   const announcedPort = server.port;
-  const displayHost = hostname === '0.0.0.0' ? 'localhost' : hostname;
+  // The server is bound before the first build so the kernel-assigned port for
+  // `--port 0` is known in time to feed `baseUrl` into the build. The fetch
+  // handler reads dist/ live per request, so the only effect of serving before
+  // the build is a brief 404 window — Ready is announced only after the build.
+  if (devBaseUrl === undefined) devBaseUrl = `http://${displayHost}:${announcedPort}`;
+
+  const capturedWarnings: string[] = [];
+  const buildStarted = performance.now();
+  setWarningSubscriber((msg) => {
+    capturedWarnings.push(msg);
+    emitStartupEvent('build.warning', { message: msg });
+    return true;
+  });
+  try {
+    const summary = await build({
+      cwd,
+      configPath,
+      captureReusable: true,
+      basePath: DEV_BASE_PATH,
+      baseUrl: devBaseUrl,
+    });
+    reusable = summary.reusable;
+    routeCount = summary.routeCount;
+    assetCount = summary.assetCount;
+  } catch (err) {
+    setWarningSubscriber(undefined);
+    writeBlock(renderWarnings(capturedWarnings));
+    reportError(err, cwd);
+    server.stop(true);
+    return exitCodeForError(err);
+  }
+  setWarningSubscriber(undefined);
+  const buildElapsedMs = performance.now() - buildStarted;
+
   const localUrl = `http://${displayHost}:${announcedPort}${DEV_BASE_PATH}`;
   const configuredSiteUrl = typeof config.site.url === 'string' ? config.site.url : undefined;
 
@@ -307,6 +324,7 @@ export async function runDev(args: string[]): Promise<number> {
         configPath,
         captureReusable: true,
         basePath: DEV_BASE_PATH,
+        baseUrl: devBaseUrl,
         ...(reuseArg !== undefined ? { reuse: reuseArg } : {}),
       });
       const rebuildElapsedMs = performance.now() - rebuildStart;

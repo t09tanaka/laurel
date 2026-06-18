@@ -32,6 +32,13 @@ published to npm with `npm publish`; there is no CI release automation).
 
 ### Changed
 
+- `laurel dev` now bases self-referential absolute URLs (canonical, `rel=next` /
+  `rel=prev`, `og:url`, `twitter:url`, JSON-LD, RSS, sitemap) on the local dev
+  origin (`http://localhost:<port>`) instead of the production `[site].url`, so
+  links and the new infinite-scroll runtime resolve against the dev server
+  rather than hitting production. The dev server now binds its port before the
+  first build so even `--port 0` (kernel-assigned) gets the correct origin on
+  the first served page. Production builds are unaffected. (#675)
 - `laurel import-ghost --download-images` no longer silently leaves images as
   broken `/content/images/...` links when `--source-url` is omitted. It now
   infers the source site origin from the export's `url` setting and uses it to
