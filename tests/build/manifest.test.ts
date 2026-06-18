@@ -68,6 +68,43 @@ describe('build manifest serialization', () => {
     expect(cache.stats()).toEqual({ hits: 0, misses: 0, sets: 0 });
   });
 
+  test('computeGeneratorSourceFingerprint keys the fallback on the laurel version (bundled CLI)', async () => {
+    // The published CLI ships no src/**/*.ts, so the fallback must change with
+    // the package version, otherwise a `laurel dev`/`build` upgrade reuses the
+    // previous version's incremental cache and emits stale HTML.
+    const cache = createGeneratorSourceFingerprintCache();
+    const missing = join(tmpdir(), `laurel-missing-src-${Date.now()}`);
+
+    expect(await computeGeneratorSourceFingerprint(missing, cache, '0.1.3')).toBe(
+      'source-unavailable:0.1.3',
+    );
+    expect(await computeGeneratorSourceFingerprint(missing, cache, '0.1.4')).toBe(
+      'source-unavailable:0.1.4',
+    );
+    // The version-keyed fallback must flow through to the global hash so a
+    // version bump invalidates the previous manifest's reusable routes.
+    expect(await computeGeneratorSourceFingerprint(missing, cache, '0.1.3')).not.toBe(
+      await computeGeneratorSourceFingerprint(missing, cache, '0.1.4'),
+    );
+  });
+
+  test('a version-only generator fingerprint change alters the global hash', () => {
+    const base = {
+      config: { build: {}, site: {} } as unknown as Parameters<
+        typeof computeGlobalHash
+      >[0]['config'],
+      site: {} as unknown as Parameters<typeof computeGlobalHash>[0]['site'],
+      theme: {
+        partials: {},
+        pkg: { name: 't', version: '1', customDefaults: {}, posts_per_page: 5, image_sizes: {} },
+      } as unknown as ThemeBundle,
+      themeFingerprint: 'tf',
+    };
+    const v3 = computeGlobalHash({ ...base, generatorFingerprint: 'source-unavailable:0.1.3' });
+    const v4 = computeGlobalHash({ ...base, generatorFingerprint: 'source-unavailable:0.1.4' });
+    expect(v3).not.toBe(v4);
+  });
+
   test('stableStringify drops prev/next post references to avoid cycles', () => {
     const a: Record<string, unknown> = { title: 'A' };
     const b: Record<string, unknown> = { title: 'B' };
