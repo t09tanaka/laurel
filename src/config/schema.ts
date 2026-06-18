@@ -659,6 +659,18 @@ export const configSchema = z
           .describe(
             "Include posts whose `published_at` is in the future, and posts with `status: scheduled` regardless of date. Default is to exclude them so embargoed announcements scheduled for a future date cannot leak via the next build before their wall-clock release time. Set to `true` for preview deploys where the operator explicitly wants scheduled / future-dated content visible. Ghost's own behavior is to gate on `published_at` until the timestamp has passed, so leaving this off matches Ghost.",
           ),
+        posts_order: z
+          .enum(['published_at', 'updated_at'])
+          .default('published_at')
+          .describe(
+            "Field the home feed, tag / author archives, RSS, and sitemap order posts by. `published_at` (default) sorts by the original publication date and matches Ghost's default feed. `updated_at` sorts by the last-modified date so recently edited posts rise to the top, matching a Ghost site configured to order by updated date. This only changes ordering; each post's displayed publication date (`date`) is unaffected. Posts with no explicit `updated_at` fall back to their `published_at`, so this is safe to flip on partially-dated content.",
+          ),
+        posts_order_direction: z
+          .enum(['desc', 'asc'])
+          .default('desc')
+          .describe(
+            'Direction the feed is ordered in. `desc` (default) puts the newest post first; `asc` puts the oldest first. Applies to whichever field `posts_order` selects.',
+          ),
         emit_email_only_stub: z
           .boolean()
           .default(false)

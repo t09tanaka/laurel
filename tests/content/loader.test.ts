@@ -2940,3 +2940,85 @@ body
     ]);
   });
 });
+
+describe('loadContent post ordering', () => {
+  // Three posts whose updated_at order is the reverse of their published_at
+  // order, so the chosen sort field is unambiguous.
+  async function orderingFixture(): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), 'laurel-order-'));
+    await mkdir(join(dir, 'content/posts'), { recursive: true });
+    const posts = [
+      { slug: 'oldest-pub', date: '2021-01-01T00:00:00Z', updated: '2023-01-01T00:00:00Z' },
+      { slug: 'middle-pub', date: '2022-01-01T00:00:00Z', updated: '2022-06-01T00:00:00Z' },
+      { slug: 'newest-pub', date: '2023-01-01T00:00:00Z', updated: '2021-01-01T00:00:00Z' },
+    ];
+    for (const p of posts) {
+      await writeFile(
+        join(dir, `content/posts/${p.slug}.md`),
+        `---\ntitle: "${p.slug}"\ndate: ${p.date}\nupdated_at: ${p.updated}\n---\n\nBody\n`,
+        'utf8',
+      );
+    }
+    return dir;
+  }
+
+  test('defaults to published_at descending (newest published first)', async () => {
+    const cwd = await orderingFixture();
+    const config = configSchema.parse({ site: { title: 'X', url: 'https://x.test' } });
+    const graph = await loadContent({ cwd, config });
+
+    expect(graph.posts.map((p) => p.slug)).toEqual(['newest-pub', 'middle-pub', 'oldest-pub']);
+  });
+
+  test('orders by updated_at descending when posts_order = updated_at', async () => {
+    const cwd = await orderingFixture();
+    const config = configSchema.parse({
+      site: { title: 'X', url: 'https://x.test' },
+      build: { posts_order: 'updated_at' },
+    });
+    const graph = await loadContent({ cwd, config });
+
+    // updated_at desc: oldest-pub (2023) > middle-pub (2022-06) > newest-pub (2021)
+    expect(graph.posts.map((p) => p.slug)).toEqual(['oldest-pub', 'middle-pub', 'newest-pub']);
+    // The displayed publication date is untouched by the sort-key switch.
+    expect(graph.posts.find((p) => p.slug === 'oldest-pub')?.published_at).toBe(
+      '2021-01-01T00:00:00.000Z',
+    );
+  });
+
+  test('honours posts_order_direction = asc', async () => {
+    const cwd = await orderingFixture();
+    const config = configSchema.parse({
+      site: { title: 'X', url: 'https://x.test' },
+      build: { posts_order_direction: 'asc' },
+    });
+    const graph = await loadContent({ cwd, config });
+
+    expect(graph.posts.map((p) => p.slug)).toEqual(['oldest-pub', 'middle-pub', 'newest-pub']);
+  });
+
+  test('falls back to published_at for a post without an explicit updated_at', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'laurel-order-'));
+    await mkdir(join(cwd, 'content/posts'), { recursive: true });
+    // No updated_at: normalizePost falls it back to `date`, so updated_at sort
+    // sees this post at its published_at.
+    await writeFile(
+      join(cwd, 'content/posts/no-updated.md'),
+      `---\ntitle: "no-updated"\ndate: 2024-01-01T00:00:00Z\n---\n\nBody\n`,
+      'utf8',
+    );
+    await writeFile(
+      join(cwd, 'content/posts/has-updated.md'),
+      `---\ntitle: "has-updated"\ndate: 2020-01-01T00:00:00Z\nupdated_at: 2025-01-01T00:00:00Z\n---\n\nBody\n`,
+      'utf8',
+    );
+    const config = configSchema.parse({
+      site: { title: 'X', url: 'https://x.test' },
+      build: { posts_order: 'updated_at' },
+    });
+    const graph = await loadContent({ cwd, config });
+
+    // has-updated (updated 2025) sorts above no-updated (falls back to 2024).
+    expect(graph.posts.map((p) => p.slug)).toEqual(['has-updated', 'no-updated']);
+  });
+});

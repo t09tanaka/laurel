@@ -9,7 +9,15 @@ published to npm with `npm publish`; there is no CI release automation).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- `[build].posts_order` (`published_at` | `updated_at`) and
+  `[build].posts_order_direction` (`desc` | `asc`) make the feed sort key
+  configurable. `updated_at` orders the home feed, tag / author archives, RSS,
+  and sitemap by last-modified date — matching a Ghost site that sorts by
+  updated date — while leaving each post's displayed publication date unchanged.
+  Defaults (`published_at` / `desc`) preserve the previous ordering. Posts with
+  no explicit `updated_at` fall back to their `published_at`. (#671)
 
 ## [0.1.7] - 2026-06-18
 
