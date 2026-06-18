@@ -119,6 +119,17 @@ export function injectSubresourceIntegrity(
 export function normalizeResourceTagAttributes(html: string): string {
   const tags = scanLinkAndScriptTags(html);
   if (tags.length === 0) return html;
+  // Deferring (or module-converting) an external classic script moves its
+  // execution to after the document is parsed. A classic inline `<script>`
+  // cannot defer, so it still runs at parse time — earlier than a now-deferred
+  // external script that precedes it. Themes that load a library externally and
+  // use it from a following inline script (the classic jQuery pattern) would
+  // break (`$ is not defined`). So we leave an external script's loading
+  // attributes untouched when any classic inline script appears later in the
+  // document, preserving the author's execution order. Data/`module` inline
+  // scripts (JSON-LD, importmap, ES modules) do not run synchronously at parse
+  // time and so never trigger this guard.
+  const lastBlockingInlineStart = lastClassicInlineScriptStart(tags);
   return rewriteTags(html, tags, (tag) => {
     if (tag.kind === 'link') {
       if (!isStylesheet(tag)) return null;
@@ -132,11 +143,46 @@ export function normalizeResourceTagAttributes(html: string): string {
     if (hasBooleanAttr(tag.openTag, 'async')) return null;
     if (hasBooleanAttr(tag.openTag, 'defer')) return null;
     if (hasBooleanAttr(tag.openTag, 'nomodule')) return null;
+    if (lastBlockingInlineStart > tag.start) return null;
     if (scriptLooksLikeModule(src)) {
       return appendAttributes(tag.openTag, ' type="module"');
     }
     return appendAttributes(tag.openTag, ' defer');
   });
+}
+
+// Source offset of the last classic (parse-time-executing) inline `<script>`,
+// or -1 when none exists. An inline script is a `<script>` with no `src`; it is
+// "classic" when its `type` is absent/empty or a JavaScript MIME — `module`,
+// `application/ld+json`, importmap, and other data blocks do not execute
+// synchronously and so are not order-blocking.
+function lastClassicInlineScriptStart(tags: readonly ScriptOrLink[]): number {
+  let last = -1;
+  for (const tag of tags) {
+    if (tag.kind !== 'script') continue;
+    if (extractAttrValue(tag.openTag, 'src')) continue;
+    if (!scriptTypeIsClassic(extractAttrValue(tag.openTag, 'type'))) continue;
+    if (tag.start > last) last = tag.start;
+  }
+  return last;
+}
+
+const CLASSIC_SCRIPT_TYPES = new Set([
+  '',
+  'text/javascript',
+  'application/javascript',
+  'application/ecmascript',
+  'text/ecmascript',
+  'application/x-ecmascript',
+  'application/x-javascript',
+  'text/x-javascript',
+  'text/jscript',
+]);
+
+function scriptTypeIsClassic(type: string | undefined): boolean {
+  if (type === undefined) return true;
+  const essence = type.split(';')[0]?.trim().toLowerCase() ?? '';
+  return CLASSIC_SCRIPT_TYPES.has(essence);
 }
 
 export interface HtmlPreloadLink {

@@ -9,7 +9,17 @@ published to npm with `npm publish`; there is no CI release automation).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+
+- The build no longer adds `defer` to an external `<script src>` when a classic
+  inline `<script>` follows it in the document. Auto-deferring such a script
+  reorders it after the inline runs (an inline script cannot defer), which broke
+  the common "load a library externally, use it from the next inline script"
+  pattern — e.g. a jQuery-based Ghost theme threw `$ is not defined`. The
+  performance default still defers external scripts that have no order-blocking
+  inline script after them; data (`application/ld+json`, importmap) and `module`
+  inline scripts do not execute synchronously and so never block deferring.
+  (#670)
 
 ## [0.1.6] - 2026-06-18
 
