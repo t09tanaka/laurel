@@ -11,7 +11,7 @@ import { pLimit } from '~/util/concurrency.ts';
 import { ensureDir, pathContainsSymlink, scanGlob } from '~/util/fs.ts';
 import { sanitizeImageAssetBytes } from '~/util/image-sanitization.ts';
 import { logger } from '~/util/logger.ts';
-import { GhostImageDownloader } from './image-downloader.ts';
+import { GhostImageDownloader, isRootRelativeGhostContentAssetPath } from './image-downloader.ts';
 import { renderLexicalToHtml } from './lexical-renderer.ts';
 import { renderMobiledocToHtml } from './mobiledoc-renderer.ts';
 import { type SlugChange, loadRedirectsJson, writeRedirectMaps } from './redirects.ts';
@@ -227,6 +227,14 @@ export interface ImportSummary {
   assetsCopied: number;
   imagesDownloaded: number;
   imagesFailed: number;
+  // Subset of imagesDownloaded / imagesFailed attributable to Ghost
+  // settings-level images (icon, logo, cover_image, og_image, twitter_image)
+  // that feed laurel.toml. Surfaced separately because a fresh import that
+  // skips these leaves favicon + og:image/JSON-LD pointing at files that were
+  // never written (404). `settingsImagesFailed` also folds in third-party URLs
+  // intentionally left external, mirroring the body-image policy.
+  settingsImagesDownloaded: number;
+  settingsImagesFailed: number;
   // True when the import was a `--dry-run`: no files were written and no
   // images were downloaded. The other counters reflect what *would* have
   // happened (#502).
@@ -318,6 +326,12 @@ interface ImportGhostOptions {
   // fields, fetch them to <cwd>/content/images/, and rewrite the references
   // to site-relative paths. Defaults to false (URLs are written verbatim).
   downloadImages?: boolean;
+  // When `downloadImages` is true, also fetch Ghost settings-level images
+  // (icon, logo, cover_image, og_image, twitter_image) into content/images/
+  // and rewrite the laurel.toml keys to local paths. Defaults to true so a
+  // fresh import builds with a working favicon and og:image; set false (CLI
+  // `--no-download-settings-images`) to keep only body/feature images local.
+  downloadSettingsImages?: boolean;
   // Maximum per-image size in bytes when `downloadImages` is true. Defaults
   // to DEFAULT_MAX_IMAGE_SIZE_BYTES (10 MiB). 0 disables the cap. The CLI
   // surface flag is `--max-image-size` and accepts the same size-spec syntax
@@ -1094,13 +1108,17 @@ async function importFromResolvedInput(
       plannedPaths,
     );
   }
-  await writeGhostSettingsConfig({
+  const settingsImageResult = await writeGhostSettingsConfig({
     settings,
     targetRoot: opts.outputDir ? outputRoot : opts.cwd,
     onConflict,
     counters,
     dryRun,
     plannedPaths,
+    downloader,
+    downloadImages: opts.downloadImages === true,
+    downloadSettingsImages: opts.downloadSettingsImages !== false,
+    sourceUrl: opts.sourceUrl,
   });
 
   // Ghost stores custom redirects at content/data/redirects.json. The resolved
@@ -1128,6 +1146,8 @@ async function importFromResolvedInput(
     assetsCopied,
     imagesDownloaded: downloader?.downloaded ?? 0,
     imagesFailed: downloader?.failed ?? 0,
+    settingsImagesDownloaded: settingsImageResult.settingsImagesDownloaded,
+    settingsImagesFailed: settingsImageResult.settingsImagesFailed,
     dryRun,
     drafts: counters.drafts,
     statusFiltered: counters.statusFiltered,
@@ -1446,6 +1466,16 @@ interface NavigationItem {
   url: string;
 }
 
+// Ghost settings keys that hold an image URL feeding laurel.toml. Kept in
+// reference order (site identity first) so the warning/summary list reads
+// predictably.
+const SETTINGS_IMAGE_KEYS = ['icon', 'logo', 'cover_image', 'og_image', 'twitter_image'] as const;
+
+interface SettingsImageResult {
+  settingsImagesDownloaded: number;
+  settingsImagesFailed: number;
+}
+
 async function writeGhostSettingsConfig(args: {
   settings: readonly GhostSetting[];
   targetRoot: string;
@@ -1453,9 +1483,15 @@ async function writeGhostSettingsConfig(args: {
   counters: { skipped: number; overwritten: number; renamed: number; slugCollisions: number };
   dryRun: boolean;
   plannedPaths: string[];
-}): Promise<void> {
+  downloader: GhostImageDownloader | undefined;
+  downloadImages: boolean;
+  downloadSettingsImages: boolean;
+  sourceUrl: string | undefined;
+}): Promise<SettingsImageResult> {
   const imported = collectGhostSettings(args.settings);
-  if (!hasImportedSettings(imported)) return;
+  if (!hasImportedSettings(imported)) {
+    return { settingsImagesDownloaded: 0, settingsImagesFailed: 0 };
+  }
 
   const dest = join(args.targetRoot, 'laurel.toml');
   assertWithin(args.targetRoot, dest);
@@ -1466,9 +1502,11 @@ async function writeGhostSettingsConfig(args: {
   if (exists) {
     switch (args.onConflict) {
       case 'skip':
+        // The laurel.toml is left untouched, so there is no point fetching the
+        // settings images it would have referenced.
         process.stderr.write(`Skipped (already exists): ${dest}\n`);
         args.counters.skipped += 1;
-        return;
+        return { settingsImagesDownloaded: 0, settingsImagesFailed: 0 };
       case 'overwrite':
         process.stderr.write(`Overwrote: ${dest}\n`);
         args.counters.overwritten += 1;
@@ -1482,12 +1520,73 @@ async function writeGhostSettingsConfig(args: {
     }
   }
 
+  const settingsImageResult = await downloadSettingsImages(imported, args);
   const contents = renderImportedSettingsConfig(imported, existingRaw);
   if (!args.dryRun) {
     await ensureDir(dirname(writePath));
     await writeFile(writePath, contents, 'utf8');
   }
   args.plannedPaths.push(writePath);
+  return settingsImageResult;
+}
+
+// Fetch the Ghost settings-level images (icon/logo/cover_image/og_image/
+// twitter_image) through the same downloader the body and feature images use,
+// then rewrite `imported.site[*]` to the local path. Reusing rewriteField means
+// settings images inherit the body-image policy for free: Ghost content assets
+// are localized, third-party URLs (e.g. static.ghost.org defaults) stay
+// external, and `data:`/other schemes are left alone. Returns the count of
+// settings images actually downloaded and the count left unlocalized
+// (download failures + third-party URLs kept external).
+async function downloadSettingsImages(
+  imported: ImportedGhostSettings,
+  args: {
+    downloader: GhostImageDownloader | undefined;
+    downloadImages: boolean;
+    downloadSettingsImages: boolean;
+    sourceUrl: string | undefined;
+  },
+): Promise<SettingsImageResult> {
+  if (!args.downloadImages || !args.downloadSettingsImages) {
+    return { settingsImagesDownloaded: 0, settingsImagesFailed: 0 };
+  }
+
+  // Without a source URL the downloader cannot expand `/content/images/...`
+  // settings paths to a fetchable URL, so it would silently leave them pointing
+  // at files this import never writes. Warn instead of breaking quietly.
+  if (!args.sourceUrl) {
+    const unresolved = SETTINGS_IMAGE_KEYS.filter((key) => {
+      const value = imported.site[key];
+      return typeof value === 'string' && isRootRelativeGhostContentAssetPath(value);
+    });
+    if (unresolved.length > 0) {
+      logger.warn(
+        `Skipping ${unresolved.length} Ghost settings image(s) (${unresolved.join(', ')}): pass --source-url <ghost-site-url> to download them, otherwise favicon/og:image will 404 after build.`,
+      );
+    }
+    return { settingsImagesDownloaded: 0, settingsImagesFailed: 0 };
+  }
+
+  const downloader = args.downloader;
+  if (!downloader) return { settingsImagesDownloaded: 0, settingsImagesFailed: 0 };
+
+  const before = {
+    downloaded: downloader.downloaded,
+    failed: downloader.failed,
+    skipped: downloader.skipped,
+  };
+  for (const key of SETTINGS_IMAGE_KEYS) {
+    const value = imported.site[key];
+    if (typeof value !== 'string') continue;
+    const rewritten = sanitizeImageUrl(await downloader.rewriteField(value), key, 'site settings');
+    if (rewritten !== undefined) imported.site[key] = rewritten;
+  }
+  return {
+    settingsImagesDownloaded: downloader.downloaded - before.downloaded,
+    // "failed/external": genuine fetch failures plus third-party URLs the
+    // downloader intentionally left external (counted as skipped).
+    settingsImagesFailed: downloader.failed - before.failed + (downloader.skipped - before.skipped),
+  };
 }
 
 const SITE_SETTING_KEYS = new Set([

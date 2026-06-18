@@ -2691,6 +2691,201 @@ describe('importGhostExport — --download-images (#128)', () => {
   });
 });
 
+describe('importGhostExport — settings-level images', () => {
+  let cwd: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-settings-img-')));
+    exportFile = join(cwd, 'export.json');
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  function settingsFetch(ok: Record<string, string>): { fetcher: typeof fetch; calls: string[] } {
+    const calls: string[] = [];
+    const fetcher = (async (input: RequestInfo | URL): Promise<Response> => {
+      const url = typeof input === 'string' ? input : input.toString();
+      calls.push(url);
+      const body = ok[url];
+      if (body !== undefined) {
+        return new Response(body, { status: 200, headers: { 'content-type': 'image/png' } });
+      }
+      return new Response('not found', { status: 404 });
+    }) as typeof fetch;
+    return { fetcher, calls };
+  }
+
+  async function writeSettingsExport(
+    settings: Record<string, string>,
+    posts: unknown[] = [],
+  ): Promise<void> {
+    await writeFile(
+      exportFile,
+      JSON.stringify({
+        db: [
+          {
+            data: {
+              posts,
+              settings: Object.entries(settings).map(([key, value]) => ({ key, value })),
+            },
+          },
+        ],
+      }),
+    );
+  }
+
+  test('downloads settings icon/og_image and rewrites laurel.toml to local paths', async () => {
+    await writeSettingsExport({
+      title: 'Old Blog',
+      icon: '__GHOST_URL__/content/images/2024/01/favicon.png',
+      og_image: '__GHOST_URL__/content/images/2024/01/og.png',
+    });
+    const source = 'https://oldblog.example';
+    const { fetcher, calls } = settingsFetch({
+      [`${source}/content/images/2024/01/favicon.png`]: 'ICON',
+      [`${source}/content/images/2024/01/og.png`]: 'OG',
+    });
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      sourceUrl: source,
+      fetcher,
+    });
+
+    expect(summary.settingsImagesDownloaded).toBe(2);
+    expect(summary.settingsImagesFailed).toBe(0);
+    expect(calls.length).toBe(2);
+    expect(await readFile(join(cwd, 'content/images/2024/01/favicon.png'), 'utf8')).toBe('ICON');
+    expect(await readFile(join(cwd, 'content/images/2024/01/og.png'), 'utf8')).toBe('OG');
+
+    const toml = await readFile(join(cwd, 'laurel.toml'), 'utf8');
+    expect(toml).toContain('icon = "/content/images/2024/01/favicon.png"');
+    expect(toml).toContain('og_image = "/content/images/2024/01/og.png"');
+  });
+
+  test('leaves third-party settings images external and does not fetch them', async () => {
+    await writeSettingsExport({
+      title: 'Old Blog',
+      og_image: 'https://static.ghost.org/v5.0.0/images/default.png',
+      icon: '__GHOST_URL__/content/images/icon.png',
+    });
+    const source = 'https://oldblog.example';
+    const { fetcher, calls } = settingsFetch({
+      [`${source}/content/images/icon.png`]: 'ICON',
+    });
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      sourceUrl: source,
+      fetcher,
+    });
+
+    expect(summary.settingsImagesDownloaded).toBe(1);
+    // og_image is a third-party URL left external (counted as failed/external).
+    expect(summary.settingsImagesFailed).toBe(1);
+    expect(calls).toEqual([`${source}/content/images/icon.png`]);
+
+    const toml = await readFile(join(cwd, 'laurel.toml'), 'utf8');
+    expect(toml).toContain('og_image = "https://static.ghost.org/v5.0.0/images/default.png"');
+    expect(toml).toContain('icon = "/content/images/icon.png"');
+  });
+
+  test('without --source-url, skips settings images and warns instead of breaking silently', async () => {
+    await writeSettingsExport({
+      title: 'Old Blog',
+      icon: '__GHOST_URL__/content/images/icon.png',
+      og_image: '__GHOST_URL__/content/images/og.png',
+    });
+    const { fetcher, calls } = settingsFetch({});
+
+    const stderr = captureStderr();
+    let summary: Awaited<ReturnType<typeof importGhostExport>>;
+    try {
+      summary = await importGhostExport({
+        cwd,
+        file: exportFile,
+        downloadImages: true,
+        fetcher,
+      });
+    } finally {
+      stderr.restore();
+    }
+
+    expect(summary.settingsImagesDownloaded).toBe(0);
+    expect(calls).toEqual([]);
+    expect(stderr.data).toContain('--source-url');
+    // laurel.toml keeps the site-relative ghost paths unchanged.
+    const toml = await readFile(join(cwd, 'laurel.toml'), 'utf8');
+    expect(toml).toContain('icon = "/content/images/icon.png"');
+  });
+
+  test('--no-download-settings-images skips settings images even with --source-url', async () => {
+    await writeSettingsExport({
+      title: 'Old Blog',
+      icon: '__GHOST_URL__/content/images/icon.png',
+    });
+    const source = 'https://oldblog.example';
+    const { fetcher, calls } = settingsFetch({
+      [`${source}/content/images/icon.png`]: 'ICON',
+    });
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      downloadSettingsImages: false,
+      sourceUrl: source,
+      fetcher,
+    });
+
+    expect(summary.settingsImagesDownloaded).toBe(0);
+    expect(calls).toEqual([]);
+    const toml = await readFile(join(cwd, 'laurel.toml'), 'utf8');
+    expect(toml).toContain('icon = "/content/images/icon.png"');
+  });
+
+  test('does not re-download a settings image already fetched as a post feature_image', async () => {
+    const rel = '/content/images/shared.png';
+    await writeSettingsExport({ title: 'Old Blog', og_image: `__GHOST_URL__${rel}` }, [
+      {
+        id: 'p1',
+        title: 'Hello',
+        slug: 'hello',
+        status: 'published',
+        type: 'post',
+        feature_image: `__GHOST_URL__${rel}`,
+        html: '<p>hi</p>',
+      },
+    ]);
+    const source = 'https://oldblog.example';
+    const { fetcher, calls } = settingsFetch({ [`${source}${rel}`]: 'SHARED' });
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      sourceUrl: source,
+      fetcher,
+    });
+
+    // One network fetch despite the post feature_image and settings og_image
+    // both referencing it; settings sees the downloader cache hit.
+    expect(calls).toEqual([`${source}${rel}`]);
+    expect(summary.imagesDownloaded).toBe(1);
+    expect(summary.settingsImagesDownloaded).toBe(0);
+
+    const toml = await readFile(join(cwd, 'laurel.toml'), 'utf8');
+    expect(toml).toContain(`og_image = "${rel}"`);
+  });
+});
+
 describe('importGhostExport — --max-image-size (#239)', () => {
   let cwd: string;
   let exportFile: string;

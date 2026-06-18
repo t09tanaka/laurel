@@ -21,6 +21,7 @@
   "importGhost.codeInjectionSkipped": "Skipped code injection in {count} posts. Re-run with --keep-code-injection to import them.",
   "importGhost.conflicts": "Conflicts: {skipped} skipped, {overwritten} overwritten, {renamed} renamed",
   "importGhost.downloadedImages": "Downloaded {downloaded} remote images into content/images/ ({failed} failed)",
+  "importGhost.settingsImages": "Settings images: {downloaded} downloaded, {failed} failed/external",
   "importGhost.dryRun.assets": "Assets to copy",
   "importGhost.dryRun.codeInjectionSkipped": "Code injection skipped",
   "importGhost.dryRun.conflictsOverwrite": "Conflicts (would overwrite)",

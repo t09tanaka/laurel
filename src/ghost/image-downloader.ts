@@ -615,7 +615,7 @@ function isGhostContentAssetUrl(raw: string): boolean {
   }
 }
 
-function isRootRelativeGhostContentAssetPath(pathname: string): boolean {
+export function isRootRelativeGhostContentAssetPath(pathname: string): boolean {
   return /^\/(?:.*\/)?content\/(?:images|media)\//.test(pathname);
 }
 
