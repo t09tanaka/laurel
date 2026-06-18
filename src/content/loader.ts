@@ -376,12 +376,12 @@ async function loadContentWithPool({
       resolvedPosts.push(resolved);
     }
   }
-  resolvedPosts.sort(
-    (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime(),
+  const postOrderCmp = makePostOrderComparator(
+    config.build.posts_order,
+    config.build.posts_order_direction,
   );
-  emailOnlyPosts.sort(
-    (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime(),
-  );
+  resolvedPosts.sort(postOrderCmp);
+  emailOnlyPosts.sort(postOrderCmp);
   for (let i = 0; i < resolvedPosts.length; i += 1) {
     const current = resolvedPosts[i];
     if (!current) continue;
@@ -621,6 +621,19 @@ function adjacentPostRef(post: Post | undefined): AdjacentPost | undefined {
     access: post.access,
     post_class: post.post_class,
   };
+}
+
+// Comparator for the canonical feed order consumed by every downstream
+// surface (home / tag / author archives, RSS, sitemap, next/prev adjacency).
+// `updated_at` is always a valid ISO string — `normalizePost` falls it back to
+// `published_at` when no explicit value is given — so no NaN guard is needed.
+// The default (`published_at` desc) is byte-identical to the historical sort.
+function makePostOrderComparator(
+  field: 'published_at' | 'updated_at',
+  direction: 'desc' | 'asc',
+): (a: Post, b: Post) => number {
+  const sign = direction === 'asc' ? -1 : 1;
+  return (a, b) => sign * (new Date(b[field]).getTime() - new Date(a[field]).getTime());
 }
 
 function resolveLocaleRouting(
