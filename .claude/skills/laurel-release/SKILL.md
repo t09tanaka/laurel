@@ -5,9 +5,11 @@ description: Use when preparing a new npm release of the Laurel CLI. Runs the pr
 
 # Releasing Laurel to npm
 
-Laurel's only distribution channel is npm. Pushing a `v*` tag triggers `.github/workflows/release.yml`, which re-runs the full verification suite and publishes to npm with provenance. This skill covers the manual preparation (version bump, bundle regeneration, validation, commit + tag) that must happen before that tag is pushed.
+Laurel's only distribution channel is npm. Releases are published manually with a local `npm publish` from a clean `main` checkout — there is no CI publish workflow. This skill covers the full manual flow: version bump, bundle regeneration, validation, commit + tag, and publish.
 
 The `prepublishOnly` hook in `package.json` already runs the full bundle chain (`build:dashboard-bundle && build:skill-bundle && build:cli && build:types`), so `npm publish` from a clean checkout is sufficient to produce a correct artifact. This skill walks through the safety gates that go around that.
+
+npm provenance is intentionally disabled (`publishConfig.provenance: false`): provenance attestation requires CI OIDC and fails locally. Re-enable it and a CI publish path only if publishing moves back into CI.
 
 ## Step-by-step
 
@@ -83,21 +85,26 @@ git push origin main
 git push origin v<X.Y.Z>
 ```
 
-Pushing the `v<X.Y.Z>` tag triggers `.github/workflows/release.yml`, which
-re-runs `check` / `typecheck` / `test`, rebuilds the bundles, and runs
-`npm publish --provenance --access public`. Do not run `npm publish` by hand —
-CI owns the publish so provenance is attached and a half-baked local tree can
-never ship. Watch the Release workflow run to green.
+The tag is a release marker only — there is no CI publish workflow to trigger.
 
-If you ever need to publish manually as a fallback (CI down, etc.), `npm publish`
-from a clean checkout re-runs `prepublishOnly` and produces the same artifact.
-
-### 8. Verify
+### 8. Publish to npm (local)
 
 ```sh
-npm view laurel version          # should match the new tag
-npx laurel@latest --version      # round-trip through the registry
-npm audit signatures             # confirms the npm provenance attestation
+npm whoami                       # confirm you are logged in (else `npm login`)
+npm view @t09tanaka/laurel version   # confirm this version is not already published
+npm publish
+```
+
+`access: public` and `provenance: false` come from `publishConfig`, so no flags
+are needed. `prepublishOnly` re-runs the full bundle chain, so `npm publish` from
+a clean checkout produces a correct artifact. Do not pass `--provenance` locally —
+it requires CI OIDC and fails with `provider: null`.
+
+### 9. Verify
+
+```sh
+npm view @t09tanaka/laurel version    # should match the new tag
+npx @t09tanaka/laurel@latest --version  # round-trip through the registry
 ```
 
 ## When something breaks

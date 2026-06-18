@@ -72,17 +72,6 @@ describe('ci supply-chain', () => {
     expect(sbomScript).toContain('dist-sbom/laurel.cyclonedx.json');
   });
 
-  test('release workflow uploads CycloneDX SBOM and keeps npm provenance enabled', () => {
-    const release = listWorkflows().find(({ name }) => name === 'release.yml');
-    expect(release).toBeDefined();
-
-    const content = release?.content ?? '';
-    expect(content).toContain('bun run sbom:cyclonedx');
-    expect(content).toContain('dist-sbom/laurel.cyclonedx.json');
-    expect(content).toContain('if: ${{ !github.event.repository.private }}');
-    expect(content).toContain('npm publish --provenance --access public');
-  });
-
   test('source license header policy is documented', () => {
     const contributing = readFileSync(CONTRIBUTING_PATH, 'utf8');
     expect(contributing).toContain('### Source License Header Policy');
