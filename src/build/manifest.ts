@@ -137,11 +137,21 @@ export function computeGlobalHash(opts: {
   return sha256(stableStringify(payload));
 }
 
+// `fallbackVersion` keys the "source unavailable" result on the laurel package
+// version. The published CLI / compiled binary ships a single bundle with no
+// `src/**/*.ts` to fingerprint, so without this every release returns the same
+// constant and the global hash never changes — `laurel dev`/`build` then reuse
+// a previous version's incremental cache and emit stale HTML until `--force` or
+// a manual cache wipe. Folding the version into the fallback makes an upgrade
+// invalidate the cache. Source checkouts still fingerprint the actual files, so
+// patch releases that don't touch render code keep their cache as documented.
 export async function computeGeneratorSourceFingerprint(
   srcRoot = resolve(import.meta.dir, '..'),
   cache: GeneratorSourceFingerprintCache = defaultGeneratorSourceFingerprintCache,
+  fallbackVersion?: string,
 ): Promise<string> {
-  if (!existsSync(srcRoot)) return 'source-unavailable';
+  const fallback = fallbackVersion ? `source-unavailable:${fallbackVersion}` : 'source-unavailable';
+  if (!existsSync(srcRoot)) return fallback;
   const patterns = ['build/**/*.ts', 'content/**/*.ts', 'render/**/*.ts', 'theme/**/*.ts'];
   const paths = (
     await Promise.all(
@@ -150,7 +160,7 @@ export async function computeGeneratorSourceFingerprint(
   )
     .flat()
     .sort();
-  if (paths.length === 0) return 'source-unavailable';
+  if (paths.length === 0) return fallback;
   const sourceStats = await Promise.all(
     paths.map(async (rel) => {
       const fileStat = await stat(join(srcRoot, rel));

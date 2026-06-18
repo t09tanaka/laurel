@@ -829,7 +829,7 @@ async function runBuild({
     .sort((a, b) => a.rel.localeCompare(b.rel));
   const themeFingerprint = computeThemeFingerprint(theme);
   const generatorFingerprint = await timed(profiler, 'generator_fingerprint', () =>
-    computeGeneratorSourceFingerprint(),
+    computeGeneratorSourceFingerprint(undefined, undefined, laurelVersion),
   );
   const globalHash = computeGlobalHash({
     config,
