@@ -1,10 +1,11 @@
 name: Theme Fixture Smoke
 
+# Manual-only: these smoke builds clone external TryGhost theme repos at run
+# time, so they fail whenever a repo is renamed/removed or the network/API is
+# flaky (e.g. `TryGhost/Liebling` 404s). Keeping them off `push`/`pull_request`
+# stops that external dependency from gating CI. Run on demand via the Actions
+# tab when validating theme compatibility.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -28,8 +29,8 @@ jobs:
             repo: TryGhost/Edition
           - theme: wave
             repo: TryGhost/Wave
-          - theme: liebling
-            repo: TryGhost/Liebling
+          # liebling removed: `TryGhost/Liebling` does not exist (the theme is
+          # third-party), so the checkout step 404s and fails the matrix leg.
     steps:
       - name: Checkout laurel
         uses: actions/checkout@v6

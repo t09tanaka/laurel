@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { existsSync } from 'node:fs';
 import { createMarkdownPool } from '~/content/markdown-pool.ts';
 import { renderMarkdown } from '~/content/markdown.ts';
 
@@ -10,6 +11,17 @@ afterEach(() => {
   } else {
     process.env.LAUREL_NO_WORKERS = originalEnv;
   }
+});
+
+describe('worker file resolution', () => {
+  // The pool spawns `new Worker(new URL('./markdown.worker.ts', import.meta.url))`.
+  // In a source checkout the worker file MUST sit next to markdown-pool.ts, or
+  // every spawn fails and (on Bun 1.3.x) panics the process. The bundled CLI
+  // deliberately has no sibling .ts and is expected to skip workers entirely.
+  test('worker file is co-located with the pool in source', () => {
+    const url = new URL('../../src/content/markdown.worker.ts', import.meta.url);
+    expect(existsSync(url)).toBe(true);
+  });
 });
 
 describe('createMarkdownPool — in-process mode', () => {

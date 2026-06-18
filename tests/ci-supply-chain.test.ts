@@ -61,7 +61,11 @@ describe('ci supply-chain', () => {
     const devDependencies = pkg.devDependencies as Record<string, string>;
     const sbomScript = scripts['sbom:cyclonedx'];
 
-    expect(pkg.publishConfig.provenance).toBe(true);
+    // Provenance is intentionally disabled while Laurel is published with a
+    // local `npm publish` (npm provenance requires CI OIDC and errors locally
+    // with `provider: null`). Re-enable and flip this back to `true` once the
+    // CI publish path is restored. See the laurel-local-npm-publish note.
+    expect(pkg.publishConfig.provenance).toBe(false);
     expect(devDependencies['@cyclonedx/cdxgen']).toMatch(/^\d+\.\d+\.\d+$/);
     expect(sbomScript).toContain('cdxgen');
     expect(sbomScript).toContain('--no-install-deps');

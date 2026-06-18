@@ -1,4 +1,6 @@
+import { existsSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { logger } from '~/util/logger.ts';
 import { renderMarkdown } from './markdown.ts';
 import type { RenderMarkdownOptions, RenderedMarkdown } from './markdown.ts';
@@ -23,6 +25,25 @@ interface MarkdownPoolOptions {
 const MIN_JOBS_FOR_WORKERS = 50;
 const MAX_WORKERS = 8;
 
+// Resolves to src/content/markdown.worker.ts in a source checkout. In the
+// npm-published / compiled build the CLI is a single bundled dist/cli.mjs and
+// Bun's bundler leaves this worker URL un-rewritten (see scripts/build-cli.ts),
+// so the sibling `.ts` file does not exist next to the bundle.
+const WORKER_URL = new URL('./markdown.worker.ts', import.meta.url);
+
+// Bun 1.3.x panics (exit 133) when a `new Worker()` target fails to resolve and
+// the resulting `error` event fires — the crash happens inside Bun, not our
+// fallback. The worker never functioned in the bundled build anyway (it always
+// degraded to in-process rendering), so we must avoid spawning workers we know
+// will fail. Probe the file synchronously and only use workers when it exists.
+function workerFileAvailable(): boolean {
+  try {
+    return existsSync(fileURLToPath(WORKER_URL));
+  } catch {
+    return false;
+  }
+}
+
 export function createMarkdownPool(options: MarkdownPoolOptions): MarkdownPool {
   const workerCount = decideWorkerCount(options.estimatedJobs);
   if (workerCount <= 0) return createInProcessPool();
@@ -41,6 +62,8 @@ function decideWorkerCount(estimatedJobs: number): number {
   if (estimatedJobs < MIN_JOBS_FOR_WORKERS) return 0;
   const cores = availableParallelism();
   if (cores <= 1) return 0;
+  // No sibling worker file (bundled/published CLI) — spawning would crash Bun.
+  if (!workerFileAvailable()) return 0;
   // Leave one core for the main thread (which still drives I/O, frontmatter
   // parsing, image dimension lookups, etc).
   return Math.min(MAX_WORKERS, Math.max(1, cores - 1));
@@ -99,7 +122,7 @@ function createWorkerPool(count: number): MarkdownPool {
     }
   }
 
-  const url = new URL('./markdown.worker.ts', import.meta.url).href;
+  const url = WORKER_URL.href;
   for (let i = 0; i < count; i += 1) {
     const worker = new Worker(url, { type: 'module' });
     worker.addEventListener('message', (e: MessageEvent) => {
