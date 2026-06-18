@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import type { LaurelConfig } from '~/config/schema.ts';
 import { rewriteContentImageUrls } from '~/build/content-image-urls.ts';
 import type { ContentImageAssetPlan, ContentImageAssetPlanEntry } from '~/build/emit.ts';
+import type { LaurelConfig } from '~/config/schema.ts';
 
 function makeConfig(opts: { siteUrl?: string; basePath?: string } = {}): LaurelConfig {
   return {
@@ -22,7 +22,10 @@ function makePlan(entries: { rel: string; outputRel: string }[]): ContentImageAs
   return { entries: full, byRel: new Map(full.map((e) => [e.rel, e])) };
 }
 
-const COVER_ENTRY = { rel: 'welcome-cover.svg', outputRel: '_images/abcdef0123456789/welcome-cover.svg' };
+const COVER_ENTRY = {
+  rel: 'welcome-cover.svg',
+  outputRel: '_images/abcdef0123456789/welcome-cover.svg',
+};
 const NESTED_ENTRY = { rel: '2022/01/cover.png', outputRel: '_images/0011223344556677/cover.png' };
 
 function jsonLdScript(imageUrl: string): string {
@@ -95,8 +98,7 @@ describe('rewriteContentImageUrls — JSON-LD image URLs (404 regression)', () =
   });
 
   test('does not touch /content/images/ URLs inside non-ld+json scripts', () => {
-    const html =
-      '<script>var x = "/content/images/welcome-cover.svg";</script>';
+    const html = '<script>var x = "/content/images/welcome-cover.svg";</script>';
     const out = rewriteContentImageUrls(html, {
       config: makeConfig(),
       plan: makePlan([COVER_ENTRY]),
@@ -109,7 +111,10 @@ describe('rewriteContentImageUrls — JSON-LD image URLs (404 regression)', () =
       '@context': 'https://schema.org',
       '@type': 'Article',
       headline: 'A & B < C > D',
-      image: { '@type': 'ImageObject', url: 'https://example.com/content/images/welcome-cover.svg' },
+      image: {
+        '@type': 'ImageObject',
+        url: 'https://example.com/content/images/welcome-cover.svg',
+      },
     };
     const json = JSON.stringify(entity)
       .replace(/</g, '\\u003C')
