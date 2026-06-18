@@ -14,6 +14,7 @@ import { htmlBuildId, injectHtmlBuildAttribute } from './html-metadata.ts';
 import { rewriteImageCdnUrls } from './image-cdn.ts';
 import { collapseDegenerateSrcset, injectImageDimensions, injectImageLqip } from './images.ts';
 import { stripUnusedLightbox } from './lightbox.ts';
+import { injectPaginationEnhanceScript } from './pagination-enhance.ts';
 import {
   injectStylesheetPreload,
   injectSubresourceIntegrity,
@@ -101,6 +102,7 @@ export async function renderRouteHtml(opts: RouteRenderOptions): Promise<string>
           }
         }
       }
+      html = injectPaginationEnhanceScript(html, config, config.build.csp_nonce);
       if (config.performance.dedupe_script_preload) {
         html = removeRedundantScriptPreload(html);
       }

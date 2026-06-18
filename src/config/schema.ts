@@ -1289,11 +1289,29 @@ export const configSchema = z
               .describe(
                 'URL segment used for paginated archive tails. Defaults to `page`, mirroring Ghost (`/page/2/`, `/tag/foo/page/2/`, `/author/bar/page/2/`). Override to localize the slug (e.g. `seite` for German, `pagina` for Italian) or to match a legacy URL scheme — every paginated route at `/<prefix>/N/` is rebuilt against the new value, including the rel="prev"/"next" hints emitted by `{{ghost_head}}`. Restricted to a single URL segment of `[A-Za-z0-9_-]` so the value can be dropped into the path safely without escaping.',
               ),
+            mode: z
+              .enum(['links', 'infinite', 'load-more'])
+              .default('links')
+              .describe(
+                'How paginated feeds advance to the next page. `links` (default) emits only the classic `/page/N/` pagination links — no client JS. `infinite` adds a progressive-enhancement runtime that fetches the next page (following the `rel="next"` link already in the document) and appends its post cards when the reader reaches the end of the feed, via an `IntersectionObserver` sentinel. `load-more` does the same but behind a "Load more" button instead of auto-loading. Both modes are pure enhancement layered on top of the static pagination links: with JS disabled (or `fetch` / `IntersectionObserver` unavailable) the `/page/N/` links still work, and sub-path deploys (`/blog/`) resolve correctly because the runtime follows the absolute `rel="next"` URL rather than guessing the `/page/N/` scheme.',
+              ),
+            container_selector: z
+              .string()
+              .default('.post-feed')
+              .describe(
+                'CSS selector for the element holding the post cards, used by the `infinite` / `load-more` runtime to know where to append newly fetched cards. Defaults to `.post-feed`, the Ghost theme convention (Casper). Override for themes that wrap posts differently (e.g. `.gh-postfeed`). Ignored when `mode = "links"`.',
+              ),
+            item_selector: z
+              .string()
+              .default('.post-card')
+              .describe(
+                'CSS selector for an individual post card inside `container_selector`. The `infinite` / `load-more` runtime copies elements matching this selector out of the fetched next page and appends them to the live feed. Defaults to `.post-card` (Casper); use `.gh-card` for the Source theme. Ignored when `mode = "links"`.',
+              ),
           })
           .strict()
           .default({})
           .describe(
-            'Pagination knobs for archive routes. Currently only the URL prefix; per-page count lives at `[build].posts_per_page`.',
+            'Pagination knobs for archive routes: the URL prefix plus an optional infinite-scroll / load-more progressive enhancement. Per-page count lives at `[build].posts_per_page`.',
           ),
         opengraph: z
           .object({

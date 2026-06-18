@@ -18,6 +18,17 @@ published to npm with `npm publish`; there is no CI release automation).
   updated date — while leaving each post's displayed publication date unchanged.
   Defaults (`published_at` / `desc`) preserve the previous ordering. Posts with
   no explicit `updated_at` fall back to their `published_at`. (#671)
+- `[components.pagination].mode` (`links` | `infinite` | `load-more`) adds an
+  optional infinite-scroll / load-more progressive enhancement to paginated
+  feeds. `infinite` appends the next page's post cards as the reader nears the
+  end of the feed (via an `IntersectionObserver` sentinel); `load-more` does the
+  same behind a button. Both follow the absolute `rel="next"` URL already in the
+  document, so they work under sub-path deploys (`/blog/`, `/ja/blog/`) and
+  degrade to the classic `/page/N/` links when JS, `fetch`, or
+  `IntersectionObserver` are unavailable. `container_selector` (default
+  `.post-feed`) and `item_selector` (default `.post-card`) make it
+  theme-agnostic. The default `links` mode ships no JS and is byte-identical to
+  before. (#672)
 
 ## [0.1.7] - 2026-06-18
 

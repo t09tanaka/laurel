@@ -122,6 +122,7 @@ import { minifyHtmlOutputs } from './minify.ts';
 import { emitNginxConf } from './nginx.ts';
 import { emitNojekyll } from './nojekyll.ts';
 import { cleanupStaleOutput, resolveOutputDir } from './output-dir.ts';
+import { emitPaginationEnhanceShim } from './pagination-enhance.ts';
 import { assignPostUrls } from './permalinks.ts';
 import { PORTAL_MANIFEST_PATH, emitPortalManifest } from './portal-manifest.ts';
 import { PORTAL_RUNTIME_PATH, emitPortalRuntime } from './portal-runtime.ts';
@@ -1503,6 +1504,15 @@ async function runBuild({
     await timed(profiler, 'algolia_docsearch_css', () => emitDocSearchCss({ config, outputDir }));
     await timed(profiler, 'meilisearch_records', () =>
       emitMeilisearchRecords({ config, content, outputDir }),
+    );
+  }
+  // Pagination enhancement runs independently of search: the script tag is
+  // injected per pagination.mode (see route-render), so the runtime file must be
+  // emitted on the same condition or feed pages 404 on `/pagination/enhance.js`.
+  if (config.components.pagination.mode !== 'links') {
+    keepOutput('pagination/enhance.js');
+    await timed(profiler, 'pagination_enhance', () =>
+      emitPaginationEnhanceShim({ config, outputDir }),
     );
   }
   await timed(profiler, 'fediverse_discovery', () => emitFediverseDiscovery({ config, outputDir }));
