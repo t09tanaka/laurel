@@ -280,6 +280,78 @@ describe('cli dev — lifecycle', () => {
   }, 45000);
 });
 
+async function makeDevFixtureWithBasePath(basePath: string): Promise<string> {
+  const dir = await makeDevFixture();
+  // Append a [build] base_path on top of the standard fixture config.
+  const tomlPath = join(dir, 'laurel.toml');
+  const existing = await Bun.file(tomlPath).text();
+  await writeFile(tomlPath, `${existing}\n[build]\nbase_path = "${basePath}"\n`, 'utf8');
+  return dir;
+}
+
+describe('cli dev — base_path is forced to / (served from root)', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await makeDevFixtureWithBasePath('/blog/');
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('announces the root URL and notes base_path is ignored', async () => {
+    const proc = Bun.spawn(['bun', CLI_ENTRY, 'dev', '--port', '0'], {
+      cwd: dir,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    try {
+      const stdout = await readUntil(proc.stdout, 'Ready in', 15_000);
+      const match = stdout.match(/http:\/\/localhost:(\d+)(\/\S*)?/);
+      expect(match).not.toBeNull();
+      if (match === null) return;
+      // The announced URL must be the bare root, never the /blog/ subpath.
+      expect(match[2] ?? '/').toBe('/');
+      // The notice explains that the configured base_path is dropped in dev.
+      expect(stdout).toContain('base_path');
+      expect(stdout).toContain('ignored in dev');
+    } finally {
+      proc.kill('SIGTERM');
+      await proc.exited;
+    }
+  }, 30000);
+
+  test('serves / with 200 and emits root-relative (not /blog/) links', async () => {
+    const proc = Bun.spawn(['bun', CLI_ENTRY, 'dev', '--port', '0'], {
+      cwd: dir,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    try {
+      const stdout = await readUntil(proc.stdout, 'Ready in', 15_000);
+      const match = stdout.match(/http:\/\/localhost:(\d+)/);
+      expect(match).not.toBeNull();
+      if (match === null) return;
+      const port = Number(match[1]);
+
+      const rootRes = await fetch(`http://localhost:${port}/`);
+      expect(rootRes.status).toBe(200);
+      const html = await rootRes.text();
+      // Asset/links are root-relative; nothing should carry the /blog/ prefix.
+      expect(html).toContain('/assets/');
+      expect(html).not.toContain('/blog/');
+
+      // The /blog/ subpath the config would have used is not mounted in dev.
+      const subRes = await fetch(`http://localhost:${port}/blog/`);
+      expect(subRes.status).toBe(404);
+    } finally {
+      proc.kill('SIGTERM');
+      await proc.exited;
+    }
+  }, 30000);
+});
+
 describe('cli dev — production build does NOT inject the livereload script', () => {
   let dir: string;
 

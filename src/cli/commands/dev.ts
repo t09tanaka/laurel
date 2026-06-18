@@ -35,6 +35,12 @@ import {
 const DEFAULT_PORT = 4321;
 const DEFAULT_HOST = 'localhost';
 const REBUILD_DEBOUNCE_MS = 100;
+// The dev server always serves dist/ from the filesystem root, so a configured
+// `build.base_path` (e.g. `/blog/`) would make every emitted asset/link point at
+// a subpath that the server does not mount — links 404 and CSS goes missing.
+// Force the base path to `/` for dev builds so the announced URL, the served
+// routes, and the in-page links all agree. Production builds keep base_path.
+const DEV_BASE_PATH = '/';
 
 // `laurel dev` is the operator-facing wrapper for "build once, serve dist/,
 // rebuild on every change, reload the browser". Under the hood it composes
@@ -124,7 +130,12 @@ export async function runDev(args: string[]): Promise<number> {
     return true;
   });
   try {
-    const summary = await build({ cwd, configPath, captureReusable: true });
+    const summary = await build({
+      cwd,
+      configPath,
+      captureReusable: true,
+      basePath: DEV_BASE_PATH,
+    });
     reusable = summary.reusable;
     routeCount = summary.routeCount;
     assetCount = summary.assetCount;
@@ -207,9 +218,20 @@ export async function runDev(args: string[]): Promise<number> {
 
   const announcedPort = server.port;
   const displayHost = hostname === '0.0.0.0' ? 'localhost' : hostname;
-  const basePath = config.build.base_path || '/';
-  const localUrl = `http://${displayHost}:${announcedPort}${basePath}`;
+  const localUrl = `http://${displayHost}:${announcedPort}${DEV_BASE_PATH}`;
   const configuredSiteUrl = typeof config.site.url === 'string' ? config.site.url : undefined;
+
+  // Surfaced before the Ready banner so it gives context for the root URL shown
+  // there: dev always serves dist/ from `/`, so a configured subpath is dropped.
+  const configuredBasePath = config.build.base_path || '/';
+  if (configuredBasePath !== '/') {
+    writeBlock(
+      renderNotice(
+        'info',
+        `base_path \`${configuredBasePath}\` is ignored in dev — the site is served from \`/\`. The production build still uses \`${configuredBasePath}\`.`,
+      ),
+    );
+  }
 
   writeBlock(
     renderReady({
@@ -284,6 +306,7 @@ export async function runDev(args: string[]): Promise<number> {
         cwd,
         configPath,
         captureReusable: true,
+        basePath: DEV_BASE_PATH,
         ...(reuseArg !== undefined ? { reuse: reuseArg } : {}),
       });
       const rebuildElapsedMs = performance.now() - rebuildStart;
