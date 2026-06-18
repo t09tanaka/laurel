@@ -1494,6 +1494,16 @@ async function writeGhostSettingsConfig(args: {
     return { settingsImagesDownloaded: 0, settingsImagesFailed: 0 };
   }
 
+  // Download settings images BEFORE the laurel.toml conflict gate. The
+  // documented flow is `laurel init` (which writes laurel.toml) then
+  // `import-ghost`, so the default --on-conflict skip leaves laurel.toml in
+  // place. Gating the download on writing laurel.toml meant the standard flow
+  // never fetched favicon/og:image, leaving them 404 after build. The download
+  // is idempotent (existing files are skipped), so running it regardless of the
+  // conflict outcome is safe; only the laurel.toml path rewrite stays gated on
+  // actually (over)writing the file.
+  const settingsImageResult = await downloadSettingsImages(imported, args);
+
   const dest = join(args.targetRoot, 'laurel.toml');
   assertWithin(args.targetRoot, dest);
   const exists = await pathExists(dest);
@@ -1503,11 +1513,11 @@ async function writeGhostSettingsConfig(args: {
   if (exists) {
     switch (args.onConflict) {
       case 'skip':
-        // The laurel.toml is left untouched, so there is no point fetching the
-        // settings images it would have referenced.
+        // laurel.toml is left untouched, but the settings images were already
+        // fetched above so the existing config's image paths resolve on build.
         process.stderr.write(`Skipped (already exists): ${dest}\n`);
         args.counters.skipped += 1;
-        return { settingsImagesDownloaded: 0, settingsImagesFailed: 0 };
+        return settingsImageResult;
       case 'overwrite':
         process.stderr.write(`Overwrote: ${dest}\n`);
         args.counters.overwritten += 1;
@@ -1521,7 +1531,6 @@ async function writeGhostSettingsConfig(args: {
     }
   }
 
-  const settingsImageResult = await downloadSettingsImages(imported, args);
   const contents = renderImportedSettingsConfig(imported, existingRaw);
   if (!args.dryRun) {
     await ensureDir(dirname(writePath));

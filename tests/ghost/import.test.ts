@@ -2885,6 +2885,46 @@ describe('importGhostExport — settings-level images', () => {
     const toml = await readFile(join(cwd, 'laurel.toml'), 'utf8');
     expect(toml).toContain(`og_image = "${rel}"`);
   });
+
+  test('downloads settings images even when laurel.toml is skipped (default --on-conflict)', async () => {
+    // Documented flow: `laurel init` already wrote laurel.toml, so the default
+    // skip conflict policy applies. The settings image download must NOT be
+    // gated on (re)writing laurel.toml, or favicon/og:image 404 after build.
+    await writeFile(join(cwd, 'laurel.toml'), '[site]\ntitle = "Existing"\n');
+    await writeSettingsExport({
+      title: 'Old Blog',
+      icon: '__GHOST_URL__/content/images/favicon.png',
+      og_image: '__GHOST_URL__/content/images/og.png',
+    });
+    const source = 'https://oldblog.example';
+    const { fetcher, calls } = settingsFetch({
+      [`${source}/content/images/favicon.png`]: 'ICON',
+      [`${source}/content/images/og.png`]: 'OG',
+    });
+
+    const stderr = captureStderr();
+    let summary: Awaited<ReturnType<typeof importGhostExport>>;
+    try {
+      summary = await importGhostExport({
+        cwd,
+        file: exportFile,
+        downloadImages: true,
+        sourceUrl: source,
+        fetcher,
+      });
+    } finally {
+      stderr.restore();
+    }
+
+    // laurel.toml is left untouched by the default skip policy...
+    expect(stderr.data).toContain('Skipped (already exists)');
+    expect(await readFile(join(cwd, 'laurel.toml'), 'utf8')).toContain('title = "Existing"');
+    // ...but the settings images are still fetched to content/images/.
+    expect(summary.settingsImagesDownloaded).toBe(2);
+    expect(calls.length).toBe(2);
+    expect(await readFile(join(cwd, 'content/images/favicon.png'), 'utf8')).toBe('ICON');
+    expect(await readFile(join(cwd, 'content/images/og.png'), 'utf8')).toBe('OG');
+  });
 });
 
 describe('importGhostExport — --max-image-size (#239)', () => {
