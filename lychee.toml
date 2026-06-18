@@ -40,4 +40,7 @@ exclude = [
   "^https?://localhost(?::\\d+)?(?:/|$)",
   "^https?://127\\.0\\.0\\.1(?::\\d+)?(?:/|$)",
   "^https?://github\\.com/t09tanaka/laurel/discussions(?:/|$)",
+  # oldblog.com is the placeholder source-site URL in import docs/help text; the
+  # real domain serves a mismatched TLS cert, so it is not a checkable link.
+  "^https?://(?:[a-z0-9-]+\\.)*oldblog\\.com(?:/|$)",
 ]
