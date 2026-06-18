@@ -61,6 +61,7 @@ export async function runImportGhost(args: string[]): Promise<number> {
   const outputDir = typeof rawOutput === 'string' ? rawOutput : undefined;
 
   const downloadImages = parsed.values['download-images'] === true;
+  const downloadSettingsImages = parsed.values['no-download-settings-images'] !== true;
 
   const rawMaxImageSize = parsed.values['max-image-size'];
   let maxImageSizeBytes: number | undefined;
@@ -154,6 +155,7 @@ export async function runImportGhost(args: string[]): Promise<number> {
       onConflict,
       assetsDir,
       downloadImages,
+      downloadSettingsImages,
       maxImageSizeBytes,
       sourceUrl,
       dryRun,
@@ -209,6 +211,14 @@ export async function runImportGhost(args: string[]): Promise<number> {
         t('importGhost.downloadedImages', {
           downloaded: summary.imagesDownloaded,
           failed: summary.imagesFailed,
+        }),
+      );
+    }
+    if (summary.settingsImagesDownloaded > 0 || summary.settingsImagesFailed > 0) {
+      logger.info(
+        t('importGhost.settingsImages', {
+          downloaded: summary.settingsImagesDownloaded,
+          failed: summary.settingsImagesFailed,
         }),
       );
     }

@@ -533,6 +533,11 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
         'Per-image size cap (e.g. 10MB, 1GB, or raw bytes) when --download-images is set; over-cap images are warned and left as remote URLs. Defaults to 10MB. Use 0 to disable.',
       placeholder: '<size>',
     },
+    'no-download-settings-images': {
+      type: 'boolean',
+      description:
+        'With --download-images, skip Ghost settings-level images (icon, logo, cover_image, og_image, twitter_image). By default they are downloaded too so favicon and og:image work after a fresh build; needs --source-url to resolve site-relative paths.',
+    },
     'source-url': {
       type: 'string',
       description:
