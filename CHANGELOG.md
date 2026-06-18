@@ -30,6 +30,17 @@ published to npm with `npm publish`; there is no CI release automation).
   theme-agnostic. The default `links` mode ships no JS and is byte-identical to
   before. (#672)
 
+### Changed
+
+- `laurel import-ghost --download-images` no longer silently leaves images as
+  broken `/content/images/...` links when `--source-url` is omitted. It now
+  infers the source site origin from the export's `url` setting and uses it to
+  fetch images (logging which URL it inferred); if the export has no usable
+  `url` (e.g. it only carries the `__GHOST_URL__` placeholder), it emits a clear
+  warning telling you to pass `--source-url` instead of failing quietly. The
+  inferred URL also feeds the in-body link rewriter, and an explicit
+  `--source-url` still wins. (#674)
+
 ### Fixed
 
 - A Laurel version upgrade now fully invalidates the persistent Markdown render

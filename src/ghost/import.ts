@@ -677,6 +677,25 @@ async function importFromResolvedInput(
   const filters = resolveImportFilters(opts);
   const turndown = createGhostTurndown();
 
+  // `--download-images` needs an absolute origin to fetch `/content/images/...`
+  // assets. When the user omits `--source-url`, try to recover it from the
+  // export's `url` setting; otherwise the rewritten image references silently
+  // 404 (favicon / og:image were hit in practice). Inference and the warning
+  // run only when downloading is requested so a plain import stays quiet.
+  const inferredSourceUrl = opts.sourceUrl ? undefined : inferSourceUrlFromGhostSettings(settings);
+  const effectiveSourceUrl = opts.sourceUrl ?? inferredSourceUrl;
+  if (opts.downloadImages && !opts.sourceUrl) {
+    if (inferredSourceUrl) {
+      logger.info(
+        `import-ghost: using source URL ${inferredSourceUrl} inferred from the export's \`url\` setting (pass --source-url to override).`,
+      );
+    } else {
+      logger.warn(
+        'import-ghost: --download-images was given without --source-url and the export has no usable `url` setting. Images cannot be fetched and will stay as /content/images/... links that 404 after build. Re-run with --source-url <ghost-site-url>.',
+      );
+    }
+  }
+
   // Image download requires network and writes to content/images. In dry-run
   // mode we skip the downloader entirely; the dry-run summary should preview
   // local-only side effects rather than perform fetches.
@@ -689,7 +708,8 @@ async function importFromResolvedInput(
           maxImageSizeBytes: opts.maxImageSizeBytes,
           // Lets the downloader fetch `/content/images/...` paths that
           // `stripGhostUrlPlaceholder` already rewrote to leading-slash form.
-          sourceUrl: opts.sourceUrl,
+          // `effectiveSourceUrl` falls back to the URL inferred from the export.
+          sourceUrl: effectiveSourceUrl,
           // Forward per-image events into the import-level progress hook so
           // dashboard consumers can stream them out to a UI overlay.
           onEvent: opts.onProgress
@@ -697,7 +717,7 @@ async function importFromResolvedInput(
             : undefined,
         })
       : undefined;
-  const urlRewriter = opts.sourceUrl ? new GhostUrlRewriter(opts.sourceUrl) : undefined;
+  const urlRewriter = effectiveSourceUrl ? new GhostUrlRewriter(effectiveSourceUrl) : undefined;
 
   const tagById = new Map(tags.map((t) => [t.id, t]));
   const userById = new Map(users.map((u) => [u.id, u]));
@@ -1119,7 +1139,7 @@ async function importFromResolvedInput(
     downloader,
     downloadImages: opts.downloadImages === true,
     downloadSettingsImages: opts.downloadSettingsImages !== false,
-    sourceUrl: opts.sourceUrl,
+    sourceUrl: effectiveSourceUrl,
   });
 
   // Ghost stores custom redirects at content/data/redirects.json. The resolved
@@ -1666,6 +1686,28 @@ function normalizeSettingScalar(value: unknown): string | undefined {
   }
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   if (typeof value === 'boolean') return String(value);
+  return undefined;
+}
+
+// Recover the source site's absolute origin from the Ghost export's `url`
+// setting so `--download-images` can fetch `/content/images/...` assets without
+// the user passing `--source-url`. `stripGhostUrlPlaceholder` runs on the whole
+// export first, so a `url` setting that was the `__GHOST_URL__` sentinel is now
+// empty (not a usable absolute URL) — only a real, self-hosted origin survives
+// this check, which is exactly the case where inference is safe.
+function inferSourceUrlFromGhostSettings(settings: readonly GhostSetting[]): string | undefined {
+  for (const setting of settings) {
+    if (normalizeSettingKey(setting.key) !== 'url') continue;
+    const value = normalizeSettingScalar(setting.value);
+    if (!value) return undefined;
+    try {
+      const parsed = new URL(value);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return value;
+    } catch {
+      // Not a usable absolute URL; fall through to undefined.
+    }
+    return undefined;
+  }
   return undefined;
 }
 

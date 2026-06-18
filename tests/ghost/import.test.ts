@@ -5211,3 +5211,120 @@ describe('importGhostExport — parallel render and write (#522, #523)', () => {
     expect(titles).toEqual(new Set(['First', 'Second', 'Third']));
   });
 });
+
+describe('importGhostExport — source URL inference (#674)', () => {
+  let cwd: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-infer-')));
+    exportFile = join(cwd, 'export.json');
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  function fakeFetch(ok: Record<string, string>): { fetcher: typeof fetch; calls: string[] } {
+    const calls: string[] = [];
+    const fetcher = (async (input: RequestInfo | URL): Promise<Response> => {
+      const url = typeof input === 'string' ? input : input.toString();
+      calls.push(url);
+      if (url in ok) {
+        return new Response(ok[url], { status: 200, headers: { 'content-type': 'image/jpeg' } });
+      }
+      return new Response('not found', { status: 404 });
+    }) as typeof fetch;
+    return { fetcher, calls };
+  }
+
+  // A Ghost export keeps `__GHOST_URL__` as the origin sentinel; the `url`
+  // setting carries the real site URL for a self-hosted export.
+  function exportWithUrlSetting(urlSetting: string): string {
+    return JSON.stringify({
+      db: [
+        {
+          data: {
+            posts: [
+              {
+                id: 'p1',
+                title: 'Hello',
+                slug: 'hello',
+                html: '<p><img src="__GHOST_URL__/content/images/2024/01/cover.jpg" alt="c" /></p>',
+                feature_image: '__GHOST_URL__/content/images/2024/01/cover.jpg',
+                status: 'published',
+                type: 'post',
+              },
+            ],
+            settings: [{ key: 'url', value: urlSetting }],
+          },
+        },
+      ],
+    });
+  }
+
+  test('infers the source URL from the export `url` setting and downloads images', async () => {
+    await writeFile(exportFile, exportWithUrlSetting('https://oldblog.com'));
+    const fetchUrl = 'https://oldblog.com/content/images/2024/01/cover.jpg';
+    const { fetcher, calls } = fakeFetch({ [fetchUrl]: 'BYTES' });
+
+    // The inferred-URL notice is informational, so it lands on stdout.
+    const originalWrite = process.stdout.write.bind(process.stdout);
+    let stdout = '';
+    process.stdout.write = ((chunk: string | Uint8Array): boolean => {
+      stdout += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
+      return true;
+    }) as typeof process.stdout.write;
+    let summary: Awaited<ReturnType<typeof importGhostExport>>;
+    try {
+      summary = await importGhostExport({ cwd, file: exportFile, downloadImages: true, fetcher });
+    } finally {
+      process.stdout.write = originalWrite;
+    }
+
+    expect(summary.imagesDownloaded).toBe(1);
+    expect(calls).toContain(fetchUrl);
+    expect(stdout).toContain('inferred from the export');
+    const written = await readFile(join(cwd, 'content/images/2024/01/cover.jpg'), 'utf8');
+    expect(written).toBe('BYTES');
+  });
+
+  test('warns and skips when no source URL is given and the export has no usable url', async () => {
+    // `__GHOST_URL__` is stripped to empty, so it is not a usable absolute URL.
+    await writeFile(exportFile, exportWithUrlSetting('__GHOST_URL__'));
+    const { fetcher, calls } = fakeFetch({});
+
+    const capture = captureStderr();
+    let summary: Awaited<ReturnType<typeof importGhostExport>>;
+    try {
+      summary = await importGhostExport({ cwd, file: exportFile, downloadImages: true, fetcher });
+    } finally {
+      capture.restore();
+    }
+
+    expect(summary.imagesDownloaded).toBe(0);
+    expect(calls).toEqual([]);
+    expect(capture.data).toContain('--download-images was given without --source-url');
+    // The reference stays root-relative (a broken link the warning flags).
+    const md = await readFile(join(cwd, 'content/posts/hello.md'), 'utf8');
+    expect(md).toContain('/content/images/2024/01/cover.jpg');
+  });
+
+  test('an explicit --source-url overrides the inferred one', async () => {
+    await writeFile(exportFile, exportWithUrlSetting('https://inferred.example'));
+    const explicit = 'https://explicit.example/content/images/2024/01/cover.jpg';
+    const { fetcher, calls } = fakeFetch({ [explicit]: 'BYTES' });
+
+    const summary = await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      sourceUrl: 'https://explicit.example',
+      fetcher,
+    });
+
+    expect(summary.imagesDownloaded).toBe(1);
+    expect(calls).toContain(explicit);
+    expect(calls).not.toContain('https://inferred.example/content/images/2024/01/cover.jpg');
+  });
+});
