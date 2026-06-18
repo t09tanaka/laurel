@@ -53,9 +53,6 @@ jobs:
         with:
           scan-args: |-
             --lockfile=bun.lock
-            --recursive
-            --skip-git
-            ./
 
   bun-audit:
     name: bun audit (lockfile integrity + advisories)
