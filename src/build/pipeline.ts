@@ -1490,9 +1490,6 @@ async function runBuild({
     // Emit the `[data-ghost-search]` runtime shim before Pagefind crawls,
     // so the shim itself lands in the staging dir alongside the index.
     await timed(profiler, 'search_shim', () => emitSearchShim({ config, outputDir }));
-    await timed(profiler, 'pagination_enhance', () =>
-      emitPaginationEnhanceShim({ config, outputDir }),
-    );
     // Pagefind walks the staged HTML and emits a `pagefind/` index. Run it
     // here (before `commitStagingDir`) so the index is part of the atomic
     // swap into `dist/` — never a half-indexed live deploy.
@@ -1507,6 +1504,15 @@ async function runBuild({
     await timed(profiler, 'algolia_docsearch_css', () => emitDocSearchCss({ config, outputDir }));
     await timed(profiler, 'meilisearch_records', () =>
       emitMeilisearchRecords({ config, content, outputDir }),
+    );
+  }
+  // Pagination enhancement runs independently of search: the script tag is
+  // injected per pagination.mode (see route-render), so the runtime file must be
+  // emitted on the same condition or feed pages 404 on `/pagination/enhance.js`.
+  if (config.components.pagination.mode !== 'links') {
+    keepOutput('pagination/enhance.js');
+    await timed(profiler, 'pagination_enhance', () =>
+      emitPaginationEnhanceShim({ config, outputDir }),
     );
   }
   await timed(profiler, 'fediverse_discovery', () => emitFediverseDiscovery({ config, outputDir }));
