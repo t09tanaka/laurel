@@ -11,6 +11,24 @@ published to npm with `npm publish`; there is no CI release automation).
 
 _Nothing yet._
 
+## [0.1.6] - 2026-06-18
+
+### Fixed
+
+- `import-ghost --download-images` now downloads Ghost settings-level images in
+  the documented `laurel init` → `import-ghost` flow. In 0.1.5 the download was
+  gated on (re)writing `laurel.toml`, so the default `--on-conflict skip` (which
+  applies because `laurel init` already created the config) skipped the
+  downloads too — favicon / `og:image` / `twitter:image` / JSON-LD then 404'd
+  unless `--on-conflict overwrite` was passed. The download now runs regardless
+  of the conflict outcome (idempotent — existing files are skipped). (#669)
+- When `laurel.toml` already exists, `import-ghost` now **fill-merges** the
+  Ghost settings keys the config is missing (e.g. `icon`, `og_image`, `url`)
+  instead of skipping the file wholesale, so the downloaded image paths actually
+  reach the build. Existing values are never clobbered (fill mode), and a config
+  that already has every imported key is left byte-for-byte untouched.
+  `--on-conflict overwrite` keeps the prior Ghost-wins behavior. (#669)
+
 ## [0.1.5] - 2026-06-18
 
 ### Added
