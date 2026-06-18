@@ -645,6 +645,7 @@ async function runBuild({
           markdownTransforms,
           pageApprovalGate: true,
           rawContentCache,
+          generatorVersion: laurelVersion,
         });
         return Promise.all([contentPromise, themePromise]);
       });

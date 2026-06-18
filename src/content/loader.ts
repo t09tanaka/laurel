@@ -140,6 +140,12 @@ interface LoadContentOptions {
   // clones cached entries before returning them so build-local mutations cannot
   // leak back into subsequent builds.
   rawContentCache?: RawContentCache;
+  // Running Laurel version, folded into the persistent markdown render cache key
+  // so a CLI upgrade that changes rendering invalidates that cache too (the
+  // build manifest already folds the version into route reuse, but the markdown
+  // cache lives outside it). The pipeline passes `getLaurelVersion()`; omitted
+  // by unit tests, where an empty-string fallback keeps keys stable.
+  generatorVersion?: string;
 }
 
 class InMemoryRawContentCache implements RawContentCache {
@@ -208,6 +214,7 @@ export async function loadContent({
   markdownTransforms,
   pageApprovalGate,
   rawContentCache,
+  generatorVersion,
 }: LoadContentOptions): Promise<ContentGraph> {
   resetAutoCreationWarnings();
   const site = buildSite(config);
@@ -253,6 +260,7 @@ export async function loadContent({
       markdownTransforms: activeTransforms,
       pageApprovalGate: pageApprovalGate === true,
       rawContentCache: activeRawContentCache,
+      generatorVersion,
     });
   } finally {
     await pool.close();
@@ -273,6 +281,7 @@ async function loadContentWithPool({
   markdownTransforms,
   pageApprovalGate,
   rawContentCache,
+  generatorVersion,
 }: LoadContentOptions & {
   site: SiteData;
   pool: MarkdownPool;
@@ -290,11 +299,32 @@ async function loadContentWithPool({
   // runs; defaulting here keeps unit tests that hand-roll a partial config
   // (and skip the pipeline) from blowing up with `undefined`.
   const basePath = config.build.base_path || '/';
+  // Folded into the markdown render cache key so an upgrade that changes
+  // rendering does not serve a prior version's cached body HTML. Empty string
+  // is a stable fallback for unit tests that call loadContent without it.
+  const renderCacheVersion = generatorVersion ?? '';
   const [rawAuthors, rawTags, posts, pages, components] = await Promise.all([
     loadAuthors(cwd, config, rawContentCache),
     loadTags(cwd, config, rawContentCache),
-    loadPosts(cwd, config, pool, markdownTransforms, postFiles, rawContentCache),
-    loadPages(cwd, config, pool, markdownTransforms, pageApprovalGate, pageFiles, rawContentCache),
+    loadPosts(
+      cwd,
+      config,
+      pool,
+      markdownTransforms,
+      renderCacheVersion,
+      postFiles,
+      rawContentCache,
+    ),
+    loadPages(
+      cwd,
+      config,
+      pool,
+      markdownTransforms,
+      renderCacheVersion,
+      pageApprovalGate,
+      pageFiles,
+      rawContentCache,
+    ),
     loadComponents(cwd, config),
   ]);
 
@@ -964,6 +994,7 @@ async function loadPosts(
   config: LaurelConfig,
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
+  generatorVersion: string,
   dirs: readonly MarkdownDirFiles[],
   rawContentCache: RawContentCache | undefined,
 ): Promise<RawPost[]> {
@@ -979,6 +1010,7 @@ async function loadPosts(
         config,
         pool,
         transforms,
+        generatorVersion,
         'post',
         dir.locale,
         source,
@@ -997,6 +1029,7 @@ async function loadPages(
   config: LaurelConfig,
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
+  generatorVersion: string,
   approvalGate: boolean,
   dirs: readonly MarkdownDirFiles[],
   rawContentCache: RawContentCache | undefined,
@@ -1035,6 +1068,7 @@ async function loadPages(
         config,
         pool,
         transforms,
+        generatorVersion,
         dir.locale,
         sourceForBuild,
       );
@@ -1505,6 +1539,7 @@ async function normalizePost(
   config: LaurelConfig | undefined,
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
+  generatorVersion: string,
   kind: 'post' | 'page' = 'post',
   pathLocale?: string,
   source?: ContentSourceFingerprint,
@@ -1537,6 +1572,7 @@ async function normalizePost(
     sourceStat,
     body,
     options: renderOptions,
+    generatorVersion,
     render: () => pool.render(body, renderOptions),
   });
   const slug =
@@ -1594,6 +1630,7 @@ async function normalizePost(
       sourceStat,
       body: truncated,
       options: reRenderOptions,
+      generatorVersion,
       render: () => pool.render(truncated, reRenderOptions),
     });
     feedHtml = `${reRendered.html}${buildPaywallStub(visibility)}`;
@@ -1857,6 +1894,7 @@ async function normalizePage(
   config: LaurelConfig | undefined,
   pool: MarkdownPool,
   transforms: readonly MarkdownTransformHook[],
+  generatorVersion: string,
   pathLocale?: string,
   source?: ContentSourceFingerprint,
 ): Promise<RawPage | undefined> {
@@ -1869,6 +1907,7 @@ async function normalizePage(
     config,
     pool,
     transforms,
+    generatorVersion,
     'page',
     pathLocale,
     source,

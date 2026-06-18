@@ -30,6 +30,16 @@ published to npm with `npm publish`; there is no CI release automation).
   theme-agnostic. The default `links` mode ships no JS and is byte-identical to
   before. (#672)
 
+### Fixed
+
+- A Laurel version upgrade now fully invalidates the persistent Markdown render
+  cache (`.laurel/cache/markdown`). The build manifest already folds the version
+  into route reuse, but the render cache — which holds each post's rendered body
+  HTML and lives outside the manifest — keyed only on the source file and render
+  options, so a release that changed Markdown rendering could keep serving the
+  previous version's body HTML (notably under `laurel dev`) until `laurel clean`.
+  The running version is now part of the render cache key. (#673)
+
 ## [0.1.7] - 2026-06-18
 
 ### Fixed

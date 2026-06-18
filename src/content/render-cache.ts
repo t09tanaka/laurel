@@ -12,11 +12,18 @@ interface RenderCacheOptions {
   sourceStat: Stats;
   body: string;
   options: RenderMarkdownOptions;
+  // Running Laurel version, folded into the cache key so an upgrade that changes
+  // markdown rendering does not serve a previous version's cached body HTML.
+  // The bundled CLI has no source to fingerprint (the build manifest's
+  // generator fingerprint falls back to the version), and this persistent cache
+  // lives outside the manifest, so it needs the version in its own key.
+  generatorVersion: string;
   render: () => Promise<RenderedMarkdown>;
 }
 
 interface CacheEntry {
   version: number;
+  generator_version: string;
   cache_key: string;
   source_path: string;
   source_mtime_ms: number;
@@ -37,6 +44,7 @@ export async function renderMarkdownWithCache({
   sourceStat,
   body,
   options,
+  generatorVersion,
   render,
 }: RenderCacheOptions): Promise<RenderedMarkdown> {
   const cacheDir = join(cwd, '.laurel/cache/markdown');
@@ -46,6 +54,7 @@ export async function renderMarkdownWithCache({
   const cacheKey = sha256(
     JSON.stringify({
       version: CACHE_VERSION,
+      generator_version: generatorVersion,
       source_path: source,
       source_mtime_ms: sourceStat.mtimeMs,
       source_size: sourceStat.size,
@@ -61,6 +70,7 @@ export async function renderMarkdownWithCache({
   const result = await render();
   await writeCacheEntry(cacheDir, cachePath, {
     version: CACHE_VERSION,
+    generator_version: generatorVersion,
     cache_key: cacheKey,
     source_path: source,
     source_mtime_ms: sourceStat.mtimeMs,
@@ -122,6 +132,7 @@ function isCacheEntry(value: unknown): value is CacheEntry {
   const entry = value as Partial<CacheEntry>;
   return (
     typeof entry.version === 'number' &&
+    typeof entry.generator_version === 'string' &&
     typeof entry.cache_key === 'string' &&
     typeof entry.source_path === 'string' &&
     typeof entry.source_mtime_ms === 'number' &&
