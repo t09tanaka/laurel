@@ -122,6 +122,7 @@ import { minifyHtmlOutputs } from './minify.ts';
 import { emitNginxConf } from './nginx.ts';
 import { emitNojekyll } from './nojekyll.ts';
 import { cleanupStaleOutput, resolveOutputDir } from './output-dir.ts';
+import { emitPaginationEnhanceShim } from './pagination-enhance.ts';
 import { assignPostUrls } from './permalinks.ts';
 import { PORTAL_MANIFEST_PATH, emitPortalManifest } from './portal-manifest.ts';
 import { PORTAL_RUNTIME_PATH, emitPortalRuntime } from './portal-runtime.ts';
@@ -1489,6 +1490,9 @@ async function runBuild({
     // Emit the `[data-ghost-search]` runtime shim before Pagefind crawls,
     // so the shim itself lands in the staging dir alongside the index.
     await timed(profiler, 'search_shim', () => emitSearchShim({ config, outputDir }));
+    await timed(profiler, 'pagination_enhance', () =>
+      emitPaginationEnhanceShim({ config, outputDir }),
+    );
     // Pagefind walks the staged HTML and emits a `pagefind/` index. Run it
     // here (before `commitStagingDir`) so the index is part of the atomic
     // swap into `dist/` — never a half-indexed live deploy.
