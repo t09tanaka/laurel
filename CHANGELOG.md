@@ -9,6 +9,10 @@ published to npm with `npm publish`; there is no CI release automation).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.1.7] - 2026-06-18
+
 ### Fixed
 
 - The build no longer adds `defer` to an external `<script src>` when a classic
@@ -122,7 +126,9 @@ published to npm with `npm publish`; there is no CI release automation).
   components (search, comments stub, OG images, JSON feeds), and
   `laurel import-ghost` / `laurel import-wordpress` migration tooling.
 
-[Unreleased]: https://github.com/t09tanaka/laurel/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/t09tanaka/laurel/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/t09tanaka/laurel/compare/v0.1.6...v0.1.7
+[0.1.6]: https://github.com/t09tanaka/laurel/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/t09tanaka/laurel/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/t09tanaka/laurel/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/t09tanaka/laurel/compare/v0.1.2...v0.1.3
