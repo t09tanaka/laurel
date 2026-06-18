@@ -1,10 +1,16 @@
 import type Handlebars from 'handlebars';
 import { assetPublicUrl, joinPath } from '~/theme/assets.ts';
 import type { ThemeAsset, ThemeImageSize } from '~/theme/types.ts';
+import { type ImageDimensions, sizeShrinksSource } from '~/util/image-size.ts';
 import type { LaurelEngine } from '../engine.ts';
+import { probeLocalImage } from './local-image.ts';
 
 export function registerAssetHelpers(engine: LaurelEngine): void {
   const basePath = engine.config.build.base_path;
+  // Per-engine cache of source dimensions, keyed by absolute file path inside
+  // probeLocalImage. Lets img_url decide whether a requested size actually
+  // shrinks the source without re-reading the same image on every render.
+  const sourceDimsCache = new Map<string, ImageDimensions | null>();
 
   engine.hb.registerHelper(
     'asset',
@@ -44,9 +50,24 @@ export function registerAssetHelpers(engine: LaurelEngine): void {
     const candidate = typeof direct === 'string' ? direct : extractImage(direct);
     if (!candidate) return '';
     const sizeKey = typeof options.hash.size === 'string' ? options.hash.size : undefined;
-    const sizeDef = sizeKey ? engine.theme.pkg.image_sizes[sizeKey] : undefined;
-    const formatKey =
+    let sizeDef = sizeKey ? engine.theme.pkg.image_sizes[sizeKey] : undefined;
+    let formatKey =
       typeof options.hash.format === 'string' ? normalizeFormat(options.hash.format) : undefined;
+    // When the requested size would not shrink the local source image, the
+    // variant pipeline (generateThemeImageSizeVariants) skips generating it to
+    // avoid upscaling, so a `/content/images/size/wXXX[/format/...]/` URL would
+    // 404. Drop the size (and any paired format, which is only generated under a
+    // size segment) and emit the original instead — withoutEnlargement means the
+    // "resized" image equals the source anyway. Only applies to local content
+    // images; CDN/external URLs keep the segments so the remote image API can
+    // serve them (issue #463).
+    if (sizeDef) {
+      const dims = probeLocalImage(engine, candidate, sourceDimsCache);
+      if (dims && !sizeShrinksSource(sizeDef, dims)) {
+        sizeDef = undefined;
+        formatKey = undefined;
+      }
+    }
     const absolute = options.hash.absolute === true;
     const siteUrl = engine.content.site.url;
     const imageBaseUrl = imageAbsoluteBaseUrl(candidate, engine.content.site);

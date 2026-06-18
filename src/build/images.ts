@@ -6,7 +6,7 @@ import { GALLERY_IMAGE_SIZES } from '~/content/gallery-images.ts';
 import type { ContentGraph } from '~/content/model.ts';
 import type { ThemeImageSize } from '~/theme/types.ts';
 import { scanGlob } from '~/util/fs.ts';
-import { type ImageDimensions, readImageDimensions } from '~/util/image-size.ts';
+import { type ImageDimensions, readImageDimensions, sizeShrinksSource } from '~/util/image-size.ts';
 import { logger } from '~/util/logger.ts';
 
 interface InjectImageDimensionsOptions {
@@ -1034,15 +1034,4 @@ async function encodeOrReuseThemeVariant(opts: EncodeOrReuseThemeVariantOptions)
 function applyImageMetadataPolicy(pipeline: SharpInstance, stripMetadata: boolean): SharpInstance {
   if (stripMetadata) return pipeline;
   return pipeline.withMetadata?.() ?? pipeline;
-}
-
-function sizeShrinksSource(size: ThemeImageSize, dims: ImageDimensions): boolean {
-  const wConstraint = typeof size.width === 'number' && size.width > 0;
-  const hConstraint = typeof size.height === 'number' && size.height > 0;
-  // Emit if at least one defined axis is strictly smaller than the source.
-  // Equality is treated as "no shrink" — the browser would just download the
-  // identical pixel count, so skipping saves disk and encode time.
-  if (wConstraint && (size.width as number) < dims.width) return true;
-  if (hConstraint && (size.height as number) < dims.height) return true;
-  return false;
 }

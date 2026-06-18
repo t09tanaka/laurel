@@ -5,6 +5,23 @@ export interface ImageDimensions {
   height: number;
 }
 
+// True when at least one defined axis of the requested size is strictly smaller
+// than the source. Equality counts as "no shrink": the resized output would be
+// identical pixels, so the variant pipeline skips generating it. Callers that
+// emit `/content/images/size/wXXX/` URLs must use this to decide whether the
+// variant will actually exist, otherwise the URL 404s (e.g. a 2000px source and
+// a theme `size="xxl"` of 2000 — the variant is never written).
+export function sizeShrinksSource(
+  size: { width?: number; height?: number },
+  dims: ImageDimensions,
+): boolean {
+  const w = typeof size.width === 'number' && size.width > 0 ? size.width : undefined;
+  const h = typeof size.height === 'number' && size.height > 0 ? size.height : undefined;
+  if (w !== undefined && w < dims.width) return true;
+  if (h !== undefined && h < dims.height) return true;
+  return false;
+}
+
 // Best-effort intrinsic dimension reader for the formats Ghost-compatible
 // themes typically reference (SVG, PNG, JPEG, GIF, WebP). Returns undefined
 // for unsupported or unparseable files so the caller can fall back to
