@@ -2886,10 +2886,11 @@ describe('importGhostExport — settings-level images', () => {
     expect(toml).toContain(`og_image = "${rel}"`);
   });
 
-  test('downloads settings images even when laurel.toml is skipped (default --on-conflict)', async () => {
-    // Documented flow: `laurel init` already wrote laurel.toml, so the default
-    // skip conflict policy applies. The settings image download must NOT be
-    // gated on (re)writing laurel.toml, or favicon/og:image 404 after build.
+  test('default skip fill-merges missing image keys into an existing laurel.toml', async () => {
+    // Documented flow: `laurel init` already wrote a laurel.toml with no image
+    // keys, so the default skip policy applies. The settings images must
+    // download AND their paths must be filled into the config (without
+    // clobbering the user's existing values) or favicon/og:image 404 on build.
     await writeFile(join(cwd, 'laurel.toml'), '[site]\ntitle = "Existing"\n');
     await writeSettingsExport({
       title: 'Old Blog',
@@ -2916,14 +2917,91 @@ describe('importGhostExport — settings-level images', () => {
       stderr.restore();
     }
 
-    // laurel.toml is left untouched by the default skip policy...
-    expect(stderr.data).toContain('Skipped (already exists)');
-    expect(await readFile(join(cwd, 'laurel.toml'), 'utf8')).toContain('title = "Existing"');
-    // ...but the settings images are still fetched to content/images/.
+    expect(stderr.data).toContain('Merged');
+    const toml = await readFile(join(cwd, 'laurel.toml'), 'utf8');
+    // Existing user value is preserved (fill mode never clobbers)...
+    expect(toml).toContain('title = "Existing"');
+    expect(toml).not.toContain('Old Blog');
+    // ...and the missing image keys are filled in with the downloaded paths.
+    expect(toml).toContain('icon = "/content/images/favicon.png"');
+    expect(toml).toContain('og_image = "/content/images/og.png"');
     expect(summary.settingsImagesDownloaded).toBe(2);
     expect(calls.length).toBe(2);
     expect(await readFile(join(cwd, 'content/images/favicon.png'), 'utf8')).toBe('ICON');
     expect(await readFile(join(cwd, 'content/images/og.png'), 'utf8')).toBe('OG');
+  });
+
+  test('skip leaves laurel.toml untouched when it already has every Ghost key', async () => {
+    // Re-import case: the config already carries the imported settings, so there
+    // is nothing to fill and the file must be left byte-for-byte (true skip).
+    const original = [
+      '# hand-written',
+      '[site]',
+      'title = "Existing"',
+      'icon = "/content/images/favicon.png"',
+      '',
+    ].join('\n');
+    await writeFile(join(cwd, 'laurel.toml'), original);
+    await writeSettingsExport({
+      title: 'Old Blog',
+      icon: '__GHOST_URL__/content/images/favicon.png',
+    });
+    const source = 'https://oldblog.example';
+    const { fetcher } = settingsFetch({
+      [`${source}/content/images/favicon.png`]: 'ICON',
+    });
+
+    const stderr = captureStderr();
+    try {
+      await importGhostExport({
+        cwd,
+        file: exportFile,
+        downloadImages: true,
+        sourceUrl: source,
+        fetcher,
+      });
+    } finally {
+      stderr.restore();
+    }
+
+    expect(stderr.data).toContain('Skipped (already complete)');
+    // Untouched: comment + formatting preserved.
+    expect(await readFile(join(cwd, 'laurel.toml'), 'utf8')).toBe(original);
+  });
+
+  test('skip does not clobber an existing image key the user already set', async () => {
+    await writeFile(
+      join(cwd, 'laurel.toml'),
+      '[site]\ntitle = "Existing"\nicon = "/content/images/custom-icon.png"\n',
+    );
+    await writeSettingsExport({
+      title: 'Old Blog',
+      icon: '__GHOST_URL__/content/images/favicon.png',
+      og_image: '__GHOST_URL__/content/images/og.png',
+    });
+    const source = 'https://oldblog.example';
+    const { fetcher } = settingsFetch({
+      [`${source}/content/images/favicon.png`]: 'ICON',
+      [`${source}/content/images/og.png`]: 'OG',
+    });
+
+    const stderr = captureStderr();
+    try {
+      await importGhostExport({
+        cwd,
+        file: exportFile,
+        downloadImages: true,
+        sourceUrl: source,
+        fetcher,
+      });
+    } finally {
+      stderr.restore();
+    }
+
+    const toml = await readFile(join(cwd, 'laurel.toml'), 'utf8');
+    // User's icon survives; only the missing og_image is filled in.
+    expect(toml).toContain('icon = "/content/images/custom-icon.png"');
+    expect(toml).toContain('og_image = "/content/images/og.png"');
   });
 });
 
@@ -4452,7 +4530,7 @@ describe('importGhostExport — Ghost settings config import (#1042)', () => {
     expect(parsed.secondary_navigation).toEqual([{ label: 'RSS', url: '/rss/' }]);
   });
 
-  test('preserves an existing laurel.toml by default', async () => {
+  test('default fill-merges missing keys into an existing laurel.toml without clobbering', async () => {
     await writeSettingsExport();
     const configPath = join(cwd, 'laurel.toml');
     await writeFile(
@@ -4472,13 +4550,55 @@ describe('importGhostExport — Ghost settings config import (#1042)', () => {
 
     const summary = await importGhostExport({ cwd, file: exportFile });
     const body = await readFile(configPath, 'utf8');
+    const parsed = TOML.parse(body) as {
+      site?: { title?: string; description?: string; url?: string };
+      navigation?: Array<{ label: string; url: string }>;
+      secondary_navigation?: Array<{ label: string; url: string }>;
+    };
+
+    // The config was missing `url` and `secondary_navigation`, so it is merged
+    // (not skipped wholesale) — that is what lets imported settings (incl.
+    // downloaded image paths) reach the build.
+    expect(summary.skipped).toBe(0);
+    expect(summary.plannedPaths).toContain(configPath);
+    expect(captured.data).toContain('Merged');
+    // Existing values win (fill mode never clobbers)...
+    expect(parsed.site?.title).toBe('Existing Site');
+    expect(parsed.site?.description).toBe('Keep me');
+    expect(parsed.navigation).toEqual([{ label: 'Existing', url: '/existing/' }]);
+    expect(body).not.toContain('Ghost Publication');
+    // ...and the keys the config lacked are filled in from the import.
+    expect(parsed.site?.url).toBe('https://ghost.example');
+    expect(parsed.secondary_navigation).toEqual([{ label: 'RSS', url: '/rss/' }]);
+  });
+
+  test('default skip leaves a laurel.toml that already has every imported key untouched', async () => {
+    await writeSettingsExport();
+    const configPath = join(cwd, 'laurel.toml');
+    const original = [
+      '# keep my comments',
+      '[site]',
+      'title = "Existing Site"',
+      'description = "Keep me"',
+      'url = "https://kept.example"',
+      '',
+      '[[navigation]]',
+      'label = "Existing"',
+      'url = "/existing/"',
+      '',
+      '[[secondary_navigation]]',
+      'label = "Kept"',
+      'url = "/kept/"',
+      '',
+    ].join('\n');
+    await writeFile(configPath, original, 'utf8');
+
+    const summary = await importGhostExport({ cwd, file: exportFile });
 
     expect(summary.skipped).toBe(1);
     expect(summary.plannedPaths).not.toContain(configPath);
-    expect(captured.data).toContain(`Skipped (already exists): ${configPath}`);
-    expect(body).toContain('title = "Existing Site"');
-    expect(body).toContain('url = "/existing/"');
-    expect(body).not.toContain('Ghost Publication');
+    expect(captured.data).toContain(`Skipped (already complete): ${configPath}`);
+    expect(await readFile(configPath, 'utf8')).toBe(original);
   });
 
   test('--on-conflict overwrite updates imported settings while preserving other config', async () => {

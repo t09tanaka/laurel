@@ -1509,15 +1509,30 @@ async function writeGhostSettingsConfig(args: {
   const exists = await pathExists(dest);
   let writePath = dest;
   let existingRaw: string | undefined;
+  let mode: 'overlay' | 'fill' = 'overlay';
 
   if (exists) {
     switch (args.onConflict) {
-      case 'skip':
-        // laurel.toml is left untouched, but the settings images were already
-        // fetched above so the existing config's image paths resolve on build.
-        process.stderr.write(`Skipped (already exists): ${dest}\n`);
-        args.counters.skipped += 1;
-        return settingsImageResult;
+      case 'skip': {
+        // laurel.toml is config, not a content collision: the `laurel init` →
+        // import-ghost flow leaves a config that is missing the Ghost image
+        // keys (icon/og_image/…), so a plain skip would orphan the images we
+        // just downloaded. Fill in only the keys the existing config lacks,
+        // never clobbering values the user set. When nothing is missing we
+        // leave the file byte-for-byte (true skip, preserving comments).
+        existingRaw = await readFile(dest, 'utf8');
+        const missing = missingImportedSettingKeys(imported, existingRaw);
+        if (missing.length === 0) {
+          process.stderr.write(`Skipped (already complete): ${dest}\n`);
+          args.counters.skipped += 1;
+          return settingsImageResult;
+        }
+        process.stderr.write(
+          `Merged ${missing.length} Ghost setting(s) into existing: ${dest} (${missing.join(', ')})\n`,
+        );
+        mode = 'fill';
+        break;
+      }
       case 'overwrite':
         process.stderr.write(`Overwrote: ${dest}\n`);
         args.counters.overwritten += 1;
@@ -1531,7 +1546,7 @@ async function writeGhostSettingsConfig(args: {
     }
   }
 
-  const contents = renderImportedSettingsConfig(imported, existingRaw);
+  const contents = renderImportedSettingsConfig(imported, existingRaw, mode);
   if (!args.dryRun) {
     await ensureDir(dirname(writePath));
     await writeFile(writePath, contents, 'utf8');
@@ -1687,20 +1702,54 @@ function hasImportedSettings(settings: ImportedGhostSettings): boolean {
   );
 }
 
+// `mode` controls how imported Ghost settings combine with an existing config:
+//   - 'overlay' (default / --on-conflict overwrite): Ghost values win.
+//   - 'fill': existing values win; only keys the config is missing are added.
+//     Used to populate a `laurel init` config (which has no icon/og_image/…)
+//     from the import without clobbering anything the user already set.
 function renderImportedSettingsConfig(
   imported: ImportedGhostSettings,
   existingRaw: string | undefined,
+  mode: 'overlay' | 'fill' = 'overlay',
 ): string {
   const root = parseExistingTomlRoot(existingRaw);
   if (Object.keys(imported.site).length > 0) {
     const site = isPlainRecord(root.site) ? root.site : {};
-    for (const [key, value] of Object.entries(imported.site)) site[key] = value;
+    for (const [key, value] of Object.entries(imported.site)) {
+      if (mode === 'fill' && site[key] !== undefined) continue;
+      site[key] = value;
+    }
     if (typeof site.title !== 'string' || site.title.trim() === '') site.title = 'Laurel Site';
     root.site = site;
   }
-  if (imported.navigation) root.navigation = imported.navigation;
-  if (imported.secondary_navigation) root.secondary_navigation = imported.secondary_navigation;
+  if (imported.navigation && (mode === 'overlay' || root.navigation === undefined)) {
+    root.navigation = imported.navigation;
+  }
+  if (
+    imported.secondary_navigation &&
+    (mode === 'overlay' || root.secondary_navigation === undefined)
+  ) {
+    root.secondary_navigation = imported.secondary_navigation;
+  }
   return TOML.stringify(root as Parameters<typeof TOML.stringify>[0]);
+}
+
+// Ghost setting keys (site fields + navigation tables) absent from an existing
+// laurel.toml. Drives the fill-merge decision: when nothing is missing we leave
+// the file untouched (true skip, preserving comments/formatting); otherwise we
+// merge the missing keys in.
+function missingImportedSettingKeys(
+  imported: ImportedGhostSettings,
+  existingRaw: string,
+): string[] {
+  const root = parseExistingTomlRoot(existingRaw);
+  const site = isPlainRecord(root.site) ? root.site : {};
+  const missing = Object.keys(imported.site).filter((key) => site[key] === undefined);
+  if (imported.navigation && root.navigation === undefined) missing.push('navigation');
+  if (imported.secondary_navigation && root.secondary_navigation === undefined) {
+    missing.push('secondary_navigation');
+  }
+  return missing;
 }
 
 function parseExistingTomlRoot(raw: string | undefined): Record<string, unknown> {
