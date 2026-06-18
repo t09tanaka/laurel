@@ -36,6 +36,15 @@ export function rewriteContentImageUrls(html: string, { config, plan }: RewriteO
   if (plan.entries.length === 0 || !html.includes('/content/images/') || !html.includes('<')) {
     return html;
   }
+  const afterAttrs = rewriteTagAttributes(html, config, plan);
+  return rewriteJsonLdImageUrls(afterAttrs, config, plan);
+}
+
+function rewriteTagAttributes(
+  html: string,
+  config: LaurelConfig,
+  plan: ContentImageAssetPlan,
+): string {
   const tags = scanTags(html);
   if (tags.length === 0) return html;
 
@@ -53,6 +62,35 @@ export function rewriteContentImageUrls(html: string, { config, plan }: RewriteO
   if (!touched) return html;
   out += html.slice(cursor);
   return out;
+}
+
+// Image URLs inside `<script type="application/ld+json">` live in the script's
+// text content, not an attribute, so the tag-attribute pass above never touches
+// them — leaving JSON-LD `image.url` pointing at the bare `/content/images/...`
+// path that is never emitted when content images are fingerprinted (404 for
+// crawlers, while og:image/twitter:image meta tags were rewritten correctly).
+// Rewrite the same `/content/images/...` URLs in the JSON body through the same
+// plan so structured data matches the emitted `/_images/<hash>/...` files.
+// JSON-LD is serialised with plain `/` (escapeJsonForScript only escapes
+// <, >, & and line separators), so URL values appear verbatim between quotes.
+const JSONLD_SCRIPT_RE =
+  /(<script\b(?=[^>]*\btype\s*=\s*["']application\/ld\+json["'])[^>]*>)([\s\S]*?)(<\/script\s*>)/gi;
+const JSONLD_IMAGE_URL_RE = /"([^"\\]*\/content\/images\/[^"\\]*)"/g;
+
+function rewriteJsonLdImageUrls(
+  html: string,
+  config: LaurelConfig,
+  plan: ContentImageAssetPlan,
+): string {
+  if (!html.includes('application/ld+json')) return html;
+  return html.replace(JSONLD_SCRIPT_RE, (full, open: string, body: string, close: string) => {
+    if (!body.includes('/content/images/')) return full;
+    const rewrittenBody = body.replace(JSONLD_IMAGE_URL_RE, (match, url: string) => {
+      const next = rewriteImageUrl(url, config, plan);
+      return next === url ? match : `"${next}"`;
+    });
+    return rewrittenBody === body ? full : `${open}${rewrittenBody}${close}`;
+  });
 }
 
 function rewriteTag(tag: TagSpan, config: LaurelConfig, plan: ContentImageAssetPlan): string {
