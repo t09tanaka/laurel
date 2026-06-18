@@ -26,8 +26,8 @@ accept = ["100..=103", "200..=299", "429"]
 # Skip link checking inside fenced code blocks and inline code.
 include_verbatim = false
 
-# Don't follow mailto: or tel: links.
-exclude_mail = true
+# Don't check mailto: links (the `exclude_mail` key was removed in lychee 0.18+).
+include_mail = false
 
 # Allowlist for hosts/URLs that are known to misbehave or are placeholders.
 # example.com / example.org are RFC 2606 reserved names used in docs.
@@ -40,4 +40,7 @@ exclude = [
   "^https?://localhost(?::\\d+)?(?:/|$)",
   "^https?://127\\.0\\.0\\.1(?::\\d+)?(?:/|$)",
   "^https?://github\\.com/t09tanaka/laurel/discussions(?:/|$)",
+  # oldblog.com is the placeholder source-site URL in import docs/help text; the
+  # real domain serves a mismatched TLS cert, so it is not a checkable link.
+  "^https?://(?:[a-z0-9-]+\\.)*oldblog\\.com(?:/|$)",
 ]
