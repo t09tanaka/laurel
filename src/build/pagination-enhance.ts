@@ -1,4 +1,3 @@
-import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { LaurelConfig } from '~/config/schema.ts';
 import { renderPaginationEnhanceShim } from '~/pagination/runtime.ts';
@@ -28,7 +27,7 @@ export async function emitPaginationEnhanceShim(opts: {
     containerSelector: config.components.pagination.container_selector,
     itemSelector: config.components.pagination.item_selector,
   });
-  await writeFile(dest, js, 'utf8');
+  await Bun.write(dest, js);
   return dest;
 }
 
