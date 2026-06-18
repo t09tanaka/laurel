@@ -1719,7 +1719,15 @@ function renderImportedSettingsConfig(
       if (mode === 'fill' && site[key] !== undefined) continue;
       site[key] = value;
     }
-    if (typeof site.title !== 'string' || site.title.trim() === '') site.title = 'Laurel Site';
+    // Ensure a title exists. In overlay mode (fresh write / overwrite) default a
+    // blank-or-missing title. In fill mode only supply one when title is
+    // entirely absent — an existing (even empty) title is the user's value and
+    // must not be clobbered, per the fill contract.
+    const needsTitleDefault =
+      mode === 'overlay'
+        ? typeof site.title !== 'string' || site.title.trim() === ''
+        : site.title === undefined;
+    if (needsTitleDefault) site.title = 'Laurel Site';
     root.site = site;
   }
   if (imported.navigation && (mode === 'overlay' || root.navigation === undefined)) {

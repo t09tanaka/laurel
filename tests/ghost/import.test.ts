@@ -2969,6 +2969,34 @@ describe('importGhostExport — settings-level images', () => {
     expect(await readFile(join(cwd, 'laurel.toml'), 'utf8')).toBe(original);
   });
 
+  test('fill-merge never overwrites an existing (even blank) title with the default', async () => {
+    // fill mode must treat a present-but-blank title as the user's value, not
+    // replace it with the "Laurel Site" sentinel.
+    await writeFile(join(cwd, 'laurel.toml'), '[site]\ntitle = ""\n');
+    await writeSettingsExport({
+      title: 'Old Blog',
+      icon: '__GHOST_URL__/content/images/favicon.png',
+    });
+    const source = 'https://oldblog.example';
+    const { fetcher } = settingsFetch({
+      [`${source}/content/images/favicon.png`]: 'ICON',
+    });
+
+    await importGhostExport({
+      cwd,
+      file: exportFile,
+      downloadImages: true,
+      sourceUrl: source,
+      fetcher,
+    });
+
+    const toml = await readFile(join(cwd, 'laurel.toml'), 'utf8');
+    expect(toml).toContain('title = ""');
+    expect(toml).not.toContain('Laurel Site');
+    expect(toml).not.toContain('Old Blog');
+    expect(toml).toContain('icon = "/content/images/favicon.png"');
+  });
+
   test('skip does not clobber an existing image key the user already set', async () => {
     await writeFile(
       join(cwd, 'laurel.toml'),
