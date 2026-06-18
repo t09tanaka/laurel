@@ -47,7 +47,10 @@ jobs:
       # repeat them on the CLI for clarity — what runs in CI is identical to
       # `bun run test:coverage` locally.
       - name: Run tests with coverage (text + lcov)
-        run: bun test --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=coverage
+        # Match the sharded `bun run test` timeout (30s). The default 5s is too
+        # tight here: coverage instrumentation slows the subprocess-spawning CLI
+        # snapshot tests past 5s, flaking the run.
+        run: bun test --timeout=30000 --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=coverage
 
       # Enforce a hard aggregate floor on line + function coverage (#665).
       # The gate parses coverage/lcov.info and exits non-zero when either
