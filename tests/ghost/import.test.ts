@@ -2788,8 +2788,9 @@ describe('importGhostExport — settings-level images', () => {
     });
 
     expect(summary.settingsImagesDownloaded).toBe(1);
-    // og_image is a third-party URL left external (counted as failed/external).
-    expect(summary.settingsImagesFailed).toBe(1);
+    // og_image is a third-party URL left external: like body images, it is not
+    // counted as a failure (failed counts genuine fetch errors only).
+    expect(summary.settingsImagesFailed).toBe(0);
     expect(calls).toEqual([`${source}/content/images/icon.png`]);
 
     const toml = await readFile(join(cwd, 'laurel.toml'), 'utf8');

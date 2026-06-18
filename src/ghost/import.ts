@@ -231,8 +231,9 @@ export interface ImportSummary {
   // settings-level images (icon, logo, cover_image, og_image, twitter_image)
   // that feed laurel.toml. Surfaced separately because a fresh import that
   // skips these leaves favicon + og:image/JSON-LD pointing at files that were
-  // never written (404). `settingsImagesFailed` also folds in third-party URLs
-  // intentionally left external, mirroring the body-image policy.
+  // never written (404). Counters mirror the body-image semantics exactly:
+  // `settingsImagesFailed` is genuine fetch failures only, not third-party URLs
+  // left external or re-import fast-path hits.
   settingsImagesDownloaded: number;
   settingsImagesFailed: number;
   // True when the import was a `--dry-run`: no files were written and no
@@ -1570,22 +1571,21 @@ async function downloadSettingsImages(
   const downloader = args.downloader;
   if (!downloader) return { settingsImagesDownloaded: 0, settingsImagesFailed: 0 };
 
-  const before = {
-    downloaded: downloader.downloaded,
-    failed: downloader.failed,
-    skipped: downloader.skipped,
-  };
+  const before = { downloaded: downloader.downloaded, failed: downloader.failed };
   for (const key of SETTINGS_IMAGE_KEYS) {
     const value = imported.site[key];
     if (typeof value !== 'string') continue;
     const rewritten = sanitizeImageUrl(await downloader.rewriteField(value), key, 'site settings');
     if (rewritten !== undefined) imported.site[key] = rewritten;
   }
+  // Mirror the body-image counters exactly: `downloaded` counts bytes actually
+  // fetched, `failed` counts genuine fetch failures only. Third-party URLs left
+  // external and on-disk re-import fast-path hits both land in the downloader's
+  // `skipped`, which we deliberately exclude here — counting them as "failed"
+  // would mislabel a re-import of already-localized settings images.
   return {
     settingsImagesDownloaded: downloader.downloaded - before.downloaded,
-    // "failed/external": genuine fetch failures plus third-party URLs the
-    // downloader intentionally left external (counted as skipped).
-    settingsImagesFailed: downloader.failed - before.failed + (downloader.skipped - before.skipped),
+    settingsImagesFailed: downloader.failed - before.failed,
   };
 }
 
