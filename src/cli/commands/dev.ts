@@ -89,9 +89,9 @@ export async function runDev(args: string[]): Promise<number> {
   // RSS, sitemap) should point at the local dev server, not the production
   // `site.url`, so links and infinite-scroll fetches resolve locally instead of
   // hitting production. A fixed port is known now; `--port 0` (kernel-assigned)
-  // is only known after the server starts, so it picks up the override on the
-  // first rebuild. Passed as `baseUrl`, which the pipeline folds into
-  // `config.site.url`.
+  // is resolved from the listener below, which binds before the first build so
+  // even port 0 gets the right origin on the first build. Passed as `baseUrl`,
+  // which the pipeline folds into `config.site.url`.
   let devBaseUrl: string | undefined = port !== 0 ? `http://${displayHost}:${port}` : undefined;
 
   const configPath = typeof parsed.values.config === 'string' ? parsed.values.config : undefined;
