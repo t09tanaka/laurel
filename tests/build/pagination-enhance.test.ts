@@ -1,12 +1,14 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtemp, readFile, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   emitPaginationEnhanceShim,
   injectPaginationEnhanceScript,
+  themeHasNativeInfiniteScroll,
 } from '~/build/pagination-enhance.ts';
 import { configSchema } from '~/config/schema.ts';
+import type { ThemeAsset } from '~/theme/types.ts';
 
 function config(overrides: Record<string, unknown> = {}) {
   return configSchema.parse({
@@ -100,5 +102,57 @@ describe('injectPaginationEnhanceScript', () => {
     });
     const out = injectPaginationEnhanceScript(FEED_HTML, cfg, cfg.build.csp_nonce);
     expect(out).toContain('data-laurel-pagination-enhance nonce="abc123"></script>');
+  });
+
+  test('yields to a theme that owns infinite scroll (no shim injected)', () => {
+    const cfg = config({ components: { pagination: { mode: 'infinite' } } });
+    const out = injectPaginationEnhanceScript(FEED_HTML, cfg, undefined, true);
+    expect(out).toBe(FEED_HTML);
+  });
+});
+
+async function themeWithJsAsset(content: string, logicalPath = 'assets/js/feed.js') {
+  const dir = await mkdtemp(join(tmpdir(), 'laurel-theme-js-'));
+  const sourcePath = join(dir, 'asset.js');
+  await writeFile(sourcePath, content, 'utf8');
+  const asset: ThemeAsset = {
+    logicalPath,
+    fingerprintedPath: logicalPath,
+    sourcePath,
+    hash: 'x',
+    integrity: 'x',
+    size: content.length,
+  };
+  return { assets: new Map([[logicalPath, asset]]) };
+}
+
+describe('themeHasNativeInfiniteScroll', () => {
+  test('detects a self-contained infinite-scroll script (rel=next + appendChild)', async () => {
+    const casperish =
+      "var n=document.querySelector('link[rel=next]');feedElement.appendChild(document.importNode(item,true));";
+    expect(await themeHasNativeInfiniteScroll(await themeWithJsAsset(casperish))).toBe(true);
+  });
+
+  test('matches the quoted rel="next" form used by other themes', async () => {
+    const sourceish = 'document.querySelector(\'link[rel="next"]\');el.appendChild(x);';
+    expect(await themeHasNativeInfiniteScroll(await themeWithJsAsset(sourceish))).toBe(true);
+  });
+
+  test('ignores a theme JS that reads rel=next but never appends (not infinite scroll)', async () => {
+    const prefetch = "var n=document.querySelector('link[rel=next]');prefetch(n.href);";
+    expect(await themeHasNativeInfiniteScroll(await themeWithJsAsset(prefetch))).toBe(false);
+  });
+
+  test('ignores non-JS assets', async () => {
+    const css = 'rel=next appendChild';
+    expect(
+      await themeHasNativeInfiniteScroll(await themeWithJsAsset(css, 'assets/built/screen.css')),
+    ).toBe(false);
+  });
+
+  test('returns false for a theme with no infinite-scroll script', async () => {
+    expect(await themeHasNativeInfiniteScroll(await themeWithJsAsset('console.log(1);'))).toBe(
+      false,
+    );
   });
 });

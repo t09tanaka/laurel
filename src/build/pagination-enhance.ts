@@ -1,7 +1,34 @@
 import { join } from 'node:path';
 import type { LaurelConfig } from '~/config/schema.ts';
 import { renderPaginationEnhanceShim } from '~/pagination/runtime.ts';
+import type { ThemeBundle } from '~/theme/types.ts';
 import { ensureDir } from '~/util/fs.ts';
+
+// Themes like Ghost's Casper (`infinite-scroll.js`) and Source (`pagination.js`)
+// ship a self-contained infinite-scroll script that follows the `rel="next"`
+// link Laurel already emits and appends the fetched cards to the feed — it works
+// unchanged on Laurel's static output. When such a script is present, Laurel's
+// own enhancement shim must stand down: running both makes each next page get
+// fetched twice (double network request) and its cards appended twice
+// (duplicated posts that break the feed grid). Yielding to the theme mirrors
+// Ghost, where the theme's own script is the sole infinite-scroll mechanism.
+//
+// Detection is a content signature on the theme's JS assets: a single file that
+// both reads the `rel="next"` pagination link and appends DOM nodes. Both Casper
+// and Source match this even after minification (string literals and DOM method
+// names survive). A theme without infinite scroll has no reason to do both.
+const NATIVE_NEXT_LINK = /rel\s*=\s*\\?["']?next/i;
+
+export async function themeHasNativeInfiniteScroll(
+  theme: Pick<ThemeBundle, 'assets'>,
+): Promise<boolean> {
+  for (const asset of theme.assets.values()) {
+    if (!asset.logicalPath.toLowerCase().endsWith('.js')) continue;
+    const text = await Bun.file(asset.sourcePath).text();
+    if (NATIVE_NEXT_LINK.test(text) && text.includes('appendChild')) return true;
+  }
+  return false;
+}
 
 // The pagination enhancement only ships JS in `infinite` / `load-more` modes;
 // `links` (the default) stays a no-op so the static build is byte-identical.
@@ -45,8 +72,13 @@ export function injectPaginationEnhanceScript(
   html: string,
   config: LaurelConfig,
   cspNonce?: string,
+  // True when the active theme ships its own infinite-scroll script; the shim
+  // yields so the two don't double-fetch and double-append. See
+  // `themeHasNativeInfiniteScroll`.
+  themeOwnsInfiniteScroll = false,
 ): string {
   if (enhancementMode(config) === null) return html;
+  if (themeOwnsInfiniteScroll) return html;
   if (html.includes('data-laurel-pagination-enhance')) return html;
   if (!/<link\b[^>]*\brel=["']next["']/i.test(html)) return html;
   const headCloseMatch = /<\/head\s*>/i.exec(html);
