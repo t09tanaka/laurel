@@ -100,6 +100,22 @@ const emitDir = emit && segment !== '' ? join(finalOutputDir, segment) : finalOu
 RSS / sitemap / search / JSON-LD / preload / portal runtime / pagination / card assets）は
 base_path を正しく通しており、漏れなしを確認済み。
 
+### 5. `laurel deploy` の preflight を emit 対応にする（同梱）
+
+`laurel deploy` はビルド成果物の有無を `output_dir`（フラットな `dist`）配下の
+`.laurel-manifest.json` で判定していた。emit でマニフェストが `dist/<base_path>/` に移ると
+「No build manifest」で hard-exit してしまう。build と deploy が出力先算出ロジックを別々に
+持っていた drift が原因。
+
+対処として `resolveBuildOutputDir(cwd, outputDirSetting, basePath, emitAtBasePath)` を
+`output-dir.ts` に切り出し、**build パイプラインと deploy の双方がこれを呼ぶ**ことで二度と
+ズレないようにする。deploy では:
+- preflight（成果物の存在チェック・マニフェスト探索・dry-run のファイル列挙）は実際のビルド先
+  `buildDir`（= `dist/blog`）を見る。
+- アップロード元（`aws s3 sync` のソース等）は親 `output_dir`（= `dist`）のまま。これにより
+  キーが `blog/…` になり URL `/blog/…` と一致する（本命の狙い通り）。dry-run のファイル一覧も
+  segment 付きの実キーで表示する。
+
 ## テスト（`tests/build/` 中心）
 
 1. `emit=true` × `base_path=/blog/` → `dist/blog/index.html`・`dist/blog/assets/…` に出力され、

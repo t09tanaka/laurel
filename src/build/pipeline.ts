@@ -31,7 +31,7 @@ import { emitContentApiShadows } from './api.ts';
 import { emitAssetManifest } from './asset-manifest.ts';
 import { findMissingAssetReferences, formatMissingAssetReference } from './asset-references.ts';
 import { emitAzureStaticWebAppConfig } from './azure.ts';
-import { basePathDiskSegment, normalizeBasePath } from './base-path.ts';
+import { normalizeBasePath } from './base-path.ts';
 import { normalizeBaseUrl } from './base-url.ts';
 import {
   type BuildManifestJson,
@@ -121,7 +121,7 @@ import { emitMeilisearchRecords } from './meilisearch.ts';
 import { minifyHtmlOutputs } from './minify.ts';
 import { emitNginxConf } from './nginx.ts';
 import { emitNojekyll } from './nojekyll.ts';
-import { cleanupStaleOutput, resolveOutputDir } from './output-dir.ts';
+import { cleanupStaleOutput, resolveBuildOutputDir } from './output-dir.ts';
 import { emitPaginationEnhanceShim } from './pagination-enhance.ts';
 import { assignPostUrls } from './permalinks.ts';
 import { PORTAL_MANIFEST_PATH, emitPortalManifest } from './portal-manifest.ts';
@@ -489,17 +489,16 @@ export async function build({
   // When `emit_at_base_path` is on for a subpath deployment, nest the entire
   // output under the base_path segment (dist/blog/...) so the on-disk tree
   // mirrors the public URL tree and `aws s3 sync dist s3://bucket` yields keys
-  // matching the `/blog/...` URLs. The segment is fed back through
-  // resolveOutputDir so a pathological base_path (e.g. containing `..`) is
-  // caught by the same escape check that guards output_dir. HTML/asset/sitemap
-  // URLs already carry base_path and are unchanged; only the write target moves.
-  const baseOutputDirSetting = outputDirOverride ?? config.build.output_dir;
-  const emitAtBasePath = config.build.emit_at_base_path ?? config.build.base_path !== '/';
-  const basePathSegment = basePathDiskSegment(config.build.base_path);
-  const finalOutputDir =
-    emitAtBasePath && basePathSegment !== ''
-      ? resolveOutputDir(cwd, join(baseOutputDirSetting, basePathSegment))
-      : resolveOutputDir(cwd, baseOutputDirSetting);
+  // matching the `/blog/...` URLs. HTML/asset/sitemap URLs already carry
+  // base_path and are unchanged; only the write target moves. Shared with
+  // `laurel deploy` via resolveBuildOutputDir so the deploy preflight finds the
+  // manifest in the same place the build wrote it.
+  const finalOutputDir = resolveBuildOutputDir(
+    cwd,
+    outputDirOverride ?? config.build.output_dir,
+    config.build.base_path,
+    config.build.emit_at_base_path,
+  );
   if (baseUrlOverride !== undefined) {
     config.site.url = normalizeBaseUrl(baseUrlOverride);
   }

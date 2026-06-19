@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { changedPathsAbsPath, loadBuildManifest } from '~/build/build-manifest.ts';
+import { resolveBuildOutputDir } from '~/build/output-dir.ts';
 import { build } from '~/build/pipeline.ts';
 import { loadConfig } from '~/config/loader.ts';
 import type { LaurelConfig } from '~/config/schema.ts';
@@ -281,7 +282,19 @@ export async function runDeploy(args: string[], options: RunDeployOptions = {}):
     return exitCodeForError(err);
   }
 
+  // `outputDir` is the deploy source: with `emit_at_base_path` the build nests
+  // its tree under the base_path segment (dist/blog/...), but the deploy still
+  // syncs the parent output_dir so the uploaded keys carry the segment
+  // (`aws s3 sync dist s3://bucket` -> keys `blog/...` matching the URLs).
+  // `buildDir` is where the build actually wrote, so the build-exists and
+  // manifest preflight checks must look there, not at the flat output_dir.
   const outputDir = resolveOutputDir(cwd, config.build.output_dir);
+  const buildDir = resolveBuildOutputDir(
+    cwd,
+    config.build.output_dir,
+    config.build.base_path,
+    config.build.emit_at_base_path,
+  );
 
   if (runBuildFirst) {
     try {
@@ -295,17 +308,18 @@ export async function runDeploy(args: string[], options: RunDeployOptions = {}):
     }
   }
 
-  if (!existsSync(outputDir)) {
+  if (!existsSync(buildDir)) {
     process.stderr.write(
-      `dist/ does not exist at ${outputDir}. Run \`laurel build\` first or pass --build.\n`,
+      `Build output does not exist at ${buildDir}. Run \`laurel build\` first or pass --build.\n`,
     );
     return EXIT_CODES.generic;
   }
   // The build pipeline writes `.laurel-manifest.json` only on successful runs.
   // Treating its absence as "no build present" prevents shipping a half-written
   // directory left over from a crashed build (or a hand-populated `dist/` that
-  // bypassed laurel entirely).
-  const manifestPath = join(outputDir, '.laurel-manifest.json');
+  // bypassed laurel entirely). With `emit_at_base_path` the manifest lives in
+  // the nested build dir, so check there rather than the deploy source root.
+  const manifestPath = join(buildDir, '.laurel-manifest.json');
   if (!existsSync(manifestPath)) {
     process.stderr.write(
       `No build manifest at ${manifestPath}. Run \`laurel build\` (or pass --build) before deploying.\n`,
@@ -346,7 +360,7 @@ export async function runDeploy(args: string[], options: RunDeployOptions = {}):
   }
 
   if (dryRun) {
-    const deploySummary = await collectDeployDryRunSummary(outputDir);
+    const deploySummary = await collectDeployDryRunSummary(outputDir, buildDir);
     process.stdout.write(formatDeployDryRun(plan, deploySummary, runPreflight));
     return EXIT_CODES.ok;
   }
@@ -359,14 +373,23 @@ export async function runDeploy(args: string[], options: RunDeployOptions = {}):
   return await executePlan(plan);
 }
 
-async function collectDeployDryRunSummary(outputDir: string): Promise<DeployDryRunSummary> {
-  const buildManifest = await loadBuildManifest(outputDir);
+async function collectDeployDryRunSummary(
+  outputDir: string,
+  buildDir: string,
+): Promise<DeployDryRunSummary> {
+  // The manifest lives in buildDir and lists paths relative to it; the deploy
+  // uploads from the parent outputDir, so prefix manifest paths with the
+  // base_path segment (relative outputDir -> buildDir) to reflect the real
+  // upload keys. listFilesRecursive(outputDir) already yields segment-prefixed
+  // paths when no manifest is present.
+  const buildManifest = await loadBuildManifest(buildDir);
+  const keyPrefix = buildDir === outputDir ? '' : `${toPosix(relative(outputDir, buildDir))}/`;
   const files =
-    buildManifest?.files.map((file) => ({ path: file.path, size: file.size })) ??
+    buildManifest?.files.map((file) => ({ path: `${keyPrefix}${file.path}`, size: file.size })) ??
     listFilesRecursive(outputDir);
   return {
     files: files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)),
-    changedPaths: readChangedPaths(outputDir),
+    changedPaths: readChangedPaths(buildDir),
   };
 }
 
