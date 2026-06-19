@@ -122,7 +122,7 @@ import { minifyHtmlOutputs } from './minify.ts';
 import { emitNginxConf } from './nginx.ts';
 import { emitNojekyll } from './nojekyll.ts';
 import { cleanupStaleOutput, resolveBuildOutputDir } from './output-dir.ts';
-import { emitPaginationEnhanceShim } from './pagination-enhance.ts';
+import { emitPaginationEnhanceShim, themeHasNativeInfiniteScroll } from './pagination-enhance.ts';
 import { assignPostUrls } from './permalinks.ts';
 import { PORTAL_MANIFEST_PATH, emitPortalManifest } from './portal-manifest.ts';
 import { PORTAL_RUNTIME_PATH, emitPortalRuntime } from './portal-runtime.ts';
@@ -830,6 +830,23 @@ async function runBuild({
     }
   };
   const recommendationsEnabled = config.recommendations.length > 0;
+  // If the theme already ships infinite scroll, Laurel's enhancement shim must
+  // stand down (running both double-fetches every next page and duplicates its
+  // cards). Detected once here and threaded into render + the shim emit below.
+  const paginationMode = config.components.pagination.mode;
+  const themeOwnsInfiniteScroll =
+    paginationMode !== 'links' && (await themeHasNativeInfiniteScroll(theme));
+  // Derived once so the render-time injection gate and the emit gate below can't
+  // diverge (e.g. if a plugin mutates config between the two reads).
+  const emitPaginationEnhance = paginationMode !== 'links' && !themeOwnsInfiniteScroll;
+  if (themeOwnsInfiniteScroll) {
+    // Note for `load-more`: the theme's own (auto) infinite scroll is used
+    // instead of Laurel's button — running both would double-load. The button
+    // isn't available against a theme that ships always-on infinite scroll.
+    logger.info(
+      `Theme '${theme.name}' ships its own infinite scroll; using it instead of Laurel's pagination.mode = "${paginationMode}" enhancement (running both would fetch every next page twice).`,
+    );
+  }
   // Diagnose malformed portal configs (e.g. `provider = "custom"` with no
   // `*_url` overrides) before the build silently emits dead Ghost-default
   // `#/portal/*` hrefs. Findings are surfaced through the shared warning
@@ -1060,6 +1077,7 @@ async function runBuild({
           contentImagePlan,
           portalUrls,
           recommendationsEnabled,
+          themeOwnsInfiniteScroll,
           warnSubscribeNoop: warnSubscribeNoopIfNeeded,
           imageDimensionCache: renderedImageDimensionCache,
           imageLqipCache: renderedImageLqipCache,
@@ -1532,7 +1550,9 @@ async function runBuild({
   // Pagination enhancement runs independently of search: the script tag is
   // injected per pagination.mode (see route-render), so the runtime file must be
   // emitted on the same condition or feed pages 404 on `/pagination/enhance.js`.
-  if (config.components.pagination.mode !== 'links') {
+  // Skipped entirely when the theme owns infinite scroll — the shim isn't
+  // injected then, so emitting the file would only leave a dead asset.
+  if (emitPaginationEnhance) {
     keepOutput('pagination/enhance.js');
     await timed(profiler, 'pagination_enhance', () =>
       emitPaginationEnhanceShim({ config, outputDir }),

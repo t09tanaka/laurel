@@ -42,6 +42,9 @@ interface RouteRenderOptions {
   contentImagePlan: ContentImageAssetPlan;
   portalUrls: Record<string, string>;
   recommendationsEnabled: boolean;
+  // When the theme provides its own infinite-scroll script, suppress Laurel's
+  // pagination enhancement shim so the two don't double-fetch the next page.
+  themeOwnsInfiniteScroll?: boolean;
   warnSubscribeNoop?: (html: string) => void;
   imageDimensionCache?: Map<string, unknown>;
   imageLqipCache?: Map<string, string | null>;
@@ -102,7 +105,12 @@ export async function renderRouteHtml(opts: RouteRenderOptions): Promise<string>
           }
         }
       }
-      html = injectPaginationEnhanceScript(html, config, config.build.csp_nonce);
+      html = injectPaginationEnhanceScript(
+        html,
+        config,
+        config.build.csp_nonce,
+        opts.themeOwnsInfiniteScroll ?? false,
+      );
       if (config.performance.dedupe_script_preload) {
         html = removeRedundantScriptPreload(html);
       }

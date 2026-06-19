@@ -1,7 +1,43 @@
 import { join } from 'node:path';
 import type { LaurelConfig } from '~/config/schema.ts';
 import { renderPaginationEnhanceShim } from '~/pagination/runtime.ts';
+import type { ThemeBundle } from '~/theme/types.ts';
 import { ensureDir } from '~/util/fs.ts';
+
+// Themes like Ghost's Casper (`infinite-scroll.js`) and Source (`pagination.js`)
+// ship a self-contained infinite-scroll script that follows the `rel="next"`
+// link Laurel already emits and appends the fetched cards to the feed — it works
+// unchanged on Laurel's static output. When such a script is present, Laurel's
+// own enhancement shim must stand down: running both makes each next page get
+// fetched twice (double network request) and its cards appended twice
+// (duplicated posts that break the feed grid). Yielding to the theme mirrors
+// Ghost, where the theme's own script is the sole infinite-scroll mechanism.
+//
+// Detection is a content signature on the theme's JS assets: a JS file that
+// queries the `rel="next"` pagination link *and* appends DOM nodes. The link
+// query is matched as the `link[rel=next]` attribute-selector form (what both
+// Casper and Source pass to `querySelector`), not a bare `rel=next` — that keeps
+// embedded HTML strings, `rel: "next"` object props, and source-map fragments
+// from tripping it. Both themes match even after minification (string literals
+// and DOM method names survive). The two signals need only co-occur in the file,
+// not sit adjacent; pairing them is a guard against a vendor bundle that happens
+// to mention one alone. A theme that does neither (or only one) keeps Laurel's
+// shim; a false negative just degrades to the prior double-load behaviour, never
+// worse. Known gap: themes that append via `append()` / `insertAdjacentHTML` /
+// `innerHTML +=` rather than `appendChild` are not detected (none of Laurel's
+// target themes do this).
+const NATIVE_NEXT_LINK = /link\[\s*rel\s*=\s*\\?["']?next/i;
+
+export async function themeHasNativeInfiniteScroll(
+  theme: Pick<ThemeBundle, 'assets'>,
+): Promise<boolean> {
+  for (const asset of theme.assets.values()) {
+    if (!asset.logicalPath.toLowerCase().endsWith('.js')) continue;
+    const text = await Bun.file(asset.sourcePath).text();
+    if (NATIVE_NEXT_LINK.test(text) && text.includes('appendChild')) return true;
+  }
+  return false;
+}
 
 // The pagination enhancement only ships JS in `infinite` / `load-more` modes;
 // `links` (the default) stays a no-op so the static build is byte-identical.
@@ -45,8 +81,13 @@ export function injectPaginationEnhanceScript(
   html: string,
   config: LaurelConfig,
   cspNonce?: string,
+  // True when the active theme ships its own infinite-scroll script; the shim
+  // yields so the two don't double-fetch and double-append. See
+  // `themeHasNativeInfiniteScroll`.
+  themeOwnsInfiniteScroll = false,
 ): string {
   if (enhancementMode(config) === null) return html;
+  if (themeOwnsInfiniteScroll) return html;
   if (html.includes('data-laurel-pagination-enhance')) return html;
   if (!/<link\b[^>]*\brel=["']next["']/i.test(html)) return html;
   const headCloseMatch = /<\/head\s*>/i.exec(html);
