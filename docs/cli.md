@@ -1345,7 +1345,7 @@ Convert a Ghost JSON export into Markdown content
 Usage:
 
 ```
-laurel import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--output <dir>] [--download-images] [--max-image-size <size>] [--no-download-settings-images] [--source-url <url>] [--dry-run] [--include-drafts] [--include-pages] [--only-tags <slugs>] [--since <date>] [--max-size <size>] [--max-post-html-size <size>] [--keep-code-injection] [--keep-html] [--json] <file>
+laurel import-ghost [--on-conflict <skip|overwrite|rename>] [--assets <dir>] [--output <dir>] [--download-images] [--max-image-size <size>] [--no-download-settings-images] [--source-url <url>] [--alt-from-filename] [--dry-run] [--include-drafts] [--include-pages] [--only-tags <slugs>] [--since <date>] [--max-size <size>] [--max-post-html-size <size>] [--keep-code-injection] [--keep-html] [--json] <file>
 ```
 
 Arguments:
@@ -1365,6 +1365,7 @@ Options:
 | `--max-image-size <size>` | string | `LAUREL_IMPORT_GHOST_MAX_IMAGE_SIZE` | Per-image size cap (e.g. 10MB, 1GB, or raw bytes) when --download-images is set; over-cap images are warned and left as remote URLs. Defaults to 10MB. Use 0 to disable. |
 | `--no-download-settings-images` | boolean | `LAUREL_IMPORT_GHOST_NO_DOWNLOAD_SETTINGS_IMAGES` | With --download-images, skip Ghost settings-level images (icon, logo, cover_image, og_image, twitter_image). By default they are downloaded too so favicon and og:image work after a fresh build; needs --source-url to resolve site-relative paths. |
 | `--source-url <url>` | string | `LAUREL_IMPORT_GHOST_SOURCE_URL` | Absolute URL of the source Ghost site (e.g. https://oldblog.com); rewrites in-body links that point at this host to site-relative paths |
+| `--alt-from-filename` | boolean | `LAUREL_IMPORT_GHOST_ALT_FROM_FILENAME` | Generate alt text from the image filename for post-body images with empty alt (e.g. my-cat-photo.jpg becomes "My Cat Photo"), reducing build-time accessibility warnings on migrated content |
 | `--dry-run` | boolean | `LAUREL_IMPORT_GHOST_DRY_RUN` | Parse the export and print a summary of what would land (posts, drafts, empty bodies, conflicts, assets) without writing files or downloading images |
 | `--include-drafts` | boolean | `LAUREL_IMPORT_GHOST_INCLUDE_DRAFTS` | When --only-tags or --since is set, include draft posts/pages too. Full imports already include drafts by default for backwards compatibility |
 | `--include-pages` | boolean | `LAUREL_IMPORT_GHOST_INCLUDE_PAGES` | When --only-tags or --since is set, include pages too. Full imports already include pages by default for backwards compatibility |

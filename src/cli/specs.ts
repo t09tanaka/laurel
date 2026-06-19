@@ -544,6 +544,11 @@ export const IMPORT_GHOST_SPEC: CommandSpec = {
         'Absolute URL of the source Ghost site (e.g. https://oldblog.com); rewrites in-body links that point at this host to site-relative paths',
       placeholder: '<url>',
     },
+    'alt-from-filename': {
+      type: 'boolean',
+      description:
+        'Generate alt text from the image filename for post-body images with empty alt (e.g. my-cat-photo.jpg becomes "My Cat Photo"), reducing build-time accessibility warnings on migrated content',
+    },
     'dry-run': {
       type: 'boolean',
       description:

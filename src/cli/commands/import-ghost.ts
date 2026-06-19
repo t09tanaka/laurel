@@ -80,6 +80,8 @@ export async function runImportGhost(args: string[]): Promise<number> {
   const rawSourceUrl = parsed.values['source-url'];
   const sourceUrl = typeof rawSourceUrl === 'string' ? rawSourceUrl : undefined;
 
+  const altFromFilename = parsed.values['alt-from-filename'] === true;
+
   const dryRun = parsed.values['dry-run'] === true;
 
   const rawMaxSize = parsed.values['max-size'];
@@ -158,6 +160,7 @@ export async function runImportGhost(args: string[]): Promise<number> {
       downloadSettingsImages,
       maxImageSizeBytes,
       sourceUrl,
+      altFromFilename,
       dryRun,
       maxFileSizeBytes,
       maxPostHtmlSizeBytes,
@@ -221,6 +224,9 @@ export async function runImportGhost(args: string[]): Promise<number> {
           failed: summary.settingsImagesFailed,
         }),
       );
+    }
+    if (summary.altBackfilled > 0) {
+      logger.info(t('importGhost.altBackfilled', { count: summary.altBackfilled }));
     }
     if (summary.skipped > 0 || summary.overwritten > 0 || summary.renamed > 0) {
       logger.info(
@@ -314,6 +320,11 @@ function formatDryRunSummary(
       label: t('importGhost.dryRun.emptyBodies'),
       value: summary.bodiesEmpty,
       note: 'body rendered empty or Turndown fell back safely',
+    },
+    {
+      label: t('importGhost.dryRun.altBackfilled'),
+      value: summary.altBackfilled,
+      note: 'empty image alt generated from filename (--alt-from-filename)',
     },
     { label: t('importGhost.dryRun.tags'), value: summary.tags },
     { label: t('importGhost.dryRun.authors'), value: summary.authors },
