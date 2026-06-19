@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
-import { extname, isAbsolute, join, resolve, sep } from 'node:path';
+import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isNonProductionBuild } from '~/config/deploy-environment.ts';
 import { loadConfig } from '~/config/loader.ts';
@@ -121,7 +121,7 @@ import { emitMeilisearchRecords } from './meilisearch.ts';
 import { minifyHtmlOutputs } from './minify.ts';
 import { emitNginxConf } from './nginx.ts';
 import { emitNojekyll } from './nojekyll.ts';
-import { cleanupStaleOutput, resolveBuildOutputDir } from './output-dir.ts';
+import { cleanupStaleOutput, resolveBuildOutputDir, resolveOutputDir } from './output-dir.ts';
 import { emitPaginationEnhanceShim, themeHasNativeInfiniteScroll } from './pagination-enhance.ts';
 import { assignPostUrls } from './permalinks.ts';
 import { PORTAL_MANIFEST_PATH, emitPortalManifest } from './portal-manifest.ts';
@@ -493,6 +493,13 @@ export async function build({
   // base_path and are unchanged; only the write target moves. Shared with
   // `laurel deploy` via resolveBuildOutputDir so the deploy preflight finds the
   // manifest in the same place the build wrote it.
+  // `baseOutputDir` is the configured output root (dist); `finalOutputDir` is
+  // where this build actually writes — nested under the base_path segment
+  // (dist/blog) when emit_at_base_path is on. Stale cleanup reconciles against
+  // baseOutputDir so sibling trees from a previous build at a different
+  // base_path / layout are removed, not just stale files inside the current
+  // emit subtree.
+  const baseOutputDir = resolveOutputDir(cwd, outputDirOverride ?? config.build.output_dir);
   const finalOutputDir = resolveBuildOutputDir(
     cwd,
     outputDirOverride ?? config.build.output_dir,
@@ -539,6 +546,7 @@ export async function build({
     config,
     outputDir,
     finalOutputDir,
+    baseOutputDir,
     profiler,
     previousManifest,
     previousBuildManifest,
@@ -561,6 +569,7 @@ async function runBuild({
   config,
   outputDir,
   finalOutputDir,
+  baseOutputDir,
   profiler,
   previousManifest,
   previousBuildManifest,
@@ -580,6 +589,7 @@ async function runBuild({
   config: Awaited<ReturnType<typeof loadConfig>>;
   outputDir: string;
   finalOutputDir: string;
+  baseOutputDir: string;
   profiler: Profiler | null;
   previousManifest: BuildManifest | undefined;
   previousBuildManifest: Awaited<ReturnType<typeof loadBuildManifest>>;
@@ -1763,12 +1773,32 @@ async function runBuild({
 
   if (clean) {
     const preservePatterns = noAtomic ? [] : await loadPreservePatterns(cwd);
+    // Reconcile stale output at the output_dir scope, not just the (possibly
+    // nested) emit dir. With emit_at_base_path the build writes into
+    // output_dir/<segment>/ (dist/blog/); express the current build's paths
+    // relative to output_dir so a sibling tree left by a previous build at a
+    // different base_path (dist/blog2/), a flat layout (dist/index.html), or a
+    // pre-0.1.10 build is removed too — otherwise `aws s3 sync output_dir`
+    // re-uploads the orphan. The previous build's manifest is only a safe
+    // set-difference shortcut when that build emitted to the SAME location: it
+    // is loaded from finalOutputDir, so its presence means the emit dir is
+    // unchanged. When the emit location changed there is no manifest there, so
+    // previousBuildManifest is undefined and cleanup falls back to a full
+    // output_dir tree scan that catches the orphaned siblings.
+    const emitSegment = relative(baseOutputDir, finalOutputDir).split(sep).join('/');
+    const prefix = emitSegment === '' || emitSegment === '.' ? '' : `${emitSegment}/`;
+    const keepRelPaths =
+      prefix === '' ? [...plannedOutputPaths] : [...plannedOutputPaths].map((p) => `${prefix}${p}`);
+    const previousOutputFiles =
+      prefix === ''
+        ? previousBuildManifest?.files
+        : previousBuildManifest?.files.map((f) => ({ path: `${prefix}${f.path}`, size: f.size }));
     await timed(profiler, 'stale_cleanup', () =>
       cleanupStaleOutput({
-        outputDir,
-        keepRelPaths: plannedOutputPaths,
+        outputDir: baseOutputDir,
+        keepRelPaths,
         preservePatterns,
-        previousOutputFiles: previousBuildManifest?.files,
+        previousOutputFiles,
       }),
     );
   }
