@@ -9,7 +9,18 @@ published to npm with `npm publish`; there is no CI release automation).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+
+- `laurel config set <table>.<key>` no longer writes the key into the wrong place
+  when the target table is followed by an array-of-tables (`[[navigation]]`,
+  `[[secondary_navigation]]`). The TOML section-boundary scan only recognized
+  standard `[table]` headers, so a following `[[navigation]]` was not treated as
+  a boundary and the table was assumed to run to end-of-file — the new key was
+  appended after the array (parsed as `navigation.N.<key>`, rejected as an
+  unknown key) and, when updating an existing key, a same-named key inside the
+  array could be clobbered instead. Array-of-tables headers now end a section
+  correctly, so `config set build.posts_order updated_at` writes into `[build]`
+  even with `[[navigation]]` below it.
 
 ## [0.1.8] - 2026-06-19
 
