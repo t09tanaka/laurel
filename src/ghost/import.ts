@@ -15,7 +15,11 @@ import { GhostImageDownloader, isRootRelativeGhostContentAssetPath } from './ima
 import { renderLexicalToHtml } from './lexical-renderer.ts';
 import { renderMobiledocToHtml } from './mobiledoc-renderer.ts';
 import { type SlugChange, loadRedirectsJson, writeRedirectMaps } from './redirects.ts';
-import { createGhostTurndown, preprocessKoenigCardFences } from './turndown-rules.ts';
+import {
+  createGhostTurndown,
+  escapeMarkdownImageLabel,
+  preprocessKoenigCardFences,
+} from './turndown-rules.ts';
 import { stripGhostUrlPlaceholder } from './url-placeholder.ts';
 import { GhostUrlRewriter } from './url-rewriter.ts';
 
@@ -2441,16 +2445,17 @@ function backfillEmptyImageAlt(markdown: string): { markdown: string; count: num
     const alt = humanizeImageFilename(dest);
     if (!alt) return match;
     count += 1;
-    return `![${alt}](${dest}${title})`;
+    return `![${escapeMarkdownImageLabel(alt)}](${dest}${title})`;
   });
   return { markdown: out, count };
 }
 
 // Derive human-readable alt text from an image URL's filename:
 // `/content/images/2024/01/my-cat-photo.jpg` -> "My Cat Photo". Returns
-// undefined when the filename carries no letters (e.g. `5edb45.jpg`,
+// undefined when the filename carries no letters (e.g. `12345.jpg`,
 // `2024-01-01.png`) so the caller leaves the alt empty instead of emitting
-// noise. The result is plain words (no `[` / `]`), safe inside `![...]`.
+// noise. The caller escapes the result with `escapeMarkdownImageLabel` before
+// placing it inside `![...]`, so a filename with `]` cannot break the image.
 function humanizeImageFilename(dest: string): string | undefined {
   let url = dest.trim();
   if (url.startsWith('<') && url.endsWith('>')) url = url.slice(1, -1);

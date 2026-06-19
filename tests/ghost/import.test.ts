@@ -5399,4 +5399,13 @@ describe('importGhostExport — alt from filename (#676)', () => {
     expect(summary.altBackfilled).toBe(0);
     expect(await bodyOf()).toContain('![Real caption](/content/images/a-b.jpg)');
   });
+
+  test('escapes a bracket in the filename-derived alt so the image is not corrupted', async () => {
+    await writeFile(exportFile, exportWith('<p><img src="/content/images/my-photo].jpg"></p>'));
+    const summary = await importGhostExport({ cwd, file: exportFile, altFromFilename: true });
+    expect(summary.altBackfilled).toBe(1);
+    // The `]` is backslash-escaped so it cannot close the `![...]` label early.
+    expect(await bodyOf()).toContain('\\]');
+    expect(await bodyOf()).not.toMatch(/!\[[^\]]*\]\][^(]/);
+  });
 });
