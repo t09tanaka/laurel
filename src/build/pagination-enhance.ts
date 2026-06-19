@@ -13,11 +13,20 @@ import { ensureDir } from '~/util/fs.ts';
 // (duplicated posts that break the feed grid). Yielding to the theme mirrors
 // Ghost, where the theme's own script is the sole infinite-scroll mechanism.
 //
-// Detection is a content signature on the theme's JS assets: a single file that
-// both reads the `rel="next"` pagination link and appends DOM nodes. Both Casper
-// and Source match this even after minification (string literals and DOM method
-// names survive). A theme without infinite scroll has no reason to do both.
-const NATIVE_NEXT_LINK = /rel\s*=\s*\\?["']?next/i;
+// Detection is a content signature on the theme's JS assets: a JS file that
+// queries the `rel="next"` pagination link *and* appends DOM nodes. The link
+// query is matched as the `link[rel=next]` attribute-selector form (what both
+// Casper and Source pass to `querySelector`), not a bare `rel=next` — that keeps
+// embedded HTML strings, `rel: "next"` object props, and source-map fragments
+// from tripping it. Both themes match even after minification (string literals
+// and DOM method names survive). The two signals need only co-occur in the file,
+// not sit adjacent; pairing them is a guard against a vendor bundle that happens
+// to mention one alone. A theme that does neither (or only one) keeps Laurel's
+// shim; a false negative just degrades to the prior double-load behaviour, never
+// worse. Known gap: themes that append via `append()` / `insertAdjacentHTML` /
+// `innerHTML +=` rather than `appendChild` are not detected (none of Laurel's
+// target themes do this).
+const NATIVE_NEXT_LINK = /link\[\s*rel\s*=\s*\\?["']?next/i;
 
 export async function themeHasNativeInfiniteScroll(
   theme: Pick<ThemeBundle, 'assets'>,

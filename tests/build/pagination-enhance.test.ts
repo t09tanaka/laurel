@@ -143,6 +143,13 @@ describe('themeHasNativeInfiniteScroll', () => {
     expect(await themeHasNativeInfiniteScroll(await themeWithJsAsset(prefetch))).toBe(false);
   });
 
+  test('ignores a bare rel="next" (HTML string / object prop) without the link[ selector', async () => {
+    // A vendor bundle that emits `<link rel="next">` markup and appends DOM
+    // elsewhere must not be mistaken for an infinite-scroll script.
+    const vendor = 'el.innerHTML=\'<link rel="next">\';container.appendChild(node);';
+    expect(await themeHasNativeInfiniteScroll(await themeWithJsAsset(vendor))).toBe(false);
+  });
+
   test('ignores non-JS assets', async () => {
     const css = 'rel=next appendChild';
     expect(

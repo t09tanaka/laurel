@@ -814,9 +814,15 @@ async function runBuild({
   const paginationMode = config.components.pagination.mode;
   const themeOwnsInfiniteScroll =
     paginationMode !== 'links' && (await themeHasNativeInfiniteScroll(theme));
+  // Derived once so the render-time injection gate and the emit gate below can't
+  // diverge (e.g. if a plugin mutates config between the two reads).
+  const emitPaginationEnhance = paginationMode !== 'links' && !themeOwnsInfiniteScroll;
   if (themeOwnsInfiniteScroll) {
+    // Note for `load-more`: the theme's own (auto) infinite scroll is used
+    // instead of Laurel's button — running both would double-load. The button
+    // isn't available against a theme that ships always-on infinite scroll.
     logger.info(
-      `Theme '${theme.name}' provides its own infinite scroll; skipping Laurel's pagination.mode = "${paginationMode}" enhancement to avoid double-loading.`,
+      `Theme '${theme.name}' ships its own infinite scroll; using it instead of Laurel's pagination.mode = "${paginationMode}" enhancement (running both would fetch every next page twice).`,
     );
   }
   // Diagnose malformed portal configs (e.g. `provider = "custom"` with no
@@ -1524,7 +1530,7 @@ async function runBuild({
   // emitted on the same condition or feed pages 404 on `/pagination/enhance.js`.
   // Skipped entirely when the theme owns infinite scroll — the shim isn't
   // injected then, so emitting the file would only leave a dead asset.
-  if (config.components.pagination.mode !== 'links' && !themeOwnsInfiniteScroll) {
+  if (emitPaginationEnhance) {
     keepOutput('pagination/enhance.js');
     await timed(profiler, 'pagination_enhance', () =>
       emitPaginationEnhanceShim({ config, outputDir }),
