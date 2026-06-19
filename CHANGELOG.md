@@ -9,6 +9,10 @@ published to npm with `npm publish`; there is no CI release automation).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.1.9] - 2026-06-19
+
 ### Fixed
 
 - `laurel config set <table>.<key>` no longer writes the key into the wrong place
@@ -20,7 +24,7 @@ published to npm with `npm publish`; there is no CI release automation).
   unknown key) and, when updating an existing key, a same-named key inside the
   array could be clobbered instead. Array-of-tables headers now end a section
   correctly, so `config set build.posts_order updated_at` writes into `[build]`
-  even with `[[navigation]]` below it.
+  even with `[[navigation]]` below it. (#677)
 
 ## [0.1.8] - 2026-06-19
 
@@ -195,7 +199,8 @@ published to npm with `npm publish`; there is no CI release automation).
   components (search, comments stub, OG images, JSON feeds), and
   `laurel import-ghost` / `laurel import-wordpress` migration tooling.
 
-[Unreleased]: https://github.com/t09tanaka/laurel/compare/v0.1.8...HEAD
+[Unreleased]: https://github.com/t09tanaka/laurel/compare/v0.1.9...HEAD
+[0.1.9]: https://github.com/t09tanaka/laurel/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/t09tanaka/laurel/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/t09tanaka/laurel/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/t09tanaka/laurel/compare/v0.1.5...v0.1.6
