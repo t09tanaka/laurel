@@ -5328,3 +5328,84 @@ describe('importGhostExport — source URL inference (#674)', () => {
     expect(calls).not.toContain('https://inferred.example/content/images/2024/01/cover.jpg');
   });
 });
+
+describe('importGhostExport — alt from filename (#676)', () => {
+  let cwd: string;
+  let exportFile: string;
+
+  beforeEach(async () => {
+    cwd = await realpath(await mkdtemp(join(tmpdir(), 'laurel-import-ghost-alt-')));
+    exportFile = join(cwd, 'export.json');
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  function exportWith(html: string): string {
+    return JSON.stringify({
+      db: [
+        {
+          data: {
+            posts: [
+              { id: 'p1', title: 'Post', slug: 'p', html, status: 'published', type: 'post' },
+            ],
+          },
+        },
+      ],
+    });
+  }
+
+  function bodyOf(): Promise<string> {
+    return readFile(join(cwd, 'content/posts/p.md'), 'utf8');
+  }
+
+  test('backfills empty alt from the filename when --alt-from-filename is set', async () => {
+    await writeFile(
+      exportFile,
+      exportWith('<p><img src="/content/images/2024/01/my-cat-photo.jpg"></p>'),
+    );
+    const summary = await importGhostExport({ cwd, file: exportFile, altFromFilename: true });
+    expect(summary.altBackfilled).toBe(1);
+    expect(await bodyOf()).toContain('![My Cat Photo](/content/images/2024/01/my-cat-photo.jpg)');
+  });
+
+  test('leaves empty alt untouched by default', async () => {
+    await writeFile(
+      exportFile,
+      exportWith('<p><img src="/content/images/2024/01/my-cat-photo.jpg"></p>'),
+    );
+    const summary = await importGhostExport({ cwd, file: exportFile });
+    expect(summary.altBackfilled).toBe(0);
+    expect(await bodyOf()).toContain('![](/content/images/2024/01/my-cat-photo.jpg)');
+  });
+
+  test('does not fabricate alt for letterless filenames', async () => {
+    await writeFile(
+      exportFile,
+      exportWith('<p><img src="/content/images/2024/01/2024-01-01.jpg"></p>'),
+    );
+    const summary = await importGhostExport({ cwd, file: exportFile, altFromFilename: true });
+    expect(summary.altBackfilled).toBe(0);
+    expect(await bodyOf()).toContain('![](/content/images/2024/01/2024-01-01.jpg)');
+  });
+
+  test('preserves an existing alt', async () => {
+    await writeFile(
+      exportFile,
+      exportWith('<p><img src="/content/images/a-b.jpg" alt="Real caption"></p>'),
+    );
+    const summary = await importGhostExport({ cwd, file: exportFile, altFromFilename: true });
+    expect(summary.altBackfilled).toBe(0);
+    expect(await bodyOf()).toContain('![Real caption](/content/images/a-b.jpg)');
+  });
+
+  test('escapes a bracket in the filename-derived alt so the image is not corrupted', async () => {
+    await writeFile(exportFile, exportWith('<p><img src="/content/images/my-photo].jpg"></p>'));
+    const summary = await importGhostExport({ cwd, file: exportFile, altFromFilename: true });
+    expect(summary.altBackfilled).toBe(1);
+    // The `]` is backslash-escaped so it cannot close the `![...]` label early.
+    expect(await bodyOf()).toContain('\\]');
+    expect(await bodyOf()).not.toMatch(/!\[[^\]]*\]\][^(]/);
+  });
+});

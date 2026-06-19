@@ -29,6 +29,13 @@ published to npm with `npm publish`; there is no CI release automation).
   `.post-feed`) and `item_selector` (default `.post-card`) make it
   theme-agnostic. The default `links` mode ships no JS and is byte-identical to
   before. (#672)
+- `laurel import-ghost --alt-from-filename` generates alt text from the image
+  filename for post-body images that have an empty alt (e.g.
+  `my-cat-photo.jpg` → "My Cat Photo"), so Ghost-migrated content stops flooding
+  the build with accessibility `missing/empty alt` warnings. Off by default;
+  images whose filename has no letters (hashes / bare dates) are left empty
+  rather than fabricating noise, an existing alt is never overwritten, and the
+  import summary reports how many were backfilled. (#676)
 
 ### Changed
 

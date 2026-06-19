@@ -331,7 +331,7 @@ function escapeHtmlAttr(v: string): string {
     .replace(/>/g, '&gt;');
 }
 
-function escapeMarkdownImageLabel(value: string): string {
+export function escapeMarkdownImageLabel(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/]/g, '\\]');
 }
 

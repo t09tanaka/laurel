@@ -15,7 +15,11 @@ import { GhostImageDownloader, isRootRelativeGhostContentAssetPath } from './ima
 import { renderLexicalToHtml } from './lexical-renderer.ts';
 import { renderMobiledocToHtml } from './mobiledoc-renderer.ts';
 import { type SlugChange, loadRedirectsJson, writeRedirectMaps } from './redirects.ts';
-import { createGhostTurndown, preprocessKoenigCardFences } from './turndown-rules.ts';
+import {
+  createGhostTurndown,
+  escapeMarkdownImageLabel,
+  preprocessKoenigCardFences,
+} from './turndown-rules.ts';
 import { stripGhostUrlPlaceholder } from './url-placeholder.ts';
 import { GhostUrlRewriter } from './url-rewriter.ts';
 
@@ -265,6 +269,9 @@ export interface ImportSummary {
   // failed and the post fell back safely. Surfaced separately so users with
   // large exports can spot body loss before importing.
   bodiesEmpty: number;
+  // Post-body images whose empty alt was backfilled from the filename because
+  // `--alt-from-filename` was set. 0 when the flag is off.
+  altBackfilled: number;
   // Custom redirect rules read from <export>/content/data/redirects.json. Each
   // one becomes a line in the emitted _redirects / vercel.json / nginx.conf
   // snippets so links to the source Ghost site survive migration (#503).
@@ -343,6 +350,12 @@ interface ImportGhostOptions {
   // site-relative path. Internal hyperlinks (`<a href>` / `[text](url)`) keep
   // pointing at the migrated content instead of 404ing on the old domain.
   sourceUrl?: string;
+  // When true, generate alt text from the image filename for post-body images
+  // that have an empty alt (`![](src)`), so migrated content does not flood the
+  // build with a11y `missing/empty alt` warnings. Off by default because a
+  // filename-derived alt is only a starting point; filenames with no letters
+  // (hashes / bare dates) are left empty rather than fabricating noise.
+  altFromFilename?: boolean;
   // Test seam: override the fetch implementation used by the downloader.
   // Defaults to globalThis.fetch.
   fetcher?: typeof fetch;
@@ -539,6 +552,7 @@ export async function importGhostExport(opts: ImportGhostOptions): Promise<Impor
     tagFiltered: 0,
     dateFiltered: 0,
     bodiesEmpty: 0,
+    altBackfilled: 0,
     codeInjectionSkipped: 0,
     slugCollisions: 0,
   };
@@ -645,6 +659,7 @@ async function importFromResolvedInput(
     tagFiltered: number;
     dateFiltered: number;
     bodiesEmpty: number;
+    altBackfilled: number;
     codeInjectionSkipped: number;
     slugCollisions: number;
   },
@@ -1177,6 +1192,7 @@ async function importFromResolvedInput(
     tagFiltered: counters.tagFiltered,
     dateFiltered: counters.dateFiltered,
     bodiesEmpty: counters.bodiesEmpty,
+    altBackfilled: counters.altBackfilled,
     redirectsImported: redirectMaps.customCount,
     slugRedirects: redirectMaps.slugCount,
     codeInjectionSkipped: counters.codeInjectionSkipped,
@@ -1934,6 +1950,7 @@ interface RenderPostContext {
     tagFiltered: number;
     dateFiltered: number;
     bodiesEmpty: number;
+    altBackfilled: number;
     codeInjectionSkipped: number;
     slugCollisions: number;
   };
@@ -2204,7 +2221,12 @@ async function renderPostRecord(
   const rawBody = renderPostBody(post, ctx.turndown, renderedHtml, opts.maxPostHtmlSizeBytes);
   if (rawBody === '') counters.bodiesEmpty += 1;
   const bodyAfterDownload = downloader ? await downloader.rewriteText(rawBody) : rawBody;
-  const body = urlRewriter ? urlRewriter.rewriteText(bodyAfterDownload) : bodyAfterDownload;
+  let body = urlRewriter ? urlRewriter.rewriteText(bodyAfterDownload) : bodyAfterDownload;
+  if (opts.altFromFilename) {
+    const backfilled = backfillEmptyImageAlt(body);
+    body = backfilled.markdown;
+    counters.altBackfilled += backfilled.count;
+  }
   const htmlAfterDownload =
     keepHtml && renderedHtml.trim()
       ? downloader
@@ -2406,6 +2428,47 @@ function sanitizeImageUrl(
     }
   }
   return value;
+}
+
+// Markdown inline image with an empty alt: `![](dest)` or `![](dest "title")`.
+// The destination may be angle-bracket wrapped (`<...>`) when it contains
+// spaces; the title group is preserved verbatim on rewrite.
+const EMPTY_ALT_IMAGE_RE = /!\[\]\(\s*(<[^>]+>|[^)\s]+)((?:\s+"[^"]*")?)\s*\)/g;
+
+// Backfill alt text from the image filename for every empty-alt Markdown image,
+// so Ghost-migrated bodies don't trip the build's a11y alt lint. Images with an
+// existing alt are untouched, and filenames with no letters (hashes / bare
+// dates) are left empty rather than fabricating a meaningless alt.
+function backfillEmptyImageAlt(markdown: string): { markdown: string; count: number } {
+  let count = 0;
+  const out = markdown.replace(EMPTY_ALT_IMAGE_RE, (match, dest: string, title: string) => {
+    const alt = humanizeImageFilename(dest);
+    if (!alt) return match;
+    count += 1;
+    return `![${escapeMarkdownImageLabel(alt)}](${dest}${title})`;
+  });
+  return { markdown: out, count };
+}
+
+// Derive human-readable alt text from an image URL's filename:
+// `/content/images/2024/01/my-cat-photo.jpg` -> "My Cat Photo". Returns
+// undefined when the filename carries no letters (e.g. `12345.jpg`,
+// `2024-01-01.png`) so the caller leaves the alt empty instead of emitting
+// noise. The caller escapes the result with `escapeMarkdownImageLabel` before
+// placing it inside `![...]`, so a filename with `]` cannot break the image.
+function humanizeImageFilename(dest: string): string | undefined {
+  let url = dest.trim();
+  if (url.startsWith('<') && url.endsWith('>')) url = url.slice(1, -1);
+  url = url.split('#')[0]?.split('?')[0] ?? url;
+  const base = url.split('/').pop() ?? '';
+  const name = base.replace(/\.[A-Za-z0-9]+$/, '');
+  const words = name.split(/[-_\s.]+/).filter((word) => word.length > 0);
+  if (!words.some((word) => /[A-Za-z]/.test(word))) return undefined;
+  const text = words
+    .map((word) => (/^[a-z]/.test(word) ? word.charAt(0).toUpperCase() + word.slice(1) : word))
+    .join(' ')
+    .trim();
+  return text.length > 0 ? text : undefined;
 }
 
 // Re-slugify any string from an untrusted Ghost export so it is safe to use as
