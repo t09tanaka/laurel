@@ -121,6 +121,52 @@ describe('emit_at_base_path', () => {
     }
   });
 
+  test('rebuilding under a different base_path removes the orphaned previous tree', async () => {
+    const cwd = await makeSite('/blog/');
+    try {
+      await build({ cwd, basePath: '/blog/' });
+      expect(await exists(join(cwd, 'dist/blog/index.html'))).toBe(true);
+
+      await build({ cwd, basePath: '/blog2/' });
+      expect(await exists(join(cwd, 'dist/blog2/index.html'))).toBe(true);
+      // The previous /blog/ subtree is an orphan once base_path changed; a plain
+      // `aws s3 sync dist` would otherwise re-upload it, so it must be removed.
+      expect(await exists(join(cwd, 'dist/blog'))).toBe(false);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('switching from flat to nested removes the orphaned flat tree', async () => {
+    const cwd = await makeSite('/');
+    try {
+      await build({ cwd });
+      expect(await exists(join(cwd, 'dist/index.html'))).toBe(true);
+
+      await build({ cwd, basePath: '/blog/' });
+      expect(await exists(join(cwd, 'dist/blog/index.html'))).toBe(true);
+      // Flat remnants under the output root must not survive the switch.
+      expect(await exists(join(cwd, 'dist/index.html'))).toBe(false);
+      expect(await exists(join(cwd, 'dist/assets'))).toBe(false);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('switching from nested to flat removes the orphaned nested tree', async () => {
+    const cwd = await makeSite('/blog/');
+    try {
+      await build({ cwd, basePath: '/blog/' });
+      expect(await exists(join(cwd, 'dist/blog/index.html'))).toBe(true);
+
+      await build({ cwd, basePath: '/' });
+      expect(await exists(join(cwd, 'dist/index.html'))).toBe(true);
+      expect(await exists(join(cwd, 'dist/blog'))).toBe(false);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   test('emitAtBasePath BuildOptions override forces nesting on/off (CLI flag path)', async () => {
     // Mirrors `--emit-at-base-path` / `--no-emit-at-base-path`: the override
     // wins over the config-derived linkage.
