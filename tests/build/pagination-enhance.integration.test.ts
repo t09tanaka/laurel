@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from '~/build/pipeline.ts';
@@ -14,7 +14,15 @@ afterAll(async () => {
 // Build a minimal self-contained site. Search defaults to enabled, so the
 // regression we guard against (the pagination runtime emitted only inside the
 // search block) requires search to be explicitly disabled here.
-async function makeSite(paginationConfig: string): Promise<string> {
+//
+// The Source theme ships its own infinite-scroll script, which now suppresses
+// Laurel's shim (see themeHasNativeInfiniteScroll). Tests that need the shim to
+// emit pass `neutralizeThemeInfiniteScroll: true` to strip that script so the
+// theme no longer "owns" infinite scroll — standing in for a theme without one.
+async function makeSite(
+  paginationConfig: string,
+  opts: { neutralizeThemeInfiniteScroll?: boolean } = {},
+): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'laurel-pg-int-'));
   createdRoots.push(dir);
   await mkdir(join(dir, 'content/posts'), { recursive: true });
@@ -52,12 +60,20 @@ async function makeSite(paginationConfig: string): Promise<string> {
   await cp(join(process.cwd(), 'example/themes/source'), join(dir, 'themes/source'), {
     recursive: true,
   });
+  if (opts.neutralizeThemeInfiniteScroll) {
+    // Overwrite (rather than delete) so {{asset}} references stay valid.
+    for (const rel of ['assets/built/source.js', 'assets/js/pagination.js']) {
+      await writeFile(join(dir, 'themes/source', rel), 'console.log(1);', 'utf8');
+    }
+  }
   return dir;
 }
 
 describe('pagination enhancement build integration', () => {
   test('emits pagination/enhance.js with search disabled (regression for #672)', async () => {
-    const cwd = await makeSite('[components.pagination]\nmode = "infinite"');
+    const cwd = await makeSite('[components.pagination]\nmode = "infinite"', {
+      neutralizeThemeInfiniteScroll: true,
+    });
     await build({ cwd });
     expect(existsSync(join(cwd, 'dist/pagination/enhance.js'))).toBe(true);
   });
@@ -66,5 +82,14 @@ describe('pagination enhancement build integration', () => {
     const cwd = await makeSite('[components.pagination]\nmode = "links"');
     await build({ cwd });
     expect(existsSync(join(cwd, 'dist/pagination/enhance.js'))).toBe(false);
+  });
+
+  test('skips the shim when the theme owns infinite scroll (no double-loading)', async () => {
+    // Source theme as-is ships pagination.js, so Laurel must not emit its shim.
+    const cwd = await makeSite('[components.pagination]\nmode = "infinite"');
+    await build({ cwd });
+    expect(existsSync(join(cwd, 'dist/pagination/enhance.js'))).toBe(false);
+    const home = await readFile(join(cwd, 'dist/index.html'), 'utf8');
+    expect(home).not.toContain('data-laurel-pagination-enhance');
   });
 });
