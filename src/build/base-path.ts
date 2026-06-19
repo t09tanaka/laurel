@@ -29,3 +29,13 @@ export function normalizeBasePath(basePath: string): string {
   if (!value.endsWith('/')) value = `${value}/`;
   return value.replace(/\/{2,}/g, '/');
 }
+
+/**
+ * Map a normalised base path to the relative on-disk directory segment used by
+ * `emit_at_base_path`. `"/blog/"` -> `"blog"`, `"/ja/blog/"` -> `"ja/blog"`,
+ * `"/"` -> `""`. Pass the result through `node:path`'s `join` to nest the
+ * output dir; an empty string means "no nesting" (root deployment).
+ */
+export function basePathDiskSegment(basePath: string): string {
+  return normalizeBasePath(basePath).replace(/^\/+/, '').replace(/\/+$/, '');
+}

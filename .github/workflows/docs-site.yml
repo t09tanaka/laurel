@@ -60,7 +60,12 @@ jobs:
 
       - name: Build docs-site
         working-directory: docs-site
-        run: bun ../src/cli/index.ts build --base-path "${{ steps.pages.outputs.base_path }}"
+        # GitHub Pages serves the project under base_path (e.g. /laurel/) and
+        # strips that prefix at the host, so the uploaded artifact must stay
+        # flat in dist/. --no-emit-at-base-path opts out of the default
+        # base_path disk nesting; without it the output would land in
+        # dist/<base_path>/ and Pages would resolve /laurel/laurel/.
+        run: bun ../src/cli/index.ts build --base-path "${{ steps.pages.outputs.base_path }}" --no-emit-at-base-path
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5

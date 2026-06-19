@@ -121,7 +121,7 @@ import { emitMeilisearchRecords } from './meilisearch.ts';
 import { minifyHtmlOutputs } from './minify.ts';
 import { emitNginxConf } from './nginx.ts';
 import { emitNojekyll } from './nojekyll.ts';
-import { cleanupStaleOutput, resolveOutputDir } from './output-dir.ts';
+import { cleanupStaleOutput, resolveBuildOutputDir } from './output-dir.ts';
 import { emitPaginationEnhanceShim, themeHasNativeInfiniteScroll } from './pagination-enhance.ts';
 import { assignPostUrls } from './permalinks.ts';
 import { PORTAL_MANIFEST_PATH, emitPortalManifest } from './portal-manifest.ts';
@@ -177,6 +177,12 @@ export interface BuildOptions {
   configPath?: string | undefined;
   outputDir?: string | undefined;
   basePath?: string | undefined;
+  // Override for `[build].emit_at_base_path`. Undefined leaves the config value
+  // alone (which itself defaults to "true when base_path is a subpath"); `true`
+  // / `false` are exposed through `--emit-at-base-path` / `--no-emit-at-base-path`
+  // so a preview build can mirror (or flatten) the URL tree on disk without
+  // editing laurel.toml.
+  emitAtBasePath?: boolean | undefined;
   baseUrl?: string | undefined;
   profile?: boolean | undefined;
   noAtomic?: boolean | undefined;
@@ -438,6 +444,7 @@ export async function build({
   configPath,
   outputDir: outputDirOverride,
   basePath: basePathOverride,
+  emitAtBasePath: emitAtBasePathOverride,
   baseUrl: baseUrlOverride,
   profile,
   noAtomic,
@@ -475,8 +482,23 @@ export async function build({
   if (copyContentAssets !== undefined) {
     config.build.copy_content_assets = copyContentAssets;
   }
-  const finalOutputDir = resolveOutputDir(cwd, outputDirOverride ?? config.build.output_dir);
   config.build.base_path = normalizeBasePath(basePathOverride ?? config.build.base_path);
+  if (emitAtBasePathOverride !== undefined) {
+    config.build.emit_at_base_path = emitAtBasePathOverride;
+  }
+  // When `emit_at_base_path` is on for a subpath deployment, nest the entire
+  // output under the base_path segment (dist/blog/...) so the on-disk tree
+  // mirrors the public URL tree and `aws s3 sync dist s3://bucket` yields keys
+  // matching the `/blog/...` URLs. HTML/asset/sitemap URLs already carry
+  // base_path and are unchanged; only the write target moves. Shared with
+  // `laurel deploy` via resolveBuildOutputDir so the deploy preflight finds the
+  // manifest in the same place the build wrote it.
+  const finalOutputDir = resolveBuildOutputDir(
+    cwd,
+    outputDirOverride ?? config.build.output_dir,
+    config.build.base_path,
+    config.build.emit_at_base_path,
+  );
   if (baseUrlOverride !== undefined) {
     config.site.url = normalizeBaseUrl(baseUrlOverride);
   }

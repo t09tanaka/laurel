@@ -60,6 +60,40 @@ async function makeFixtureWithDist(extraConfig: string[] = []): Promise<string> 
   return dir;
 }
 
+// Mirrors a `base_path = "/blog/"` build where emit_at_base_path (on by default
+// for a subpath) nested the whole tree under dist/blog/. The manifest and
+// artifacts live in dist/blog/, while the deploy still uploads from the parent
+// dist/ so keys carry the blog/ segment.
+async function makeFixtureWithNestedDist(): Promise<string> {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-deploy-nested-')));
+  await writeFile(
+    join(dir, 'laurel.toml'),
+    [
+      '[site]',
+      'title = "Deploy Test"',
+      'url = "https://deploy.test/blog/"',
+      'locale = "en-US"',
+      '',
+      '[components.rss]',
+      'enabled = false',
+      '',
+      '[components.sitemap]',
+      'enabled = false',
+      '',
+      '[build]',
+      'base_path = "/blog/"',
+      '',
+    ].join('\n'),
+  );
+  await mkdir(join(dir, 'dist/blog'), { recursive: true });
+  await writeFile(join(dir, 'dist/blog/index.html'), '<!doctype html><title>x</title>');
+  await writeFile(
+    join(dir, 'dist/blog/.laurel-manifest.json'),
+    JSON.stringify({ version: 1, routes: [] }),
+  );
+  return dir;
+}
+
 async function writeDeployBuildManifest(dir: string): Promise<void> {
   await mkdir(join(dir, 'dist/.laurel'), { recursive: true });
   await writeFile(
@@ -145,7 +179,7 @@ describe('cli deploy', () => {
         dir,
       );
       expect(exitCode).toBe(1);
-      expect(stderr).toContain('dist/ does not exist');
+      expect(stderr).toContain('Build output does not exist');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -301,6 +335,33 @@ describe('cli deploy', () => {
       expect(stdout).toContain(
         `aws s3 cp ${join(dir, 'dist/index.html.br')} s3://my-bucket/index.html.br --content-encoding br --content-type 'text/html; charset=utf-8' --region us-west-2`,
       );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('s3 --dry-run finds the manifest in the nested emit dir and uploads from the parent', async () => {
+    const dir = await makeFixtureWithNestedDist();
+    try {
+      await writeFile(join(dir, 'dist/blog/assets.css.gz'), 'gzip-body');
+
+      const { stdout, stderr, exitCode } = await runCli(
+        ['deploy', 's3', '--dry-run', '--bucket', 'my-bucket', '--region', 'us-west-2'],
+        dir,
+      );
+      // The manifest lives in dist/blog/ under emit_at_base_path; the preflight
+      // must find it there rather than hard-exiting with "No build manifest".
+      expect(stderr).not.toContain('No build manifest');
+      expect(exitCode).toBe(0);
+      // Sync source is the parent dist/ so uploaded keys carry the blog/ segment
+      // and match the /blog/... URLs.
+      expect(stdout).toContain(`aws s3 sync ${join(dir, 'dist')} s3://my-bucket`);
+      // Sidecars under dist/blog/ upload to the blog/ key prefix.
+      expect(stdout).toContain(
+        `aws s3 cp ${join(dir, 'dist/blog/assets.css.gz')} s3://my-bucket/blog/assets.css.gz --content-encoding gzip`,
+      );
+      // The dry-run file listing reflects the real upload keys.
+      expect(stdout).toContain('blog/index.html');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

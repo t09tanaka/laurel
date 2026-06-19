@@ -670,10 +670,13 @@ describe('laurel build --config layering (#801)', () => {
     expect(result.exitCode).toBe(0);
     expect(existsSync(join(dir, 'layered-dist'))).toBe(true);
     expect(existsSync(join(dir, 'dist'))).toBe(false);
-    const postHtml = readFileSync(join(dir, 'layered-dist/hello/index.html'), 'utf8');
+    // base_path = "/prod/" merges in from production.toml, and the default
+    // emit_at_base_path linkage nests the output under the base_path segment so
+    // the on-disk tree mirrors the /prod/ URLs.
+    const postHtml = readFileSync(join(dir, 'layered-dist/prod/hello/index.html'), 'utf8');
     expect(postHtml).toContain('Layered Production');
     expect(postHtml).toContain('https://layered.test/prod/hello/');
-    const homeHtml = readFileSync(join(dir, 'layered-dist/index.html'), 'utf8');
+    const homeHtml = readFileSync(join(dir, 'layered-dist/prod/index.html'), 'utf8');
     expect(homeHtml).toContain('Base description survives');
   });
 });

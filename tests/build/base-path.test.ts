@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { normalizeBasePath } from '~/build/base-path.ts';
+import { basePathDiskSegment, normalizeBasePath } from '~/build/base-path.ts';
 import { resetWarningCount } from '~/util/logger.ts';
 
 const originalStderrWrite = process.stderr.write.bind(process.stderr);
@@ -89,5 +89,25 @@ describe('normalizeBasePath', () => {
 
   test('throws when given a non-string value', () => {
     expect(() => normalizeBasePath(123 as unknown as string)).toThrow(/must be a string/);
+  });
+});
+
+describe('basePathDiskSegment', () => {
+  test('returns empty string for root deployment', () => {
+    expect(basePathDiskSegment('/')).toBe('');
+  });
+
+  test('strips surrounding slashes for a single segment', () => {
+    expect(basePathDiskSegment('/blog/')).toBe('blog');
+    expect(basePathDiskSegment('/blog')).toBe('blog');
+  });
+
+  test('preserves interior slashes for nested paths', () => {
+    expect(basePathDiskSegment('/ja/blog/')).toBe('ja/blog');
+  });
+
+  test('normalises before extracting the segment', () => {
+    expect(basePathDiskSegment('blog')).toBe('blog');
+    expect(basePathDiskSegment('/blog//preview/')).toBe('blog/preview');
   });
 });

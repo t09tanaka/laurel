@@ -191,6 +191,7 @@ Build pipeline options that shape the emitted site.
 | --- | --- | --- | --- | --- |
 | `build.output_dir` | `string` | no | `"dist"` | Directory to emit the built site into, relative to the project root. |
 | `build.base_path` | `string` | no | `"/"` | URL prefix the site is served from (e.g. `/` for a root deployment, `/blog/` for a subpath). All generated links and asset URLs respect this prefix. |
+| `build.emit_at_base_path` | `boolean` | no | — | Mirror the public URL tree on disk: when set, emit the built site into `output_dir/<base_path>/` (e.g. `dist/blog/`) so syncing the parent `output_dir` to a host yields keys matching the `base_path` URLs. Defaults to true when `base_path` is a subpath (`!= "/"`) and false otherwise; set explicitly to override. No effect when `base_path` is `/`. |
 | `build.posts_per_page` | `number` | no | `12` | Posts per paginated index / archive page. |
 | `build.trailing_slash` | `"always" \| "never" \| "preserve"` | no | `"always"` | Controls clean HTML route shape. `always` keeps Ghost-style `/slug/` URLs and writes `slug/index.html`; `never` emits slashless `/slug` canonicals and writes `slug.html`; `preserve` follows each route's authored URL shape. |
 | `build.copy_content_assets` | `boolean` | no | `true` | When true, copy `content.assets_dir` into the output as `content/images/` so post-relative image URLs resolve. |

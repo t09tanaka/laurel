@@ -621,6 +621,12 @@ export const configSchema = z
           .describe(
             'URL prefix the site is served from (e.g. `/` for a root deployment, `/blog/` for a subpath). All generated links and asset URLs respect this prefix.',
           ),
+        emit_at_base_path: z
+          .boolean()
+          .optional()
+          .describe(
+            'Mirror the public URL tree on disk: when set, emit the built site into `output_dir/<base_path>/` (e.g. `dist/blog/`) so syncing the parent `output_dir` to a host yields keys matching the `base_path` URLs. Defaults to true when `base_path` is a subpath (`!= "/"`) and false otherwise; set explicitly to override. No effect when `base_path` is `/`.',
+          ),
         posts_per_page: z
           .number()
           .int()

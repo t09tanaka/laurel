@@ -4,6 +4,35 @@ import { mkdir, mkdtemp, readdir, rename, rm, rmdir } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { LaurelError } from '~/util/errors.ts';
 import { logger } from '~/util/logger.ts';
+import { basePathDiskSegment, normalizeBasePath } from './base-path.ts';
+
+/**
+ * Resolve the directory a build actually writes into, accounting for
+ * `emit_at_base_path`. When emit is on for a subpath deployment, the build
+ * nests every artifact under the base_path segment (`dist/blog/...`) so the
+ * on-disk tree mirrors the public URL tree. This is the single source of truth
+ * for "where did/will the build land": both the build pipeline (to redirect
+ * its writers) and `laurel deploy` (to find the manifest and verify a build
+ * exists) call it so the two cannot drift apart.
+ *
+ * `emitAtBasePath` is tri-state: `undefined` falls back to "on when base_path
+ * is a subpath", matching the config default. `outputDirSetting` is the raw
+ * configured / overridden output dir (relative); `basePath` may be raw or
+ * already-normalised (normalisation here is idempotent).
+ */
+export function resolveBuildOutputDir(
+  cwd: string,
+  outputDirSetting: string,
+  basePath: string,
+  emitAtBasePath?: boolean | undefined,
+): string {
+  const normalized = normalizeBasePath(basePath);
+  const emit = emitAtBasePath ?? normalized !== '/';
+  const segment = basePathDiskSegment(normalized);
+  return emit && segment !== ''
+    ? resolveOutputDir(cwd, join(outputDirSetting, segment))
+    : resolveOutputDir(cwd, outputDirSetting);
+}
 
 /**
  * Validate a user-supplied `build.output_dir` and resolve it to an absolute

@@ -9,8 +9,12 @@ import {
 } from '~/build/portal-manifest.ts';
 import type { LaurelConfig } from '~/config/schema.ts';
 
-function makeConfig(overrides: Partial<LaurelConfig['components']['portal']> = {}): LaurelConfig {
+function makeConfig(
+  overrides: Partial<LaurelConfig['components']['portal']> = {},
+  basePath = '/',
+): LaurelConfig {
   return {
+    build: { base_path: basePath },
     components: {
       portal: {
         provider: 'buttondown',
@@ -45,6 +49,32 @@ describe('portal manifest', () => {
     expect(manifest.selectors.some((s) => s.selector === '[data-portal="recommendations"]')).toBe(
       true,
     );
+  });
+
+  test('recommendations deep-link href carries base_path', () => {
+    const root = buildPortalManifest({
+      config: makeConfig(),
+      urls: {},
+      recommendationsEnabled: true,
+    });
+    expect(root.selectors).toContainEqual({
+      selector: '[data-portal="recommendations"]',
+      action: 'recommendations',
+      behavior: 'deep-link',
+      href: '/recommendations/#all-recommendations',
+    });
+
+    const subpath = buildPortalManifest({
+      config: makeConfig({}, '/blog/'),
+      urls: {},
+      recommendationsEnabled: true,
+    });
+    expect(subpath.selectors).toContainEqual({
+      selector: '[data-portal="recommendations"]',
+      action: 'recommendations',
+      behavior: 'deep-link',
+      href: '/blog/recommendations/#all-recommendations',
+    });
   });
 
   test('records invite-only removals', () => {
