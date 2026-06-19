@@ -31,7 +31,7 @@ import { emitContentApiShadows } from './api.ts';
 import { emitAssetManifest } from './asset-manifest.ts';
 import { findMissingAssetReferences, formatMissingAssetReference } from './asset-references.ts';
 import { emitAzureStaticWebAppConfig } from './azure.ts';
-import { normalizeBasePath } from './base-path.ts';
+import { basePathDiskSegment, normalizeBasePath } from './base-path.ts';
 import { normalizeBaseUrl } from './base-url.ts';
 import {
   type BuildManifestJson,
@@ -177,6 +177,12 @@ export interface BuildOptions {
   configPath?: string | undefined;
   outputDir?: string | undefined;
   basePath?: string | undefined;
+  // Override for `[build].emit_at_base_path`. Undefined leaves the config value
+  // alone (which itself defaults to "true when base_path is a subpath"); `true`
+  // / `false` are exposed through `--emit-at-base-path` / `--no-emit-at-base-path`
+  // so a preview build can mirror (or flatten) the URL tree on disk without
+  // editing laurel.toml.
+  emitAtBasePath?: boolean | undefined;
   baseUrl?: string | undefined;
   profile?: boolean | undefined;
   noAtomic?: boolean | undefined;
@@ -438,6 +444,7 @@ export async function build({
   configPath,
   outputDir: outputDirOverride,
   basePath: basePathOverride,
+  emitAtBasePath: emitAtBasePathOverride,
   baseUrl: baseUrlOverride,
   profile,
   noAtomic,
@@ -475,8 +482,24 @@ export async function build({
   if (copyContentAssets !== undefined) {
     config.build.copy_content_assets = copyContentAssets;
   }
-  const finalOutputDir = resolveOutputDir(cwd, outputDirOverride ?? config.build.output_dir);
   config.build.base_path = normalizeBasePath(basePathOverride ?? config.build.base_path);
+  if (emitAtBasePathOverride !== undefined) {
+    config.build.emit_at_base_path = emitAtBasePathOverride;
+  }
+  // When `emit_at_base_path` is on for a subpath deployment, nest the entire
+  // output under the base_path segment (dist/blog/...) so the on-disk tree
+  // mirrors the public URL tree and `aws s3 sync dist s3://bucket` yields keys
+  // matching the `/blog/...` URLs. The segment is fed back through
+  // resolveOutputDir so a pathological base_path (e.g. containing `..`) is
+  // caught by the same escape check that guards output_dir. HTML/asset/sitemap
+  // URLs already carry base_path and are unchanged; only the write target moves.
+  const baseOutputDirSetting = outputDirOverride ?? config.build.output_dir;
+  const emitAtBasePath = config.build.emit_at_base_path ?? config.build.base_path !== '/';
+  const basePathSegment = basePathDiskSegment(config.build.base_path);
+  const finalOutputDir =
+    emitAtBasePath && basePathSegment !== ''
+      ? resolveOutputDir(cwd, join(baseOutputDirSetting, basePathSegment))
+      : resolveOutputDir(cwd, baseOutputDirSetting);
   if (baseUrlOverride !== undefined) {
     config.site.url = normalizeBaseUrl(baseUrlOverride);
   }

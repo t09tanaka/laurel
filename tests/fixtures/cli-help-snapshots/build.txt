@@ -1,13 +1,15 @@
 Build the site into the configured output directory
 
 Usage:
-  laurel build [--config <path>] [--output <dir>] [--base-path <path>] [--base-url <url>] [--strict] [--profile] [--atomic] [--no-atomic] [--concurrency <n>] [--dry-run] [--include-drafts] [--force] [--clean] [--no-clean] [--cache] [--no-cache] [--progress] [--no-progress] [--copy-content-assets] [--no-copy-content-assets] [--watch] [--emit-content-api] [--no-emit-content-api] [--json]
+  laurel build [--config <path>] [--output <dir>] [--base-path <path>] [--base-url <url>] [--emit-at-base-path] [--no-emit-at-base-path] [--strict] [--profile] [--atomic] [--no-atomic] [--concurrency <n>] [--dry-run] [--include-drafts] [--force] [--clean] [--no-clean] [--cache] [--no-cache] [--progress] [--no-progress] [--copy-content-assets] [--no-copy-content-assets] [--watch] [--emit-content-api] [--no-emit-content-api] [--json]
 
 Options:
   -c, --config <path> Config path(s); repeat or comma-separate to deep-merge in order
   -o, --output <dir>  Override build.output_dir from the config (relative path inside the project root)
   --base-path <path>  Override build.base_path from the config (e.g. /preview/ for PR previews or /repo/ for GitHub Pages)
   --base-url <url>    Override site.url from the config with an absolute host (e.g. https://pr-42.example.com) so canonical, OG, RSS, and sitemap URLs target preview deploys (Netlify/Vercel/Cloudflare PR URL). Distinct from --base-path, which prefixes the path on a host
+  --emit-at-base-path Override build.emit_at_base_path: when base_path is a subpath, emit the site into output_dir/<base_path>/ (e.g. dist/blog/) so the on-disk tree mirrors the public URL tree and syncing the parent output_dir yields keys matching the URLs. Defaults to on whenever base_path is a subpath; pass --no-emit-at-base-path to flatten output into output_dir for hosts that strip the prefix at the edge. No effect when base_path is /
+  --no-emit-at-base-path  Emit the site flat into build.output_dir even when base_path is a subpath (the on-disk tree will not include the base_path segment); for hosts that strip the prefix at the edge or serve from the root
   --strict            Exit with non-zero status if any warnings are emitted
   --profile           Write dist/.laurel-build-stats.json with phase timings, per-route render durations, slowest routes, helper hotspots, and peak RSS for diagnosing slow or memory-heavy builds
   --atomic            Use atomic staging: write into a sibling temp dir before renaming into build.output_dir

@@ -45,6 +45,12 @@ export async function runBuild(args: string[]): Promise<number> {
     typeof parsed.values['base-path'] === 'string' ? parsed.values['base-path'] : undefined;
   const baseUrl =
     typeof parsed.values['base-url'] === 'string' ? parsed.values['base-url'] : undefined;
+  // Tri-state at the BuildOptions layer: undefined leaves the config value
+  // (itself "true when base_path is a subpath"); --emit-at-base-path forces
+  // true, --no-emit-at-base-path (or the negated env/.laurelrc) forces false.
+  const emitAtBasePathRaw = parsed.values['emit-at-base-path'];
+  const emitAtBasePath: boolean | undefined =
+    typeof emitAtBasePathRaw === 'boolean' ? emitAtBasePathRaw : undefined;
   const strict = parsed.values.strict === true;
   const profile = parsed.values.profile === true;
   const noAtomic = parsed.values.atomic === false;
@@ -118,6 +124,7 @@ export async function runBuild(args: string[]): Promise<number> {
     configPath,
     outputDir,
     basePath,
+    emitAtBasePath,
     baseUrl,
     profile,
     noAtomic,

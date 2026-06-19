@@ -28,6 +28,14 @@ export const BUILD_SPEC: CommandSpec = {
         'Override site.url from the config with an absolute host (e.g. https://pr-42.example.com) so canonical, OG, RSS, and sitemap URLs target preview deploys (Netlify/Vercel/Cloudflare PR URL). Distinct from --base-path, which prefixes the path on a host',
       placeholder: '<url>',
     },
+    'emit-at-base-path': {
+      type: 'boolean',
+      default: true,
+      description:
+        'Override build.emit_at_base_path: when base_path is a subpath, emit the site into output_dir/<base_path>/ (e.g. dist/blog/) so the on-disk tree mirrors the public URL tree and syncing the parent output_dir yields keys matching the URLs. Defaults to on whenever base_path is a subpath; pass --no-emit-at-base-path to flatten output into output_dir for hosts that strip the prefix at the edge. No effect when base_path is /',
+      negatedDescription:
+        'Emit the site flat into build.output_dir even when base_path is a subpath (the on-disk tree will not include the base_path segment); for hosts that strip the prefix at the edge or serve from the root',
+    },
     strict: {
       type: 'boolean',
       description: 'Exit with non-zero status if any warnings are emitted',

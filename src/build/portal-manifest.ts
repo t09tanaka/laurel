@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { LaurelConfig } from '~/config/schema.ts';
+import { joinPath } from '~/theme/assets.ts';
 import { ensureDir } from '~/util/fs.ts';
 import type { PortalTrigger, ResolvedPortalUrls } from './portal-urls.ts';
 
@@ -58,7 +59,7 @@ export function buildPortalManifest(opts: {
       selector: '[data-portal="recommendations"]',
       action: 'recommendations',
       behavior: 'deep-link',
-      href: '/recommendations/#all-recommendations',
+      href: `${joinPath(opts.config.build.base_path, 'recommendations/')}#all-recommendations`,
     });
   }
   return {
