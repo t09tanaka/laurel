@@ -9,6 +9,10 @@ published to npm with `npm publish`; there is no CI release automation).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.1.8] - 2026-06-19
+
 ### Added
 
 - `[build].posts_order` (`published_at` | `updated_at`) and
@@ -180,7 +184,8 @@ published to npm with `npm publish`; there is no CI release automation).
   components (search, comments stub, OG images, JSON feeds), and
   `laurel import-ghost` / `laurel import-wordpress` migration tooling.
 
-[Unreleased]: https://github.com/t09tanaka/laurel/compare/v0.1.7...HEAD
+[Unreleased]: https://github.com/t09tanaka/laurel/compare/v0.1.8...HEAD
+[0.1.8]: https://github.com/t09tanaka/laurel/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/t09tanaka/laurel/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/t09tanaka/laurel/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/t09tanaka/laurel/compare/v0.1.4...v0.1.5

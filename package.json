@@ -1,6 +1,6 @@
 {
   "name": "@t09tanaka/laurel",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Ghost-theme-compatible static site generator powered by Markdown and Bun",
   "license": "MIT",
   "author": "Takuto Tanaka <t09tanaka@gmail.com>",
