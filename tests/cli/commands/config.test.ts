@@ -358,6 +358,84 @@ describe('cli config', () => {
     }
   });
 
+  test('config set writes into a table that is followed by array-of-tables', async () => {
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-config-set-aot-')));
+    try {
+      await writeFile(
+        join(dir, 'laurel.toml'),
+        [
+          '[site]',
+          'title = "AOT"',
+          'url = "https://config.test"',
+          '',
+          '[build]',
+          'output_dir = "dist"',
+          'posts_per_page = 12',
+          '',
+          '[[navigation]]',
+          'label = "Home"',
+          'url = "/"',
+          '',
+          '[[navigation]]',
+          'label = "About"',
+          'url = "/about/"',
+          '',
+        ].join('\n'),
+      );
+      const result = await runCli(['config', 'set', 'build.posts_order', 'updated_at'], dir);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Set build.posts_order');
+
+      const get = await runCli(['config', 'get', 'build.posts_order'], dir);
+      expect(get.exitCode).toBe(0);
+      expect(get.stdout.trim()).toBe('updated_at');
+
+      // The navigation array-of-tables must be untouched.
+      const navGet = await runCli(['config', 'get', 'navigation', '--json'], dir);
+      expect(navGet.exitCode).toBe(0);
+      expect(JSON.parse(navGet.stdout)).toEqual([
+        { label: 'Home', url: '/' },
+        { label: 'About', url: '/about/' },
+      ]);
+
+      const body = await readFile(join(dir, 'laurel.toml'), 'utf8');
+      // The new key lands inside [build], before the first [[navigation]] header.
+      expect(body.indexOf('posts_order')).toBeLessThan(body.indexOf('[[navigation]]'));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('config set updates an existing table key without touching a same-named array key', async () => {
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-config-set-aot-update-')));
+    try {
+      await writeFile(
+        join(dir, 'laurel.toml'),
+        [
+          '[site]',
+          'title = "AOT Update"',
+          'url = "https://before.test"',
+          '',
+          '[[navigation]]',
+          'label = "Home"',
+          'url = "/"',
+          '',
+        ].join('\n'),
+      );
+      const result = await runCli(['config', 'set', 'site.url', 'https://after.test'], dir);
+      expect(result.exitCode).toBe(0);
+
+      const siteGet = await runCli(['config', 'get', 'site.url'], dir);
+      expect(siteGet.stdout.trim()).toBe('https://after.test');
+
+      // The identically-named navigation `url` must keep its value.
+      const navGet = await runCli(['config', 'get', 'navigation', '--json'], dir);
+      expect(JSON.parse(navGet.stdout)).toEqual([{ label: 'Home', url: '/' }]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('config set updates JSON config files', async () => {
     const dir = await realpath(await mkdtemp(join(tmpdir(), 'laurel-config-set-json-')));
     try {

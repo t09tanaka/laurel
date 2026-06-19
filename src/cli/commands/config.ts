@@ -428,7 +428,7 @@ function findTomlSection(
     if (parsed !== wanted) continue;
     let end = lines.length;
     for (let j = i + 1; j < lines.length; j += 1) {
-      if (parseTomlSectionHeader(lines[j] ?? '') !== undefined) {
+      if (isTomlSectionHeaderLine(lines[j] ?? '')) {
         end = j;
         break;
       }
@@ -439,13 +439,24 @@ function findTomlSection(
 }
 
 function firstTomlSectionIndex(lines: readonly string[]): number {
-  const idx = lines.findIndex((line) => parseTomlSectionHeader(line) !== undefined);
+  const idx = lines.findIndex((line) => isTomlSectionHeaderLine(line));
   return idx === -1 ? lines.length : idx;
 }
 
+// Names a standard table header `[name]` for name-based lookup. Array-of-tables
+// `[[name]]` is deliberately NOT named here (we never target one with a dotted
+// scalar key); it is still recognized as a boundary by isTomlSectionHeaderLine.
 function parseTomlSectionHeader(line: string): string | undefined {
-  const match = /^\s*\[([^\]]+)]\s*(?:#.*)?$/.exec(line);
+  const match = /^\s*\[([^[\]]+)]\s*(?:#.*)?$/.exec(line);
   return match?.[1]?.trim();
+}
+
+// Both `[name]` and array-of-tables `[[name]]` end the preceding section. Section
+// boundary scans must use this, not parseTomlSectionHeader, otherwise a
+// `[[navigation]]` following the target table is missed and the section is
+// treated as running to EOF (keys then land under the wrong table).
+function isTomlSectionHeaderLine(line: string): boolean {
+  return /^\s*\[\[?[^[\]]+]]?\s*(?:#.*)?$/.test(line);
 }
 
 function findTomlKeyLine(
