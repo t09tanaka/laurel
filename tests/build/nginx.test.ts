@@ -64,6 +64,36 @@ describe('buildNginxServerBlock', () => {
     expect(out).toContain('    brotli_static on;');
   });
 
+  test('emits only gzip_static for precompress "gzip" (no ngx_brotli)', () => {
+    const out = buildNginxServerBlock({
+      headers: DEFAULT_HEADERS_CONFIG,
+      rules: [],
+      precompress: 'gzip',
+    });
+    expect(out).toContain('    gzip_static on;');
+    expect(out).not.toContain('brotli_static');
+  });
+
+  test('emits only brotli_static for precompress "brotli"', () => {
+    const out = buildNginxServerBlock({
+      headers: DEFAULT_HEADERS_CONFIG,
+      rules: [],
+      precompress: 'brotli',
+    });
+    expect(out).toContain('    brotli_static on;');
+    expect(out).not.toContain('gzip_static');
+  });
+
+  test('emits neither static directive for precompress "off"', () => {
+    const out = buildNginxServerBlock({
+      headers: DEFAULT_HEADERS_CONFIG,
+      rules: [],
+      precompress: 'off',
+    });
+    expect(out).not.toContain('gzip_static');
+    expect(out).not.toContain('brotli_static');
+  });
+
   test('makes validator and freshness policy explicit without emitting expires directives', () => {
     const out = buildNginxServerBlock({ headers: DEFAULT_HEADERS_CONFIG, rules: [] });
     expect(out).toContain('    etag on;');

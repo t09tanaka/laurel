@@ -2,6 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ensureDir } from '~/util/fs.ts';
 import type { HeadersConfig } from './headers.ts';
+import type { PrecompressFormat } from './precompress.ts';
 import { type RedirectRule, type RedirectStatus, collapseRedirects } from './redirects.ts';
 
 // Self-hosted nginx is the most common destination after migrating off Ghost
@@ -110,6 +111,14 @@ function nginxStatusFlag(status: RedirectStatus): string {
 interface BuildNginxOptions {
   headers: HeadersConfig;
   rules: readonly RedirectRule[];
+  // Which `*_static` directives to emit, mirroring `[build].precompress`. Only
+  // emit `brotli_static` when Laurel actually produces `.br` sidecars: the
+  // directive comes from the third-party `ngx_brotli` module and an nginx built
+  // without it fails to load any config that references `brotli_static`, so a
+  // `gzip`-only deploy (the canonical "stock nginx without ngx_brotli" case)
+  // must not get it. Defaults to `both` to preserve the historical output for
+  // callers that don't thread the build config.
+  precompress?: PrecompressFormat;
   // Filesystem root nginx should serve from. Operators typically point this at
   // their `dist/` path. Defaults to `/var/www/laurel` so the emitted file is
   // immediately copy-pasteable for the common deploy layout described in
@@ -142,13 +151,19 @@ export function buildNginxServerBlock(opts: BuildNginxOptions): string {
   lines.push('    etag on;');
   lines.push('');
   // `gzip_static` / `brotli_static` let nginx serve pre-compressed `.gz` /
-  // `.br` siblings without re-compressing on every request. The `always`
-  // qualifier on `gzip_static` would be `always` but here the directive only
-  // takes `on/off/always`; `on` is the right default — operators flip to
-  // `always` when they pre-compress every asset including HTML.
-  lines.push('    gzip_static on;');
-  lines.push('    brotli_static on;');
-  lines.push('');
+  // `.br` siblings without re-compressing on every request. Only the formats
+  // Laurel emits (per `[build].precompress`) are switched on so the config
+  // never references `brotli_static` on a server that lacks `ngx_brotli`.
+  const format = opts.precompress ?? 'both';
+  if (format === 'gzip' || format === 'both') {
+    lines.push('    gzip_static on;');
+  }
+  if (format === 'brotli' || format === 'both') {
+    lines.push('    brotli_static on;');
+  }
+  if (format !== 'off') {
+    lines.push('');
+  }
   lines.push(`    error_page 404 ${NOT_FOUND_PATH};`);
 
   if (redirects.length > 0) {
@@ -262,6 +277,7 @@ export async function emitNginxConf(opts: {
   rules: readonly RedirectRule[];
   root?: string;
   serverName?: string;
+  precompress?: PrecompressFormat;
 }): Promise<void> {
   if (!opts.enabled) return;
   const body = buildNginxServerBlock({
@@ -269,6 +285,7 @@ export async function emitNginxConf(opts: {
     rules: opts.rules,
     root: opts.root,
     serverName: opts.serverName,
+    precompress: opts.precompress,
   });
   const targetDir = join(opts.outputDir, '.laurel');
   await ensureDir(targetDir);

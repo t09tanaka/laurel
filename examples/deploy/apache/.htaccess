@@ -68,7 +68,7 @@ FileETag MTime Size
 
 # ---------------------------------------------------------------------------
 # Compression. Prefer pre-compressed sidecars (laurel emits .br + .gz when
-# [build].precompress = true) so Apache doesn't burn CPU per request.
+# [build].precompress = "both") so Apache doesn't burn CPU per request.
 # ---------------------------------------------------------------------------
 <IfModule mod_brotli.c>
   AddEncoding br .br

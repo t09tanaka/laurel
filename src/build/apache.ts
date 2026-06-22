@@ -2,6 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ensureDir } from '~/util/fs.ts';
 import { type HeadersConfig, validateHstsForPreload } from './headers.ts';
+import type { PrecompressFormat } from './precompress.ts';
 import { type RedirectRule, collapseRedirects } from './redirects.ts';
 
 const CATCH_ALL = '/*';
@@ -47,6 +48,11 @@ export function toApacheRewritePattern(pattern: string): string {
 export function buildApacheHtaccess(opts: {
   headers: HeadersConfig;
   rules: readonly RedirectRule[];
+  // Which `AddEncoding` mappings to emit, mirroring `[build].precompress`. The
+  // `mod_brotli` / `mod_deflate` `<IfModule>` guards already make these inert
+  // when the module is absent, but emitting a mapping for a format Laurel never
+  // produces is misleading. Defaults to `both` for callers that omit it.
+  precompress?: PrecompressFormat;
 }): string {
   const redirects = collapseRedirects(opts.rules);
   const cacheRules = collectCacheRules(opts.headers);
@@ -68,14 +74,19 @@ export function buildApacheHtaccess(opts: {
   lines.push('AddType image/avif .avif');
   lines.push('AddType font/woff .woff');
   lines.push('AddType font/woff2 .woff2');
-  lines.push('');
-  lines.push('<IfModule mod_brotli.c>');
-  lines.push('  AddEncoding br .br');
-  lines.push('</IfModule>');
-  lines.push('');
-  lines.push('<IfModule mod_deflate.c>');
-  lines.push('  AddEncoding gzip .gz');
-  lines.push('</IfModule>');
+  const format = opts.precompress ?? 'both';
+  if (format === 'brotli' || format === 'both') {
+    lines.push('');
+    lines.push('<IfModule mod_brotli.c>');
+    lines.push('  AddEncoding br .br');
+    lines.push('</IfModule>');
+  }
+  if (format === 'gzip' || format === 'both') {
+    lines.push('');
+    lines.push('<IfModule mod_deflate.c>');
+    lines.push('  AddEncoding gzip .gz');
+    lines.push('</IfModule>');
+  }
 
   lines.push('');
   lines.push('<IfModule mod_rewrite.c>');
@@ -178,11 +189,16 @@ export async function emitApacheHtaccess(opts: {
   enabled: boolean;
   headers: HeadersConfig;
   rules: readonly RedirectRule[];
+  precompress?: PrecompressFormat;
 }): Promise<void> {
   if (!opts.enabled) return;
   await ensureDir(opts.outputDir);
   await writeFile(
     join(opts.outputDir, '.htaccess'),
-    buildApacheHtaccess({ headers: opts.headers, rules: opts.rules }),
+    buildApacheHtaccess({
+      headers: opts.headers,
+      rules: opts.rules,
+      precompress: opts.precompress,
+    }),
   );
 }

@@ -8,7 +8,7 @@ yoursite.example.com {
     root * /var/www/yoursite
     encode zstd gzip
 
-    # Pre-compressed sidecars from `laurel build` when [build].precompress = true.
+    # Pre-compressed sidecars from `laurel build` when [build].precompress = "both".
     file_server {
         precompressed br gzip
     }
