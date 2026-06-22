@@ -68,8 +68,25 @@ export function injectStylesheetPreload(html: string): string {
 export function syncPriorityImagePreload(html: string): string {
   const tags = scanLinkAndScriptTags(html);
   if (tags.length === 0) return html;
-  const image = firstHighPriorityImage(tags);
+  // Prefer an explicit `fetchpriority="high"` <img> (e.g. Source's
+  // feature-image.hbs). When the theme does not mark the feature <img> (e.g.
+  // Casper's post.hbs), fall back to the <picture>-wrapped feature image that
+  // matches the high-priority preload's own href — so the preload still aligns
+  // with the rendered modern-format <source> instead of preloading the JPEG the
+  // browser will never display.
+  let image = firstHighPriorityImage(tags, html);
+  if (!image) {
+    const preloadHref = firstSyncablePreloadHref(tags);
+    if (preloadHref) image = pictureImageMatchingHref(html, preloadHref);
+  }
   if (!image) return html;
+  // When the LCP <img> is wrapped in a <picture> (e.g. a theme feature_image
+  // upgraded to per-format <source>s), align the preload with the preferred
+  // <source> so the browser preloads the same modern-format bytes it renders
+  // instead of double-downloading the <img> fallback. The href stays the <img>
+  // src (the plain fallback for browsers that ignore imagesrcset).
+  const useSrcset = image.preferredSrcset ?? image.srcset;
+  const useSizes = image.preferredSizes ?? image.sizes;
   let synced = false;
 
   return rewriteTags(html, tags, (tag) => {
@@ -84,9 +101,10 @@ export function syncPriorityImagePreload(html: string): string {
     }
 
     let next = replaceAttrValue(tag.openTag, 'href', image.src);
+    if (image.preferredType) next = replaceAttrValue(next, 'type', image.preferredType);
     const additions: string[] = [];
-    if (image.srcset) additions.push(`imagesrcset="${escapeAttr(image.srcset)}"`);
-    if (image.sizes) additions.push(`imagesizes="${escapeAttr(image.sizes)}"`);
+    if (useSrcset) additions.push(`imagesrcset="${escapeAttr(useSrcset)}"`);
+    if (useSizes) additions.push(`imagesizes="${escapeAttr(useSizes)}"`);
     if (additions.length > 0) next = appendAttributes(next, ` ${additions.join(' ')}`);
     if (next === tag.openTag) return null;
     synced = true;
@@ -422,21 +440,124 @@ interface PriorityImage {
   src: string;
   srcset?: string | undefined;
   sizes?: string | undefined;
+  // When the <img> is wrapped in a <picture>, the preferred <source>'s srcset /
+  // type / sizes so the preload can target the rendered modern-format bytes.
+  preferredSrcset?: string | undefined;
+  preferredType?: string | undefined;
+  preferredSizes?: string | undefined;
 }
 
-function firstHighPriorityImage(tags: readonly ScriptOrLink[]): PriorityImage | undefined {
+function firstHighPriorityImage(
+  tags: readonly ScriptOrLink[],
+  html: string,
+): PriorityImage | undefined {
   for (const tag of tags) {
     if (tag.kind !== 'img') continue;
     if (extractAttrValue(tag.openTag, 'fetchpriority')?.toLowerCase() !== 'high') continue;
     const src = extractAttrValue(tag.openTag, 'src');
     if (!src || /^(?:data|blob):/i.test(src)) continue;
-    return {
+    const image: PriorityImage = {
       src,
       srcset: extractAttrValue(tag.openTag, 'srcset'),
       sizes: extractAttrValue(tag.openTag, 'sizes'),
     };
+    const preferred = enclosingPictureSource(html, tag.start);
+    if (preferred) {
+      image.preferredSrcset = preferred.srcset;
+      image.preferredType = preferred.type;
+      image.preferredSizes = preferred.sizes;
+    }
+    return image;
   }
   return undefined;
+}
+
+// When an <img> at `imgStart` sits inside an open <picture>, return the first
+// <source>'s srcset / type / sizes — the most-preferred format the browser will
+// render. Returns undefined when the <img> is not picture-wrapped or the first
+// <source> carries no srcset.
+function enclosingPictureSource(
+  html: string,
+  imgStart: number,
+): { srcset: string; type?: string; sizes?: string } | undefined {
+  const open = html.lastIndexOf('<picture', imgStart);
+  if (open < 0) return undefined;
+  const close = html.lastIndexOf('</picture>', imgStart);
+  if (close > open) return undefined;
+  const sourceMatch = /<source\b[^>]*>/i.exec(html.slice(open, imgStart));
+  if (!sourceMatch) return undefined;
+  const sourceTag = sourceMatch[0];
+  const srcset = extractAttrValue(sourceTag, 'srcset');
+  if (!srcset) return undefined;
+  return {
+    srcset,
+    type: extractAttrValue(sourceTag, 'type'),
+    sizes: extractAttrValue(sourceTag, 'sizes'),
+  };
+}
+
+// The href of the first high-priority image preload that has not already been
+// given explicit `imagesrcset`/`imagesizes` candidates — i.e. the one
+// syncPriorityImagePreload would rewrite. Used to locate the feature image when
+// the theme does not flag it with `fetchpriority="high"`.
+function firstSyncablePreloadHref(tags: readonly ScriptOrLink[]): string | undefined {
+  for (const tag of tags) {
+    if (tag.kind !== 'link' || !isHighPriorityImagePreload(tag)) continue;
+    if (
+      extractAttrValue(tag.openTag, 'imagesrcset') ||
+      extractAttrValue(tag.openTag, 'imagesizes')
+    ) {
+      continue;
+    }
+    const href = extractAttrValue(tag.openTag, 'href');
+    if (href && !/^(?:data|blob):/i.test(href)) return href;
+  }
+  return undefined;
+}
+
+// Locate the <picture>-wrapped <img> that renders the preload's feature image
+// (matched by the content-image rel shared between the preload href and the
+// <img> src/srcset) and return it as the alignment target. Returns undefined
+// when no matching picture-wrapped image exists, so a plain (non-picture)
+// feature image leaves the preload untouched.
+function pictureImageMatchingHref(html: string, href: string): PriorityImage | undefined {
+  const baseRel = featureImageBaseRel(href);
+  if (!baseRel) return undefined;
+  const imgRe = /<img\b[^>]*>/gi;
+  let m: RegExpExecArray | null = imgRe.exec(html);
+  while (m !== null) {
+    const openTag = m[0];
+    if (openTag.includes(baseRel)) {
+      const preferred = enclosingPictureSource(html, m.index);
+      const src = extractAttrValue(openTag, 'src');
+      if (preferred && src && !/^(?:data|blob):/i.test(src)) {
+        return {
+          src,
+          srcset: extractAttrValue(openTag, 'srcset'),
+          sizes: extractAttrValue(openTag, 'sizes'),
+          preferredSrcset: preferred.srcset,
+          preferredType: preferred.type,
+          preferredSizes: preferred.sizes,
+        };
+      }
+    }
+    m = imgRe.exec(html);
+  }
+  return undefined;
+}
+
+// The content-image rel (path under `/content/images/`, minus any `size/<seg>/`
+// or `format/<fmt>/` segments) that both a feature image preload href and the
+// rendered <img> variant URLs share, e.g. `2024/01/cover.jpg`. Returns
+// undefined for non-content-image hrefs (remote/CDN/data URLs).
+function featureImageBaseRel(href: string): string | undefined {
+  const clean = href.split(/[?#]/)[0] ?? '';
+  const idx = clean.indexOf('/content/images/');
+  if (idx < 0) return undefined;
+  let rel = clean.slice(idx + '/content/images/'.length);
+  rel = rel.replace(/^size\/[^/]+\//, '').replace(/^format\/[^/]+\//, '');
+  if (rel === '' || rel.includes('..')) return undefined;
+  return rel;
 }
 
 function isHighPriorityImagePreload(tag: ScriptOrLink): boolean {

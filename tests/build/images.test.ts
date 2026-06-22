@@ -20,6 +20,7 @@ import {
   injectImagePictureSourcesIntoContent,
   injectImageSrcset,
   injectImageSrcsetIntoContent,
+  injectThemeImagePictureSources,
   planImageVariants,
 } from '~/build/images.ts';
 import type { LaurelConfig } from '~/config/schema.ts';
@@ -611,6 +612,119 @@ describe('injectImagePictureSources', () => {
     expect(out).toContain('<picture>');
     expect(out).toContain('<source type="image/webp"');
     expect(out).toContain('/content/images/size/w600/shot.png.webp 600w');
+  });
+});
+
+describe('injectThemeImagePictureSources', () => {
+  // Mirrors Source's feature-image.hbs output (size variants, no format).
+  const featureImg = [
+    '<img',
+    ' srcset="/content/images/size/w320/cover.jpg 320w, /content/images/size/w600/cover.jpg 600w"',
+    ' sizes="(max-width: 1200px) 100vw, 1120px"',
+    ' src="/content/images/size/w1200/cover.jpg"',
+    ' alt="Cover" loading="eager" fetchpriority="high" decoding="async">',
+  ].join('');
+
+  test('wraps a theme feature_image <img> in a <picture> with per-format <source>s', () => {
+    const out = injectThemeImagePictureSources(featureImg, { formats: ['webp'] });
+    expect(out.startsWith('<picture>')).toBe(true);
+    expect(out.endsWith('</picture>')).toBe(true);
+    expect(out).toContain(
+      '<source type="image/webp" srcset="/content/images/size/w320/format/webp/cover.jpg 320w, /content/images/size/w600/format/webp/cover.jpg 600w" sizes="(max-width: 1200px) 100vw, 1120px">',
+    );
+    // The original <img> is preserved as the fallback.
+    expect(out).toContain('src="/content/images/size/w1200/cover.jpg"');
+    expect(out).toContain('fetchpriority="high"');
+  });
+
+  test('emits one <source> per format in config order (avif before webp)', () => {
+    const out = injectThemeImagePictureSources(featureImg, { formats: ['avif', 'webp'] });
+    const avifIdx = out.indexOf('image/avif');
+    const webpIdx = out.indexOf('image/webp');
+    expect(avifIdx).toBeGreaterThan(-1);
+    expect(webpIdx).toBeGreaterThan(avifIdx);
+    expect(out).toContain('/content/images/size/w320/format/avif/cover.jpg 320w');
+  });
+
+  test('skips when no formats are configured', () => {
+    expect(injectThemeImagePictureSources(featureImg, { formats: [] })).toBe(featureImg);
+  });
+
+  test('leaves Source post-card srcsets (already format/webp) untouched', () => {
+    // card-image-img.hbs already passes format="webp", so the srcset entries
+    // already live under /format/webp/ — there is nothing to upgrade.
+    const card =
+      '<img srcset="/content/images/size/w160/format/webp/cover.jpg 160w" ' +
+      'src="/content/images/size/w600/cover.jpg" loading="lazy">';
+    expect(injectThemeImagePictureSources(card, { formats: ['webp'] })).toBe(card);
+  });
+
+  test('leaves <img> already inside a <picture> untouched', () => {
+    const html = `<picture><source type="image/webp" srcset="/x.webp">${featureImg}</picture>`;
+    expect(injectThemeImagePictureSources(html, { formats: ['webp'] })).toBe(html);
+  });
+
+  test('skips images without a size segment', () => {
+    const html = '<img src="/content/images/cover.jpg" fetchpriority="high">';
+    expect(injectThemeImagePictureSources(html, { formats: ['webp'] })).toBe(html);
+  });
+
+  test('skips svg / non-jpg-png sources', () => {
+    const svg = '<img src="/content/images/size/w600/logo.svg">';
+    const webp = '<img src="/content/images/size/w600/cover.webp">';
+    expect(injectThemeImagePictureSources(svg, { formats: ['webp'] })).toBe(svg);
+    expect(injectThemeImagePictureSources(webp, { formats: ['webp'] })).toBe(webp);
+  });
+
+  test('drops non-transformable srcset entries (remote/original) from the <source>', () => {
+    const html =
+      '<img srcset="/content/images/size/w320/cover.jpg 320w, https://cdn.example.com/x.jpg 600w">';
+    const out = injectThemeImagePictureSources(html, { formats: ['webp'] });
+    // The remote entry is dropped from the WebP <source>; the <img> keeps it.
+    expect(out).toContain(
+      '<source type="image/webp" srcset="/content/images/size/w320/format/webp/cover.jpg 320w">',
+    );
+    expect(out).toContain('https://cdn.example.com/x.jpg 600w');
+  });
+
+  test('caps the <source> at size variants when the largest entry is the original', () => {
+    // Real-world LCP case: when a requested size would not shrink the source,
+    // {{img_url}} emits the full-resolution original (no `size/` segment, later
+    // fingerprinted), so the largest srcset entry is not a size variant. The
+    // WebP <source> covers the size buckets; the <img> fallback keeps the
+    // original for the widest viewports.
+    const html = [
+      '<img srcset="/content/images/size/w320/cover.jpg 320w, ',
+      '/content/images/size/w600/cover.jpg 600w, ',
+      '/content/images/cover.jpg 2000w" ',
+      'src="/content/images/cover.jpg" fetchpriority="high">',
+    ].join('');
+    const out = injectThemeImagePictureSources(html, { formats: ['webp'] });
+    expect(out).toContain(
+      '<source type="image/webp" srcset="/content/images/size/w320/format/webp/cover.jpg 320w, /content/images/size/w600/format/webp/cover.jpg 600w">',
+    );
+    // The full-res original is absent from the WebP source but kept on the <img>.
+    expect(out).not.toContain('format/webp/cover.jpg 2000w');
+    expect(out).toContain('/content/images/cover.jpg 2000w');
+  });
+
+  test('skips when no entry is a transformable size variant', () => {
+    const html = '<img srcset="/content/images/cover.jpg 2000w" src="/content/images/cover.jpg">';
+    expect(injectThemeImagePictureSources(html, { formats: ['webp'] })).toBe(html);
+  });
+
+  test('is idempotent (re-running does not double-wrap)', () => {
+    const once = injectThemeImagePictureSources(featureImg, { formats: ['webp'] });
+    const twice = injectThemeImagePictureSources(once, { formats: ['webp'] });
+    expect(twice).toBe(once);
+  });
+
+  test('falls back to src when the <img> has no srcset', () => {
+    const html = '<img src="/content/images/size/w600/cover.jpg" fetchpriority="high">';
+    const out = injectThemeImagePictureSources(html, { formats: ['webp'] });
+    expect(out).toContain(
+      '<source type="image/webp" srcset="/content/images/size/w600/format/webp/cover.jpg">',
+    );
   });
 });
 

@@ -3379,6 +3379,7 @@ interface DashboardPreviewRenderContext {
   pluginSet: LoadedPluginSet;
   pluginCtx: BuildContext;
   contentImagePlan: ContentImageAssetPlan;
+  formatVariants: readonly ImageFormat[];
 }
 
 async function renderDashboardContentPreview({
@@ -3403,6 +3404,7 @@ async function renderDashboardContentPreview({
     plugins: ctx.pluginSet.plugins,
     pluginCtx: ctx.pluginCtx,
     contentImagePlan: ctx.contentImagePlan,
+    formatVariants: ctx.formatVariants,
     portalUrls: resolvePortalUrls(ctx.config.components.portal),
     recommendationsEnabled: ctx.config.recommendations.length > 0,
   });
@@ -3482,7 +3484,17 @@ async function loadDashboardPreviewRenderContext({
         stripMetadata: config.components.images.strip_metadata,
       })
     : { entries: [], byRel: new Map() };
-  return { config, content, theme, engine, routes, pluginSet, pluginCtx, contentImagePlan };
+  return {
+    config,
+    content,
+    theme,
+    engine,
+    routes,
+    pluginSet,
+    pluginCtx,
+    contentImagePlan,
+    formatVariants,
+  };
 }
 
 async function invokeDashboardPreviewHook(
