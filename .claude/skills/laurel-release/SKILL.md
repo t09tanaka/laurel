@@ -74,7 +74,15 @@ release commit as the version bump.
 
    Write user-facing entries (what changed and why), not raw commit subjects,
    and cite the PR number (`(#NNN)`) where one exists.
-3. Sanity-check that the new section extracts cleanly — this is exactly what the
+3. Update the reference-link footer at the bottom of `CHANGELOG.md`: point
+   `[Unreleased]` at `compare/v<X.Y.Z>...HEAD` and add a `[X.Y.Z]` line for the
+   new version (`compare/v<previous>...v<X.Y.Z>`):
+
+   ```markdown
+   [Unreleased]: https://github.com/t09tanaka/laurel/compare/vX.Y.Z...HEAD
+   [X.Y.Z]: https://github.com/t09tanaka/laurel/compare/v<previous>...vX.Y.Z
+   ```
+4. Sanity-check that the new section extracts cleanly — this is exactly what the
    GitHub Release step consumes:
 
    ```sh
@@ -123,7 +131,7 @@ git commit -m "release: v<X.Y.Z>"
 git tag v<X.Y.Z>
 ```
 
-`CHANGELOG.md` must be in the release commit — the GitHub Release in step 9 reads it back at the tagged tree. Use `release:` as the commit prefix so the tag and changelog story stay easy to grep. Never `git commit --amend` a release commit — if you need to fix something after tagging, delete the tag, make a new commit, re-tag.
+`CHANGELOG.md` must be in the release commit — `release:notes` in step 9 reads the working-copy `CHANGELOG.md`, so committing it here (and running both steps from the same clean checkout) keeps the tagged content and the generated release notes identical. Use `release:` as the commit prefix so the tag and changelog story stay easy to grep. Never `git commit --amend` a release commit — if you need to fix something after tagging, delete the tag, make a new commit, re-tag.
 
 ### 8. Push the release commit and tag
 
