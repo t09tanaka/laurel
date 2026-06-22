@@ -11,6 +11,41 @@ published to npm with `npm publish`; there is no CI release automation).
 
 _Nothing yet._
 
+## [0.1.12] - 2026-06-22
+
+### Added
+
+- Theme feature images now render inside a `<picture>` element with a WebP
+  `<source>` alongside the original, and the LCP preload hint is aligned to the
+  same candidate so the preloaded image matches what the browser actually
+  selects. Cuts feature-image bytes on WebP-capable browsers without changing
+  the rendered markup for browsers that lack WebP support. (#682)
+
+## [0.1.11] - 2026-06-19
+
+### Fixed
+
+- Stale-output reconciliation now runs at the `output_dir` scope when
+  `emit_at_base_path` is set. Previously cleanup was scoped to the base-path
+  subtree, so files left over from a prior build outside that subtree were never
+  removed; the cleanup pass now covers the whole `output_dir`. (#680)
+
+## [0.1.10] - 2026-06-19
+
+### Added
+
+- `[build].emit_at_base_path` mirrors the site's URL tree on disk, emitting each
+  page under its base-path prefix so a subpath deploy (`https://host/blog/`)
+  serves the same structure locally and in production. (#678)
+
+### Fixed
+
+- Subpath deploys locate the build manifest in the nested emit directory instead
+  of assuming it sits at the output root. (#678)
+- Native infinite-scroll detection is tightened so the pagination enhancement
+  shim is skipped when the theme already owns infinite scroll, avoiding a
+  double-bound scroll handler. (#679)
+
 ## [0.1.9] - 2026-06-19
 
 ### Fixed

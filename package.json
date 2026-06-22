@@ -71,6 +71,7 @@
     "build:dashboard-bundle": "bun run scripts/build-dashboard-bundle.ts",
     "build:skill-bundle": "bun run scripts/build-skill-bundle.ts",
     "build:types": "tsc -p tsconfig.types.json",
+    "release:notes": "bun run scripts/release-notes.ts",
     "sbom:cyclonedx": "mkdir -p dist-sbom && cdxgen -t js --no-install-deps --json-pretty --output dist-sbom/laurel.cyclonedx.json .",
     "docs:cli": "bun run src/cli/docs.ts",
     "docs:config": "bun run src/config/docs.ts",
