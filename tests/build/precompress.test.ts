@@ -16,10 +16,10 @@ async function makeTempOutputDir(): Promise<string> {
 const LARGE_HTML = `<!doctype html><html><body>${'<p>hello world</p>'.repeat(80)}</body></html>`;
 
 describe('precompressOutput', () => {
-  test('returns zero and emits nothing when disabled', async () => {
+  test('returns zero and emits nothing when off', async () => {
     const dir = await makeTempOutputDir();
     await writeFile(join(dir, 'index.html'), LARGE_HTML);
-    const result = await precompressOutput({ outputDir: dir, enabled: false });
+    const result = await precompressOutput({ outputDir: dir, format: 'off' });
     expect(result.fileCount).toBe(0);
     expect(existsSync(join(dir, 'index.html.br'))).toBe(false);
     expect(existsSync(join(dir, 'index.html.gz'))).toBe(false);
@@ -32,7 +32,7 @@ describe('precompressOutput', () => {
     const css = `body { background: white; }\n${'.x { color: red; }\n'.repeat(50)}`;
     await writeFile(join(dir, 'assets/built/screen.css'), css);
 
-    const result = await precompressOutput({ outputDir: dir, enabled: true });
+    const result = await precompressOutput({ outputDir: dir, format: 'both' });
     expect(result.fileCount).toBe(2);
 
     expect(existsSync(join(dir, 'index.html.br'))).toBe(true);
@@ -53,7 +53,7 @@ describe('precompressOutput', () => {
     await writeFile(join(dir, 'font.woff2'), buf);
     await writeFile(join(dir, 'cover.avif'), buf);
 
-    const result = await precompressOutput({ outputDir: dir, enabled: true });
+    const result = await precompressOutput({ outputDir: dir, format: 'both' });
     expect(result.fileCount).toBe(0);
     expect(existsSync(join(dir, 'logo.png.br'))).toBe(false);
     expect(existsSync(join(dir, 'font.woff2.gz'))).toBe(false);
@@ -63,7 +63,7 @@ describe('precompressOutput', () => {
   test('skips files below the 256 B floor', async () => {
     const dir = await makeTempOutputDir();
     await writeFile(join(dir, 'tiny.html'), '<p>tiny</p>');
-    const result = await precompressOutput({ outputDir: dir, enabled: true });
+    const result = await precompressOutput({ outputDir: dir, format: 'both' });
     expect(result.fileCount).toBe(0);
     expect(existsSync(join(dir, 'tiny.html.br'))).toBe(false);
     expect(existsSync(join(dir, 'tiny.html.gz'))).toBe(false);
@@ -79,7 +79,7 @@ describe('precompressOutput', () => {
     await writeFile(join(dir, 'robots.txt'), payload);
     await writeFile(join(dir, 'app.js.map'), `{"sources":["${payload}"]}`);
 
-    const result = await precompressOutput({ outputDir: dir, enabled: true });
+    const result = await precompressOutput({ outputDir: dir, format: 'both' });
     expect(result.fileCount).toBe(6);
     for (const ext of ['svg', 'js', 'json', 'xml', 'txt', 'map']) {
       const base =
@@ -102,29 +102,40 @@ describe('precompressOutput', () => {
   test('does not recompress its own .br/.gz output on rerun', async () => {
     const dir = await makeTempOutputDir();
     await writeFile(join(dir, 'index.html'), LARGE_HTML);
-    await precompressOutput({ outputDir: dir, enabled: true });
+    await precompressOutput({ outputDir: dir, format: 'both' });
     // Rerun: should see the original .html but NOT walk into .br/.gz to
     // try to compress those (no `.html.br.br` / `.html.gz.gz`).
-    const second = await precompressOutput({ outputDir: dir, enabled: true });
+    const second = await precompressOutput({ outputDir: dir, format: 'both' });
     expect(second.fileCount).toBe(1);
     expect(existsSync(join(dir, 'index.html.br.br'))).toBe(false);
     expect(existsSync(join(dir, 'index.html.gz.gz'))).toBe(false);
   });
 
-  test('brotliOnly skips emitting .gz companions', async () => {
+  test('format "brotli" emits only .br companions', async () => {
     const dir = await makeTempOutputDir();
     await writeFile(join(dir, 'index.html'), LARGE_HTML);
-    const result = await precompressOutput({ outputDir: dir, enabled: true, brotliOnly: true });
+    const result = await precompressOutput({ outputDir: dir, format: 'brotli' });
     expect(result.fileCount).toBe(1);
     expect(existsSync(join(dir, 'index.html.br'))).toBe(true);
     expect(existsSync(join(dir, 'index.html.gz'))).toBe(false);
+  });
+
+  test('format "gzip" emits only .gz companions', async () => {
+    const dir = await makeTempOutputDir();
+    await writeFile(join(dir, 'index.html'), LARGE_HTML);
+    const result = await precompressOutput({ outputDir: dir, format: 'gzip' });
+    expect(result.fileCount).toBe(1);
+    expect(existsSync(join(dir, 'index.html.gz'))).toBe(true);
+    expect(existsSync(join(dir, 'index.html.br'))).toBe(false);
+    const gz = await readFile(join(dir, 'index.html.gz'));
+    expect(gunzipSync(gz).toString('utf8')).toBe(LARGE_HTML);
   });
 
   test('walks nested directories', async () => {
     const dir = await makeTempOutputDir();
     await mkdir(join(dir, 'a/b/c'), { recursive: true });
     await writeFile(join(dir, 'a/b/c/page.html'), LARGE_HTML);
-    const result = await precompressOutput({ outputDir: dir, enabled: true });
+    const result = await precompressOutput({ outputDir: dir, format: 'both' });
     expect(result.fileCount).toBe(1);
     expect(existsSync(join(dir, 'a/b/c/page.html.br'))).toBe(true);
     expect(existsSync(join(dir, 'a/b/c/page.html.gz'))).toBe(true);

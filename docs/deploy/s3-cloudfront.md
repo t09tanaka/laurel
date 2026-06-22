@@ -2,7 +2,7 @@
 
 S3 + CloudFront is the AWS-native path for serving Laurel's static `dist/`
 behind a private bucket. Laurel's deploy CLI handles the S3 upload, including
-metadata-correct `.br` / `.gz` sidecars when `[build].precompress = true`;
+metadata-correct `.br` / `.gz` sidecars when `[build].precompress = "both"`;
 CloudFront distribution setup, directory-style URL rewrites, cache policy, and
 invalidations stay in AWS or your CI workflow.
 
@@ -98,7 +98,7 @@ GitHub Pages have more managed defaults.
    test -f dist/.laurel-manifest.json
    ```
 
-   If you enable `[build].precompress = true`, `laurel deploy s3` uploads the
+   If you enable `[build].precompress = "both"`, `laurel deploy s3` uploads the
    generated `.br` and `.gz` sidecars with `Content-Encoding: br` and
    `Content-Encoding: gzip` respectively. S3 does not infer Brotli metadata
    from filenames, so uploading the sidecars as ordinary objects is not enough

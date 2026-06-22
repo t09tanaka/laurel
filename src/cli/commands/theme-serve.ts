@@ -385,7 +385,7 @@ function renderFixtureConfig(sourceConfig: LaurelConfig, themeRoot: string): str
       posts_per_page: 5,
       copy_content_assets: true,
       minify_html: false,
-      precompress: false,
+      precompress: 'off',
     },
     navigation: [
       { label: 'Home', url: '/' },

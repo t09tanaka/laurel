@@ -1809,9 +1809,12 @@ async function runBuild({
   // the static-passthrough overrides land first and get compressed alongside
   // the generated tree, and *before* `emitBuildManifest` so the companion
   // files are part of the deploy manifest's hash list. Gated by
-  // `[build].precompress` (default false; flip on for production deploys).
-  if (config.build.precompress) {
-    await timed(profiler, 'precompress', () => precompressOutput({ outputDir, enabled: true }));
+  // `[build].precompress` (`off` | `brotli` | `gzip` | `both`; default `off`,
+  // flip on for production deploys).
+  if (config.build.precompress !== 'off') {
+    await timed(profiler, 'precompress', () =>
+      precompressOutput({ outputDir, format: config.build.precompress }),
+    );
   }
 
   const profilePath = profiler ? buildStatsPath(finalOutputDir) : undefined;

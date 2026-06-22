@@ -33,7 +33,7 @@ function makeConfig(overrides: Partial<LaurelConfig> = {}): LaurelConfig {
       include_future_posts: false,
       emit_email_only_stub: false,
       minify_html: false,
-      precompress: false,
+      precompress: 'off',
       metadata: {},
     },
     ...overrides,
