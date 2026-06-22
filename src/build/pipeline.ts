@@ -1085,6 +1085,7 @@ async function runBuild({
           plugins: pluginSet.plugins,
           pluginCtx,
           contentImagePlan,
+          formatVariants,
           portalUrls,
           recommendationsEnabled,
           themeOwnsInfiniteScroll,

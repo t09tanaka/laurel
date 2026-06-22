@@ -12,7 +12,13 @@ import { rewriteContentImageUrls } from './content-image-urls.ts';
 import type { ContentImageAssetPlan } from './emit.ts';
 import { htmlBuildId, injectHtmlBuildAttribute } from './html-metadata.ts';
 import { rewriteImageCdnUrls } from './image-cdn.ts';
-import { collapseDegenerateSrcset, injectImageDimensions, injectImageLqip } from './images.ts';
+import type { ImageFormat } from './images.ts';
+import {
+  collapseDegenerateSrcset,
+  injectImageDimensions,
+  injectImageLqip,
+  injectThemeImagePictureSources,
+} from './images.ts';
 import { stripUnusedLightbox } from './lightbox.ts';
 import { injectPaginationEnhanceScript } from './pagination-enhance.ts';
 import {
@@ -40,6 +46,11 @@ interface RouteRenderOptions {
   plugins: readonly Plugin[];
   pluginCtx: BuildContext;
   contentImagePlan: ContentImageAssetPlan;
+  // Modern image formats whose variants are actually materialised on disk
+  // (`[components.images].enabled` + a configured format + sharp present). Used
+  // to wrap theme `feature_image` <img> tags in a <picture> with per-format
+  // <source> fallbacks. Empty when no format variants will be emitted.
+  formatVariants: readonly ImageFormat[];
   portalUrls: Record<string, string>;
   recommendationsEnabled: boolean;
   // When the theme provides its own infinite-scroll script, suppress Laurel's
@@ -89,6 +100,14 @@ export async function renderRouteHtml(opts: RouteRenderOptions): Promise<string>
           width: config.components.images.lqip_width,
           quality: config.components.images.lqip_quality,
         });
+      }
+      // Wrap theme `feature_image` <img> tags (same-format size variants) in a
+      // <picture> with per-format <source> fallbacks. Gated on `resize` because
+      // the referenced format variants are only materialised on disk when the
+      // sharp-backed resize pipeline runs. Must run before syncPriorityImagePreload
+      // so the LCP preload can align with the emitted WebP <source>.
+      if (config.components.images.resize && opts.formatVariants.length > 0) {
+        html = injectThemeImagePictureSources(html, { formats: opts.formatVariants });
       }
       if (
         config.components.search.enabled &&

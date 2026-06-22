@@ -137,6 +137,67 @@ describe('syncPriorityImagePreload', () => {
     expect(syncPriorityImagePreload(html)).toBe(html);
   });
 
+  test('aligns the preload with the <picture> <source> when the LCP image is wrapped', () => {
+    const html = [
+      '<head>',
+      '<link rel="preload" as="image" href="/content/images/cover.jpg" fetchpriority="high" type="image/jpeg">',
+      '</head><body>',
+      '<picture>',
+      '<source type="image/webp" srcset="/content/images/size/w320/format/webp/cover.jpg 320w, /content/images/size/w600/format/webp/cover.jpg 600w" sizes="100vw">',
+      '<img src="/content/images/size/w1200/cover.jpg" srcset="/content/images/size/w320/cover.jpg 320w, /content/images/size/w600/cover.jpg 600w" sizes="100vw" fetchpriority="high">',
+      '</picture>',
+      '</body>',
+    ].join('');
+
+    const out = syncPriorityImagePreload(html);
+
+    // href stays the <img> fallback; type/imagesrcset switch to the WebP source.
+    expect(out).toContain('href="/content/images/size/w1200/cover.jpg"');
+    expect(out).toContain('type="image/webp"');
+    expect(out).toContain(
+      'imagesrcset="/content/images/size/w320/format/webp/cover.jpg 320w, /content/images/size/w600/format/webp/cover.jpg 600w"',
+    );
+    expect(out).toContain('imagesizes="100vw"');
+    expect(out).not.toContain('type="image/jpeg"');
+  });
+
+  test('aligns the preload to a picture feature image the theme did not flag fetchpriority (Casper)', () => {
+    // Casper's post.hbs feature <img> has no fetchpriority="high", but
+    // renderLcpPreload still emits the high-priority preload. The preload must
+    // align with the WebP <source> via href matching so the LCP image is not
+    // preloaded as JPEG while rendered as WebP.
+    const html = [
+      '<head>',
+      '<link rel="preload" as="image" href="/content/images/cover.jpg" fetchpriority="high" type="image/jpeg">',
+      '</head><body>',
+      '<figure class="article-image">',
+      '<picture>',
+      '<source type="image/webp" srcset="/content/images/size/w300/format/webp/cover.jpg 300w, /content/images/size/w600/format/webp/cover.jpg 600w" sizes="92vw">',
+      '<img srcset="/content/images/size/w300/cover.jpg 300w, /content/images/cover.jpg 2000w" sizes="92vw" src="/content/images/cover.jpg">',
+      '</picture>',
+      '</figure>',
+      '</body>',
+    ].join('');
+
+    const out = syncPriorityImagePreload(html);
+
+    expect(out).toContain('type="image/webp"');
+    expect(out).toContain(
+      'imagesrcset="/content/images/size/w300/format/webp/cover.jpg 300w, /content/images/size/w600/format/webp/cover.jpg 600w"',
+    );
+    expect(out).toContain('imagesizes="92vw"');
+    expect(out).not.toContain('type="image/jpeg"');
+  });
+
+  test('leaves the preload untouched when the feature image is a plain (non-picture) img', () => {
+    const html = [
+      '<link rel="preload" as="image" href="/content/images/cover.jpg" fetchpriority="high" type="image/jpeg">',
+      '<img src="/content/images/cover.jpg" alt="x">',
+    ].join('');
+    // No fetchpriority img and no <picture>: nothing to align to.
+    expect(syncPriorityImagePreload(html)).toBe(html);
+  });
+
   test('syncs only the first bare high-priority image preload', () => {
     const html = [
       '<link rel="preload" as="image" href="/full-size-a.jpg" fetchpriority="high">',

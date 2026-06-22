@@ -823,6 +823,142 @@ export function injectImagePictureSourcesIntoContent(
   }
 }
 
+interface InjectThemeImagePictureSourcesOptions {
+  formats: readonly ImageFormat[];
+  marker?: string;
+}
+
+interface SrcsetEntry {
+  url: string;
+  descriptor: string;
+}
+
+function parseSrcsetEntries(srcset: string): SrcsetEntry[] {
+  return srcset
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part !== '')
+    .map((part) => {
+      const space = part.search(/\s/);
+      if (space < 0) return { url: part, descriptor: '' };
+      return { url: part.slice(0, space), descriptor: part.slice(space).trim() };
+    });
+}
+
+// Rewrite a theme size-variant URL (`/content/images/size/<seg>/<rel>`, the
+// shape `{{img_url ... size="<key>"}}` emits) into its per-format sibling
+// (`/content/images/size/<seg>/format/<fmt>/<rel>`, the shape
+// `{{img_url ... size="<key>" format="<fmt>"}}` emits and
+// generateThemeImageSizeVariants materialises). Returns undefined when the URL
+// is not a transformable theme variant: no `/content/images/` marker, no
+// `size/` segment, already under a `format/` segment, or a non-jpg/png source
+// (svg/webp/gif have no per-format variant on disk).
+function themeVariantToFormat(
+  url: string,
+  format: ImageFormat,
+  marker: string,
+): string | undefined {
+  const cleaned = url.split(/[?#]/)[0] ?? '';
+  const idx = cleaned.indexOf(marker);
+  if (idx < 0) return undefined;
+  const after = cleaned.slice(idx + marker.length);
+  if (!after.startsWith('size/') || /(^|\/)format\//.test(after)) return undefined;
+  const rest = after.slice('size/'.length);
+  const slash = rest.indexOf('/');
+  if (slash <= 0) return undefined;
+  const segment = rest.slice(0, slash);
+  const rel = rest.slice(slash + 1);
+  if (rel === '' || rel.includes('..') || !isFormatVariantSource(rel)) return undefined;
+  const before = cleaned.slice(0, idx + marker.length);
+  return `${before}size/${segment}/format/${format}/${rel}`;
+}
+
+// Build the `<source>` markup (one per requested format) for a theme `<img>`
+// whose srcset/src points at same-format size variants. Returns undefined when
+// no entry is a transformable theme variant, so the caller leaves the tag
+// untouched. Non-transformable entries (remote URLs, or the full-resolution
+// original `{{img_url}}` emits when a requested size would not shrink the
+// source) are dropped from the `<source>` srcset rather than bailing the whole
+// tag — mirroring injectImagePictureSources, which also caps the per-format
+// srcset at the variants that exist on disk and leaves the original `<img>`
+// (which keeps the full srcset) as the fallback for the largest viewports.
+function buildThemePictureSources(
+  attrs: Map<string, string | true>,
+  formats: readonly ImageFormat[],
+  marker: string,
+): string | undefined {
+  const srcsetRaw = attrs.get('srcset');
+  let entries: SrcsetEntry[];
+  if (typeof srcsetRaw === 'string' && srcsetRaw.trim() !== '') {
+    entries = parseSrcsetEntries(srcsetRaw);
+  } else {
+    const src = attrs.get('src');
+    if (typeof src !== 'string' || src === '') return undefined;
+    entries = [{ url: src, descriptor: '' }];
+  }
+  if (entries.length === 0) return undefined;
+  const sizes = attrs.get('sizes');
+  const sizesPart =
+    typeof sizes === 'string' && sizes !== '' ? ` sizes="${escapeAttr(sizes)}"` : '';
+  const sources: string[] = [];
+  for (const format of formats) {
+    const transformed: string[] = [];
+    for (const entry of entries) {
+      const url = themeVariantToFormat(entry.url, format, marker);
+      if (!url) continue;
+      transformed.push(entry.descriptor ? `${url} ${entry.descriptor}` : url);
+    }
+    if (transformed.length === 0) continue;
+    sources.push(`<source type="image/${format}" srcset="${transformed.join(', ')}"${sizesPart}>`);
+  }
+  return sources.length > 0 ? sources.join('') : undefined;
+}
+
+// Ghost themes reference `feature_image` through `{{img_url ... size="<key>"}}`,
+// which (unlike Source's post-card srcset, that already passes `format="webp"`)
+// emits same-format (jpg/png) variant URLs — so the LCP feature image ships as
+// JPEG even though the modern-format variants exist on disk. This walks the
+// rendered theme HTML and wraps each such `<img>` in a `<picture>` whose
+// `<source>` entries list the per-format variant URLs before the original
+// `<img>` fallback, giving theme images the same modern-format-with-fallback
+// contract injectImagePictureSources already gives content/body images.
+//
+// Images already inside a `<picture>` (content/body images wrapped at
+// content-graph time), already pointing at a `format/<fmt>/` URL (Source's
+// post-card srcset, which is webp already), or referencing svg/webp/gif sources
+// are left untouched. Runs before the fingerprint/base-path/CDN URL rewrites so
+// it operates on canonical `/content/images/...` URLs; the emitted `<source>`
+// srcsets are rewritten by those later passes just like any other content image.
+export function injectThemeImagePictureSources(
+  html: string,
+  opts: InjectThemeImagePictureSourcesOptions,
+): string {
+  if (!html.includes('<img') || opts.formats.length === 0) return html;
+  const marker = opts.marker ?? '/content/images/';
+  const re = /<img\b([^>]*?)(\/?)>/gi;
+  let result = '';
+  let lastIdx = 0;
+  let m: RegExpExecArray | null = re.exec(html);
+  while (m !== null) {
+    const matchStart = m.index;
+    const matchEnd = re.lastIndex;
+    const attrsRaw = m[1] ?? '';
+    let replacement = m[0];
+    const lastOpen = html.lastIndexOf('<picture', matchStart);
+    const lastClose = html.lastIndexOf('</picture>', matchStart);
+    const insidePicture = lastOpen >= 0 && lastOpen > lastClose;
+    if (!insidePicture) {
+      const sources = buildThemePictureSources(parseImgAttrs(attrsRaw), opts.formats, marker);
+      if (sources) replacement = `<picture>${sources}${m[0]}</picture>`;
+    }
+    result += html.slice(lastIdx, matchStart) + replacement;
+    lastIdx = matchEnd;
+    m = re.exec(html);
+  }
+  result += html.slice(lastIdx);
+  return result;
+}
+
 // Build the URL segment for a theme `image_sizes` entry the same way the
 // `{{img_url}}` helper does (`w400`, `h800`, `w400h400`). Exported so build
 // and render layers cannot drift apart: the on-disk path must equal the
