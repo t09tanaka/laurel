@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  injectPriorityImagePreload,
   injectStylesheetPreload,
   injectSubresourceIntegrity,
   normalizeResourceTagAttributes,
@@ -213,6 +214,68 @@ describe('syncPriorityImagePreload', () => {
     expect(out).toContain(
       '<link rel="preload" as="image" href="/manual-b.jpg" fetchpriority="high">',
     );
+  });
+});
+
+describe('injectPriorityImagePreload', () => {
+  test('injects an aligned image preload for the first fetchpriority=high img', () => {
+    const html = [
+      '<head>',
+      '<link rel="stylesheet" href="/assets/screen.css">',
+      '</head><body>',
+      '<img class="post-card-image" src="/img/w600/cover.jpg"',
+      ' srcset="/img/w300/cover.jpg 300w, /img/w600/cover.jpg 600w"',
+      ' sizes="(max-width: 1000px) 400px, 800px" fetchpriority="high" loading="eager">',
+      '</body>',
+    ].join('\n');
+    const out = injectPriorityImagePreload(html);
+    expect(out).toContain(
+      '<link rel="preload" as="image" href="/img/w600/cover.jpg" fetchpriority="high"',
+    );
+    expect(out).toContain('imagesrcset="/img/w300/cover.jpg 300w, /img/w600/cover.jpg 600w"');
+    expect(out).toContain('imagesizes="(max-width: 1000px) 400px, 800px"');
+    // Spliced before the stylesheet so the image fetch is queued ahead of CSS.
+    expect(out.indexOf('rel="preload" as="image"')).toBeLessThan(out.indexOf('rel="stylesheet"'));
+  });
+
+  test('aligns with the <picture> preferred source when the img is wrapped', () => {
+    const html = [
+      '<head><link rel="stylesheet" href="/s.css"></head><body>',
+      '<picture>',
+      '<source type="image/webp" srcset="/img/cover.webp 600w" sizes="600px">',
+      '<img src="/img/cover.jpg" srcset="/img/cover.jpg 600w" fetchpriority="high">',
+      '</picture>',
+      '</body>',
+    ].join('\n');
+    const out = injectPriorityImagePreload(html);
+    expect(out).toContain('href="/img/cover.jpg"');
+    expect(out).toContain('imagesrcset="/img/cover.webp 600w"');
+    expect(out).toContain('type="image/webp"');
+  });
+
+  test('is a no-op when a high-priority image preload already exists', () => {
+    const html = [
+      '<head>',
+      '<link rel="preload" as="image" href="/feature.jpg" fetchpriority="high">',
+      '<link rel="stylesheet" href="/s.css">',
+      '</head><body>',
+      '<img src="/feature.jpg" fetchpriority="high">',
+      '</body>',
+    ].join('\n');
+    expect(injectPriorityImagePreload(html)).toBe(html);
+  });
+
+  test('is a no-op when no fetchpriority=high image is present', () => {
+    const html =
+      '<head><link rel="stylesheet" href="/s.css"></head><body><img src="/a.jpg" loading="lazy"></body>';
+    expect(injectPriorityImagePreload(html)).toBe(html);
+  });
+
+  test('skips data: URIs and leaves a headless fragment untouched', () => {
+    const dataImg = '<img src="data:image/gif;base64,AAAA" fetchpriority="high">';
+    expect(injectPriorityImagePreload(dataImg)).toBe(dataImg);
+    const noHead = '<div><img src="/a.jpg" fetchpriority="high"></div>';
+    expect(injectPriorityImagePreload(noHead)).toBe(noHead);
   });
 });
 

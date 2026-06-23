@@ -1,9 +1,8 @@
 import type Handlebars from 'handlebars';
 import {
-  CARD_ASSETS_CSS_PATH,
-  CARD_ASSETS_JS_PATH,
+  cardAssetsCssFingerprintedPath,
   cardAssetsCssIntegrity,
-  cardAssetsVersion,
+  cardAssetsJsFingerprintedPath,
   isCardAssetsEnabled,
 } from '~/build/card-assets.ts';
 import { escapeHtmlAttribute } from '~/build/escaping.ts';
@@ -19,6 +18,7 @@ import { isNonProductionBuild } from '~/config/deploy-environment.ts';
 import { type HeadHint, collectComponentHeadHints } from '~/render/component-head-hints.ts';
 import {
   enabledKoenigRuntimeCardTypes,
+  getKoenigCardMarkup,
   getKoenigRuntimeCardTypes,
 } from '~/render/koenig-runtime.ts';
 import { joinPath } from '~/theme/assets.ts';
@@ -130,8 +130,15 @@ export function registerGhostHeadFootHelpers(engine: LaurelEngine): void {
         );
         head = appendHeadPart(head, `<style>:root{--ghost-accent-color:${accentColor}}</style>`);
       }
-      const cardAssetsSnippet = renderCardAssetsHeadSnippet(engine, basePath);
-      if (cardAssetsSnippet) head = appendHeadPart(head, cardAssetsSnippet);
+      // Only emit the shared card-assets stylesheet on routes whose rendered
+      // content actually carries Koenig card markup. List / archive / tag
+      // pages that show excerpt cards have no `kg-*` markup, so they skip a
+      // render-blocking stylesheet that would style nothing. Mirrors the
+      // per-page gating the koenig runtime <script> already uses.
+      if (getKoenigCardMarkup(options.data as Record<string, unknown> | undefined)) {
+        const cardAssetsSnippet = renderCardAssetsHeadSnippet(engine, basePath);
+        if (cardAssetsSnippet) head = appendHeadPart(head, cardAssetsSnippet);
+      }
       if (meta.canonical) {
         head = appendHeadPart(head, `<link rel="canonical" href="${escapeAttr(meta.canonical)}">`);
       }
@@ -1489,8 +1496,7 @@ function renderInlineSubmitRuntime(engine: LaurelEngine): string | undefined {
 function renderCardAssetsHeadSnippet(engine: LaurelEngine, basePath: string): string | undefined {
   const cardAssets = engine.theme.pkg.card_assets;
   if (!isCardAssetsEnabled(cardAssets)) return undefined;
-  const version = cardAssetsVersion(cardAssets);
-  const cssHref = joinPath(basePath, `${CARD_ASSETS_CSS_PATH}?v=${version}`);
+  const cssHref = joinPath(basePath, cardAssetsCssFingerprintedPath(cardAssets));
   const integrity = cardAssetsCssIntegrity(cardAssets);
   return `<link rel="stylesheet" type="text/css" href="${escapeAttr(cssHref)}" integrity="${escapeAttr(integrity)}" crossorigin="anonymous">`;
 }
@@ -1504,8 +1510,7 @@ function renderKoenigRuntimeSnippet(
   const enabledCards = enabledKoenigRuntimeCardTypes(cardAssets, cardTypes);
   if (enabledCards.length === 0) return undefined;
   const basePath = engine.config?.build?.base_path ?? '/';
-  const version = cardAssetsVersion(cardAssets);
-  const jsSrc = joinPath(basePath, `${CARD_ASSETS_JS_PATH}?v=${version}`);
+  const jsSrc = joinPath(basePath, cardAssetsJsFingerprintedPath(cardAssets));
   const nonce = nonceAttr(engine.config?.build?.csp_nonce);
   const cards = enabledCards.join(',');
   return `<script defer src="${escapeAttr(jsSrc)}"${nonce} data-laurel-koenig-runtime="${escapeAttr(cards)}"></script>`;

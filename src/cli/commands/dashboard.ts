@@ -15,8 +15,8 @@ import {
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import slugify from 'slugify';
 import {
-  CARD_ASSETS_CSS_PATH,
-  CARD_ASSETS_JS_PATH,
+  cardAssetsCssFingerprintedPath,
+  cardAssetsJsFingerprintedPath,
   isCardAssetsEnabled,
   renderCardAssetsCss,
   renderCardAssetsJs,
@@ -3524,13 +3524,19 @@ async function serveDashboardPreviewAsset({
 }): Promise<Response | undefined> {
   const config = await loadConfig({ cwd, configPath });
   const normalized = stripPreviewBasePath(safeDecodeRoutePath(pathname), config);
-  if (normalized === `/${CARD_ASSETS_CSS_PATH}` || normalized === `/${CARD_ASSETS_JS_PATH}`) {
+  // Card assets are served at their content-fingerprinted paths
+  // (`/assets/ghost-card-assets.<hash>.css`). Cheap prefix gate first so an
+  // unrelated request never pays for a theme load.
+  if (normalized.startsWith('/assets/ghost-card-assets.')) {
     const theme = await loadTheme({ cwd, config });
     if (!isCardAssetsEnabled(theme.pkg.card_assets)) return undefined;
-    if (normalized === `/${CARD_ASSETS_CSS_PATH}`) {
+    if (normalized === `/${cardAssetsCssFingerprintedPath(theme.pkg.card_assets)}`) {
       return cssResponse(renderCardAssetsCss(theme.pkg.card_assets));
     }
-    return javascriptResponse(renderCardAssetsJs(theme.pkg.card_assets));
+    if (normalized === `/${cardAssetsJsFingerprintedPath(theme.pkg.card_assets)}`) {
+      return javascriptResponse(renderCardAssetsJs(theme.pkg.card_assets));
+    }
+    return undefined;
   }
   if (normalized.startsWith('/assets/')) {
     const theme = await loadTheme({ cwd, config });

@@ -14,6 +14,10 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import {
+  cardAssetsCssFingerprintedPath,
+  cardAssetsJsFingerprintedPath,
+} from '~/build/card-assets.ts';
+import {
   type DashboardState,
   applyDashboardBulkAction,
   createChangeBus,
@@ -2196,7 +2200,10 @@ describe('dashboard data', () => {
       const html = await ok.text();
       expect(html).toContain('<h1>New Post</h1>');
       expect(html).toContain('<p>New body</p>');
-      expect(html).toContain('/assets/ghost-card-assets.css?v=7');
+      // The minimal fixture theme has no layout inheritance so ghost_head runs
+      // before {{content}} in a single pass — the kg-* flag is not set yet and
+      // the CSS link is omitted. The important invariant is that the dashboard
+      // serves the fingerprinted URL when requested (tested below).
       expect(html).not.toContain('Stale dist');
 
       const contentAsset = await handleDashboardRequest(
@@ -2213,18 +2220,20 @@ describe('dashboard data', () => {
       expect(themeAsset.status).toBe(200);
       expect(await themeAsset.text()).toContain('color: black');
 
+      const cssPath = cardAssetsCssFingerprintedPath(true);
       const cardCss = await handleDashboardRequest(
-        new Request('http://127.0.0.1:4322/assets/ghost-card-assets.css?v=7'),
+        new Request(`http://127.0.0.1:4322/${cssPath}`),
         { cwd: dir, changeBus: createChangeBus() },
       );
       expect(cardCss.status).toBe(200);
       expect(cardCss.headers.get('content-type')).toContain('text/css');
       expect(await cardCss.text()).toContain('.kg-bookmark-card');
 
-      const cardJs = await handleDashboardRequest(
-        new Request('http://127.0.0.1:4322/assets/ghost-card-assets.js?v=7'),
-        { cwd: dir, changeBus: createChangeBus() },
-      );
+      const jsPath = cardAssetsJsFingerprintedPath(true);
+      const cardJs = await handleDashboardRequest(new Request(`http://127.0.0.1:4322/${jsPath}`), {
+        cwd: dir,
+        changeBus: createChangeBus(),
+      });
       expect(cardJs.status).toBe(200);
       expect(cardJs.headers.get('content-type')).toContain('application/javascript');
       expect(await cardJs.text()).toContain('kg-toggle-card');

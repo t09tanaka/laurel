@@ -15,7 +15,12 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { BUILD_MANIFEST_VERSION, buildManifestRelPath } from '~/build/build-manifest.ts';
-import { CARD_ASSETS_CSS_PATH, CARD_ASSETS_JS_PATH } from '~/build/card-assets.ts';
+import {
+  CARD_ASSETS_CSS_PATH,
+  CARD_ASSETS_JS_PATH,
+  cardAssetsCssFingerprintedPath,
+  cardAssetsJsFingerprintedPath,
+} from '~/build/card-assets.ts';
 import { type BuildProgressEvent, ROUTE_RENDER_BATCH_SIZE } from '~/build/pipeline.ts';
 import { build } from '~/build/pipeline.ts';
 import {
@@ -1212,14 +1217,31 @@ date: 2026-01-01T00:00:00Z
 
   test('emits Ghost-compatible card assets when the theme package opts in', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    // Give the post a Koenig card so the page has kg-* classes and receives the CSS.
+    await writeFile(
+      join(cwd, 'content/posts/hello.md'),
+      `---
+title: "Hello"
+date: 2026-01-01T00:00:00Z
+---
+
+{{< bookmark url="https://example.com" title="Example" />}}
+`,
+      'utf8',
+    );
 
     const summary = await build({ cwd, basePath: '/blog/' });
-    const indexHtml = readFileSync(join(summary.outputDir, 'index.html'), 'utf8');
+    const postHtml = readFileSync(join(summary.outputDir, 'hello', 'index.html'), 'utf8');
 
-    expect(existsSync(join(summary.outputDir, CARD_ASSETS_CSS_PATH))).toBe(true);
-    expect(existsSync(join(summary.outputDir, CARD_ASSETS_JS_PATH))).toBe(true);
-    expect(indexHtml).toContain('/blog/assets/ghost-card-assets.css?v=7');
-    expect(indexHtml).not.toContain('/blog/assets/ghost-card-assets.js?v=7');
+    // Files are now emitted at content-fingerprinted paths, not legacy ?v= paths.
+    expect(existsSync(join(summary.outputDir, cardAssetsCssFingerprintedPath(true)))).toBe(true);
+    expect(existsSync(join(summary.outputDir, cardAssetsJsFingerprintedPath(true)))).toBe(true);
+    expect(existsSync(join(summary.outputDir, CARD_ASSETS_CSS_PATH))).toBe(false);
+    expect(existsSync(join(summary.outputDir, CARD_ASSETS_JS_PATH))).toBe(false);
+    // Post page with a kg-card gets the fingerprinted CSS; bookmark has no runtime
+    // sections, so the JS is not injected.
+    expect(postHtml).toMatch(/\/blog\/assets\/ghost-card-assets\.[0-9a-f]{16}\.css/);
+    expect(postHtml).not.toMatch(/\/blog\/assets\/ghost-card-assets\.[0-9a-f]{16}\.js/);
   });
 
   test('injects the shared card runtime only on pages with runtime cards', async () => {
@@ -1242,8 +1264,8 @@ Hidden detail.
     const indexHtml = readFileSync(join(summary.outputDir, 'index.html'), 'utf8');
     const postHtml = readFileSync(join(summary.outputDir, 'hello', 'index.html'), 'utf8');
 
-    expect(indexHtml).not.toContain('/blog/assets/ghost-card-assets.js?v=7');
-    expect(postHtml).toContain('/blog/assets/ghost-card-assets.js?v=7');
+    expect(indexHtml).not.toMatch(/\/blog\/assets\/ghost-card-assets\.[0-9a-f]{16}\.js/);
+    expect(postHtml).toMatch(/\/blog\/assets\/ghost-card-assets\.[0-9a-f]{16}\.js/);
     expect(postHtml).toContain('data-laurel-koenig-runtime="toggle"');
   });
 
@@ -1293,7 +1315,7 @@ date: 2026-01-01T00:00:00Z
     const summary = await build({ cwd, basePath: '/blog/' });
     const postHtml = readFileSync(join(summary.outputDir, 'hello', 'index.html'), 'utf8');
 
-    expect(postHtml).toContain('/blog/assets/ghost-card-assets.js?v=7');
+    expect(postHtml).toMatch(/\/blog\/assets\/ghost-card-assets\.[0-9a-f]{16}\.js/);
     expect(postHtml).toContain('data-laurel-koenig-runtime="lightbox"');
   });
 

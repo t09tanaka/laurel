@@ -15,7 +15,7 @@ import { DEFAULT_PARTIALS } from './default-partials.ts';
 import { recordEmbedProviderScripts } from './embed-provider-scripts.ts';
 import type { FilterIndex } from './helpers/get-filter.ts';
 import { registerHelpers } from './helpers/index.ts';
-import { recordKoenigRuntimeCardTypes } from './koenig-runtime.ts';
+import { recordKoenigCardMarkup, recordKoenigRuntimeCardTypes } from './koenig-runtime.ts';
 import { resolveLayoutName, splitLayout } from './layouts.ts';
 import {
   type Member,
@@ -544,6 +544,7 @@ function renderRoute(engine: LaurelEngine, route: RouteContext): string {
     });
   }
   const innerHtml = renderCompiled(innerCompiled, context, data);
+  recordKoenigCardMarkup(data, innerHtml);
   recordKoenigRuntimeCardTypes(data, innerHtml);
   recordEmbedProviderScripts(data, innerHtml);
   return renderCompiled(

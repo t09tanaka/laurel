@@ -613,7 +613,7 @@
             "preload_lcp_image": {
               "type": "boolean",
               "default": true,
-              "description": "Inject `<link rel=\"preload\" as=\"image\" fetchpriority=\"high\" href=\"…\">` into `{{ghost_head}}` for the current route's `feature_image`, then align it with the final rendered `<img fetchpriority=\"high\">` candidate when the theme emits a resized `src`, `srcset`, or `sizes`. This starts the LCP image from the HTML preload scan without preloading a stale full-size source. Only fires on post / page routes that actually have a `feature_image`; disable when a custom theme already emits its own LCP preload to avoid double-fetching."
+              "description": "Inject `<link rel=\"preload\" as=\"image\" fetchpriority=\"high\" href=\"…\">` for the route's LCP image, then align it with the final rendered `<img fetchpriority=\"high\">` candidate (its `src`, `srcset`/`sizes`, or `<picture>` source). On post / page routes with a `feature_image` the preload is emitted in `{{ghost_head}}`; on list / archive / tag / home feeds (and posts whose LCP is a promoted first content image rather than a cover) it is injected during HTML post-processing from the first `fetchpriority=\"high\"` `<img>`, carrying that image's own `srcset`/`sizes` so the browser preloads the exact candidate it renders. This starts the LCP image from the HTML preload scan without preloading a stale source. Disable when a custom theme already emits its own LCP preload to avoid double-fetching."
             },
             "preconnect_image_origins": {
               "type": "boolean",

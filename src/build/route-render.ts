@@ -22,6 +22,7 @@ import {
 import { stripUnusedLightbox } from './lightbox.ts';
 import { injectPaginationEnhanceScript } from './pagination-enhance.ts';
 import {
+  injectPriorityImagePreload,
   injectStylesheetPreload,
   injectSubresourceIntegrity,
   normalizeResourceTagAttributes,
@@ -139,6 +140,11 @@ export async function renderRouteHtml(opts: RouteRenderOptions): Promise<string>
       html = normalizeResourceTagAttributes(html);
       html = injectSubresourceIntegrity(html, theme.assets.values(), config.build.base_path);
       if (config.performance.preload_lcp_image !== false) {
+        // Inject an LCP preload for routes ghost_head skips (list / archive
+        // feeds, posts whose LCP is a promoted content image) before aligning
+        // any existing preload; the injected link already carries imagesrcset
+        // so syncPriorityImagePreload leaves it untouched.
+        html = injectPriorityImagePreload(html);
         html = syncPriorityImagePreload(html);
       }
       html = rewriteBasePathUrls(html, config.build.base_path);
