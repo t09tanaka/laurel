@@ -9,6 +9,7 @@ import { LaurelError, isLaurelError } from '~/util/errors.ts';
 import { injectSkipLink } from './a11y.ts';
 import { rewriteBasePathUrls } from './base-path-urls.ts';
 import { rewriteContentImageUrls } from './content-image-urls.ts';
+import { type PreparedStylesheet, applyCriticalCss } from './critical-css.ts';
 import type { ContentImageAssetPlan } from './emit.ts';
 import { htmlBuildId, injectHtmlBuildAttribute } from './html-metadata.ts';
 import { rewriteImageCdnUrls } from './image-cdn.ts';
@@ -63,6 +64,9 @@ interface RouteRenderOptions {
     ladder: readonly number[];
     sourceWidthFor: (rel: string) => number | undefined;
   };
+  // Prepared stylesheets (keyed by fingerprinted basename) + tuning for static
+  // critical-CSS inlining. Undefined disables the pass for this build.
+  criticalCss?: RouteCriticalCss;
   portalUrls: Record<string, string>;
   recommendationsEnabled: boolean;
   // When the theme provides its own infinite-scroll script, suppress Laurel's
@@ -71,6 +75,12 @@ interface RouteRenderOptions {
   warnSubscribeNoop?: (html: string) => void;
   imageDimensionCache?: Map<string, unknown>;
   imageLqipCache?: Map<string, string | null>;
+}
+
+export interface RouteCriticalCss {
+  sheets: Map<string, PreparedStylesheet>;
+  safelist: readonly RegExp[];
+  maxInlineBytes: number;
 }
 
 export function isHtmlRoute(route: RouteContext): boolean {
@@ -163,6 +173,17 @@ export async function renderRouteHtml(opts: RouteRenderOptions): Promise<string>
       }
       html = normalizeResourceTagAttributes(html);
       html = injectSubresourceIntegrity(html, theme.assets.values(), config.build.base_path);
+      // Inline per-route critical CSS and async-load the rest. Runs after SRI so
+      // the transformed/duplicated <link> keeps its integrity, and before the
+      // base-path rewrite so the emitted noscript/async hrefs are rebased too.
+      if (config.performance.critical_css.enabled && opts.criticalCss) {
+        html = applyCriticalCss(html, {
+          sheets: opts.criticalCss.sheets,
+          safelist: opts.criticalCss.safelist,
+          maxInlineBytes: opts.criticalCss.maxInlineBytes,
+          nonce: config.build.csp_nonce,
+        });
+      }
       if (config.performance.preload_lcp_image !== false) {
         // Inject an LCP preload for routes ghost_head skips (list / archive
         // feeds, posts whose LCP is a promoted content image) before aligning

@@ -769,6 +769,35 @@ export const configSchema = z
           .describe(
             'Emit a sibling `<link rel="preload" as="style" href="X">` for every `<link rel="stylesheet" href="X">` that does not already have one. Helps themes that did not opt into the manual preload pattern (which the Source theme already ships) by letting the browser start the CSS fetch from the preload scan rather than from CSS parsing. Default off because most themes either already include the preload or do not benefit (single tiny stylesheet); flip on for themes with deep critical-CSS where the head is large. This is a resource hint, not automatic critical-CSS extraction or CSS purging; keep those theme-specific transforms in the theme build step.',
           ),
+        critical_css: z
+          .object({
+            enabled: z
+              .boolean()
+              .default(false)
+              .describe(
+                'Inline a per-route "used CSS" subset of each linked theme stylesheet into `<head>` and make the original `<link rel="stylesheet">` load asynchronously (`media="print"` swap + `<noscript>` fallback), removing the render-blocking CSS request. This is a static, browser-free approximation of critical CSS: rules are kept when their selectors reference tags/classes/ids/attributes present in the route HTML (conservative - when unsure a rule is kept), and the full sheet still loads async so JS-added or below-the-fold styles resolve once it arrives. Relative `url()` in the inlined CSS is rewritten to absolute. Requires no extra dependency. Default off.',
+              ),
+            max_inline_kb: z
+              .number()
+              .int()
+              .min(1)
+              .max(200)
+              .default(50)
+              .describe(
+                'Skip inlining (and leave the stylesheet render-blocking) when a route\'s extracted critical CSS would exceed this many kilobytes. Guards against pages whose "used CSS" is nearly the whole sheet, where inlining would bloat the HTML more than it helps.',
+              ),
+            safelist: z
+              .array(z.string())
+              .default([])
+              .describe(
+                'Selector substrings/patterns (compiled as regular expressions) whose rules are always inlined regardless of whether the route HTML appears to use them. Use for classes a client script adds after load that must be styled before the async sheet arrives.',
+              ),
+          })
+          .strict()
+          .default({})
+          .describe(
+            'Static (no headless browser) critical-CSS inlining. Note: the async swap uses an inline `onload` handler, which a strict `csp_nonce` policy does not cover; the inline `<style>` itself is nonce-stamped.',
+          ),
       })
       .strict()
       .default({})

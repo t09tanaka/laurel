@@ -19,6 +19,7 @@ import { type LoadedPluginSet, loadPlugins } from '~/plugin/loader.ts';
 import type { BuildContext, Plugin } from '~/plugin/types.ts';
 import { createEngine } from '~/render/engine.ts';
 import type { RouteContext } from '~/render/types.ts';
+import { assetPublicUrl } from '~/theme/assets.ts';
 import { loadTheme } from '~/theme/loader.ts';
 import type { ThemeBundle, ThemeImageSize } from '~/theme/types.ts';
 import { validateThemeCustom } from '~/theme/validate-custom.ts';
@@ -54,6 +55,7 @@ import { emitCloudFrontResponseHeadersPolicy } from './cloudfront-response-heade
 import { emitCname } from './cname.ts';
 import { emitContentApiStubs } from './content-api.ts';
 import { resolveContentImageUrl } from './content-image-urls.ts';
+import { type PreparedStylesheet, prepareStylesheet } from './critical-css.ts';
 import {
   type RouteEarlyHints,
   buildEarlyHintsHeaderRules,
@@ -149,7 +151,7 @@ import { emitRecommendationsPage } from './recommendations-page.ts';
 import { emitRedirectsComponent } from './redirects-emit.ts';
 import { type RedirectRule, buildTrailingSlashRedirects, loadAllRedirects } from './redirects.ts';
 import { emitRobots } from './robots.ts';
-import { isHtmlRoute, renderRouteHtml } from './route-render.ts';
+import { type RouteCriticalCss, isHtmlRoute, renderRouteHtml } from './route-render.ts';
 import { loadRoutesYaml, resolveCollections, warnUnappliedSections } from './routes-yaml.ts';
 import { planRoutes } from './routes.ts';
 import {
@@ -764,6 +766,34 @@ async function runBuild({
     sourceWidthCache.set(rel, dims?.width);
     return dims?.width;
   };
+  // Parse each linked theme stylesheet once (shared read-only across routes)
+  // for static critical-CSS inlining; per-route extraction only does cheap
+  // token matching against the prepared roots.
+  const criticalCssCfg = config.performance.critical_css;
+  let criticalCss: RouteCriticalCss | undefined;
+  if (criticalCssCfg.enabled) {
+    const sheets = new Map<string, PreparedStylesheet>();
+    for (const asset of theme.assets.values()) {
+      if (!asset.logicalPath.toLowerCase().endsWith('.css')) continue;
+      try {
+        const cssText = await Bun.file(asset.sourcePath).text();
+        const publicUrl = assetPublicUrl(asset, config.build.base_path);
+        const base = publicUrl.split(/[?#]/)[0]?.split('/').pop() ?? '';
+        if (base) sheets.set(base, prepareStylesheet({ cssText, publicUrl }));
+      } catch (err) {
+        logger.warn(
+          `critical_css: failed to read stylesheet ${asset.logicalPath}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    if (sheets.size > 0) {
+      criticalCss = {
+        sheets,
+        safelist: criticalCssCfg.safelist.map((s) => new RegExp(s)),
+        maxInlineBytes: criticalCssCfg.max_inline_kb * 1024,
+      };
+    }
+  }
   markPlannedOgImages({ config, content, cwd, keepOutput });
   markPlannedImageVariants({
     cwd,
@@ -1125,6 +1155,7 @@ async function runBuild({
           srcsetDensify: densify
             ? { ratio: densify.ratio, ladder: densify.themeLadder, sourceWidthFor }
             : undefined,
+          criticalCss,
           portalUrls,
           recommendationsEnabled,
           themeOwnsInfiniteScroll,
