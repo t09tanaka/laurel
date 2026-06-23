@@ -787,9 +787,18 @@ async function runBuild({
       }
     }
     if (sheets.size > 0) {
+      const safelist = criticalCssCfg.safelist.map((pattern) => {
+        try {
+          return new RegExp(pattern);
+        } catch (err) {
+          throw new Error(
+            `Invalid [performance.critical_css].safelist pattern ${JSON.stringify(pattern)}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      });
       criticalCss = {
         sheets,
-        safelist: criticalCssCfg.safelist.map((s) => new RegExp(s)),
+        safelist,
         maxInlineBytes: criticalCssCfg.max_inline_kb * 1024,
       };
     }

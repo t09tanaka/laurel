@@ -29,7 +29,9 @@ export interface PreparedStylesheet {
 const ALWAYS_KEEP_TAGS = new Set(['html', 'body', ':root', '*', 'from', 'to']);
 
 // Parse a stylesheet once per build; the resulting Root is shared read-only
-// across all routes (extraction clones nodes before mutating them).
+// across all routes. Extraction never mutates it - it serialises the matched
+// nodes to a string and re-parses that subset before rewriting url(), so the
+// shared Root stays pristine.
 export function prepareStylesheet(opts: {
   cssText: string;
   publicUrl: string;
@@ -111,9 +113,11 @@ function collectCritical(
         if (inner.trim()) out += `@${node.name} ${node.params}{${inner}}\n`;
         return;
       }
-      // Bodyless at-rules: @charset / @import / @namespace must survive to keep
-      // the inlined CSS valid and self-contained.
-      out += `${node.toString()}\n`;
+      // Drop bodyless at-rules (@import / @charset / @namespace). @import inside
+      // an inline <style> would re-introduce a render-blocking request (and its
+      // relative target would resolve against the page URL, 404ing) - the exact
+      // thing this feature removes; @charset is ignored in inline contexts. The
+      // async full sheet still carries them, so the imported CSS loads there.
     }
   });
   return out;

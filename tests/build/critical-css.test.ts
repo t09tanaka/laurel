@@ -100,6 +100,16 @@ describe('extractCriticalCss', () => {
     expect(out).not.toContain('.gone');
   });
 
+  test('drops @import so the inline <style> never re-introduces a blocking request', () => {
+    const sheet = prepare('@import "global.css";@import url(../theme.css);.home{color:red}');
+    const used = extractUsedTokens('<body class="home"></body>');
+    const out = extractCriticalCss(sheet, used);
+    expect(out).toContain('.home');
+    expect(out).not.toContain('@import');
+    expect(out).not.toContain('global.css');
+    expect(out).not.toContain('theme.css');
+  });
+
   test('honours the safelist regardless of HTML presence', () => {
     const sheet = prepare('.dynamic-js-class{color:red}');
     const out = extractCriticalCss(sheet, extractUsedTokens('<body></body>'), {
