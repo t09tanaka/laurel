@@ -11,6 +11,32 @@ published to npm with `npm publish`; there is no CI release automation).
 
 _Nothing yet._
 
+## [0.3.0] - 2026-06-24
+
+### Added
+
+- Responsive `srcset` densification: the new optional
+  `[components.images].srcset_max_ratio` fills gaps in image `srcset`s so no two
+  adjacent width candidates differ by more than the configured ratio. It inserts
+  intermediate `/content/images/size/wXXX/` widths (and their per-format
+  siblings) into both Laurel-injected body-image srcsets and theme-emitted
+  card / feature srcsets, closing the common `600w → 1000w` gap so a browser
+  needing ~700px no longer downloads the 1000w file. Inserted widths are skipped
+  when they would upscale the source. Default off; requires `resize` + sharp.
+  (#687)
+- Static critical-CSS inlining: the new optional `[performance.critical_css]`
+  inlines a per-route "used CSS" subset of each linked theme stylesheet into
+  `<head>` and converts the blocking `<link rel="stylesheet">` to a
+  non-blocking `media="print"` swap with a `<noscript>` fallback, removing the
+  render-blocking stylesheet request. Extraction is fully static (postcss, no
+  headless browser): rules are kept when their selectors reference
+  tags / classes / ids / attributes present in the route HTML, with `@font-face`
+  / `@keyframes` always kept, relative `url()` absolutized, and a `max_inline_kb`
+  guard plus `safelist`. Default off; no new dependency. (#689)
+- GA4 analytics now defers `gtag.js` until the first user interaction, keeping
+  the script off the critical path. Inline analytics snippets are stamped with
+  `csp_nonce` when configured. (#688)
+
 ## [0.2.0] - 2026-06-23
 
 ### Added
@@ -267,7 +293,8 @@ _Nothing yet._
   components (search, comments stub, OG images, JSON feeds), and
   `laurel import-ghost` / `laurel import-wordpress` migration tooling.
 
-[Unreleased]: https://github.com/t09tanaka/laurel/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/t09tanaka/laurel/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/t09tanaka/laurel/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/t09tanaka/laurel/compare/v0.1.12...v0.2.0
 [0.1.12]: https://github.com/t09tanaka/laurel/compare/v0.1.11...v0.1.12
 [0.1.11]: https://github.com/t09tanaka/laurel/compare/v0.1.10...v0.1.11
