@@ -1712,12 +1712,12 @@ function renderAnalyticsSnippet(
       // (LCP/TBT) instead of the eager `<script async>` GA documents.
       //
       // The measurement id is the only operator-supplied piece. We encode it as
-      // a JS string literal (JSON.stringify) and neutralise `<` so it cannot
-      // break out of the inline <script>.
-      const idLit = JSON.stringify(site).replace(/</g, '\\u003c');
-      const urlLit = JSON.stringify(`https://www.googletagmanager.com/gtag/js?id=${site}`).replace(
-        /</g,
-        '\\u003c',
+      // a JS string literal (JSON.stringify) and run it through the file's
+      // canonical escapeJsonForScript so `<`, `>`, `&`, U+2028 and U+2029 cannot
+      // break out of (or be misparsed inside) the inline <script>.
+      const idLit = escapeJsonForScript(JSON.stringify(site));
+      const urlLit = escapeJsonForScript(
+        JSON.stringify(`https://www.googletagmanager.com/gtag/js?id=${site}`),
       );
       return [
         `<script${nonce}>`,

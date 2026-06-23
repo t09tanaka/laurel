@@ -2563,10 +2563,10 @@ describe('ghost_head analytics provider snippet (issue #209)', () => {
         },
       } as unknown as Partial<LaurelEngine['config']>,
     });
-    // The raw closing tag must never reach the document; `<` is encoded to <
-    // inside the inline script's JS string literals.
+    // The raw closing tag must never reach the document; escapeJsonForScript
+    // encodes `<` and `>` inside the inline script's JS string literals.
     expect(html).not.toContain('</script><script>alert(1)');
-    expect(html).toContain('\\u003c/script>');
+    expect(html).toContain('\\u003C/script\\u003E');
   });
 });
 
