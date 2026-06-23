@@ -144,6 +144,30 @@ describe('build pipeline strict mode wiring', () => {
     expect(summary.warningCount).toBe(0);
   });
 
+  test('critical_css inlines a per-route style and makes the stylesheet async', async () => {
+    const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
+    await prependTomlTopLevel(cwd, ['[performance.critical_css]', 'enabled = true'].join('\n'));
+
+    const summary = await build({ cwd });
+    const html = readFileSync(join(summary.outputDir, 'index.html'), 'utf8');
+
+    expect(summary.warningCount).toBe(0);
+    // An inline critical <style> is present and smaller than the full sheet.
+    const inline = html.match(/<style>([\s\S]*?)<\/style>/);
+    expect(inline).not.toBeNull();
+    const inlineCss = inline?.[1] ?? '';
+    expect(inlineCss.length).toBeGreaterThan(0);
+    // Relative url() must have been absolutized (no broken ../ paths inlined).
+    expect(inlineCss).not.toContain('../');
+    // The theme stylesheet link is now non-render-blocking, with a noscript copy.
+    expect(html).toMatch(
+      /<link rel="stylesheet"[^>]*screen\.[a-f0-9]+\.css[^>]*media="print" onload="this\.media='all'">/,
+    );
+    expect(html).toMatch(
+      /<noscript><link rel="stylesheet"[^>]*screen\.[a-f0-9]+\.css[^>]*><\/noscript>/,
+    );
+  });
+
   test('invite-only portal builds remove Subscribe buttons but keep Sign in links', async () => {
     const cwd = await makeMinimalSite({ dateValue: '2026-01-01T00:00:00Z' });
     await writeFile(
