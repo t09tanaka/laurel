@@ -730,7 +730,7 @@ bunx laurel deploy s3 --build
 ```
 
 The CLI syncs `dist/` to the bucket and forwards `--region` when configured.
-When `[build].precompress = true` has emitted `.br` / `.gz` sidecars, it
+When `[build].precompress = "both"` has emitted `.br` / `.gz` sidecars, it
 uploads those objects with `Content-Encoding: br` / `gzip` metadata so
 CloudFront can serve origin-compressed assets correctly. It does not create
 CloudFront invalidations or apply the workflow's split cache-control metadata;

@@ -97,7 +97,7 @@ For production builds, start with:
 ```toml
 [build]
 minify_html = true
-precompress = true
+precompress = "both"
 
 [performance]
 preload_stylesheet = true # only when the theme does not already preload CSS

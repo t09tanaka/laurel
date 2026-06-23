@@ -136,12 +136,12 @@ are not interpolated into the destination, so use explicit destination paths.
 
 ## Pre-compressed Assets
 
-Set `[build].precompress = true` in `laurel.toml` to emit `.br` and `.gz`
+Set `[build].precompress = "both"` in `laurel.toml` to emit `.br` and `.gz`
 sidecars next to text files:
 
 ```toml
 [build]
-precompress = true
+precompress = "both"
 ```
 
 The generated nginx config enables `brotli_static` and `gzip_static`. Your

@@ -38,6 +38,26 @@ describe('buildApacheHtaccess', () => {
     expect(out.endsWith('\n')).toBe(true);
   });
 
+  test('emits only the gzip AddEncoding for precompress "gzip"', () => {
+    const out = buildApacheHtaccess({
+      headers: DEFAULT_HEADERS_CONFIG,
+      rules: [],
+      precompress: 'gzip',
+    });
+    expect(out).toContain('AddEncoding gzip .gz');
+    expect(out).not.toContain('AddEncoding br .br');
+  });
+
+  test('omits both AddEncoding directives for precompress "off"', () => {
+    const out = buildApacheHtaccess({
+      headers: DEFAULT_HEADERS_CONFIG,
+      rules: [],
+      precompress: 'off',
+    });
+    expect(out).not.toContain('AddEncoding br .br');
+    expect(out).not.toContain('AddEncoding gzip .gz');
+  });
+
   test('maps deploy cache rules to first-match rewrite env flags consumed by mod_headers', () => {
     const out = buildApacheHtaccess({ headers: DEFAULT_HEADERS_CONFIG, rules: [] });
 

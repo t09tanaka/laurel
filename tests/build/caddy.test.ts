@@ -42,6 +42,18 @@ describe('buildCaddyfile', () => {
     expect(out).toContain('        precompressed br gzip');
   });
 
+  test('lists only gzip in precompressed for precompress "gzip"', () => {
+    const out = buildCaddyfile({ headers: DEFAULT_HEADERS_CONFIG, rules: [], precompress: 'gzip' });
+    expect(out).toContain('        precompressed gzip');
+    expect(out).not.toContain('precompressed br');
+  });
+
+  test('omits precompressed and uses bare file_server for precompress "off"', () => {
+    const out = buildCaddyfile({ headers: DEFAULT_HEADERS_CONFIG, rules: [], precompress: 'off' });
+    expect(out).not.toContain('precompressed');
+    expect(out).toContain('    file_server');
+  });
+
   test('emits cache header matchers for every cache rule', () => {
     const out = buildCaddyfile({ headers: DEFAULT_HEADERS_CONFIG, rules: [] });
 

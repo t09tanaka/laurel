@@ -94,7 +94,7 @@ translates the canonical redirect list into Apache `RewriteRule` directives in
 
 ## Gzip / Brotli
 
-Enable `[build].precompress = true` in `laurel.toml` so the build emits
+Enable `[build].precompress = "both"` in `laurel.toml` so the build emits
 `.br` + `.gz` sidecars next to every text artifact. The generated `.htaccess`
 includes `AddEncoding` directives for those sidecars; pair that with
 `mod_negotiation` / `mod_brotli` on the server to avoid per-request

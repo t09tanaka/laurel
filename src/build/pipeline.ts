@@ -1719,6 +1719,7 @@ async function runBuild({
     enabled: config.deploy.apache.enabled,
     headers: deployHeaders,
     rules: deployRedirects,
+    precompress: config.build.precompress,
   });
   if (config.deploy.nginx.enabled) keepOutput('.laurel/nginx.conf');
   await emitNginxConf({
@@ -1728,6 +1729,7 @@ async function runBuild({
     rules: deployRedirects,
     root: config.deploy.nginx.root,
     serverName: config.deploy.nginx.server_name,
+    precompress: config.build.precompress,
   });
   if (config.deploy.caddy.enabled) keepOutput('.laurel/Caddyfile');
   await emitCaddyfile({
@@ -1737,6 +1739,7 @@ async function runBuild({
     rules: deployRedirects,
     root: config.deploy.caddy.root,
     siteAddress: config.deploy.caddy.site_address,
+    precompress: config.build.precompress,
   });
 
   // Static passthrough runs as the final emit step so ordinary files the user
@@ -1805,13 +1808,17 @@ async function runBuild({
   }
 
   // Pre-compress text outputs (`.html`, `.css`, `.js`, `.json`, `.svg`, `.xml`,
-  // `.txt`, `.map`) into `.br` + `.gz` siblings. Runs after every emitter so
+  // `.txt`, `.map`) into `.br` and/or `.gz` siblings per `[build].precompress`.
+  // Runs after every emitter so
   // the static-passthrough overrides land first and get compressed alongside
   // the generated tree, and *before* `emitBuildManifest` so the companion
   // files are part of the deploy manifest's hash list. Gated by
-  // `[build].precompress` (default false; flip on for production deploys).
-  if (config.build.precompress) {
-    await timed(profiler, 'precompress', () => precompressOutput({ outputDir, enabled: true }));
+  // `[build].precompress` (`off` | `brotli` | `gzip` | `both`; default `off`,
+  // flip on for production deploys).
+  if (config.build.precompress !== 'off') {
+    await timed(profiler, 'precompress', () =>
+      precompressOutput({ outputDir, format: config.build.precompress }),
+    );
   }
 
   const profilePath = profiler ? buildStatsPath(finalOutputDir) : undefined;

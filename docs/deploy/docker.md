@@ -183,7 +183,7 @@ GitHub Actions setup, see [`docs/deploy/fly.md`](./fly.md).
   config repeats those headers inside each `location` because nginx
   `add_header` directives do not inherit once a location defines its own
   headers.
-- `[build].precompress = true` emits `.br` and `.gz` sidecars. nginx only
+- `[build].precompress = "both"` emits `.br` and `.gz` sidecars. nginx only
   serves them when the runtime config and image support the matching static
   compression directives.
 

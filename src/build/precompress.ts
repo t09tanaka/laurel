@@ -59,13 +59,16 @@ const gzipP = (buf: Buffer): Promise<Buffer> =>
     gzip(buf, { level: 9 }, (err, out) => (err ? reject(err) : resolve(out)));
   });
 
+// Which precompressed sidecars to emit. `off` skips the phase entirely;
+// `brotli` / `gzip` emit a single format (handy when the host only serves one
+// of `brotli_static` / `gzip_static` — e.g. stock nginx without `ngx_brotli`,
+// or a CDN that always negotiates Brotli); `both` emits the full pair for
+// maximum `Accept-Encoding` coverage.
+export type PrecompressFormat = 'off' | 'brotli' | 'gzip' | 'both';
+
 interface PrecompressOptions {
   outputDir: string;
-  enabled: boolean;
-  // Only emit Brotli, skip gzip. Useful for hosts that always have Brotli
-  // available; saves ~50% of the precompress time at a small compatibility
-  // cost on very old clients.
-  brotliOnly?: boolean;
+  format: PrecompressFormat;
 }
 
 interface PrecompressResult {
@@ -75,7 +78,9 @@ interface PrecompressResult {
 }
 
 export async function precompressOutput(opts: PrecompressOptions): Promise<PrecompressResult> {
-  if (!opts.enabled) return { fileCount: 0 };
+  if (opts.format === 'off') return { fileCount: 0 };
+  const emitBrotli = opts.format === 'brotli' || opts.format === 'both';
+  const emitGzip = opts.format === 'gzip' || opts.format === 'both';
   const all = await scanGlob('**/*', { cwd: opts.outputDir, onlyFiles: true });
   // Filter to extensions worth compressing and skip already-encoded
   // companion outputs so a rerun doesn't try to compress its own `.br`/`.gz`.
@@ -96,10 +101,12 @@ export async function precompressOutput(opts: PrecompressOptions): Promise<Preco
         if (s.size < MIN_BYTES) return;
         const file = Bun.file(abs);
         const buf = Buffer.from(await file.arrayBuffer());
-        const brTask = brotliCompressP(buf).then((br) => writeFile(`${abs}.br`, br));
-        const gzTask = opts.brotliOnly
-          ? Promise.resolve()
-          : gzipP(buf).then((gz) => writeFile(`${abs}.gz`, gz));
+        const brTask = emitBrotli
+          ? brotliCompressP(buf).then((br) => writeFile(`${abs}.br`, br))
+          : Promise.resolve();
+        const gzTask = emitGzip
+          ? gzipP(buf).then((gz) => writeFile(`${abs}.gz`, gz))
+          : Promise.resolve();
         await Promise.all([brTask, gzTask]);
         count++;
       }),

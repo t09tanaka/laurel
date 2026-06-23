@@ -2,6 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ensureDir } from '~/util/fs.ts';
 import type { HeadersConfig } from './headers.ts';
+import type { PrecompressFormat } from './precompress.ts';
 import { type RedirectRule, collapseRedirects } from './redirects.ts';
 
 // Caddy consumes a single Caddyfile for static serving, headers, redirects, and
@@ -38,6 +39,11 @@ interface CacheRule {
 interface BuildCaddyfileOptions {
   headers: HeadersConfig;
   rules: readonly RedirectRule[];
+  // Which encodings to list on `file_server`'s `precompressed`, mirroring
+  // `[build].precompress`. Caddy serves a sidecar only when it exists, but
+  // listing an encoding Laurel never emits is misleading; keep it in sync.
+  // Defaults to `both` to preserve historical output for callers that omit it.
+  precompress?: PrecompressFormat;
   // Filesystem root Caddy serves from. Defaults to the same self-hosted path as
   // the nginx emitter so rsync/VPS guides can switch servers without changing
   // their artifact layout.
@@ -91,9 +97,17 @@ export function buildCaddyfile(opts: BuildCaddyfileOptions): string {
 
   lines.push('');
   lines.push('    try_files {path} {path}/index.html =404');
-  lines.push('    file_server {');
-  lines.push('        precompressed br gzip');
-  lines.push('    }');
+  const format = opts.precompress ?? 'both';
+  const encodings: string[] = [];
+  if (format === 'brotli' || format === 'both') encodings.push('br');
+  if (format === 'gzip' || format === 'both') encodings.push('gzip');
+  if (encodings.length > 0) {
+    lines.push('    file_server {');
+    lines.push(`        precompressed ${encodings.join(' ')}`);
+    lines.push('    }');
+  } else {
+    lines.push('    file_server');
+  }
   lines.push('');
   lines.push('    handle_errors {');
   lines.push('        rewrite * /404.html');
@@ -157,6 +171,7 @@ export async function emitCaddyfile(opts: {
   rules: readonly RedirectRule[];
   root?: string;
   siteAddress?: string;
+  precompress?: PrecompressFormat;
 }): Promise<void> {
   if (!opts.enabled) return;
   const body = buildCaddyfile({
@@ -164,6 +179,7 @@ export async function emitCaddyfile(opts: {
     rules: opts.rules,
     root: opts.root,
     siteAddress: opts.siteAddress,
+    precompress: opts.precompress,
   });
   const targetDir = join(opts.outputDir, '.laurel');
   await ensureDir(targetDir);

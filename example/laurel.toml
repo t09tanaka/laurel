@@ -40,7 +40,7 @@ base_path = "/"
 posts_per_page = 6
 copy_content_assets = true
 minify_html = true
-precompress = true
+precompress = "both"
 
 [deploy.cloudflare_pages]
 enabled = true
