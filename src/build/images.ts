@@ -149,6 +149,42 @@ export const DEFAULT_RESPONSIVE_WIDTHS: readonly number[] = [600, 1000, 1600, 24
 export const DEFAULT_IMAGE_SIZES = '(min-width: 720px) 720px';
 export { GALLERY_IMAGE_SIZES };
 
+// Rounding granularity for inserted srcset widths. Keeps generated width
+// segments (and therefore variant cache keys) stable across builds rather than
+// emitting arbitrary geometric-mean values like `w774`.
+const DENSIFY_GRANULARITY = 10;
+
+// Fill gaps in a width ladder so no two adjacent widths differ by more than
+// `ratio`. Between an adjacent pair (a, b) with b/a > ratio we insert the
+// geometric mean (rounded to `granularity`) and re-evaluate, walking upward
+// until the gap closes. Deterministic and idempotent: an already-dense ladder
+// returns the same widths. Used both to expand the responsive plan for body
+// images and to derive the synthetic widths theme card/feature srcsets borrow.
+export function densifyWidths(
+  widths: readonly number[],
+  ratio: number,
+  granularity: number = DENSIFY_GRANULARITY,
+): number[] {
+  const sorted = [...new Set(widths)]
+    .filter((w) => Number.isFinite(w) && w > 0)
+    .sort((a, b) => a - b);
+  if (ratio <= 1 || sorted.length < 2) return sorted;
+  const out: number[] = [sorted[0] as number];
+  for (let i = 1; i < sorted.length; i += 1) {
+    const hi = sorted[i] as number;
+    let lo = out[out.length - 1] as number;
+    while (hi / lo > ratio) {
+      let mid = Math.round(Math.sqrt(lo * hi) / granularity) * granularity;
+      if (mid <= lo) mid = lo + granularity;
+      if (mid >= hi) break;
+      out.push(mid);
+      lo = mid;
+    }
+    out.push(hi);
+  }
+  return out;
+}
+
 // Only formats that sharp can resize. SVG is intrinsically scalable so a
 // variant pass would be busy-work; GIF can be animated and sharp drops frames
 // by default, so we skip it rather than silently flatten.
@@ -957,6 +993,117 @@ export function injectThemeImagePictureSources(
   }
   result += html.slice(lastIdx);
   return result;
+}
+
+interface SizedVariantUrl {
+  before: string; // everything up to and including the marker
+  width: number;
+  formatSeg: string; // 'format/webp/' or '' (no transcode segment)
+  rel: string;
+}
+
+// Parse a Ghost size-variant URL of the shape
+// `<…>/content/images/size/w<W>[/format/<fmt>]/<rel>` into its parts so a sibling
+// width can be substituted. Returns undefined for any other shape (remote URLs,
+// `size/h…`-only, height-bearing `wXhY` segments, missing width, `..`).
+function parseSizedVariantUrl(url: string, marker: string): SizedVariantUrl | undefined {
+  const cleaned = url.split(/[?#]/)[0] ?? '';
+  const idx = cleaned.indexOf(marker);
+  if (idx < 0) return undefined;
+  const before = cleaned.slice(0, idx + marker.length);
+  const after = cleaned.slice(idx + marker.length);
+  const m = after.match(/^size\/w(\d+)\/(?:(format\/[a-z0-9]+\/))?(.+)$/);
+  if (!m) return undefined;
+  const width = Number.parseInt(m[1] ?? '', 10);
+  if (!Number.isFinite(width) || width <= 0) return undefined;
+  const rel = m[3] ?? '';
+  if (rel === '' || rel.includes('..')) return undefined;
+  return { before, width, formatSeg: m[2] ?? '', rel };
+}
+
+interface DensifyImageSrcsetOptions {
+  // Target ladder the inserted widths are drawn from. Only ladder widths that
+  // fall inside a too-wide gap are inserted, so every emitted width is one the
+  // build also materialises on disk.
+  ladder: readonly number[];
+  ratio: number;
+  marker?: string;
+  // Source intrinsic width per asset-relative path. Inserted widths >= source
+  // are skipped because the resize pipeline never upscales (the file would
+  // 404). Undefined means "unknown" -> treated as no constraint.
+  sourceWidthFor?: (rel: string) => number | undefined;
+}
+
+// Insert intermediate widths into theme-emitted `<img srcset>` so adjacent
+// candidates differ by no more than `ratio`. Themes reference `feature_image`
+// and card images through `{{img_url … size="<key>"}}`, producing a srcset
+// whose widths are the theme's `image_sizes` keys (e.g. 600w then 1000w). A
+// browser asking for ~700px is forced up to the 1000w file, wasting bytes; an
+// 800w candidate lets it pick a tighter fit. Laurel already controls body-image
+// srcsets via `injectImageSrcset`, so this only touches `<img>` whose srcset is
+// entirely Ghost size-variant URLs sharing one source. Anything else (mixed
+// shapes, density descriptors, remote URLs) is left untouched. Must run before
+// `injectThemeImagePictureSources` so the per-format `<source>` it builds
+// inherits the inserted widths. Idempotent: a srcset already within `ratio`
+// gains nothing.
+export function densifyImageSrcset(html: string, opts: DensifyImageSrcsetOptions): string {
+  if (!html.includes('<img') || opts.ladder.length === 0 || opts.ratio <= 1) return html;
+  const marker = opts.marker ?? '/content/images/';
+  const ladder = [...opts.ladder].sort((a, b) => a - b);
+  return html.replace(/<img\b([^>]*?)(\/?)>/gi, (match, attrsRaw: string, selfClose: string) => {
+    const attrs = parseImgAttrs(attrsRaw);
+    const srcsetRaw = attrs.get('srcset');
+    if (typeof srcsetRaw !== 'string' || srcsetRaw.trim() === '') return match;
+    const entries = parseSrcsetEntries(srcsetRaw);
+    if (entries.length < 2) return match;
+
+    // Require a homogeneous, width-descriptored, single-source srcset; bail
+    // otherwise rather than risk corrupting an unusual srcset.
+    let template: SizedVariantUrl | undefined;
+    const existing = new Set<number>();
+    for (const entry of entries) {
+      const descMatch = entry.descriptor.match(/^(\d+)w$/);
+      if (!descMatch) return match;
+      const parsed = parseSizedVariantUrl(entry.url, marker);
+      if (!parsed) return match;
+      if (parsed.width !== Number.parseInt(descMatch[1] ?? '', 10)) return match;
+      if (template) {
+        if (
+          parsed.before !== template.before ||
+          parsed.formatSeg !== template.formatSeg ||
+          parsed.rel !== template.rel
+        ) {
+          return match;
+        }
+      } else {
+        template = parsed;
+      }
+      existing.add(parsed.width);
+    }
+    if (!template) return match;
+
+    const sortedExisting = [...existing].sort((a, b) => a - b);
+    const sourceWidth = opts.sourceWidthFor?.(template.rel);
+    const inserts = new Set<number>();
+    for (let i = 1; i < sortedExisting.length; i += 1) {
+      const a = sortedExisting[i - 1] as number;
+      const b = sortedExisting[i] as number;
+      if (b / a <= opts.ratio) continue;
+      for (const w of ladder) {
+        if (w <= a || w >= b) continue;
+        if (existing.has(w)) continue;
+        if (typeof sourceWidth === 'number' && w >= sourceWidth) continue;
+        inserts.add(w);
+      }
+    }
+    if (inserts.size === 0) return match;
+
+    const allWidths = [...new Set([...existing, ...inserts])].sort((a, b) => a - b);
+    const srcset = allWidths
+      .map((w) => `${template?.before}size/w${w}/${template?.formatSeg}${template?.rel} ${w}w`)
+      .join(', ');
+    return appendImgAttrs(stripAttr(attrsRaw, 'srcset'), `srcset="${srcset}"`, selfClose);
+  });
 }
 
 // Build the URL segment for a theme `image_sizes` entry the same way the

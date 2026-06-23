@@ -20,9 +20,10 @@ import type { BuildContext, Plugin } from '~/plugin/types.ts';
 import { createEngine } from '~/render/engine.ts';
 import type { RouteContext } from '~/render/types.ts';
 import { loadTheme } from '~/theme/loader.ts';
-import type { ThemeBundle } from '~/theme/types.ts';
+import type { ThemeBundle, ThemeImageSize } from '~/theme/types.ts';
 import { validateThemeCustom } from '~/theme/validate-custom.ts';
 import { pLimit } from '~/util/concurrency.ts';
+import { readImageDimensions } from '~/util/image-size.ts';
 import { getLaurelVersion } from '~/util/laurel-version.ts';
 import { getWarningCount, logger, resetWarningCount } from '~/util/logger.ts';
 import { emitAlgoliaRecords, emitDocSearchCss } from './algolia.ts';
@@ -90,8 +91,10 @@ import { runPostBuildHook } from './hooks.ts';
 import { emitHumans } from './humans.ts';
 import { collectImageAltWarnings, formatImageAltWarning } from './image-alt-lint.ts';
 import {
+  DEFAULT_RESPONSIVE_WIDTHS,
   type ImageFormat,
   collapseDegenerateSrcsetIntoContent,
+  densifyWidths,
   generateImageFormatVariants,
   generateImageVariants,
   generateThemeImageSizeVariants,
@@ -635,6 +638,7 @@ async function runBuild({
     theme,
     imageVariantPlan,
     formatVariants,
+    densify,
     favicons,
     engine,
   } = await timed(profiler, 'load', () =>
@@ -690,8 +694,23 @@ async function runBuild({
 
       injectImageDimensionsIntoContent({ content, cwd, config });
 
+      // srcset densification (opt-in via `[components.images].srcset_max_ratio`).
+      // Only active when the resize pipeline can actually materialise the
+      // inserted widths (resize on + sharp present); otherwise the extra srcset
+      // URLs would 404. Body images borrow the densified responsive ladder via
+      // the plan; theme card/feature srcsets borrow synthetic `image_sizes`
+      // widths so their per-format `format/<fmt>/` siblings are generated too.
+      const densify = await computeDensifyParams({
+        config,
+        themeImageSizes: theme.pkg.image_sizes,
+      });
+
       const imageVariantPlan = await timed(profiler, 'plan_image_variants', () =>
-        planImageVariants({ cwd, config }),
+        planImageVariants({
+          cwd,
+          config,
+          widths: densify ? densifyWidths(DEFAULT_RESPONSIVE_WIDTHS, densify.ratio) : undefined,
+        }),
       );
       injectImageSrcsetIntoContent({ content, plan: imageVariantPlan });
       // Strip degenerate srcsets in post/page HTML (e.g. SVG covers where every
@@ -725,6 +744,7 @@ async function runBuild({
         theme,
         imageVariantPlan,
         formatVariants,
+        densify,
         favicons,
         engine,
       };
@@ -732,12 +752,24 @@ async function runBuild({
   );
 
   const imagesCfg = config.components.images;
+  // Intrinsic-width lookup for the srcset densify pass: an inserted width >=
+  // the source's real width would 404 (the resize pipeline never upscales), so
+  // the pass must drop it. Cached per asset-relative path.
+  const sourceWidthAssetsRoot = resolve(cwd, config.content.assets_dir);
+  const sourceWidthCache = new Map<string, number | undefined>();
+  const sourceWidthFor = (rel: string): number | undefined => {
+    const cached = sourceWidthCache.get(rel);
+    if (cached !== undefined || sourceWidthCache.has(rel)) return cached;
+    const dims = readImageDimensions(join(sourceWidthAssetsRoot, rel));
+    sourceWidthCache.set(rel, dims?.width);
+    return dims?.width;
+  };
   markPlannedOgImages({ config, content, cwd, keepOutput });
   markPlannedImageVariants({
     cwd,
     config,
     plan: imageVariantPlan,
-    themeImageSizes: theme.pkg.image_sizes,
+    themeImageSizes: densify ? densify.themeImageSizes : theme.pkg.image_sizes,
     formats: formatVariants,
     keepOutput,
   });
@@ -1090,6 +1122,9 @@ async function runBuild({
           pluginCtx,
           contentImagePlan,
           formatVariants,
+          srcsetDensify: densify
+            ? { ratio: densify.ratio, ladder: densify.themeLadder, sourceWidthFor }
+            : undefined,
           portalUrls,
           recommendationsEnabled,
           themeOwnsInfiniteScroll,
@@ -1449,7 +1484,7 @@ async function runBuild({
                   cwd,
                   config,
                   outputDir,
-                  themeImageSizes: theme.pkg.image_sizes,
+                  themeImageSizes: densify ? densify.themeImageSizes : theme.pkg.image_sizes,
                   cacheDir: resolveCacheDir(cwd, imagesCfg.cache_dir),
                   formats: formatVariants,
                   webpQuality: imagesCfg.webp_quality,
@@ -2028,6 +2063,39 @@ function markPlannedRssOutputs(opts: {
       }
     }
   }
+}
+
+// Resolved srcset-densification parameters. `themeImageSizes` is the theme's
+// declared sizes merged with synthetic width-only entries for each ladder width
+// the theme keys don't already cover, so `generateThemeImageSizeVariants`
+// materialises both the same-format and per-format files theme srcsets borrow.
+// `themeLadder` is the candidate width set the rendered-HTML densify pass draws
+// inserted widths from.
+interface DensifyParams {
+  ratio: number;
+  themeLadder: number[];
+  themeImageSizes: Record<string, ThemeImageSize>;
+}
+
+async function computeDensifyParams(opts: {
+  config: LaurelConfig;
+  themeImageSizes: Record<string, ThemeImageSize>;
+}): Promise<DensifyParams | undefined> {
+  const imagesCfg = opts.config.components.images;
+  const ratio = imagesCfg.srcset_max_ratio;
+  if (typeof ratio !== 'number' || !imagesCfg.resize) return undefined;
+  if (!(await isSharpAvailable())) return undefined;
+
+  const themeKeyWidths = Object.values(opts.themeImageSizes)
+    .map((s) => (typeof s.width === 'number' ? s.width : 0))
+    .filter((w) => w > 0);
+  const themeLadder = densifyWidths(themeKeyWidths, ratio);
+  const existing = new Set(themeKeyWidths);
+  const themeImageSizes: Record<string, ThemeImageSize> = { ...opts.themeImageSizes };
+  for (const w of themeLadder) {
+    if (!existing.has(w)) themeImageSizes[`__densify_w${w}`] = { width: w };
+  }
+  return { ratio, themeLadder, themeImageSizes };
 }
 
 function markPlannedImageVariants(opts: {
