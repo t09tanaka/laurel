@@ -11,6 +11,8 @@ import {
   buildThemeImageSizeSegment,
   collapseDegenerateSrcset,
   collapseDegenerateSrcsetIntoContent,
+  densifyImageSrcset,
+  densifyWidths,
   generateImageVariants,
   generateThemeImageSizeVariants,
   injectImageDimensions,
@@ -1336,5 +1338,183 @@ describe('collapseDegenerateSrcsetIntoContent', () => {
     expect(page.html).not.toContain('srcset');
     expect(post.html).toContain('src="/content/images/x.svg"');
     expect(page.html).toContain('src="/content/images/z.svg"');
+  });
+});
+
+describe('densifyWidths', () => {
+  test('fills a gap wider than the ratio with a geometric-mean width', () => {
+    expect(densifyWidths([600, 1000], 1.5)).toEqual([600, 770, 1000]);
+  });
+
+  test('leaves an already-dense ladder unchanged (idempotent)', () => {
+    const dense = densifyWidths([600, 1000], 1.5);
+    expect(densifyWidths(dense, 1.5)).toEqual(dense);
+  });
+
+  test('densifies every gap of a multi-step ladder', () => {
+    const out = densifyWidths([300, 600, 1000, 2000], 1.5);
+    expect(out).toEqual([300, 420, 600, 770, 1000, 1410, 2000]);
+    for (let i = 1; i < out.length; i += 1) {
+      expect((out[i] as number) / (out[i - 1] as number)).toBeLessThanOrEqual(1.5 + 1e-9);
+    }
+  });
+
+  test('dedupes and sorts the input', () => {
+    expect(densifyWidths([1000, 600, 600], 5)).toEqual([600, 1000]);
+  });
+
+  test('returns the input untouched when ratio <= 1 or fewer than two widths', () => {
+    expect(densifyWidths([600, 1000], 1)).toEqual([600, 1000]);
+    expect(densifyWidths([600], 1.5)).toEqual([600]);
+    expect(densifyWidths([], 1.5)).toEqual([]);
+  });
+
+  test('drops non-positive and non-finite widths', () => {
+    expect(densifyWidths([0, -10, 600, Number.NaN, 1000], 1.5)).toEqual([600, 770, 1000]);
+  });
+});
+
+describe('densifyImageSrcset', () => {
+  const ladder = [300, 420, 600, 770, 1000, 1410, 2000];
+
+  test('inserts an intermediate width into a 600w->1000w theme srcset', () => {
+    const html =
+      '<img class="post-card-image" srcset="/content/images/size/w600/2022/cover.jpeg 600w, /content/images/size/w1000/2022/cover.jpeg 1000w" sizes="(max-width: 1000px) 400px, 800px">';
+    const out = densifyImageSrcset(html, { ratio: 1.5, ladder });
+    expect(out).toContain('/content/images/size/w770/2022/cover.jpeg 770w');
+    // Existing widths and order preserved, sizes untouched.
+    expect(out).toContain('/content/images/size/w600/2022/cover.jpeg 600w');
+    expect(out).toContain('/content/images/size/w1000/2022/cover.jpeg 1000w');
+    expect(out).toContain('sizes="(max-width: 1000px) 400px, 800px"');
+    expect(out.indexOf('w600')).toBeLessThan(out.indexOf('w770'));
+    expect(out.indexOf('w770')).toBeLessThan(out.indexOf('w1000'));
+  });
+
+  test('preserves a format/ segment when inserting widths', () => {
+    const html =
+      '<img srcset="/content/images/size/w600/format/webp/a.jpg 600w, /content/images/size/w1000/format/webp/a.jpg 1000w">';
+    const out = densifyImageSrcset(html, { ratio: 1.5, ladder });
+    expect(out).toContain('/content/images/size/w770/format/webp/a.jpg 770w');
+  });
+
+  test('is a no-op when the srcset is already within ratio', () => {
+    const html =
+      '<img srcset="/content/images/size/w600/a.jpg 600w, /content/images/size/w770/a.jpg 770w">';
+    expect(densifyImageSrcset(html, { ratio: 1.5, ladder })).toBe(html);
+  });
+
+  test('skips inserted widths that meet or exceed the source width', () => {
+    const html =
+      '<img srcset="/content/images/size/w600/a.jpg 600w, /content/images/size/w1000/a.jpg 1000w">';
+    // Source is only 700px wide: w770 would upscale -> 404, so it is dropped.
+    const out = densifyImageSrcset(html, {
+      ratio: 1.5,
+      ladder,
+      sourceWidthFor: () => 700,
+    });
+    expect(out).toBe(html);
+  });
+
+  test('leaves a srcset with density (x) descriptors untouched', () => {
+    const html =
+      '<img srcset="/content/images/size/w600/a.jpg 1x, /content/images/size/w1000/a.jpg 2x">';
+    expect(densifyImageSrcset(html, { ratio: 1.5, ladder })).toBe(html);
+  });
+
+  test('leaves a srcset mixing different sources untouched', () => {
+    const html =
+      '<img srcset="/content/images/size/w600/a.jpg 600w, /content/images/size/w1000/b.jpg 1000w">';
+    expect(densifyImageSrcset(html, { ratio: 1.5, ladder })).toBe(html);
+  });
+
+  test('leaves remote / non-Ghost srcsets untouched', () => {
+    const html =
+      '<img srcset="https://cdn.example.com/a-600.jpg 600w, https://cdn.example.com/a-1000.jpg 1000w">';
+    expect(densifyImageSrcset(html, { ratio: 1.5, ladder })).toBe(html);
+  });
+
+  test('is idempotent across repeated runs', () => {
+    const html =
+      '<img srcset="/content/images/size/w300/a.jpg 300w, /content/images/size/w1000/a.jpg 1000w">';
+    const once = densifyImageSrcset(html, { ratio: 1.5, ladder });
+    expect(densifyImageSrcset(once, { ratio: 1.5, ladder })).toBe(once);
+  });
+
+  test('leaves an <img> already inside a <picture> untouched', () => {
+    const html =
+      '<picture><source type="image/webp" srcset="/content/images/size/w600/a.jpg.webp 600w"><img srcset="/content/images/size/w600/a.jpg 600w, /content/images/size/w1000/a.jpg 1000w"></picture>';
+    expect(densifyImageSrcset(html, { ratio: 1.5, ladder })).toBe(html);
+  });
+
+  test('does nothing without a srcset or with an empty ladder', () => {
+    const plain = '<img src="/content/images/2022/cover.jpeg">';
+    expect(densifyImageSrcset(plain, { ratio: 1.5, ladder })).toBe(plain);
+    const html =
+      '<img srcset="/content/images/size/w600/a.jpg 600w, /content/images/size/w1000/a.jpg 1000w">';
+    expect(densifyImageSrcset(html, { ratio: 1.5, ladder: [] })).toBe(html);
+  });
+});
+
+describe('densifyImageSrcset + generateThemeImageSizeVariants integration', () => {
+  test('every width densify inserts into a theme srcset is materialised on disk (no 404)', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'laurel-densify-'));
+    const assetsDir = 'content/images';
+    await writeRealPng(join(cwd, assetsDir, '2022/cover.png'), 1600, 1000);
+    const outputDir = join(cwd, 'dist');
+    const cacheDir = join(cwd, '.cache');
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
+
+    const ratio = 1.5;
+    const themeKeys = {
+      xs: { width: 160 },
+      s: { width: 320 },
+      m: { width: 600 },
+      l: { width: 960 },
+      xl: { width: 1200 },
+      xxl: { width: 2000 },
+    };
+    // Mirror computeDensifyParams: ladder + synthetic width-only entries.
+    const themeKeyWidths = Object.values(themeKeys).map((s) => s.width);
+    const ladder = densifyWidths(themeKeyWidths, ratio);
+    const merged: Record<string, { width: number }> = { ...themeKeys };
+    const existing = new Set(themeKeyWidths);
+    for (const w of ladder) {
+      if (!existing.has(w)) merged[`__densify_w${w}`] = { width: w };
+    }
+
+    await generateThemeImageSizeVariants({
+      cwd,
+      config,
+      outputDir,
+      themeImageSizes: merged,
+      cacheDir,
+      formats: ['webp'],
+    });
+
+    // The Source card srcset: webp format variants at the theme key widths.
+    const srcsetEntries = themeKeyWidths
+      .map((w) => `/content/images/size/w${w}/format/webp/2022/cover.png ${w}w`)
+      .join(', ');
+    const html = `<img srcset="${srcsetEntries}">`;
+    const out = densifyImageSrcset(html, { ratio, ladder, sourceWidthFor: () => 1600 });
+
+    // densify must have inserted at least one width.
+    expect(out).not.toBe(html);
+
+    const widthsOf = (s: string): number[] =>
+      [...s.matchAll(/\/size\/w(\d+)\//g)].map((m) => Number.parseInt(m[1] ?? '', 10));
+    const before = new Set(widthsOf(html));
+    const inserted = widthsOf(out).filter((w) => !before.has(w));
+    expect(inserted).toEqual([230, 440, 760, 1550]);
+
+    // Every width densify *inserts* must exist on disk (the contract: never emit
+    // a 404). Pre-existing theme widths that upscale the source (w2000 here) are
+    // the theme's own concern and are not asserted.
+    for (const w of inserted) {
+      expect(w).toBeLessThan(1600);
+      expect(
+        existsSync(join(outputDir, 'content/images/size', `w${w}`, 'format/webp/2022/cover.png')),
+      ).toBe(true);
+    }
   });
 });

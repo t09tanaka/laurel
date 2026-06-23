@@ -15,6 +15,7 @@ import { rewriteImageCdnUrls } from './image-cdn.ts';
 import type { ImageFormat } from './images.ts';
 import {
   collapseDegenerateSrcset,
+  densifyImageSrcset,
   injectImageDimensions,
   injectImageLqip,
   injectThemeImagePictureSources,
@@ -52,6 +53,16 @@ interface RouteRenderOptions {
   // to wrap theme `feature_image` <img> tags in a <picture> with per-format
   // <source> fallbacks. Empty when no format variants will be emitted.
   formatVariants: readonly ImageFormat[];
+  // When set, fill gaps in theme-emitted card/feature `<img srcset>` so adjacent
+  // widths differ by no more than `ratio`. Inserted widths are drawn from
+  // `ladder` (the densified theme `image_sizes` widths, all materialised on
+  // disk) and filtered against the source's intrinsic width via `sourceWidthFor`
+  // so no inserted variant 404s.
+  srcsetDensify?: {
+    ratio: number;
+    ladder: readonly number[];
+    sourceWidthFor: (rel: string) => number | undefined;
+  };
   portalUrls: Record<string, string>;
   recommendationsEnabled: boolean;
   // When the theme provides its own infinite-scroll script, suppress Laurel's
@@ -107,6 +118,19 @@ export async function renderRouteHtml(opts: RouteRenderOptions): Promise<string>
       // the referenced format variants are only materialised on disk when the
       // sharp-backed resize pipeline runs. Must run before syncPriorityImagePreload
       // so the LCP preload can align with the emitted WebP <source>.
+      // Densify theme card/feature srcsets before the <picture> wrap. For
+      // same-format (jpg/png) theme srcsets, injectThemeImagePictureSources
+      // derives the per-format <source> from the (now densified) <img> srcset,
+      // so it must see the inserted widths first; for srcsets that are already
+      // webp the order is moot. Gated on resize because the inserted variants
+      // are only on disk when the resize pipeline ran.
+      if (config.components.images.resize && opts.srcsetDensify) {
+        html = densifyImageSrcset(html, {
+          ratio: opts.srcsetDensify.ratio,
+          ladder: opts.srcsetDensify.ladder,
+          sourceWidthFor: opts.srcsetDensify.sourceWidthFor,
+        });
+      }
       if (config.components.images.resize && opts.formatVariants.length > 0) {
         html = injectThemeImagePictureSources(html, { formats: opts.formatVariants });
       }

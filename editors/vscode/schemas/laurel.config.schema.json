@@ -1597,6 +1597,12 @@
                   ],
                   "description": "Image formats to transcode the responsive variants into. Order matters: the first entry is preferred by browsers that understand it."
                 },
+                "srcset_max_ratio": {
+                  "type": "number",
+                  "minimum": 1.1,
+                  "maximum": 3,
+                  "description": "When set, fill gaps in responsive `srcset`s so no two adjacent width candidates differ by more than this ratio. Densifies both Laurel-injected body-image srcsets (the default responsive widths) and theme-emitted card/feature srcsets (whose widths are the theme `image_sizes` keys), inserting intermediate `/content/images/size/wXXX/` widths plus their per-format siblings. Closes the common 600w->1000w gap so a browser needing ~700px does not download the 1000w file. Smaller ratio = more sizes = tighter fit but more variant files on disk; Ghost recommends keeping the total number of sizes modest, so 1.5 is a reasonable starting point. Requires `resize` + sharp; widths that would upscale the source are skipped. Unset (default) leaves srcsets as-is."
+                },
                 "webp_quality": {
                   "type": "integer",
                   "minimum": 1,
