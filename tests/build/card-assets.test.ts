@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import {
   CARD_ASSETS_CSS_PATH,
   CARD_ASSETS_JS_PATH,
+  cardAssetsCssFingerprintedPath,
+  cardAssetsJsFingerprintedPath,
   cardAssetsVersion,
   emitCardAssets,
   renderCardAssetsCss,
@@ -31,24 +33,18 @@ describe('emitCardAssets', () => {
 
   test('writes local shared card CSS and JS when enabled', async () => {
     const wrote = await emitCardAssets({ outputDir, cardAssets: true });
+    const cssPath = cardAssetsCssFingerprintedPath(true);
+    const jsPath = cardAssetsJsFingerprintedPath(true);
 
     expect(wrote).toBe(true);
-    expect(await readFile(join(outputDir, CARD_ASSETS_CSS_PATH), 'utf8')).toContain(
-      '.kg-bookmark-card',
-    );
-    expect(await readFile(join(outputDir, CARD_ASSETS_CSS_PATH), 'utf8')).toContain(
-      '.kg-embed-card',
-    );
-    expect(await readFile(join(outputDir, CARD_ASSETS_CSS_PATH), 'utf8')).toContain(
-      '.kg-code-card',
-    );
-    expect(await readFile(join(outputDir, CARD_ASSETS_JS_PATH), 'utf8')).toContain(
+    expect(await readFile(join(outputDir, cssPath), 'utf8')).toContain('.kg-bookmark-card');
+    expect(await readFile(join(outputDir, cssPath), 'utf8')).toContain('.kg-embed-card');
+    expect(await readFile(join(outputDir, cssPath), 'utf8')).toContain('.kg-code-card');
+    expect(await readFile(join(outputDir, jsPath), 'utf8')).toContain(
       '.kg-toggle-card .kg-toggle-heading',
     );
-    expect(await readFile(join(outputDir, CARD_ASSETS_JS_PATH), 'utf8')).toContain(
-      '.kg-video-card video',
-    );
-    expect(await readFile(join(outputDir, CARD_ASSETS_JS_PATH), 'utf8')).toContain(
+    expect(await readFile(join(outputDir, jsPath), 'utf8')).toContain('.kg-video-card video');
+    expect(await readFile(join(outputDir, jsPath), 'utf8')).toContain(
       '.kg-image-card img, .kg-gallery-image img',
     );
   });

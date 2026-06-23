@@ -3,6 +3,14 @@ import type { ThemeCardAssets } from '~/theme/types.ts';
 
 export const KOENIG_RUNTIME_DATA_KEY = '__koenigRuntimeCardTypes';
 
+// Set on the per-render data frame when the route's inner HTML contains any
+// Koenig card markup (`kg-*` class token). Drives the conditional injection of
+// the shared card-assets stylesheet: list / archive / tag pages that render
+// excerpt cards (no `kg-*` markup) skip the render-blocking stylesheet
+// entirely. Separate from KOENIG_RUNTIME_DATA_KEY because the stylesheet covers
+// every card type while the runtime JS only covers the interactive subset.
+export const KOENIG_CARD_MARKUP_DATA_KEY = '__koenigCardMarkup';
+
 export const KOENIG_RUNTIME_CARD_TYPES = [
   'audio',
   'embed',
@@ -36,6 +44,32 @@ export function collectKoenigRuntimeCardTypes(html: string): Set<KoenigRuntimeCa
     if (hasClassToken(html, CARD_CLASS_BY_TYPE[type])) out.add(type);
   }
   return out;
+}
+
+// True when the rendered HTML carries any Koenig card class token (`kg-…`).
+// Broader than collectKoenigRuntimeCardTypes, which only looks for the six
+// interactive runtime card classes — here a styling-only card such as
+// `kg-bookmark-card` or `kg-callout-card` still counts, because the
+// card-assets stylesheet styles all of them.
+export function hasKoenigCardMarkup(html: string): boolean {
+  if (!html.includes('kg-')) return false;
+  const classAttr = /\bclass\s*=\s*(["'])([\s\S]*?)\1/gi;
+  let match: RegExpExecArray | null;
+  // biome-ignore lint/suspicious/noAssignInExpressions: standard exec loop
+  while ((match = classAttr.exec(html)) !== null) {
+    const tokens = (match[2] ?? '').split(/\s+/);
+    if (tokens.some((token) => token.startsWith('kg-'))) return true;
+  }
+  return false;
+}
+
+export function recordKoenigCardMarkup(data: Record<string, unknown>, html: string): void {
+  if (data[KOENIG_CARD_MARKUP_DATA_KEY] === true) return;
+  if (hasKoenigCardMarkup(html)) data[KOENIG_CARD_MARKUP_DATA_KEY] = true;
+}
+
+export function getKoenigCardMarkup(data: Record<string, unknown> | undefined): boolean {
+  return data?.[KOENIG_CARD_MARKUP_DATA_KEY] === true;
 }
 
 export function recordKoenigRuntimeCardTypes(data: Record<string, unknown>, html: string): void {

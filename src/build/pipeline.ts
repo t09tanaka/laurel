@@ -43,7 +43,11 @@ import {
   loadBuildManifest,
 } from './build-manifest.ts';
 import { emitCaddyfile } from './caddy.ts';
-import { CARD_ASSETS_CSS_PATH, CARD_ASSETS_JS_PATH, emitCardAssets } from './card-assets.ts';
+import {
+  cardAssetsCssFingerprintedPath,
+  cardAssetsJsFingerprintedPath,
+  emitCardAssets,
+} from './card-assets.ts';
 import { CLOUDFLARE_WORKERS_MANIFEST_FILE } from './cloudflare-workers.ts';
 import { emitCloudFrontResponseHeadersPolicy } from './cloudfront-response-headers.ts';
 import { emitCname } from './cname.ts';
@@ -1349,8 +1353,8 @@ async function runBuild({
               emitCardAssets({ outputDir, cardAssets: theme.pkg.card_assets }),
             );
             if (emitted) {
-              keepOutput(CARD_ASSETS_CSS_PATH);
-              keepOutput(CARD_ASSETS_JS_PATH);
+              keepOutput(cardAssetsCssFingerprintedPath(theme.pkg.card_assets));
+              keepOutput(cardAssetsJsFingerprintedPath(theme.pkg.card_assets));
             }
           },
         },
@@ -1654,6 +1658,17 @@ async function runBuild({
     outputDir,
     headers: deployHeaders,
   });
+  // Cache-policy reminder. The fingerprinted theme assets, card assets, and
+  // resized/rewritten images under /assets/, /_images/, and /content/images/
+  // are content-addressed and safe to serve `immutable`, and Laurel writes the
+  // matching rules to `_headers` and `.laurel/cloudfront-response-headers-policy.json`.
+  // Object stores (S3, GCS, R2) do NOT read those files, so on a raw
+  // bucket + CDN the rules must be wired into the upload metadata or the CDN
+  // response-headers policy, otherwise every static asset is revalidated on
+  // each request. Netlify / Cloudflare Pages consume `_headers` automatically.
+  logger.info(
+    'Cache policy written to _headers and .laurel/cloudfront-response-headers-policy.json — apply it at your host (S3/GCS/CDN do not read these automatically) so /assets/*, /_images/*, /content/images/* are served immutable.',
+  );
   // Static content API dump: `dist/content/posts.json`,
   // `dist/content/settings.json`, plus CORS `_headers` (Netlify) and
   // `_headers.cf` (Cloudflare Pages) twin files announcing `/content/*` is

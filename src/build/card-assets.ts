@@ -5,6 +5,9 @@ import { ensureDir } from '~/util/fs.ts';
 
 export const CARD_ASSETS_CSS_PATH = 'assets/ghost-card-assets.css';
 export const CARD_ASSETS_JS_PATH = 'assets/ghost-card-assets.js';
+// Retained for back-compat / external callers; the emitted asset URLs are now
+// content-fingerprinted (see cardAssetsCssFingerprintedPath) rather than
+// version-query-busted, so this constant no longer drives cache busting.
 export const CARD_ASSETS_VERSION = '7';
 
 const CARD_NAMES = [
@@ -70,12 +73,51 @@ interface EmitCardAssetsOptions {
 export async function emitCardAssets(opts: EmitCardAssetsOptions): Promise<boolean> {
   if (!isCardAssetsEnabled(opts.cardAssets)) return false;
 
-  const cssPath = join(opts.outputDir, CARD_ASSETS_CSS_PATH);
-  const jsPath = join(opts.outputDir, CARD_ASSETS_JS_PATH);
+  const cssPath = join(opts.outputDir, cardAssetsCssFingerprintedPath(opts.cardAssets));
+  const jsPath = join(opts.outputDir, cardAssetsJsFingerprintedPath(opts.cardAssets));
   await ensureDir(dirname(cssPath));
   await writeFile(cssPath, renderCardAssetsCss(opts.cardAssets), 'utf8');
   await writeFile(jsPath, renderCardAssetsJs(opts.cardAssets), 'utf8');
   return true;
+}
+
+// Content-fingerprinted public paths for the emitted card assets, e.g.
+// `assets/ghost-card-assets.1a2b3c4d5e6f7a8b.css`. The hash is derived from the
+// exact bytes emitCardAssets writes, so it changes whenever the generated CSS /
+// JS changes (including via the `exclude` set) and can be served
+// `immutable`. Deterministic from cardAssets alone, so the render-time head
+// snippet and the build-time emitter agree without threading state between them.
+export function cardAssetsCssFingerprintedPath(cardAssets: ThemeCardAssets): string {
+  return fingerprintPath(
+    CARD_ASSETS_CSS_PATH,
+    cardAssetsContentHash(renderCardAssetsCss(cardAssets)),
+  );
+}
+
+export function cardAssetsJsFingerprintedPath(cardAssets: ThemeCardAssets): string {
+  return fingerprintPath(
+    CARD_ASSETS_JS_PATH,
+    cardAssetsContentHash(renderCardAssetsJs(cardAssets)),
+  );
+}
+
+// Insert `.<hash>` before the final extension: `a/b.css` -> `a/b.<hash>.css`.
+function fingerprintPath(logicalPath: string, hash: string): string {
+  const dot = logicalPath.lastIndexOf('.');
+  if (dot < 0) return `${logicalPath}.${hash}`;
+  return `${logicalPath.slice(0, dot)}.${hash}${logicalPath.slice(dot)}`;
+}
+
+const cardAssetsContentHashCache = new Map<string, string>();
+
+// 16-char hex SHA-256 prefix, matching the theme-asset fingerprint width in
+// src/theme/assets.ts so card assets sort alongside other built assets.
+function cardAssetsContentHash(content: string): string {
+  const cached = cardAssetsContentHashCache.get(content);
+  if (cached) return cached;
+  const hash = new Bun.CryptoHasher('sha256').update(content).digest('hex').slice(0, 16);
+  cardAssetsContentHashCache.set(content, hash);
+  return hash;
 }
 
 export function isCardAssetsEnabled(cardAssets: ThemeCardAssets): boolean {

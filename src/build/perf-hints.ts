@@ -65,6 +65,51 @@ export function injectStylesheetPreload(html: string): string {
   return out;
 }
 
+// Inject an LCP `<link rel="preload" as="image" fetchpriority="high">` for the
+// first `fetchpriority="high"` <img> when the document has no such preload yet.
+// This covers routes the ghost_head LCP preload skips — list / archive / tag /
+// home feeds whose LCP is the first post-card image, and posts whose LCP is a
+// promoted first content image rather than a feature_image. The preload carries
+// the <img>'s own (or its <picture>'s preferred) srcset / sizes, so the browser
+// preloads exactly the candidate it renders instead of double-downloading a
+// different resolution. No-op when a high-priority image preload already exists
+// (ghost_head emitted one and syncPriorityImagePreload aligns it) or when there
+// is no high-priority <img> / no head anchor to insert before.
+export function injectPriorityImagePreload(html: string): string {
+  const tags = scanLinkAndScriptTags(html);
+  if (tags.length === 0) return html;
+  for (const tag of tags) {
+    if (tag.kind === 'link' && isHighPriorityImagePreload(tag)) return html;
+  }
+  const image = firstHighPriorityImage(tags, html);
+  if (!image) return html;
+  const anchor = priorityPreloadInsertOffset(html, tags);
+  if (anchor < 0) return html;
+  const srcset = image.preferredSrcset ?? image.srcset;
+  const sizes = image.preferredSizes ?? image.sizes;
+  const parts = [
+    '<link rel="preload" as="image"',
+    `href="${escapeAttr(image.src)}"`,
+    'fetchpriority="high"',
+  ];
+  if (srcset) parts.push(`imagesrcset="${escapeAttr(srcset)}"`);
+  if (sizes) parts.push(`imagesizes="${escapeAttr(sizes)}"`);
+  if (image.preferredType) parts.push(`type="${escapeAttr(image.preferredType)}"`);
+  const link = `${parts.join(' ')}>`;
+  return `${html.slice(0, anchor)}${link}${html.slice(anchor)}`;
+}
+
+// Where to splice the LCP preload: just before the first stylesheet <link> so
+// the image fetch is queued ahead of CSS, falling back to `</head>`. Returns -1
+// when the document has neither (a bare fragment), so the caller leaves it be.
+function priorityPreloadInsertOffset(html: string, tags: readonly ScriptOrLink[]): number {
+  for (const tag of tags) {
+    if (tag.kind === 'link' && isStylesheet(tag)) return tag.start;
+  }
+  const headClose = html.search(/<\/head\s*>/i);
+  return headClose;
+}
+
 export function syncPriorityImagePreload(html: string): string {
   const tags = scanLinkAndScriptTags(html);
   if (tags.length === 0) return html;

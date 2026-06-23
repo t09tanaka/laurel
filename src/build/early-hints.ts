@@ -2,7 +2,11 @@ import { dirname, join } from 'node:path';
 import { assetPublicUrl, joinPath } from '~/theme/assets.ts';
 import type { ThemeBundle } from '~/theme/types.ts';
 import { ensureDir } from '~/util/fs.ts';
-import { CARD_ASSETS_CSS_PATH, CARD_ASSETS_JS_PATH, isCardAssetsEnabled } from './card-assets.ts';
+import {
+  cardAssetsCssFingerprintedPath,
+  cardAssetsJsFingerprintedPath,
+  isCardAssetsEnabled,
+} from './card-assets.ts';
 import type { HeaderRule } from './headers.ts';
 import { type HtmlPreloadLink, collectHtmlPreloadLinks } from './perf-hints.ts';
 
@@ -31,8 +35,8 @@ export function buildKnownEarlyHintHrefs(theme: ThemeBundle, basePath: string): 
     addHrefVariants(out, assetPublicUrl(asset, basePath));
   }
   if (isCardAssetsEnabled(theme.pkg.card_assets)) {
-    addHrefVariants(out, joinPath(basePath, CARD_ASSETS_CSS_PATH));
-    addHrefVariants(out, joinPath(basePath, CARD_ASSETS_JS_PATH));
+    addHrefVariants(out, joinPath(basePath, cardAssetsCssFingerprintedPath(theme.pkg.card_assets)));
+    addHrefVariants(out, joinPath(basePath, cardAssetsJsFingerprintedPath(theme.pkg.card_assets)));
   }
   return out;
 }

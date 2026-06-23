@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
-import { CARD_ASSETS_VERSION, cardAssetsCssIntegrity } from '~/build/card-assets.ts';
+import {
+  cardAssetsCssFingerprintedPath,
+  cardAssetsCssIntegrity,
+  cardAssetsJsFingerprintedPath,
+} from '~/build/card-assets.ts';
 import type { FaviconSet } from '~/build/favicons.ts';
 import type { ContentGraph, SiteData } from '~/content/model.ts';
 import {
@@ -9,7 +13,11 @@ import {
 } from '~/render/embed-provider-scripts.ts';
 import type { LaurelEngine } from '~/render/engine.ts';
 import { registerGhostHeadFootHelpers } from '~/render/helpers/ghost-head.ts';
-import { KOENIG_RUNTIME_DATA_KEY, collectKoenigRuntimeCardTypes } from '~/render/koenig-runtime.ts';
+import {
+  KOENIG_CARD_MARKUP_DATA_KEY,
+  KOENIG_RUNTIME_DATA_KEY,
+  collectKoenigRuntimeCardTypes,
+} from '~/render/koenig-runtime.ts';
 
 function makeEngine(
   site: Partial<SiteData> = {},
@@ -103,6 +111,7 @@ function renderGhostHead(
     routeVariant?: string;
     favicons?: FaviconSet;
     theme?: Partial<LaurelEngine['theme']> | Record<string, unknown>;
+    extraData?: Record<string, unknown>;
   } = {},
 ): string {
   const engine = makeEngine(opts.site, opts.config, opts.favicons, opts.theme);
@@ -110,6 +119,7 @@ function renderGhostHead(
   const template = engine.hb.compile('{{{ghost_head}}}');
   return template(ctx, {
     data: {
+      ...opts.extraData,
       route: {
         kind: opts.routeKind,
         url: routeUrl,
@@ -274,29 +284,33 @@ describe('ghost_head shared card assets', () => {
   });
 
   test('emits local shared card CSS when theme package opts in', () => {
+    // Set the koenig-card-markup flag so ghost_head's conditional injection fires.
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       theme: { pkg: { card_assets: true } },
+      extraData: { [KOENIG_CARD_MARKUP_DATA_KEY]: true },
     });
 
+    // CSS is now served at a content-fingerprinted path, not a ?v= query-busted URL.
     expect(html).toContain(
-      `<link rel="stylesheet" type="text/css" href="/assets/ghost-card-assets.css?v=${CARD_ASSETS_VERSION}" integrity="${cardAssetsCssIntegrity(true)}" crossorigin="anonymous">`,
+      `<link rel="stylesheet" type="text/css" href="/${cardAssetsCssFingerprintedPath(true)}" integrity="${cardAssetsCssIntegrity(true)}" crossorigin="anonymous">`,
     );
     expect(html).not.toContain('ghost-card-assets.js');
   });
 
   test('honours base_path and exclude-specific cache key for the head stylesheet', () => {
+    const cardAssets = { exclude: ['bookmark', 'gallery'] };
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       config: { build: { base_path: '/blog/', csp_nonce: 'abc123' } } as unknown as Partial<
         LaurelEngine['config']
       >,
-      theme: { pkg: { card_assets: { exclude: ['bookmark', 'gallery'] } } },
+      theme: { pkg: { card_assets: cardAssets } },
+      extraData: { [KOENIG_CARD_MARKUP_DATA_KEY]: true },
     });
 
-    expect(html).toMatch(
-      new RegExp(
-        `href="/blog/assets/ghost-card-assets\\.css\\?v=${CARD_ASSETS_VERSION}-[a-z0-9]+"`,
-      ),
-    );
+    // CSS is at a content-fingerprinted path that differs from the full-set hash.
+    const cssPath = cardAssetsCssFingerprintedPath(cardAssets);
+    expect(html).toContain(`href="/blog/${cssPath}"`);
+    expect(html).not.toContain(`href="/blog/${cardAssetsCssFingerprintedPath(true)}"`);
     expect(html).not.toContain('ghost-card-assets.js');
   });
 });
@@ -335,8 +349,9 @@ describe('ghost_foot Koenig card runtime injection', () => {
       },
     );
 
+    // JS is now served at a content-fingerprinted path, not a ?v= query-busted URL.
     expect(html).toContain(
-      `<script defer src="/blog/assets/ghost-card-assets.js?v=${CARD_ASSETS_VERSION}" nonce="abc123" data-laurel-koenig-runtime="audio,toggle"></script>`,
+      `<script defer src="/blog/${cardAssetsJsFingerprintedPath(true)}" nonce="abc123" data-laurel-koenig-runtime="audio,toggle"></script>`,
     );
   });
 
