@@ -362,7 +362,7 @@ export function registerGhostHeadFootHelpers(engine: LaurelEngine): void {
       // upstream tag (e.g. swap in a self-hosted variant) can still do so via
       // codeinjection_head, while plain configurations get the right snippet
       // without writing any HTML.
-      const analyticsSnippet = renderAnalyticsSnippet(engine.config?.components?.analytics);
+      const analyticsSnippet = renderAnalyticsSnippet(engine.config?.components?.analytics, nonce);
       if (analyticsSnippet) head = appendHeadPart(head, analyticsSnippet);
 
       // Ghost Portal client script. Opt-in via [components.portal].inject_script
@@ -1672,8 +1672,12 @@ function safeUrl(value: string): URL | undefined {
 // upstream embed code verbatim, with the operator-supplied site id escaped
 // into the relevant attribute / URL. Privacy concerns (DNT, IP anonymisation,
 // cookie banners) are deferred to the provider per their own documentation.
+// `nonce` is the ` nonce="..."` attribute fragment from {@link nonceAttr} (empty
+// when no `[build].csp_nonce` is set); every emitted <script> carries it so a
+// strict nonce-based CSP does not block the snippet.
 function renderAnalyticsSnippet(
   cfg: { provider?: string; site?: string } | undefined,
+  nonce: string,
 ): string | undefined {
   if (!cfg) return undefined;
   const provider = cfg.provider;
@@ -1682,19 +1686,19 @@ function renderAnalyticsSnippet(
   switch (provider) {
     case 'plausible':
       if (!site) return undefined;
-      return `<script defer data-domain="${escapeAttr(site)}" src="https://plausible.io/js/script.js"></script>`;
+      return `<script defer data-domain="${escapeAttr(site)}" src="https://plausible.io/js/script.js"${nonce}></script>`;
     case 'umami':
       if (!site) return undefined;
-      return `<script async defer src="https://cloud.umami.is/script.js" data-website-id="${escapeAttr(site)}"></script>`;
+      return `<script async defer src="https://cloud.umami.is/script.js" data-website-id="${escapeAttr(site)}"${nonce}></script>`;
     case 'fathom':
       if (!site) return undefined;
-      return `<script src="https://cdn.usefathom.com/script.js" data-site="${escapeAttr(site)}" defer></script>`;
+      return `<script src="https://cdn.usefathom.com/script.js" data-site="${escapeAttr(site)}" defer${nonce}></script>`;
     case 'simpleanalytics':
       // Simple Analytics needs no site id; embedding the script alone is
       // enough. The <noscript> pixel is documented as the JS-disabled
       // fallback so we emit it in the same block.
       return [
-        `<script async defer src="https://scripts.simpleanalyticscdn.com/latest.js"></script>`,
+        `<script async defer src="https://scripts.simpleanalyticscdn.com/latest.js"${nonce}></script>`,
         `<noscript><img src="https://queue.simpleanalyticscdn.com/noscript.gif" alt="" referrerpolicy="no-referrer-when-downgrade"></noscript>`,
       ].join('\n');
     case 'googleanalytics': {
@@ -1716,13 +1720,17 @@ function renderAnalyticsSnippet(
         '\\u003c',
       );
       return [
-        '<script>',
+        `<script${nonce}>`,
         'window.dataLayer = window.dataLayer || [];',
         'function gtag(){dataLayer.push(arguments);}',
         "gtag('js', new Date());",
         `gtag('config', ${idLit});`,
         '(function(){',
         'var loaded = false;',
+        // Propagate this bootstrap's own nonce to the injected gtag.js so a
+        // strict nonce-based CSP allows the dynamically loaded library too.
+        // Read during synchronous execution while document.currentScript is set.
+        'var nonce = (document.currentScript && document.currentScript.nonce) || "";',
         "var events = ['scroll','mousemove','touchstart','keydown','click'];",
         'var opts = { once: true, passive: true };',
         'function loadGA(){',
@@ -1730,6 +1738,7 @@ function renderAnalyticsSnippet(
         'loaded = true;',
         'events.forEach(function(e){ window.removeEventListener(e, loadGA, opts); });',
         'var s = document.createElement("script");',
+        'if (nonce) s.nonce = nonce;',
         's.async = true;',
         `s.src = ${urlLit};`,
         'document.head.appendChild(s);',

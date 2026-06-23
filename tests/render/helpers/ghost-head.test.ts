@@ -2476,6 +2476,32 @@ describe('ghost_head analytics provider snippet (issue #209)', () => {
     expect(html).toContain('setTimeout(loadGA, 5000)');
   });
 
+  test('stamps the configured csp_nonce on the googleanalytics inline script and propagates it to the injected loader', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      config: {
+        build: { csp_nonce: 'abc123' },
+        components: { analytics: { provider: 'googleanalytics', site: 'G-XYZ123' } },
+      } as unknown as Partial<LaurelEngine['config']>,
+    });
+    // The inline bootstrap carries the nonce so a strict nonce-based CSP allows it.
+    expect(html).toContain('<script nonce="abc123">');
+    // and the dynamically injected gtag.js inherits the same nonce at runtime.
+    expect(html).toContain('document.currentScript && document.currentScript.nonce');
+    expect(html).toContain('if (nonce) s.nonce = nonce;');
+  });
+
+  test('stamps the configured csp_nonce on an external analytics provider script', () => {
+    const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
+      config: {
+        build: { csp_nonce: 'abc123' },
+        components: { analytics: { provider: 'plausible', site: 'example.com' } },
+      } as unknown as Partial<LaurelEngine['config']>,
+    });
+    expect(html).toContain(
+      '<script defer data-domain="example.com" src="https://plausible.io/js/script.js" nonce="abc123"></script>',
+    );
+  });
+
   test('emits no snippet when provider is none', () => {
     const html = renderGhostHead({ id: 'p1', title: 'Hi' }, '/', {
       config: {
