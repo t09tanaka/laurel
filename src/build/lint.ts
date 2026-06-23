@@ -570,7 +570,11 @@ interface ExtractedLink {
 // `<https://…>` autolinks. Title attributes (`"…"`) are stripped from the URL.
 function extractMarkdownLinks(body: string): ExtractedLink[] {
   const out: ExtractedLink[] = [];
-  const re = /(!?)\[(?:[^\]]|\\.)*\]\(\s*([^)\s]+)(?:\s+"[^"]*")?\s*\)/g;
+  // Link text allows escaped chars (`\]`). Excluding `\` from the negated
+  // class keeps the two alternatives disjoint on their first char so the `*`
+  // can't backtrack exponentially (js/redos); `[^\]]` would also match `\`,
+  // overlapping with `\\.`.
+  const re = /(!?)\[(?:[^\]\\]|\\.)*\]\(\s*([^)\s]+)(?:\s+"[^"]*")?\s*\)/g;
   for (const m of body.matchAll(re)) {
     const url = m[2];
     if (!url) continue;

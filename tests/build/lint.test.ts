@@ -326,6 +326,27 @@ describe('lintContent', () => {
     expect(broken[0]?.message).toContain('missing.md');
   });
 
+  // Pins the deterministic escape handling of the ReDoS-hardened link regex:
+  // an escaped `]` inside link text (`\]`) is treated as a literal per
+  // CommonMark, so the link still parses and its URL is extracted/checked.
+  test('checkLinks: extracts URL from a link whose text contains an escaped bracket', async () => {
+    const fx = await makeFixture({
+      'content/posts/a.md': [
+        '---',
+        'title: A',
+        'date: 2026-01-01',
+        '---',
+        'See [a\\]b](./missing.md).',
+      ].join('\n'),
+    });
+    cwd = fx.cwd;
+    const { config, content } = await loadAll(cwd);
+    const report = await lintContent({ cwd, config, content, checkLinks: true });
+    const broken = report.warnings.filter((w) => w.code === 'broken-link');
+    expect(broken.length).toBe(1);
+    expect(broken[0]?.message).toContain('missing.md');
+  });
+
   test('checkLinks: relative .md links are silent when off by default', async () => {
     const fx = await makeFixture({
       'content/posts/a.md': [

@@ -276,10 +276,13 @@ export function sanitizeStack(stack: string | undefined): string | null {
     .split('\n')
     .slice(0, 40)
     .map((line) =>
-      line.replace(
-        /(?:(?:file:\/\/)?\/|[A-Za-z]:\\)[^():\n]+(?:[/\\][^():\n]+)*(\:\d+\:\d+)/g,
-        '[path]$1',
-      ),
+      // The trailing `:line:col` is captured; the body is a single greedy
+      // `[^():\n]+` run. An earlier form wrapped a redundant
+      // `(?:[/\\][^():\n]+)*` around path separators, but since `[^():\n]`
+      // already includes `/` and `\` the greedy first run matches the same
+      // language while the nested quantifier only added exponential
+      // backtracking (js/redos).
+      line.replace(/(?:(?:file:\/\/)?\/|[A-Za-z]:\\)[^():\n]+(\:\d+\:\d+)/g, '[path]$1'),
     )
     .join('\n');
 }
