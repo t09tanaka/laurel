@@ -11,6 +11,39 @@ published to npm with `npm publish`; there is no CI release automation).
 
 _Nothing yet._
 
+## [0.2.0] - 2026-06-23
+
+### Added
+
+- `[build].precompress` accepts a format enum (`off` / `brotli` / `gzip` /
+  `both`) so you can choose which precompressed sibling files (`.br` / `.gz`)
+  are emitted for text outputs, and the host-config generators (`_headers`,
+  nginx, Apache, etc.) are emitted to match the selected format. (#684)
+- List / archive / tag / home routes now emit an LCP
+  `<link rel="preload" as="image" fetchpriority="high">` for the first
+  high-priority post-card image, aligned to its rendered `srcset` / `sizes` so
+  the browser preloads the exact candidate it renders. Extends the existing
+  feature-image preload (post / page routes) to feed pages; a no-op when the
+  theme does not mark a card image `fetchpriority="high"` or when a preload
+  already exists. (#686)
+- `laurel build` now logs a reminder that the generated `_headers` and
+  `.laurel/cloudfront-response-headers-policy.json` cache rules must be applied
+  at the host (object stores such as S3 do not read them) so `/assets/*`,
+  `/_images/*`, and `/content/images/*` are served immutable. (#686)
+
+### Changed
+
+- The shared Koenig card stylesheet (`ghost-card-assets.css`) is now injected
+  only on pages whose rendered content contains card markup (`kg-*`), so list /
+  archive / tag / home feeds no longer pull a render-blocking stylesheet that
+  styles nothing. Mirrors the per-page gating the card runtime `<script>`
+  already used. (#686)
+- Card asset URLs are content-fingerprinted
+  (`assets/ghost-card-assets.<hash>.css` / `.js`) instead of carrying a manual
+  `?v=N` query, so they bust automatically when the generated CSS / JS changes
+  and are robustly immutable-cacheable. Anything hard-coding the old `?v=` URL
+  must use the fingerprinted path. (#686)
+
 ## [0.1.12] - 2026-06-22
 
 ### Added
@@ -234,7 +267,8 @@ _Nothing yet._
   components (search, comments stub, OG images, JSON feeds), and
   `laurel import-ghost` / `laurel import-wordpress` migration tooling.
 
-[Unreleased]: https://github.com/t09tanaka/laurel/compare/v0.1.12...HEAD
+[Unreleased]: https://github.com/t09tanaka/laurel/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/t09tanaka/laurel/compare/v0.1.12...v0.2.0
 [0.1.12]: https://github.com/t09tanaka/laurel/compare/v0.1.11...v0.1.12
 [0.1.11]: https://github.com/t09tanaka/laurel/compare/v0.1.10...v0.1.11
 [0.1.10]: https://github.com/t09tanaka/laurel/compare/v0.1.9...v0.1.10
