@@ -1050,60 +1050,70 @@ export function densifyImageSrcset(html: string, opts: DensifyImageSrcsetOptions
   if (!html.includes('<img') || opts.ladder.length === 0 || opts.ratio <= 1) return html;
   const marker = opts.marker ?? '/content/images/';
   const ladder = [...opts.ladder].sort((a, b) => a - b);
-  return html.replace(/<img\b([^>]*?)(\/?)>/gi, (match, attrsRaw: string, selfClose: string) => {
-    const attrs = parseImgAttrs(attrsRaw);
-    const srcsetRaw = attrs.get('srcset');
-    if (typeof srcsetRaw !== 'string' || srcsetRaw.trim() === '') return match;
-    const entries = parseSrcsetEntries(srcsetRaw);
-    if (entries.length < 2) return match;
+  return html.replace(
+    /<img\b([^>]*?)(\/?)>/gi,
+    (match, attrsRaw: string, selfClose: string, offset: number, source: string) => {
+      // Leave images already wrapped in a <picture> alone (mirrors
+      // injectThemeImagePictureSources). Their per-format <source> srcsets are
+      // built separately, so inserting a width only into the <img> here would
+      // desync the <img> from its <source> siblings.
+      const lastOpen = source.lastIndexOf('<picture', offset);
+      const lastClose = source.lastIndexOf('</picture>', offset);
+      if (lastOpen >= 0 && lastOpen > lastClose) return match;
+      const attrs = parseImgAttrs(attrsRaw);
+      const srcsetRaw = attrs.get('srcset');
+      if (typeof srcsetRaw !== 'string' || srcsetRaw.trim() === '') return match;
+      const entries = parseSrcsetEntries(srcsetRaw);
+      if (entries.length < 2) return match;
 
-    // Require a homogeneous, width-descriptored, single-source srcset; bail
-    // otherwise rather than risk corrupting an unusual srcset.
-    let template: SizedVariantUrl | undefined;
-    const existing = new Set<number>();
-    for (const entry of entries) {
-      const descMatch = entry.descriptor.match(/^(\d+)w$/);
-      if (!descMatch) return match;
-      const parsed = parseSizedVariantUrl(entry.url, marker);
-      if (!parsed) return match;
-      if (parsed.width !== Number.parseInt(descMatch[1] ?? '', 10)) return match;
-      if (template) {
-        if (
-          parsed.before !== template.before ||
-          parsed.formatSeg !== template.formatSeg ||
-          parsed.rel !== template.rel
-        ) {
-          return match;
+      // Require a homogeneous, width-descriptored, single-source srcset; bail
+      // otherwise rather than risk corrupting an unusual srcset.
+      let template: SizedVariantUrl | undefined;
+      const existing = new Set<number>();
+      for (const entry of entries) {
+        const descMatch = entry.descriptor.match(/^(\d+)w$/);
+        if (!descMatch) return match;
+        const parsed = parseSizedVariantUrl(entry.url, marker);
+        if (!parsed) return match;
+        if (parsed.width !== Number.parseInt(descMatch[1] ?? '', 10)) return match;
+        if (template) {
+          if (
+            parsed.before !== template.before ||
+            parsed.formatSeg !== template.formatSeg ||
+            parsed.rel !== template.rel
+          ) {
+            return match;
+          }
+        } else {
+          template = parsed;
         }
-      } else {
-        template = parsed;
+        existing.add(parsed.width);
       }
-      existing.add(parsed.width);
-    }
-    if (!template) return match;
+      if (!template) return match;
 
-    const sortedExisting = [...existing].sort((a, b) => a - b);
-    const sourceWidth = opts.sourceWidthFor?.(template.rel);
-    const inserts = new Set<number>();
-    for (let i = 1; i < sortedExisting.length; i += 1) {
-      const a = sortedExisting[i - 1] as number;
-      const b = sortedExisting[i] as number;
-      if (b / a <= opts.ratio) continue;
-      for (const w of ladder) {
-        if (w <= a || w >= b) continue;
-        if (existing.has(w)) continue;
-        if (typeof sourceWidth === 'number' && w >= sourceWidth) continue;
-        inserts.add(w);
+      const sortedExisting = [...existing].sort((a, b) => a - b);
+      const sourceWidth = opts.sourceWidthFor?.(template.rel);
+      const inserts = new Set<number>();
+      for (let i = 1; i < sortedExisting.length; i += 1) {
+        const a = sortedExisting[i - 1] as number;
+        const b = sortedExisting[i] as number;
+        if (b / a <= opts.ratio) continue;
+        for (const w of ladder) {
+          if (w <= a || w >= b) continue;
+          if (existing.has(w)) continue;
+          if (typeof sourceWidth === 'number' && w >= sourceWidth) continue;
+          inserts.add(w);
+        }
       }
-    }
-    if (inserts.size === 0) return match;
+      if (inserts.size === 0) return match;
 
-    const allWidths = [...new Set([...existing, ...inserts])].sort((a, b) => a - b);
-    const srcset = allWidths
-      .map((w) => `${template?.before}size/w${w}/${template?.formatSeg}${template?.rel} ${w}w`)
-      .join(', ');
-    return appendImgAttrs(stripAttr(attrsRaw, 'srcset'), `srcset="${srcset}"`, selfClose);
-  });
+      const allWidths = [...new Set([...existing, ...inserts])].sort((a, b) => a - b);
+      const srcset = allWidths
+        .map((w) => `${template?.before}size/w${w}/${template?.formatSeg}${template?.rel} ${w}w`)
+        .join(', ');
+      return appendImgAttrs(stripAttr(attrsRaw, 'srcset'), `srcset="${srcset}"`, selfClose);
+    },
+  );
 }
 
 // Build the URL segment for a theme `image_sizes` entry the same way the

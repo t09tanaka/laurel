@@ -2086,7 +2086,12 @@ async function computeDensifyParams(opts: {
   if (typeof ratio !== 'number' || !imagesCfg.resize) return undefined;
   if (!(await isSharpAvailable())) return undefined;
 
+  // Only pure-width sizes feed the ladder: densifyImageSrcset rewrites
+  // `size/wXXX/` URLs, never the `size/wXhY/` URLs that height-bearing sizes
+  // emit, so including the latter would only generate variant files no srcset
+  // ever references.
   const themeKeyWidths = Object.values(opts.themeImageSizes)
+    .filter((s) => !(typeof s.height === 'number' && s.height > 0))
     .map((s) => (typeof s.width === 'number' ? s.width : 0))
     .filter((w) => w > 0);
   const themeLadder = densifyWidths(themeKeyWidths, ratio);

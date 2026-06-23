@@ -1440,6 +1440,12 @@ describe('densifyImageSrcset', () => {
     expect(densifyImageSrcset(once, { ratio: 1.5, ladder })).toBe(once);
   });
 
+  test('leaves an <img> already inside a <picture> untouched', () => {
+    const html =
+      '<picture><source type="image/webp" srcset="/content/images/size/w600/a.jpg.webp 600w"><img srcset="/content/images/size/w600/a.jpg 600w, /content/images/size/w1000/a.jpg 1000w"></picture>';
+    expect(densifyImageSrcset(html, { ratio: 1.5, ladder })).toBe(html);
+  });
+
   test('does nothing without a srcset or with an empty ladder', () => {
     const plain = '<img src="/content/images/2022/cover.jpeg">';
     expect(densifyImageSrcset(plain, { ratio: 1.5, ladder })).toBe(plain);

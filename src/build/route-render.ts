@@ -118,10 +118,12 @@ export async function renderRouteHtml(opts: RouteRenderOptions): Promise<string>
       // the referenced format variants are only materialised on disk when the
       // sharp-backed resize pipeline runs. Must run before syncPriorityImagePreload
       // so the LCP preload can align with the emitted WebP <source>.
-      // Densify theme card/feature srcsets before the <picture> wrap so the
-      // per-format <source> it builds inherits the inserted widths. Gated on
-      // resize because the inserted variants are only on disk when the resize
-      // pipeline ran.
+      // Densify theme card/feature srcsets before the <picture> wrap. For
+      // same-format (jpg/png) theme srcsets, injectThemeImagePictureSources
+      // derives the per-format <source> from the (now densified) <img> srcset,
+      // so it must see the inserted widths first; for srcsets that are already
+      // webp the order is moot. Gated on resize because the inserted variants
+      // are only on disk when the resize pipeline ran.
       if (config.components.images.resize && opts.srcsetDensify) {
         html = densifyImageSrcset(html, {
           ratio: opts.srcsetDensify.ratio,
