@@ -1699,16 +1699,46 @@ function renderAnalyticsSnippet(
       ].join('\n');
     case 'googleanalytics': {
       if (!site) return undefined;
-      const id = escapeAttr(site);
-      // GA4 documented gtag.js snippet. The inline initialiser uses `Date()`
-      // not a stringifiable value so we cannot route it through JSON encoding;
-      // the measurement id is the only user-supplied piece and we escape it
-      // for both the URL and the gtag('config') argument.
-      const jsId = id.replace(/'/g, "\\'");
+      // GA4 with interaction-deferred loading. The dataLayer queue and the
+      // `gtag('js')` / `gtag('config')` calls run inline immediately so hits
+      // fired before the library lands are buffered, but the gtag.js network
+      // request is held back until the first user interaction (scroll, pointer,
+      // key, touch, click) — with a 5s fallback so no-interaction bounces are
+      // still measured. This keeps the third-party script off the critical path
+      // (LCP/TBT) instead of the eager `<script async>` GA documents.
+      //
+      // The measurement id is the only operator-supplied piece. We encode it as
+      // a JS string literal (JSON.stringify) and neutralise `<` so it cannot
+      // break out of the inline <script>.
+      const idLit = JSON.stringify(site).replace(/</g, '\\u003c');
+      const urlLit = JSON.stringify(`https://www.googletagmanager.com/gtag/js?id=${site}`).replace(
+        /</g,
+        '\\u003c',
+      );
       return [
-        `<script async src="https://www.googletagmanager.com/gtag/js?id=${id}"></script>`,
-        `<script>window.dataLayer = window.dataLayer || [];function gtag(){dataLayer.push(arguments);}gtag('js', new Date());gtag('config', '${jsId}');</script>`,
-      ].join('\n');
+        '<script>',
+        'window.dataLayer = window.dataLayer || [];',
+        'function gtag(){dataLayer.push(arguments);}',
+        "gtag('js', new Date());",
+        `gtag('config', ${idLit});`,
+        '(function(){',
+        'var loaded = false;',
+        "var events = ['scroll','mousemove','touchstart','keydown','click'];",
+        'var opts = { once: true, passive: true };',
+        'function loadGA(){',
+        'if (loaded) return;',
+        'loaded = true;',
+        'events.forEach(function(e){ window.removeEventListener(e, loadGA, opts); });',
+        'var s = document.createElement("script");',
+        's.async = true;',
+        `s.src = ${urlLit};`,
+        'document.head.appendChild(s);',
+        '}',
+        'events.forEach(function(e){ window.addEventListener(e, loadGA, opts); });',
+        'setTimeout(loadGA, 5000);',
+        '})();',
+        '</script>',
+      ].join('');
     }
     default:
       return undefined;

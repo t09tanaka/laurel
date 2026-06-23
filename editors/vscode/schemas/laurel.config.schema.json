@@ -1899,7 +1899,7 @@
                     "googleanalytics"
                   ],
                   "default": "none",
-                  "description": "Analytics backend whose tracking snippet is injected into every page via `{{ghost_head}}`. `none` skips injection. For `plausible` / `umami` / `fathom` / `simpleanalytics`, `site` is the domain / website ID / site ID used by the provider. For `googleanalytics`, `site` is the GA4 measurement id (e.g. `G-XXXXXXXX`). DNT and IP anonymisation are handled by the provider itself; consult their docs to opt in."
+                  "description": "Analytics backend whose tracking snippet is injected into every page via `{{ghost_head}}`. `none` skips injection. For `plausible` / `umami` / `fathom` / `simpleanalytics`, `site` is the domain / website ID / site ID used by the provider. For `googleanalytics`, `site` is the GA4 measurement id (e.g. `G-XXXXXXXX`); the gtag.js loader is deferred until the first user interaction (with a 5s fallback) to keep it off the critical render path. DNT and IP anonymisation are handled by the provider itself; consult their docs to opt in."
                 },
                 "site": {
                   "type": "string",
