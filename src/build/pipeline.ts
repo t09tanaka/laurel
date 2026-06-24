@@ -2176,6 +2176,13 @@ function markPlannedImageVariants(opts: {
         opts.keepOutput(`content/images/size/${segment}/format/${format}/${normalizedRel}`);
       }
     }
+    // Full-resolution per-format twin of the bare original (the upscale-avoidance
+    // tail of theme srcsets). generateThemeImageSizeVariants emits this only for
+    // sources with a non-shrinking theme size; keeping it unconditionally here
+    // mirrors the over-keep above (a never-generated path is a harmless no-op).
+    for (const format of opts.formats) {
+      opts.keepOutput(`content/images/format/${format}/${normalizedRel}`);
+    }
   }
 }
 

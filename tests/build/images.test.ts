@@ -689,12 +689,13 @@ describe('injectThemeImagePictureSources', () => {
     expect(out).toContain('https://cdn.example.com/x.jpg 600w');
   });
 
-  test('caps the <source> at size variants when the largest entry is the original', () => {
+  test('keeps the full-res original in the <source> via its per-format twin', () => {
     // Real-world LCP case: when a requested size would not shrink the source,
-    // {{img_url}} emits the full-resolution original (no `size/` segment, later
-    // fingerprinted), so the largest srcset entry is not a size variant. The
-    // WebP <source> covers the size buckets; the <img> fallback keeps the
-    // original for the widest viewports.
+    // {{img_url}} emits the full-resolution original (no `size/` segment), so the
+    // largest srcset entry is the bare original. generateThemeImageSizeVariants
+    // materialises a `format/<fmt>/<rel>` twin of that original, so the WebP
+    // <source> mirrors the <img> fallback's largest width instead of capping at
+    // the size buckets (otherwise WebP tops out below the JPEG fallback).
     const html = [
       '<img srcset="/content/images/size/w320/cover.jpg 320w, ',
       '/content/images/size/w600/cover.jpg 600w, ',
@@ -703,15 +704,48 @@ describe('injectThemeImagePictureSources', () => {
     ].join('');
     const out = injectThemeImagePictureSources(html, { formats: ['webp'] });
     expect(out).toContain(
-      '<source type="image/webp" srcset="/content/images/size/w320/format/webp/cover.jpg 320w, /content/images/size/w600/format/webp/cover.jpg 600w">',
+      '<source type="image/webp" srcset="/content/images/size/w320/format/webp/cover.jpg 320w, /content/images/size/w600/format/webp/cover.jpg 600w, /content/images/format/webp/cover.jpg 2000w">',
     );
-    // The full-res original is absent from the WebP source but kept on the <img>.
-    expect(out).not.toContain('format/webp/cover.jpg 2000w');
+    // The JPEG fallback still keeps the bare original.
     expect(out).toContain('/content/images/cover.jpg 2000w');
   });
 
-  test('skips when no entry is a transformable size variant', () => {
+  test('maps the original tail for avif and webp', () => {
+    const html = [
+      '<img srcset="/content/images/size/w600/cover.jpg 600w, ',
+      '/content/images/cover.jpg 2000w" src="/content/images/cover.jpg">',
+    ].join('');
+    const out = injectThemeImagePictureSources(html, { formats: ['avif', 'webp'] });
+    expect(out).toContain('/content/images/format/avif/cover.jpg 2000w');
+    expect(out).toContain('/content/images/format/webp/cover.jpg 2000w');
+  });
+
+  test('does not map a lone bare original without a sized sibling', () => {
+    // No sized entry proves the source participates in theme sizing, so the
+    // full-res twin is not guaranteed on disk; leave the tag untouched rather
+    // than risk a 404 <source>.
     const html = '<img srcset="/content/images/cover.jpg 2000w" src="/content/images/cover.jpg">';
+    expect(injectThemeImagePictureSources(html, { formats: ['webp'] })).toBe(html);
+  });
+
+  test('does not map a bare original from a different source than the sized sibling', () => {
+    // A sized sibling for `logo.jpg` does not prove `different.jpg` has a
+    // materialised twin; mapping it could 404 a hand-authored mixed-source
+    // srcset, so the foreign original is dropped from the <source>.
+    const html = [
+      '<img srcset="/content/images/size/w600/logo.jpg 600w, ',
+      '/content/images/different.jpg 2000w" src="/content/images/logo.jpg">',
+    ].join('');
+    const out = injectThemeImagePictureSources(html, { formats: ['webp'] });
+    expect(out).toContain('/content/images/size/w600/format/webp/logo.jpg 600w');
+    expect(out).not.toContain('format/webp/different.jpg');
+    // The foreign original is still kept on the <img> fallback.
+    expect(out).toContain('/content/images/different.jpg 2000w');
+  });
+
+  test('does not map a bare original src without a width descriptor', () => {
+    // A lone `<img src>` original has no descriptor and no guaranteed twin.
+    const html = '<img src="/content/images/cover.jpg">';
     expect(injectThemeImagePictureSources(html, { formats: ['webp'] })).toBe(html);
   });
 
@@ -1142,6 +1176,56 @@ describe('generateThemeImageSizeVariants', () => {
     expect(existsSync(join(outputDir, 'content/images/size/w600/format/webp/cover.png'))).toBe(
       true,
     );
+  });
+
+  test('emits a full-res per-format twin when a theme size does not shrink the source', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'laurel-theme-sizes-'));
+    const assetsDir = 'content/images';
+    // 400px source: xs(160) shrinks, m(600) does not -> img_url emits the bare
+    // original for m, so the original needs a webp twin for the <source>.
+    await writeRealPng(join(cwd, assetsDir, 'cover.png'), 400, 300);
+    const outputDir = join(cwd, 'dist');
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
+
+    const count = await generateThemeImageSizeVariants({
+      cwd,
+      config,
+      outputDir,
+      themeImageSizes: {
+        xs: { width: 160 },
+        m: { width: 600 },
+      },
+      cacheDir: join(cwd, '.laurel/cache/images'),
+      formats: ['webp'],
+    });
+
+    // 1 base (w160) + 1 webp (w160) + 1 full-res webp twin = 3.
+    expect(count).toBe(3);
+    expect(existsSync(join(outputDir, 'content/images/size/w160/format/webp/cover.png'))).toBe(
+      true,
+    );
+    expect(existsSync(join(outputDir, 'content/images/format/webp/cover.png'))).toBe(true);
+    // m(600) does not shrink the 400px source, so no upscaled size variant.
+    expect(existsSync(join(outputDir, 'content/images/size/w600/cover.png'))).toBe(false);
+  });
+
+  test('does not emit a full-res twin when every theme size shrinks the source', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'laurel-theme-sizes-'));
+    const assetsDir = 'content/images';
+    await writeRealPng(join(cwd, assetsDir, 'cover.png'), 1200, 800);
+    const outputDir = join(cwd, 'dist');
+    const config = { content: { assets_dir: assetsDir } } as unknown as LaurelConfig;
+
+    await generateThemeImageSizeVariants({
+      cwd,
+      config,
+      outputDir,
+      themeImageSizes: { xs: { width: 160 }, m: { width: 600 } },
+      cacheDir: join(cwd, '.laurel/cache/images'),
+      formats: ['webp'],
+    });
+
+    expect(existsSync(join(outputDir, 'content/images/format/webp/cover.png'))).toBe(false);
   });
 
   test('skips format variants for non-jpg/png sources', async () => {
