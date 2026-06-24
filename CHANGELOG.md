@@ -11,6 +11,20 @@ published to npm with `npm publish`; there is no CI release automation).
 
 _Nothing yet._
 
+## [0.3.1] - 2026-06-24
+
+### Fixed
+
+- `srcset` densification now also fills card / feature image srcsets whose
+  source is narrower than the theme's largest `image_sizes` width. For such
+  images `{{img_url}}` emits the bare original URL (no `/content/images/size/`
+  segment) for any size at or above the source width to avoid upscaling, which
+  made the srcset a mix of sized and original entries; the densifier previously
+  bailed on the whole `<img>`, leaving common gaps such as `600w → 1000w`
+  unfilled even though the intermediate variants were generated on disk. The
+  original-URL entries are now preserved as-is while the sized gaps are
+  densified. (#690)
+
 ## [0.3.0] - 2026-06-24
 
 ### Added
@@ -293,7 +307,8 @@ _Nothing yet._
   components (search, comments stub, OG images, JSON feeds), and
   `laurel import-ghost` / `laurel import-wordpress` migration tooling.
 
-[Unreleased]: https://github.com/t09tanaka/laurel/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/t09tanaka/laurel/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/t09tanaka/laurel/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/t09tanaka/laurel/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/t09tanaka/laurel/compare/v0.1.12...v0.2.0
 [0.1.12]: https://github.com/t09tanaka/laurel/compare/v0.1.11...v0.1.12
