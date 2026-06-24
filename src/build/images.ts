@@ -1253,7 +1253,7 @@ interface GenerateThemeImageSizeVariantsOptions {
   // Cache filename: `<sha>-<segment>[.<format>].<ext>`.
   cacheDir?: string;
   // When non-empty AND cacheDir is set, additionally emit per-format variants
-  // at `/content/images/size/<segment>/format/<ext>/<rel>` for each jpg/png
+  // at `/content/images/size/<segment>/format/<ext>/<rel>.<ext>` for each jpg/png
   // source. Mirrors the URL `{{img_url ... size="x" format="webp"}}` produces.
   formats?: readonly ImageFormat[];
   webpQuality?: number;
@@ -1270,8 +1270,8 @@ interface GenerateThemeImageSizeVariantsOptions {
 //
 // We emit one resized file per (source, size) pair using sharp and, when
 // configured with formats + a cache_dir, additionally emit per-format variants
-// at `/content/images/size/<segment>/format/<ext>/<rel>`. Caching is keyed by
-// source content hash so subsequent builds copy bytes instead of re-encoding;
+// at `/content/images/size/<segment>/format/<ext>/<rel>.<ext>`. Caching is keyed
+// by source content hash so subsequent builds copy bytes instead of re-encoding;
 // the cache file's mtime survives across builds because it lives outside the
 // staging `dist/`.
 //
