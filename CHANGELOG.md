@@ -11,6 +11,24 @@ published to npm with `npm publish`; there is no CI release automation).
 
 _Nothing yet._
 
+## [0.3.3] - 2026-06-24
+
+### Fixed
+
+- Theme WebP/AVIF image variants now carry their real format extension on disk
+  (`/content/images/format/webp/cover.jpg.webp` instead of
+  `/content/images/format/webp/cover.jpg`). The variant URLs kept the source
+  extension, so static hosts that derive `Content-Type` from the filename (S3,
+  GCS, GitHub Pages) served AVIF/WebP bytes labelled `image/jpeg`. Browsers
+  still rendered them via the `<picture type=>` hint and content sniffing, but
+  the wire `Content-Type` was wrong and `Content-Type`-dependent CDNs, proxies,
+  and analytics could mishandle them. The variant rel now gets a `.webp`/`.avif`
+  suffix appended (mirroring the body-image scheme), so any static host labels
+  it correctly. Only same-origin sources that Laurel materialises on disk are
+  suffixed; foreign Ghost CDN sources (issue #463) and `jpg`/`png`/`gif`
+  `format=` passthrough URLs keep the canonical Ghost shape, and query strings /
+  fragments are preserved after the extension. (#692)
+
 ## [0.3.2] - 2026-06-24
 
 ### Fixed
@@ -325,7 +343,8 @@ _Nothing yet._
   components (search, comments stub, OG images, JSON feeds), and
   `laurel import-ghost` / `laurel import-wordpress` migration tooling.
 
-[Unreleased]: https://github.com/t09tanaka/laurel/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/t09tanaka/laurel/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/t09tanaka/laurel/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/t09tanaka/laurel/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/t09tanaka/laurel/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/t09tanaka/laurel/compare/v0.2.0...v0.3.0
