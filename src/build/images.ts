@@ -909,6 +909,28 @@ function themeVariantToFormat(
   return `${before}size/${segment}/format/${format}/${rel}`;
 }
 
+// Rewrite a bare full-resolution original URL (`/content/images/<rel>`, the
+// shape `{{img_url ... size="<key>"}}` emits for theme sizes that meet/exceed
+// the source intrinsic width to avoid upscaling) into its full-res per-format
+// twin (`/content/images/format/<fmt>/<rel>`, materialised by
+// generateThemeImageSizeVariants for sources with a non-shrinking theme size).
+// Returns undefined for any non-original shape (size/ variant, already-format
+// URL, non-jpg/png source, remote URL, `..`).
+function themeOriginalToFormat(
+  url: string,
+  format: ImageFormat,
+  marker: string,
+): string | undefined {
+  const cleaned = url.split(/[?#]/)[0] ?? '';
+  const idx = cleaned.indexOf(marker);
+  if (idx < 0) return undefined;
+  const after = cleaned.slice(idx + marker.length);
+  if (after.startsWith('size/') || /(^|\/)format\//.test(after)) return undefined;
+  if (after === '' || after.includes('..') || !isFormatVariantSource(after)) return undefined;
+  const before = cleaned.slice(0, idx + marker.length);
+  return `${before}format/${format}/${after}`;
+}
+
 // Build the `<source>` markup (one per requested format) for a theme `<img>`
 // whose srcset/src points at same-format size variants. Returns undefined when
 // no entry is a transformable theme variant, so the caller leaves the tag
@@ -939,10 +961,30 @@ function buildThemePictureSources(
   const sources: string[] = [];
   for (const format of formats) {
     const transformed: string[] = [];
+    let hasSized = false;
+    const originals: { url: string; descriptor: string }[] = [];
     for (const entry of entries) {
       const url = themeVariantToFormat(entry.url, format, marker);
-      if (!url) continue;
-      transformed.push(entry.descriptor ? `${url} ${entry.descriptor}` : url);
+      if (url) {
+        hasSized = true;
+        transformed.push(entry.descriptor ? `${url} ${entry.descriptor}` : url);
+        continue;
+      }
+      // Defer bare originals: only map them to their full-res per-format twin
+      // when the srcset also carries a sized sibling. A sized sibling proves
+      // the source participates in theme sizing, so generateThemeImageSizeVariants
+      // materialised the twin (the bare-original tail and the twin share the
+      // `non-shrinking theme size` trigger) — mapping it without that proof
+      // could 404 a hand-authored srcset. A width descriptor is required for
+      // the same reason: a lone `<img src>` original has no descriptor and no
+      // guaranteed twin.
+      if (entry.descriptor) originals.push({ url: entry.url, descriptor: entry.descriptor });
+    }
+    if (hasSized) {
+      for (const original of originals) {
+        const url = themeOriginalToFormat(original.url, format, marker);
+        if (url) transformed.push(`${url} ${original.descriptor}`);
+      }
     }
     if (transformed.length === 0) continue;
     sources.push(`<source type="image/${format}" srcset="${transformed.join(', ')}"${sizesPart}>`);
@@ -1304,6 +1346,43 @@ export async function generateThemeImageSizeVariants(
         }
       }
     }
+
+    // Full-resolution per-format twin of the bare original. `{{img_url ...
+    // size="<key>"}}` emits the un-sized original for any theme size whose width
+    // meets/exceeds the source intrinsic width (upscale avoidance), so such a
+    // source's theme srcset mixes sized entries with an original-url tail. The
+    // <img> fallback keeps that tail (e.g. `cover.jpg 2000w`); injectThemeImage-
+    // PictureSources rewrites it to `format/<fmt>/<rel>` so the WebP/AVIF
+    // <source> keeps the largest width too. Emit one twin per (source, format)
+    // whenever at least one theme size does not shrink the source — the exact
+    // condition that produces the tail.
+    if (cacheDir && sha && formats.length > 0 && isFormatVariantSource(normalizedRel)) {
+      const hasNonShrinkingSize = entries.some(
+        ([, size]) => buildThemeImageSizeSegment(size) !== '' && !sizeShrinksSource(size, dims),
+      );
+      if (hasNonShrinkingSize) {
+        for (const format of formats) {
+          const fullResOutPath = join(outRoot, 'format', format, normalizedRel);
+          const fullResCacheFile = join(cacheDir, `${sha}-orig.${format}`);
+          if (
+            await encodeOrReuseThemeVariant({
+              sharpFn,
+              sourcePath,
+              outPath: fullResOutPath,
+              size: {},
+              cacheFile: fullResCacheFile,
+              format,
+              webpQuality,
+              avifQuality,
+              stripMetadata: opts.stripMetadata,
+              fullResolution: true,
+            })
+          ) {
+            count += 1;
+          }
+        }
+      }
+    }
   }
   return count;
 }
@@ -1318,6 +1397,9 @@ interface EncodeOrReuseThemeVariantOptions {
   webpQuality: number;
   avifQuality: number;
   stripMetadata?: boolean;
+  // Transcode the source at its native resolution (no resize). Used for the
+  // full-res per-format twin of the bare original; `size` is ignored.
+  fullResolution?: boolean;
 }
 
 async function encodeOrReuseThemeVariant(opts: EncodeOrReuseThemeVariantOptions): Promise<boolean> {
@@ -1341,11 +1423,14 @@ async function encodeOrReuseThemeVariant(opts: EncodeOrReuseThemeVariantOptions)
   }
 
   try {
-    let pipeline = sharpFn(sourcePath).resize({
-      width: typeof size.width === 'number' ? size.width : undefined,
-      height: typeof size.height === 'number' ? size.height : undefined,
-      withoutEnlargement: true,
-    });
+    let pipeline = sharpFn(sourcePath);
+    if (!opts.fullResolution) {
+      pipeline = pipeline.resize({
+        width: typeof size.width === 'number' ? size.width : undefined,
+        height: typeof size.height === 'number' ? size.height : undefined,
+        withoutEnlargement: true,
+      });
+    }
     if (format === 'webp') pipeline = pipeline.webp({ quality: opts.webpQuality });
     else if (format === 'avif') pipeline = pipeline.avif({ quality: opts.avifQuality });
     pipeline = applyImageMetadataPolicy(pipeline, opts.stripMetadata !== false);
