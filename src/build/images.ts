@@ -883,9 +883,11 @@ function parseSrcsetEntries(srcset: string): SrcsetEntry[] {
 
 // Rewrite a theme size-variant URL (`/content/images/size/<seg>/<rel>`, the
 // shape `{{img_url ... size="<key>"}}` emits) into its per-format sibling
-// (`/content/images/size/<seg>/format/<fmt>/<rel>`, the shape
+// (`/content/images/size/<seg>/format/<fmt>/<rel>.<fmt>`, the shape
 // `{{img_url ... size="<key>" format="<fmt>"}}` emits and
-// generateThemeImageSizeVariants materialises). Returns undefined when the URL
+// generateThemeImageSizeVariants materialises). The `.<fmt>` extension is
+// appended so the on-disk file gets the correct Content-Type on static hosts.
+// Returns undefined when the URL
 // is not a transformable theme variant: no `/content/images/` marker, no
 // `size/` segment, already under a `format/` segment, or a non-jpg/png source
 // (svg/webp/gif have no per-format variant on disk).
@@ -906,13 +908,13 @@ function themeVariantToFormat(
   const rel = rest.slice(slash + 1);
   if (rel === '' || rel.includes('..') || !isFormatVariantSource(rel)) return undefined;
   const before = cleaned.slice(0, idx + marker.length);
-  return `${before}size/${segment}/format/${format}/${rel}`;
+  return `${before}size/${segment}/format/${format}/${rel}.${format}`;
 }
 
 // Rewrite a bare full-resolution original URL (`/content/images/<rel>`, the
 // shape `{{img_url ... size="<key>"}}` emits for theme sizes that meet/exceed
 // the source intrinsic width to avoid upscaling) into its full-res per-format
-// twin (`/content/images/format/<fmt>/<rel>`, materialised by
+// twin (`/content/images/format/<fmt>/<rel>.<fmt>`, materialised by
 // generateThemeImageSizeVariants for sources with a non-shrinking theme size).
 // Returns undefined for any non-original shape (size/ variant, already-format
 // URL, non-jpg/png source, remote URL, `..`).
@@ -939,7 +941,7 @@ function themeOriginalToFormat(
   const cleaned = url.split(/[?#]/)[0] ?? '';
   const idx = cleaned.indexOf(marker);
   const before = cleaned.slice(0, idx + marker.length);
-  return `${before}format/${format}/${rel}`;
+  return `${before}format/${format}/${rel}.${format}`;
 }
 
 // Build the `<source>` markup (one per requested format) for a theme `<img>`
@@ -1076,6 +1078,17 @@ function parseSizedVariantUrl(url: string, marker: string): SizedVariantUrl | un
   return { before, width, formatSeg: m[2] ?? '', rel };
 }
 
+// Strip the `.<fmt>` extension that a transcoded variant rel carries on disk,
+// recovering the source rel. `formatSeg` is the parsed `format/<fmt>/` segment
+// (or '' for a same-format variant). Only webp/avif are suffixed, so jpg/png
+// passthrough segments leave the rel untouched.
+function stripFormatSuffix(rel: string, formatSeg: string): string {
+  const m = formatSeg.match(/^format\/(webp|avif)\/$/);
+  if (!m) return rel;
+  const suffix = `.${m[1]}`;
+  return rel.endsWith(suffix) ? rel.slice(0, -suffix.length) : rel;
+}
+
 interface DensifyImageSrcsetOptions {
   // Target ladder the inserted widths are drawn from. Only ladder widths that
   // fall inside a too-wide gap are inserted, so every emitted width is one the
@@ -1156,7 +1169,13 @@ export function densifyImageSrcset(html: string, opts: DensifyImageSrcsetOptions
       // those originals verbatim (rewriting them to a `/size/` URL would 404)
       // and still densify the sized gaps. Anything else (foreign source, remote)
       // bails the whole <img>.
-      const originalUrl = `${tmpl.before}${tmpl.rel}`;
+      // The bare original tail and sourceWidthFor are keyed by the SOURCE rel.
+      // A format variant's rel carries a trailing `.<fmt>` extension on disk
+      // (e.g. `a.jpg.webp`); strip it so the un-sized original `img_url` emits
+      // for non-shrinking sizes (`a.jpg`, no format/suffix) still matches and
+      // the intrinsic-width cap still resolves. Only webp/avif are suffixed.
+      const sourceRel = stripFormatSuffix(tmpl.rel, tmpl.formatSeg);
+      const originalUrl = `${tmpl.before}${sourceRel}`;
       const existing = new Set<number>(); // all widths (sized + original)
       const sizedWidths = new Set<number>();
       const originals: { width: number; url: string }[] = [];
@@ -1184,7 +1203,7 @@ export function densifyImageSrcset(html: string, opts: DensifyImageSrcsetOptions
       }
 
       const sortedExisting = [...existing].sort((a, b) => a - b);
-      const sourceWidth = opts.sourceWidthFor?.(tmpl.rel);
+      const sourceWidth = opts.sourceWidthFor?.(sourceRel);
       const inserts = new Set<number>();
       for (let i = 1; i < sortedExisting.length; i += 1) {
         const a = sortedExisting[i - 1] as number;
@@ -1234,7 +1253,7 @@ interface GenerateThemeImageSizeVariantsOptions {
   // Cache filename: `<sha>-<segment>[.<format>].<ext>`.
   cacheDir?: string;
   // When non-empty AND cacheDir is set, additionally emit per-format variants
-  // at `/content/images/size/<segment>/format/<ext>/<rel>` for each jpg/png
+  // at `/content/images/size/<segment>/format/<ext>/<rel>.<ext>` for each jpg/png
   // source. Mirrors the URL `{{img_url ... size="x" format="webp"}}` produces.
   formats?: readonly ImageFormat[];
   webpQuality?: number;
@@ -1251,8 +1270,8 @@ interface GenerateThemeImageSizeVariantsOptions {
 //
 // We emit one resized file per (source, size) pair using sharp and, when
 // configured with formats + a cache_dir, additionally emit per-format variants
-// at `/content/images/size/<segment>/format/<ext>/<rel>`. Caching is keyed by
-// source content hash so subsequent builds copy bytes instead of re-encoding;
+// at `/content/images/size/<segment>/format/<ext>/<rel>.<ext>`. Caching is keyed
+// by source content hash so subsequent builds copy bytes instead of re-encoding;
 // the cache file's mtime survives across builds because it lives outside the
 // staging `dist/`.
 //
@@ -1339,7 +1358,14 @@ export async function generateThemeImageSizeVariants(
       // we don't want to re-pay it every build.
       if (cacheDir && sha && formats.length > 0 && isFormatVariantSource(normalizedRel)) {
         for (const format of formats) {
-          const formatOutPath = join(outRoot, 'size', segment, 'format', format, normalizedRel);
+          const formatOutPath = join(
+            outRoot,
+            'size',
+            segment,
+            'format',
+            format,
+            `${normalizedRel}.${format}`,
+          );
           const formatCacheFile = join(cacheDir, `${sha}-${segment}.${format}`);
           if (
             await encodeOrReuseThemeVariant({
@@ -1375,7 +1401,7 @@ export async function generateThemeImageSizeVariants(
       );
       if (hasNonShrinkingSize) {
         for (const format of formats) {
-          const fullResOutPath = join(outRoot, 'format', format, normalizedRel);
+          const fullResOutPath = join(outRoot, 'format', format, `${normalizedRel}.${format}`);
           const fullResCacheFile = join(cacheDir, `${sha}-orig.${format}`);
           if (
             await encodeOrReuseThemeVariant({

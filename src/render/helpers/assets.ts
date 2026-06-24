@@ -79,8 +79,12 @@ export function registerAssetHelpers(engine: LaurelEngine): void {
     // external URLs (e.g. `https://images.unsplash.com/photo.jpg`,
     // protocol-relative `//foo/bar.jpg`, `data:` URIs) lack `/content/images/`
     // in their path so they fall through unchanged.
-    const url = applyTransformSegments(candidate, sizeDef, formatKey);
     const sameOriginAsSite = isSameOriginAsSite(candidate, siteUrl);
+    // Only same-origin content images are materialised on disk by Laurel
+    // (`<rel>.<fmt>`), so only they get the format extension. A foreign Ghost
+    // CDN source (issue #463) is served by a dynamic image API that expects the
+    // canonical `format/<fmt>/<rel>` shape, not a `.fmt`-suffixed file.
+    const url = applyTransformSegments(candidate, sizeDef, formatKey, sameOriginAsSite);
     // absolute=true only re-resolves against siteUrl for paths/relative URLs
     // and same-origin absolute URLs. External absolute URLs (different host,
     // or non-http(s) schemes like data:) are returned as-is so we don't
@@ -131,6 +135,11 @@ function withMinFileVariant(logical: string): string | undefined {
 
 const SUPPORTED_FORMATS = new Set(['webp', 'avif', 'jpg', 'jpeg', 'png', 'gif']);
 
+// The formats Laurel actually transcodes to disk (generateImageFormatVariants /
+// generateThemeImageSizeVariants). Only these get a `.<fmt>` extension appended
+// to their variant URL so the on-disk file carries the correct Content-Type.
+const TRANSCODED_FORMATS = new Set(['webp', 'avif']);
+
 function normalizeFormat(value: string): string | undefined {
   const lower = value.toLowerCase();
   return SUPPORTED_FORMATS.has(lower) ? lower : undefined;
@@ -138,9 +147,13 @@ function normalizeFormat(value: string): string | undefined {
 
 // Ghost-compat: rewrite `/content/images/...` URLs to include `size/wXXX[hYYY]/`
 // and/or `format/<ext>/` segments so that `{{img_url ... size="x" format="webp"}}`
-// produces canonical Ghost image-API URLs (e.g.
+// resolves to the variant Laurel materialises. For a same-origin (local) source
+// the webp/avif file lands on disk as `<rel>.<fmt>`, so the emitted URL carries
+// that extension (e.g. `/content/images/size/w600/format/webp/cover.jpg.webp`)
+// to keep the static host's Content-Type correct. Foreign Ghost-CDN sources and
+// jpg/png/gif passthrough keep the canonical un-suffixed Ghost shape (e.g.
 // `/content/images/size/w600/format/webp/cover.jpg`). Actual transcoding is a
-// separate concern; this only emits the canonical URL shape.
+// separate concern; this only emits the URL shape.
 //
 // SVG sources are special: they are vector and scale losslessly in the browser,
 // and the build-time resize pipeline (generateThemeImageSizeVariants) skips SVG
@@ -155,6 +168,7 @@ function applyTransformSegments(
   candidate: string,
   sizeDef: ThemeImageSize | undefined,
   format: string | undefined,
+  localSource: boolean,
 ): string {
   const sizeSegment = sizeDef ? buildSizeSegment(sizeDef) : '';
   if (!sizeSegment && !format) return candidate;
@@ -168,9 +182,29 @@ function applyTransformSegments(
   const hasFormatSegment = /(^|\/)format\//.test(after);
   let prefix = '';
   if (sizeSegment && !hasSizeSegment) prefix += `size/${sizeSegment}/`;
-  if (format && !hasFormatSegment) prefix += `format/${format}/`;
+  const addFormat = Boolean(format) && !hasFormatSegment;
+  if (addFormat) prefix += `format/${format}/`;
   if (!prefix) return candidate;
-  return `${before}${prefix}${after}`;
+  // Append the format extension so the materialised file ends in `.webp`/`.avif`
+  // and static hosts label it by extension with the correct Content-Type. Ghost
+  // serves these through a dynamic image server that sets the type regardless of
+  // extension; Laurel is static, so the on-disk name must carry the real format.
+  // Mirrors the body-image scheme (generateImageFormatVariants writes
+  // `<rel>.<fmt>`). Only webp/avif are actually transcoded to disk — jpg/png/gif
+  // `format=` values keep the canonical Ghost URL shape (source extension) since
+  // Laurel materialises no file for them. A foreign CDN source (issue #463) also
+  // keeps the canonical shape: its dynamic image API serves the format, no local
+  // file exists to rename.
+  const suffix =
+    addFormat && localSource && format && TRANSCODED_FORMATS.has(format) ? `.${format}` : '';
+  // Split off any query/fragment so the format extension lands on the path
+  // (before `?v=1`/`#frag`), keeping the URL's resolved path in sync with the
+  // `<rel>.<fmt>` file on disk. A suffix after the query would resolve to the
+  // un-suffixed path and 404 (the query is preserved verbatim).
+  const qIdx = after.search(/[?#]/);
+  const path = qIdx >= 0 ? after.slice(0, qIdx) : after;
+  const query = qIdx >= 0 ? after.slice(qIdx) : '';
+  return `${before}${prefix}${path}${suffix}${query}`;
 }
 
 // Strip query/fragment before sniffing the extension so a URL like

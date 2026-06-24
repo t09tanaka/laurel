@@ -307,7 +307,7 @@ describe('img_url helper', () => {
     registerAssetHelpers(engine);
     const tpl = engine.hb.compile('{{img_url feature_image size="m" format="webp"}}');
     expect(tpl({ feature_image: '/content/images/cover.jpg' })).toBe(
-      '/content/images/size/w600/format/webp/cover.jpg',
+      '/content/images/size/w600/format/webp/cover.jpg.webp',
     );
   });
 
@@ -316,7 +316,7 @@ describe('img_url helper', () => {
     registerAssetHelpers(engine);
     const tpl = engine.hb.compile('{{img_url feature_image format="webp"}}');
     expect(tpl({ feature_image: '/content/images/cover.jpg' })).toBe(
-      '/content/images/format/webp/cover.jpg',
+      '/content/images/format/webp/cover.jpg.webp',
     );
   });
 
@@ -324,7 +324,7 @@ describe('img_url helper', () => {
     const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
     registerAssetHelpers(engine);
     const cases = [
-      ['avif', '/content/images/size/w600/format/avif/cover.jpg'],
+      ['avif', '/content/images/size/w600/format/avif/cover.jpg.avif'],
       ['jpg', '/content/images/size/w600/format/jpg/cover.jpg'],
       ['png', '/content/images/size/w600/format/png/cover.jpg'],
       ['gif', '/content/images/size/w600/format/gif/cover.jpg'],
@@ -333,6 +333,31 @@ describe('img_url helper', () => {
       const tpl = engine.hb.compile(`{{img_url feature_image size="m" format="${fmt}"}}`);
       expect(tpl({ feature_image: '/content/images/cover.jpg' })).toBe(expected);
     }
+  });
+
+  test('appends the format extension before a query string / fragment', () => {
+    const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url feature_image size="m" format="webp"}}');
+    // The `.webp` must land on the path (matching the `<rel>.webp` file on disk),
+    // not after `?v=1` where it would resolve to the un-suffixed path and 404.
+    expect(tpl({ feature_image: '/content/images/cover.jpg?v=1&sig=abc' })).toBe(
+      '/content/images/size/w600/format/webp/cover.jpg.webp?v=1&sig=abc',
+    );
+  });
+
+  test('keeps the canonical (un-suffixed) shape for a foreign Ghost CDN source (issue #463)', () => {
+    const engine = makeEngine({
+      imageSizes: { m: { width: 600 } },
+      siteUrl: 'https://example.com',
+    });
+    registerAssetHelpers(engine);
+    const tpl = engine.hb.compile('{{img_url feature_image size="m" format="webp"}}');
+    // A different-host Ghost CDN serves the format via its dynamic image API and
+    // expects `format/webp/foo.jpg`, not a `.webp`-suffixed static filename.
+    expect(tpl({ feature_image: 'https://cdn.example.com/content/images/2024/01/foo.jpg' })).toBe(
+      'https://cdn.example.com/content/images/size/w600/format/webp/2024/01/foo.jpg',
+    );
   });
 
   test('unknown format value is ignored (no segment injected)', () => {
@@ -348,8 +373,8 @@ describe('img_url helper', () => {
     const engine = makeEngine({ imageSizes: { m: { width: 600 } } });
     registerAssetHelpers(engine);
     const tpl = engine.hb.compile('{{img_url feature_image size="m" format="webp"}}');
-    expect(tpl({ feature_image: '/content/images/size/w600/format/webp/cover.jpg' })).toBe(
-      '/content/images/size/w600/format/webp/cover.jpg',
+    expect(tpl({ feature_image: '/content/images/size/w600/format/webp/cover.jpg.webp' })).toBe(
+      '/content/images/size/w600/format/webp/cover.jpg.webp',
     );
   });
 
@@ -361,7 +386,7 @@ describe('img_url helper', () => {
     registerAssetHelpers(engine);
     const tpl = engine.hb.compile('{{img_url feature_image size="m" format="webp" absolute=true}}');
     expect(tpl({ feature_image: '/content/images/cover.jpg' })).toBe(
-      'https://blog.example.com/content/images/size/w600/format/webp/cover.jpg',
+      'https://blog.example.com/content/images/size/w600/format/webp/cover.jpg.webp',
     );
   });
 
@@ -370,7 +395,7 @@ describe('img_url helper', () => {
     registerAssetHelpers(engine);
     const tpl = engine.hb.compile('{{img_url feature_image size="m" format="WEBP"}}');
     expect(tpl({ feature_image: '/content/images/cover.jpg' })).toBe(
-      '/content/images/size/w600/format/webp/cover.jpg',
+      '/content/images/size/w600/format/webp/cover.jpg.webp',
     );
   });
 
@@ -500,7 +525,7 @@ describe('img_url helper — clamps non-shrinking sizes to the original (404 reg
     registerAssetHelpers(engine);
     const tpl = engine.hb.compile('{{img_url feature_image size="m" format="webp"}}');
     expect(tpl({ feature_image: '/content/images/hero.png' })).toBe(
-      '/content/images/size/w600/format/webp/hero.png',
+      '/content/images/size/w600/format/webp/hero.png.webp',
     );
   });
 

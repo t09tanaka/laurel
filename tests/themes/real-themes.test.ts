@@ -536,7 +536,7 @@ describe('real Ghost theme contract', () => {
     );
     expect(postHtml).toContain('data-lang="ja"');
     expect(postHtml).toContain(
-      'src="/content/images/size/w720/format/webp/photo.jpg" alt="Cross theme compat"',
+      'src="/content/images/size/w720/format/webp/photo.jpg.webp" alt="Cross theme compat"',
     );
     expect(postHtml).toContain('data-non-public-post');
     expect(postHtml).toContain('data-negated-non-public');

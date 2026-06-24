@@ -600,7 +600,20 @@ function featureImageBaseRel(href: string): string | undefined {
   const idx = clean.indexOf('/content/images/');
   if (idx < 0) return undefined;
   let rel = clean.slice(idx + '/content/images/'.length);
-  rel = rel.replace(/^size\/[^/]+\//, '').replace(/^format\/[^/]+\//, '');
+  rel = rel.replace(/^size\/[^/]+\//, '');
+  // A `format/<fmt>/` variant carries a trailing `.<fmt>` extension on disk for
+  // the transcoded formats (e.g. `format/webp/cover.jpg.webp`); strip both so
+  // the recovered base rel matches the source the bare/sized <img> URLs share
+  // (`cover.jpg`). jpg/png/gif passthrough segments are not suffixed, so only
+  // the segment is dropped for them.
+  const fmt = rel.match(/^format\/([^/]+)\//);
+  if (fmt) {
+    rel = rel.slice(fmt[0].length);
+    if (fmt[1] === 'webp' || fmt[1] === 'avif') {
+      const suffix = `.${fmt[1]}`;
+      if (rel.endsWith(suffix)) rel = rel.slice(0, -suffix.length);
+    }
+  }
   if (rel === '' || rel.includes('..')) return undefined;
   return rel;
 }
