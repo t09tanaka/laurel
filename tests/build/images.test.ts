@@ -632,7 +632,7 @@ describe('injectThemeImagePictureSources', () => {
     expect(out.startsWith('<picture>')).toBe(true);
     expect(out.endsWith('</picture>')).toBe(true);
     expect(out).toContain(
-      '<source type="image/webp" srcset="/content/images/size/w320/format/webp/cover.jpg 320w, /content/images/size/w600/format/webp/cover.jpg 600w" sizes="(max-width: 1200px) 100vw, 1120px">',
+      '<source type="image/webp" srcset="/content/images/size/w320/format/webp/cover.jpg.webp 320w, /content/images/size/w600/format/webp/cover.jpg.webp 600w" sizes="(max-width: 1200px) 100vw, 1120px">',
     );
     // The original <img> is preserved as the fallback.
     expect(out).toContain('src="/content/images/size/w1200/cover.jpg"');
@@ -645,7 +645,7 @@ describe('injectThemeImagePictureSources', () => {
     const webpIdx = out.indexOf('image/webp');
     expect(avifIdx).toBeGreaterThan(-1);
     expect(webpIdx).toBeGreaterThan(avifIdx);
-    expect(out).toContain('/content/images/size/w320/format/avif/cover.jpg 320w');
+    expect(out).toContain('/content/images/size/w320/format/avif/cover.jpg.avif 320w');
   });
 
   test('skips when no formats are configured', () => {
@@ -656,7 +656,7 @@ describe('injectThemeImagePictureSources', () => {
     // card-image-img.hbs already passes format="webp", so the srcset entries
     // already live under /format/webp/ — there is nothing to upgrade.
     const card =
-      '<img srcset="/content/images/size/w160/format/webp/cover.jpg 160w" ' +
+      '<img srcset="/content/images/size/w160/format/webp/cover.jpg.webp 160w" ' +
       'src="/content/images/size/w600/cover.jpg" loading="lazy">';
     expect(injectThemeImagePictureSources(card, { formats: ['webp'] })).toBe(card);
   });
@@ -684,7 +684,7 @@ describe('injectThemeImagePictureSources', () => {
     const out = injectThemeImagePictureSources(html, { formats: ['webp'] });
     // The remote entry is dropped from the WebP <source>; the <img> keeps it.
     expect(out).toContain(
-      '<source type="image/webp" srcset="/content/images/size/w320/format/webp/cover.jpg 320w">',
+      '<source type="image/webp" srcset="/content/images/size/w320/format/webp/cover.jpg.webp 320w">',
     );
     expect(out).toContain('https://cdn.example.com/x.jpg 600w');
   });
@@ -704,7 +704,7 @@ describe('injectThemeImagePictureSources', () => {
     ].join('');
     const out = injectThemeImagePictureSources(html, { formats: ['webp'] });
     expect(out).toContain(
-      '<source type="image/webp" srcset="/content/images/size/w320/format/webp/cover.jpg 320w, /content/images/size/w600/format/webp/cover.jpg 600w, /content/images/format/webp/cover.jpg 2000w">',
+      '<source type="image/webp" srcset="/content/images/size/w320/format/webp/cover.jpg.webp 320w, /content/images/size/w600/format/webp/cover.jpg.webp 600w, /content/images/format/webp/cover.jpg.webp 2000w">',
     );
     // The JPEG fallback still keeps the bare original.
     expect(out).toContain('/content/images/cover.jpg 2000w');
@@ -716,8 +716,8 @@ describe('injectThemeImagePictureSources', () => {
       '/content/images/cover.jpg 2000w" src="/content/images/cover.jpg">',
     ].join('');
     const out = injectThemeImagePictureSources(html, { formats: ['avif', 'webp'] });
-    expect(out).toContain('/content/images/format/avif/cover.jpg 2000w');
-    expect(out).toContain('/content/images/format/webp/cover.jpg 2000w');
+    expect(out).toContain('/content/images/format/avif/cover.jpg.avif 2000w');
+    expect(out).toContain('/content/images/format/webp/cover.jpg.webp 2000w');
   });
 
   test('does not map a lone bare original without a sized sibling', () => {
@@ -737,8 +737,8 @@ describe('injectThemeImagePictureSources', () => {
       '/content/images/different.jpg 2000w" src="/content/images/logo.jpg">',
     ].join('');
     const out = injectThemeImagePictureSources(html, { formats: ['webp'] });
-    expect(out).toContain('/content/images/size/w600/format/webp/logo.jpg 600w');
-    expect(out).not.toContain('format/webp/different.jpg');
+    expect(out).toContain('/content/images/size/w600/format/webp/logo.jpg.webp 600w');
+    expect(out).not.toContain('format/webp/different.jpg.webp');
     // The foreign original is still kept on the <img> fallback.
     expect(out).toContain('/content/images/different.jpg 2000w');
   });
@@ -759,7 +759,7 @@ describe('injectThemeImagePictureSources', () => {
     const html = '<img src="/content/images/size/w600/cover.jpg" fetchpriority="high">';
     const out = injectThemeImagePictureSources(html, { formats: ['webp'] });
     expect(out).toContain(
-      '<source type="image/webp" srcset="/content/images/size/w600/format/webp/cover.jpg">',
+      '<source type="image/webp" srcset="/content/images/size/w600/format/webp/cover.jpg.webp">',
     );
   });
 });
@@ -1170,10 +1170,10 @@ describe('generateThemeImageSizeVariants', () => {
     expect(count).toBe(4);
     expect(existsSync(join(outputDir, 'content/images/size/w160/cover.png'))).toBe(true);
     expect(existsSync(join(outputDir, 'content/images/size/w600/cover.png'))).toBe(true);
-    expect(existsSync(join(outputDir, 'content/images/size/w160/format/webp/cover.png'))).toBe(
+    expect(existsSync(join(outputDir, 'content/images/size/w160/format/webp/cover.png.webp'))).toBe(
       true,
     );
-    expect(existsSync(join(outputDir, 'content/images/size/w600/format/webp/cover.png'))).toBe(
+    expect(existsSync(join(outputDir, 'content/images/size/w600/format/webp/cover.png.webp'))).toBe(
       true,
     );
   });
@@ -1201,10 +1201,10 @@ describe('generateThemeImageSizeVariants', () => {
 
     // 1 base (w160) + 1 webp (w160) + 1 full-res webp twin = 3.
     expect(count).toBe(3);
-    expect(existsSync(join(outputDir, 'content/images/size/w160/format/webp/cover.png'))).toBe(
+    expect(existsSync(join(outputDir, 'content/images/size/w160/format/webp/cover.png.webp'))).toBe(
       true,
     );
-    expect(existsSync(join(outputDir, 'content/images/format/webp/cover.png'))).toBe(true);
+    expect(existsSync(join(outputDir, 'content/images/format/webp/cover.png.webp'))).toBe(true);
     // m(600) does not shrink the 400px source, so no upscaled size variant.
     expect(existsSync(join(outputDir, 'content/images/size/w600/cover.png'))).toBe(false);
   });
@@ -1225,7 +1225,7 @@ describe('generateThemeImageSizeVariants', () => {
       formats: ['webp'],
     });
 
-    expect(existsSync(join(outputDir, 'content/images/format/webp/cover.png'))).toBe(false);
+    expect(existsSync(join(outputDir, 'content/images/format/webp/cover.png.webp'))).toBe(false);
   });
 
   test('skips format variants for non-jpg/png sources', async () => {
@@ -1277,7 +1277,7 @@ describe('generateThemeImageSizeVariants', () => {
 
     expect(count).toBe(1);
     expect(existsSync(join(outputDir, 'content/images/size/w600/cover.png'))).toBe(true);
-    expect(existsSync(join(outputDir, 'content/images/size/w600/format/webp/cover.png'))).toBe(
+    expect(existsSync(join(outputDir, 'content/images/size/w600/format/webp/cover.png.webp'))).toBe(
       false,
     );
   });
@@ -1322,7 +1322,7 @@ describe('generateThemeImageSizeVariants', () => {
     });
     expect(count).toBe(2);
     expect(existsSync(join(outputDir, 'content/images/size/w600/cover.png'))).toBe(true);
-    expect(existsSync(join(outputDir, 'content/images/size/w600/format/webp/cover.png'))).toBe(
+    expect(existsSync(join(outputDir, 'content/images/size/w600/format/webp/cover.png.webp'))).toBe(
       true,
     );
 
@@ -1476,9 +1476,9 @@ describe('densifyImageSrcset', () => {
 
   test('preserves a format/ segment when inserting widths', () => {
     const html =
-      '<img srcset="/content/images/size/w600/format/webp/a.jpg 600w, /content/images/size/w1000/format/webp/a.jpg 1000w">';
+      '<img srcset="/content/images/size/w600/format/webp/a.jpg.webp 600w, /content/images/size/w1000/format/webp/a.jpg.webp 1000w">';
     const out = densifyImageSrcset(html, { ratio: 1.5, ladder });
-    expect(out).toContain('/content/images/size/w770/format/webp/a.jpg 770w');
+    expect(out).toContain('/content/images/size/w770/format/webp/a.jpg.webp 770w');
   });
 
   test('is a no-op when the srcset is already within ratio', () => {
@@ -1532,9 +1532,9 @@ describe('densifyImageSrcset', () => {
 
   test('preserves a webp format segment while densifying with an original tail', () => {
     const html =
-      '<img srcset="/content/images/size/w600/format/webp/a.jpg 600w, /content/images/size/w1000/format/webp/a.jpg 1000w, /content/images/a.jpg 1600w">';
+      '<img srcset="/content/images/size/w600/format/webp/a.jpg.webp 600w, /content/images/size/w1000/format/webp/a.jpg.webp 1000w, /content/images/a.jpg 1600w">';
     const out = densifyImageSrcset(html, { ratio: 1.5, ladder, sourceWidthFor: () => 1200 });
-    expect(out).toContain('/content/images/size/w770/format/webp/a.jpg 770w');
+    expect(out).toContain('/content/images/size/w770/format/webp/a.jpg.webp 770w');
     expect(out).toContain('/content/images/a.jpg 1600w');
   });
 
@@ -1619,7 +1619,7 @@ describe('densifyImageSrcset + generateThemeImageSizeVariants integration', () =
 
     // The Source card srcset: webp format variants at the theme key widths.
     const srcsetEntries = themeKeyWidths
-      .map((w) => `/content/images/size/w${w}/format/webp/2022/cover.png ${w}w`)
+      .map((w) => `/content/images/size/w${w}/format/webp/2022/cover.png.webp ${w}w`)
       .join(', ');
     const html = `<img srcset="${srcsetEntries}">`;
     const out = densifyImageSrcset(html, { ratio, ladder, sourceWidthFor: () => 1600 });
@@ -1639,7 +1639,9 @@ describe('densifyImageSrcset + generateThemeImageSizeVariants integration', () =
     for (const w of inserted) {
       expect(w).toBeLessThan(1600);
       expect(
-        existsSync(join(outputDir, 'content/images/size', `w${w}`, 'format/webp/2022/cover.png')),
+        existsSync(
+          join(outputDir, 'content/images/size', `w${w}`, 'format/webp/2022/cover.png.webp'),
+        ),
       ).toBe(true);
     }
   });

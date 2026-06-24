@@ -144,7 +144,7 @@ describe('syncPriorityImagePreload', () => {
       '<link rel="preload" as="image" href="/content/images/cover.jpg" fetchpriority="high" type="image/jpeg">',
       '</head><body>',
       '<picture>',
-      '<source type="image/webp" srcset="/content/images/size/w320/format/webp/cover.jpg 320w, /content/images/size/w600/format/webp/cover.jpg 600w" sizes="100vw">',
+      '<source type="image/webp" srcset="/content/images/size/w320/format/webp/cover.jpg.webp 320w, /content/images/size/w600/format/webp/cover.jpg.webp 600w" sizes="100vw">',
       '<img src="/content/images/size/w1200/cover.jpg" srcset="/content/images/size/w320/cover.jpg 320w, /content/images/size/w600/cover.jpg 600w" sizes="100vw" fetchpriority="high">',
       '</picture>',
       '</body>',
@@ -156,7 +156,7 @@ describe('syncPriorityImagePreload', () => {
     expect(out).toContain('href="/content/images/size/w1200/cover.jpg"');
     expect(out).toContain('type="image/webp"');
     expect(out).toContain(
-      'imagesrcset="/content/images/size/w320/format/webp/cover.jpg 320w, /content/images/size/w600/format/webp/cover.jpg 600w"',
+      'imagesrcset="/content/images/size/w320/format/webp/cover.jpg.webp 320w, /content/images/size/w600/format/webp/cover.jpg.webp 600w"',
     );
     expect(out).toContain('imagesizes="100vw"');
     expect(out).not.toContain('type="image/jpeg"');
@@ -173,7 +173,7 @@ describe('syncPriorityImagePreload', () => {
       '</head><body>',
       '<figure class="article-image">',
       '<picture>',
-      '<source type="image/webp" srcset="/content/images/size/w300/format/webp/cover.jpg 300w, /content/images/size/w600/format/webp/cover.jpg 600w" sizes="92vw">',
+      '<source type="image/webp" srcset="/content/images/size/w300/format/webp/cover.jpg.webp 300w, /content/images/size/w600/format/webp/cover.jpg.webp 600w" sizes="92vw">',
       '<img srcset="/content/images/size/w300/cover.jpg 300w, /content/images/cover.jpg 2000w" sizes="92vw" src="/content/images/cover.jpg">',
       '</picture>',
       '</figure>',
@@ -184,7 +184,7 @@ describe('syncPriorityImagePreload', () => {
 
     expect(out).toContain('type="image/webp"');
     expect(out).toContain(
-      'imagesrcset="/content/images/size/w300/format/webp/cover.jpg 300w, /content/images/size/w600/format/webp/cover.jpg 600w"',
+      'imagesrcset="/content/images/size/w300/format/webp/cover.jpg.webp 300w, /content/images/size/w600/format/webp/cover.jpg.webp 600w"',
     );
     expect(out).toContain('imagesizes="92vw"');
     expect(out).not.toContain('type="image/jpeg"');

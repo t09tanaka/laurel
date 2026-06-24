@@ -722,9 +722,13 @@ feature_image_alt: "Cover"
     }
 
     for (const width of [160, 320, 600, 960, 1200, 2000]) {
-      expect(homeHtml).toContain(`/content/images/size/w${width}/format/webp/cover.jpg ${width}w`);
+      expect(homeHtml).toContain(
+        `/content/images/size/w${width}/format/webp/cover.jpg.webp ${width}w`,
+      );
       expect(
-        existsSync(join(summary.outputDir, `content/images/size/w${width}/format/webp/cover.jpg`)),
+        existsSync(
+          join(summary.outputDir, `content/images/size/w${width}/format/webp/cover.jpg.webp`),
+        ),
       ).toBe(true);
     }
   });

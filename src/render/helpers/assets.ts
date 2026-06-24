@@ -131,6 +131,11 @@ function withMinFileVariant(logical: string): string | undefined {
 
 const SUPPORTED_FORMATS = new Set(['webp', 'avif', 'jpg', 'jpeg', 'png', 'gif']);
 
+// The formats Laurel actually transcodes to disk (generateImageFormatVariants /
+// generateThemeImageSizeVariants). Only these get a `.<fmt>` extension appended
+// to their variant URL so the on-disk file carries the correct Content-Type.
+const TRANSCODED_FORMATS = new Set(['webp', 'avif']);
+
 function normalizeFormat(value: string): string | undefined {
   const lower = value.toLowerCase();
   return SUPPORTED_FORMATS.has(lower) ? lower : undefined;
@@ -168,9 +173,19 @@ function applyTransformSegments(
   const hasFormatSegment = /(^|\/)format\//.test(after);
   let prefix = '';
   if (sizeSegment && !hasSizeSegment) prefix += `size/${sizeSegment}/`;
-  if (format && !hasFormatSegment) prefix += `format/${format}/`;
+  const addFormat = Boolean(format) && !hasFormatSegment;
+  if (addFormat) prefix += `format/${format}/`;
   if (!prefix) return candidate;
-  return `${before}${prefix}${after}`;
+  // Append the format extension so the materialised file ends in `.webp`/`.avif`
+  // and static hosts label it by extension with the correct Content-Type. Ghost
+  // serves these through a dynamic image server that sets the type regardless of
+  // extension; Laurel is static, so the on-disk name must carry the real format.
+  // Mirrors the body-image scheme (generateImageFormatVariants writes
+  // `<rel>.<fmt>`). Only webp/avif are actually transcoded to disk — jpg/png/gif
+  // `format=` values keep the canonical Ghost URL shape (source extension) since
+  // Laurel materialises no file for them.
+  const suffix = addFormat && format && TRANSCODED_FORMATS.has(format) ? `.${format}` : '';
+  return `${before}${prefix}${after}${suffix}`;
 }
 
 // Strip query/fragment before sniffing the extension so a URL like

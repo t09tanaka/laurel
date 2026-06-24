@@ -2510,7 +2510,7 @@ describe('createEngine — templates registered as partials (issue #1131)', () =
         '<nav class="pagination" aria-label="Pagination"><a class="newer-posts" href="/page/1/">&larr; Newer Posts</a><span class="page-number">Page 2 of 3</span><a class="older-posts" href="/page/3/">Older Posts &rarr;</a></nav>',
         '<a href="/about/" class="cta" target="_blank" rel="noopener noreferrer">About</a>',
         '/assets/css/screen.css',
-        'https://example.com/content/images/size/w320/format/webp/hero.jpg',
+        'https://example.com/content/images/size/w320/format/webp/hero.jpg.webp',
         'https://example.com/hello/',
       ].join('|'),
     );
