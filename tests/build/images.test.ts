@@ -1427,6 +1427,48 @@ describe('densifyImageSrcset', () => {
     expect(densifyImageSrcset(html, { ratio: 1.5, ladder })).toBe(html);
   });
 
+  test('densifies the sized gaps when the tail is an original-url (source below top tier)', () => {
+    // img_url drops the /size/ segment and emits the bare original for any theme
+    // size whose width meets/exceeds the source intrinsic width (upscale
+    // avoidance). A card/feature srcset for a smaller source therefore mixes
+    // /size/wXXX/ entries with an original-url tail. The 600->1000 gap (1.67x)
+    // must still be filled instead of bailing the whole <img>.
+    const html =
+      '<img class="post-card-image" srcset="/content/images/size/w300/2024/cover.jpg 300w, /content/images/size/w600/2024/cover.jpg 600w, /content/images/size/w1000/2024/cover.jpg 1000w, /content/images/2024/cover.jpg 1600w" sizes="400px">';
+    const out = densifyImageSrcset(html, { ratio: 1.5, ladder, sourceWidthFor: () => 1048 });
+    expect(out).toContain('/content/images/size/w770/2024/cover.jpg 770w');
+    // The original tail entry is preserved as-is (never rewritten to a /size/ URL
+    // that would 404), and order stays ascending.
+    expect(out).toContain('/content/images/2024/cover.jpg 1600w');
+    expect(out.indexOf('w770')).toBeLessThan(out.indexOf('w1000'));
+    expect(out.indexOf('w1000')).toBeLessThan(out.indexOf('/content/images/2024/cover.jpg 1600w'));
+    // sourceWidthFor still caps inserts: nothing >= 1048 is added.
+    expect(out).not.toContain('w1410');
+  });
+
+  test('preserves a webp format segment while densifying with an original tail', () => {
+    const html =
+      '<img srcset="/content/images/size/w600/format/webp/a.jpg 600w, /content/images/size/w1000/format/webp/a.jpg 1000w, /content/images/a.jpg 1600w">';
+    const out = densifyImageSrcset(html, { ratio: 1.5, ladder, sourceWidthFor: () => 1200 });
+    expect(out).toContain('/content/images/size/w770/format/webp/a.jpg 770w');
+    expect(out).toContain('/content/images/a.jpg 1600w');
+  });
+
+  test('still bails when a non-sized entry is a different source (not the original)', () => {
+    const html =
+      '<img srcset="/content/images/size/w600/a.jpg 600w, /content/images/size/w1000/a.jpg 1000w, /content/images/other.jpg 1600w">';
+    expect(densifyImageSrcset(html, { ratio: 1.5, ladder, sourceWidthFor: () => 1200 })).toBe(html);
+  });
+
+  test('fills the gap between the largest sized width and the original tail', () => {
+    // Source 1500px: theme sizes 1600/2000 exceed it (originals), 1000 shrinks.
+    // 1000->1600 is a 1.6x gap; w1410 (< 1500) must be inserted as a /size/ URL.
+    const html =
+      '<img srcset="/content/images/size/w300/a.jpg 300w, /content/images/size/w600/a.jpg 600w, /content/images/size/w1000/a.jpg 1000w, /content/images/a.jpg 1600w, /content/images/a.jpg 2000w">';
+    const out = densifyImageSrcset(html, { ratio: 1.5, ladder, sourceWidthFor: () => 1500 });
+    expect(out).toContain('/content/images/size/w1410/a.jpg 1410w');
+  });
+
   test('leaves remote / non-Ghost srcsets untouched', () => {
     const html =
       '<img srcset="https://cdn.example.com/a-600.jpg 600w, https://cdn.example.com/a-1000.jpg 1000w">';

@@ -1041,8 +1041,12 @@ interface DensifyImageSrcsetOptions {
 // browser asking for ~700px is forced up to the 1000w file, wasting bytes; an
 // 800w candidate lets it pick a tighter fit. Laurel already controls body-image
 // srcsets via `injectImageSrcset`, so this only touches `<img>` whose srcset is
-// entirely Ghost size-variant URLs sharing one source. Anything else (mixed
-// shapes, density descriptors, remote URLs) is left untouched. Must run before
+// Ghost size-variant URLs sharing one source, optionally with a tail of bare
+// original-URL entries for that same source (which `img_url` emits for theme
+// sizes >= the source intrinsic width to avoid upscaling). Those originals are
+// preserved verbatim while the sized gaps are densified. Anything else (mixed
+// shapes, density descriptors, remote URLs, a foreign source) is left
+// untouched. Must run before
 // `injectThemeImagePictureSources` so the per-format `<source>` it builds
 // inherits the inserted widths. Idempotent: a srcset already within `ratio`
 // gains nothing.
@@ -1066,33 +1070,66 @@ export function densifyImageSrcset(html: string, opts: DensifyImageSrcsetOptions
       const entries = parseSrcsetEntries(srcsetRaw);
       if (entries.length < 2) return match;
 
-      // Require a homogeneous, width-descriptored, single-source srcset; bail
-      // otherwise rather than risk corrupting an unusual srcset.
-      let template: SizedVariantUrl | undefined;
-      const existing = new Set<number>();
+      // Every entry must carry a width descriptor; density descriptors (`2x`)
+      // and junk bail the whole <img>.
+      const descWidths: number[] = [];
       for (const entry of entries) {
         const descMatch = entry.descriptor.match(/^(\d+)w$/);
         if (!descMatch) return match;
+        descWidths.push(Number.parseInt(descMatch[1] ?? '', 10));
+      }
+
+      // Anchor on the first parseable `/size/wXXX/` entry. Without one there is
+      // nothing to densify against (remote/foreign srcset) -> bail.
+      let template: SizedVariantUrl | undefined;
+      for (const entry of entries) {
         const parsed = parseSizedVariantUrl(entry.url, marker);
-        if (!parsed) return match;
-        if (parsed.width !== Number.parseInt(descMatch[1] ?? '', 10)) return match;
-        if (template) {
+        if (parsed) {
+          template = parsed;
+          break;
+        }
+      }
+      if (!template) return match;
+      const tmpl = template;
+
+      // Classify each entry. Sized entries must share the anchor's source and
+      // format. Non-sized entries are tolerated only when they are exactly the
+      // bare original of that same source: `img_url` emits the un-sized original
+      // for any theme size whose width meets/exceeds the source intrinsic width
+      // (upscale avoidance), so a card/feature srcset for a smaller source
+      // legitimately mixes sized entries with an original-url tail. Preserve
+      // those originals verbatim (rewriting them to a `/size/` URL would 404)
+      // and still densify the sized gaps. Anything else (foreign source, remote)
+      // bails the whole <img>.
+      const originalUrl = `${tmpl.before}${tmpl.rel}`;
+      const existing = new Set<number>(); // all widths (sized + original)
+      const sizedWidths = new Set<number>();
+      const originals: { width: number; url: string }[] = [];
+      for (let i = 0; i < entries.length; i += 1) {
+        const entry = entries[i] as { url: string; descriptor: string };
+        const descWidth = descWidths[i] as number;
+        const parsed = parseSizedVariantUrl(entry.url, marker);
+        if (parsed) {
+          if (parsed.width !== descWidth) return match;
           if (
-            parsed.before !== template.before ||
-            parsed.formatSeg !== template.formatSeg ||
-            parsed.rel !== template.rel
+            parsed.before !== tmpl.before ||
+            parsed.formatSeg !== tmpl.formatSeg ||
+            parsed.rel !== tmpl.rel
           ) {
             return match;
           }
+          existing.add(parsed.width);
+          sizedWidths.add(parsed.width);
         } else {
-          template = parsed;
+          const cleaned = entry.url.split(/[?#]/)[0] ?? '';
+          if (cleaned !== originalUrl) return match;
+          existing.add(descWidth);
+          originals.push({ width: descWidth, url: entry.url });
         }
-        existing.add(parsed.width);
       }
-      if (!template) return match;
 
       const sortedExisting = [...existing].sort((a, b) => a - b);
-      const sourceWidth = opts.sourceWidthFor?.(template.rel);
+      const sourceWidth = opts.sourceWidthFor?.(tmpl.rel);
       const inserts = new Set<number>();
       for (let i = 1; i < sortedExisting.length; i += 1) {
         const a = sortedExisting[i - 1] as number;
@@ -1107,10 +1144,15 @@ export function densifyImageSrcset(html: string, opts: DensifyImageSrcsetOptions
       }
       if (inserts.size === 0) return match;
 
-      const allWidths = [...new Set([...existing, ...inserts])].sort((a, b) => a - b);
-      const srcset = allWidths
-        .map((w) => `${template?.before}size/w${w}/${template?.formatSeg}${template?.rel} ${w}w`)
-        .join(', ');
+      // Emit sized widths (existing + inserts) as `/size/` URLs, keep the
+      // original-url entries verbatim, and re-sort the whole set ascending.
+      const out: { width: number; text: string }[] = [];
+      for (const w of new Set([...sizedWidths, ...inserts])) {
+        out.push({ width: w, text: `${tmpl.before}size/w${w}/${tmpl.formatSeg}${tmpl.rel} ${w}w` });
+      }
+      for (const o of originals) out.push({ width: o.width, text: `${o.url} ${o.width}w` });
+      out.sort((a, b) => a.width - b.width);
+      const srcset = out.map((e) => e.text).join(', ');
       return appendImgAttrs(stripAttr(attrsRaw, 'srcset'), `srcset="${srcset}"`, selfClose);
     },
   );
