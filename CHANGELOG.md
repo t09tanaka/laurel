@@ -11,6 +11,24 @@ published to npm with `npm publish`; there is no CI release automation).
 
 _Nothing yet._
 
+## [0.3.2] - 2026-06-24
+
+### Fixed
+
+- Theme feature / card images now serve WebP (and AVIF) at full resolution for
+  high-DPR and large viewports. When a theme `image_sizes` width meets or
+  exceeds the source width, `{{img_url}}` emits the bare original URL (no
+  `/content/images/size/` segment) to avoid upscaling, so the srcset mixes sized
+  entries with an original-URL tail. The per-format `<source>` previously dropped
+  that tail because no WebP/AVIF twin of the full-resolution original existed,
+  capping WebP below the JPEG `<img>` fallback (e.g. WebP stopped at 1000w while
+  JPEG kept 2000w). Laurel now materialises a full-resolution
+  `/content/images/format/<fmt>/<rel>` twin for such sources and maps the
+  original tail onto it, so the WebP/AVIF `<source>` keeps the largest width too.
+  The mapping is guarded on a same-source sized sibling with a width descriptor
+  to avoid emitting a 404 `<source>` for hand-authored mixed-source srcsets.
+  (#691)
+
 ## [0.3.1] - 2026-06-24
 
 ### Fixed
@@ -307,7 +325,8 @@ _Nothing yet._
   components (search, comments stub, OG images, JSON feeds), and
   `laurel import-ghost` / `laurel import-wordpress` migration tooling.
 
-[Unreleased]: https://github.com/t09tanaka/laurel/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/t09tanaka/laurel/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/t09tanaka/laurel/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/t09tanaka/laurel/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/t09tanaka/laurel/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/t09tanaka/laurel/compare/v0.1.12...v0.2.0
