@@ -916,19 +916,30 @@ function themeVariantToFormat(
 // generateThemeImageSizeVariants for sources with a non-shrinking theme size).
 // Returns undefined for any non-original shape (size/ variant, already-format
 // URL, non-jpg/png source, remote URL, `..`).
-function themeOriginalToFormat(
-  url: string,
-  format: ImageFormat,
-  marker: string,
-): string | undefined {
+// Parse the source-relative path of a bare full-resolution original URL
+// (`<…>/content/images/<rel>`). Returns undefined for any non-original shape
+// (size/ variant, already-format URL, non-jpg/png, remote, `..`).
+function bareOriginalRel(url: string, marker: string): string | undefined {
   const cleaned = url.split(/[?#]/)[0] ?? '';
   const idx = cleaned.indexOf(marker);
   if (idx < 0) return undefined;
   const after = cleaned.slice(idx + marker.length);
   if (after.startsWith('size/') || /(^|\/)format\//.test(after)) return undefined;
   if (after === '' || after.includes('..') || !isFormatVariantSource(after)) return undefined;
+  return after;
+}
+
+function themeOriginalToFormat(
+  url: string,
+  format: ImageFormat,
+  marker: string,
+): string | undefined {
+  const rel = bareOriginalRel(url, marker);
+  if (rel === undefined) return undefined;
+  const cleaned = url.split(/[?#]/)[0] ?? '';
+  const idx = cleaned.indexOf(marker);
   const before = cleaned.slice(0, idx + marker.length);
-  return `${before}format/${format}/${after}`;
+  return `${before}format/${format}/${rel}`;
 }
 
 // Build the `<source>` markup (one per requested format) for a theme `<img>`
@@ -961,30 +972,32 @@ function buildThemePictureSources(
   const sources: string[] = [];
   for (const format of formats) {
     const transformed: string[] = [];
-    let hasSized = false;
+    const sizedRels = new Set<string>();
     const originals: { url: string; descriptor: string }[] = [];
     for (const entry of entries) {
       const url = themeVariantToFormat(entry.url, format, marker);
       if (url) {
-        hasSized = true;
+        const parsed = parseSizedVariantUrl(entry.url, marker);
+        if (parsed) sizedRels.add(parsed.rel);
         transformed.push(entry.descriptor ? `${url} ${entry.descriptor}` : url);
         continue;
       }
       // Defer bare originals: only map them to their full-res per-format twin
-      // when the srcset also carries a sized sibling. A sized sibling proves
-      // the source participates in theme sizing, so generateThemeImageSizeVariants
-      // materialised the twin (the bare-original tail and the twin share the
-      // `non-shrinking theme size` trigger) — mapping it without that proof
-      // could 404 a hand-authored srcset. A width descriptor is required for
-      // the same reason: a lone `<img src>` original has no descriptor and no
-      // guaranteed twin.
+      // when the srcset carries a sized sibling for the SAME source. A
+      // same-source sized sibling proves the source participates in theme
+      // sizing, so generateThemeImageSizeVariants materialised the twin (the
+      // bare-original tail and the twin share the `non-shrinking theme size`
+      // trigger) — mapping it without that proof could 404 a hand-authored
+      // mixed-source srcset (mirrors densifyImageSrcset's same-source guard). A
+      // width descriptor is required for the same reason: a lone `<img src>`
+      // original has no descriptor and no guaranteed twin.
       if (entry.descriptor) originals.push({ url: entry.url, descriptor: entry.descriptor });
     }
-    if (hasSized) {
-      for (const original of originals) {
-        const url = themeOriginalToFormat(original.url, format, marker);
-        if (url) transformed.push(`${url} ${original.descriptor}`);
-      }
+    for (const original of originals) {
+      const rel = bareOriginalRel(original.url, marker);
+      if (rel === undefined || !sizedRels.has(rel)) continue;
+      const url = themeOriginalToFormat(original.url, format, marker);
+      if (url) transformed.push(`${url} ${original.descriptor}`);
     }
     if (transformed.length === 0) continue;
     sources.push(`<source type="image/${format}" srcset="${transformed.join(', ')}"${sizesPart}>`);

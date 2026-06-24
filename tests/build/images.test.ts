@@ -728,6 +728,21 @@ describe('injectThemeImagePictureSources', () => {
     expect(injectThemeImagePictureSources(html, { formats: ['webp'] })).toBe(html);
   });
 
+  test('does not map a bare original from a different source than the sized sibling', () => {
+    // A sized sibling for `logo.jpg` does not prove `different.jpg` has a
+    // materialised twin; mapping it could 404 a hand-authored mixed-source
+    // srcset, so the foreign original is dropped from the <source>.
+    const html = [
+      '<img srcset="/content/images/size/w600/logo.jpg 600w, ',
+      '/content/images/different.jpg 2000w" src="/content/images/logo.jpg">',
+    ].join('');
+    const out = injectThemeImagePictureSources(html, { formats: ['webp'] });
+    expect(out).toContain('/content/images/size/w600/format/webp/logo.jpg 600w');
+    expect(out).not.toContain('format/webp/different.jpg');
+    // The foreign original is still kept on the <img> fallback.
+    expect(out).toContain('/content/images/different.jpg 2000w');
+  });
+
   test('does not map a bare original src without a width descriptor', () => {
     // A lone `<img src>` original has no descriptor and no guaranteed twin.
     const html = '<img src="/content/images/cover.jpg">';
